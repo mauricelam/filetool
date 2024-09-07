@@ -19,13 +19,12 @@ const OUTPUT = createRoot(document.getElementById('output'))
 async function handleFile(file: File) {
     await initializeImageMagick(new URL(wasm, import.meta.url))
     const buf = new Uint8Array(await file.arrayBuffer())
-    const inputFormat = mimeTypeToFormat(file.type, file.name);
-    ImageMagick.read(buf, inputFormat, (image) => {
-        image.writeToCanvas(CANVAS)
-    })
-    const imageInfo = MagickImageInfo.create(buf, new MagickReadSettings({ format: inputFormat }))
+    const inputFormat = mimeTypeToFormat(file.type, file.name)
+    const readSettings = new MagickReadSettings({ format: inputFormat })
+    ImageMagick.read(buf, readSettings, (image) => { image.writeToCanvas(CANVAS) })
+    const imageInfo = MagickImageInfo.create(buf, readSettings)
     const downloadAs = async (format: MagickFormat) => {
-        const data = ImageMagick.read(buf, inputFormat, (image) => {
+        const data = ImageMagick.read(buf, readSettings, (image) => {
             return image.write(format, (data) => data)
         })
         const outputFile = new File([data], `${getFileStem(file.name)}.${format.toLowerCase()}`)
@@ -54,28 +53,26 @@ async function handleFile(file: File) {
     )
 }
 
-function mimeTypeToFormat(mime: string, filename: string): MagickFormat {
-    switch (mime) {
-        case "image/vnd.microsoft.icon":
-            return MagickFormat.Ico
-        case "image/x-portable-pixmap":
-            return MagickFormat.Pnm
-        case "image/tiff":
-            return MagickFormat.Tiff
-        case "image/vnd.adobe.photoshop":
-            return MagickFormat.Psd
-        case "image/heif":
-            return MagickFormat.Heif
-        case "font/sfnt":
-            return MagickFormat.Ttf
-        case "image/avif":
-            return MagickFormat.Avif
-        default:
-            if (/.*\.raw/i.test(filename)) {
-                return MagickFormat.Raw
-            }
-            return MagickFormat.Unknown
+const MIME_FORMAT_MAP = {
+    "image/vnd.microsoft.icon": MagickFormat.Ico,
+    "image/x-portable-pixmap": MagickFormat.Pnm,
+    "image/tiff": MagickFormat.Tiff,
+    "image/vnd.adobe.photoshop": MagickFormat.Psd,
+    "image/heif": MagickFormat.Heif,
+    "font/sfnt": MagickFormat.Ttf,
+    "image/avif": MagickFormat.Avif,
+    "image/png": MagickFormat.Png,
+    "image/jpeg": MagickFormat.Jpeg,
+    "image/gif": MagickFormat.Gif,
+}
+
+function mimeTypeToFormat(mime: string, filename: string): MagickFormat | undefined {
+    if (mime in MIME_FORMAT_MAP) {
+        return MIME_FORMAT_MAP[mime]
+    } else if (/.*\.raw/i.test(filename)) {
+        return MagickFormat.Raw
     }
+    return undefined
 }
 
 function getFileStem(filename: string): string {

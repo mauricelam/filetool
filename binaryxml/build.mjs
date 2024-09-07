@@ -1,5 +1,6 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
+import { wasmPack } from 'esbuild-plugin-wasm-pack';
 import { wasmLoader } from 'esbuild-plugin-wasm';
 import process from 'process';
 
@@ -18,18 +19,11 @@ const SETTINGS = {
           to: ["index.html"],
           watch: process.env['BUILD_MODE'] === 'dev',
         },
-        {
-          from: ["abxml-wrapper/pkg/abxml_wrapper_bg.wasm"],
-          to: ["abxml_wrapper_bg.wasm"],
-          watch: process.env['BUILD_MODE'] === 'dev',
-        },
-        {
-          from: ["abxml-wrapper/pkg/abxml_wrapper.js"],
-          to: ["abxml_wrapper.js"],
-          watch: process.env['BUILD_MODE'] === 'dev',
-        },
       ]
     }),
+    // wasmPack({
+    //   path: 'abxml-wrapper'
+    // }),
     wasmLoader(),
   ],
 }
