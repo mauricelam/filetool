@@ -66,10 +66,7 @@ export default [
         "name": "Android binary viewer",
         "handler": "/binaryxml",
         "mimetypes": [
-            {
-                "mime": "application/octet-stream",
-                "filename": /.*\.xml/
-            }
+            "application/vnd.android.package-archive"
         ]
     },
     {
@@ -78,6 +75,18 @@ export default [
         "mimetypes": [
             "application/x-mach-binary",
             "application/x-executable",
+        ]
+    },
+    {
+        "name": "ImageMagick",
+        "handler": "/imagemagick",
+        "mimetypes": [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+            "image/svg+xml",
+            "image/jxl",
         ]
     }
 ]

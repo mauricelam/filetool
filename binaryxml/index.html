@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Android Binary XML</title>
+    <style>
+        body {
+            width: 100%;
+            box-sizing: border-box;
+            background-color: black;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            color: #ddd;
+            margin: 0;
+            padding: 8px;
+        }
+
+        pre {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        #output > div > pre {
+            display: none;
+        }
+
+        #output > div.expanded > pre {
+            display: block;
+        }
+
+        #output > div > label {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="output"></div>
+</body>
+<script type="module" src="main.js"></script>
+</html>

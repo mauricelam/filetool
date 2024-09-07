@@ -6,7 +6,9 @@
         "hex_viewer",
         "archive",
         "classyshark",
-        "binutils"
+        "binutils",
+        "binaryxml",
+        "imagemagick"
     ],
     "scripts": {
         "copy-index": "mkdir -p dist && cp index.html dist/index.html",
@@ -17,6 +19,8 @@
         "watch:archive": "npm run -w archive watch",
         "watch:classyshark": "npm run -w classyshark watch",
         "watch:binutils": "npm run -w binutils watch",
+        "watch:binaryxml": "npm run -w binaryxml watch",
+        "watch:imagemagick": "npm run -w imagemagick watch",
         "serve": "run-p copy-index watch:* run-server"
     },
     "devDependencies": {
