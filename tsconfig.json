@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "lib": ["ES2022", "DOM"],
+        "moduleResolution": "Node",
+        "module": "ES2022",
+        "outDir": "dist",
+        "allowJs": true,
+        "jsx": "react",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true
+    }
+}

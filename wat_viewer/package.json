@@ -1,0 +1,14 @@
+{
+  "name": "wasmtools-wat_viewer",
+  "version": "1.0.0",
+  "author": "Maurice Lam",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "wabt": "^1.0.36"
+  },
+  "license": "MIT",
+  "description": ""
+}

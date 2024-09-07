@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Binutils</title>
+    <style>
+        body {
+            width: 100%;
+            box-sizing: border-box;
+            background-color: black;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            color: #ddd;
+            margin: 0;
+            padding: 8px;
+        }
+
+        pre {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-all;
+            text-indent: -4em;
+            padding-left: 4em;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <button id="objdump">objdump</button>
+        <button id="nm">nm</button>
+        <button id="strings">strings</button>
+        <button id="readelf">readelf</button>
+        <button id="size">size</button>
+    </div>
+    <pre id="output"></pre>
+</body>
+<script type="module" src="main.js"></script>
+</html>

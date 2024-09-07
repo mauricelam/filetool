@@ -1,0 +1,37 @@
+{
+    "name": "filemagic",
+    "workspaces": [
+        "main",
+        "wat_viewer",
+        "hex_viewer",
+        "archive",
+        "classyshark",
+        "binutils"
+    ],
+    "scripts": {
+        "copy-index": "mkdir -p dist && cp index.html dist/index.html",
+        "run-server": "http-server dist",
+        "watch:main": "npm run -w main watch",
+        "watch:wat_viewer": "npm run -w wat_viewer watch",
+        "watch:hex_viewer": "npm run -w hex_viewer watch",
+        "watch:archive": "npm run -w archive watch",
+        "watch:classyshark": "npm run -w classyshark watch",
+        "watch:binutils": "npm run -w binutils watch",
+        "serve": "run-p copy-index watch:* run-server"
+    },
+    "devDependencies": {
+        "@types/react": "^18.3.5",
+        "@types/react-dom": "^18.3.0",
+        "esbuild": "^0.23.1",
+        "esbuild-plugin-copy": "^2.1.1",
+        "esbuild-plugin-wasm": "^1.1.0",
+        "typescript": "^5.5.4"
+    },
+    "dependencies": {
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "wabt": "^1.0.36"
+    },
+    "license": "MIT",
+    "description": ""
+}

@@ -1,0 +1,14 @@
+{
+  "name": "wasmtools-binutils",
+  "version": "1.0.0",
+  "author": "Maurice Lam",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "@binutils-wasm/binutils": "^0.1.3"
+  },
+  "license": "MIT",
+  "description": ""
+}
