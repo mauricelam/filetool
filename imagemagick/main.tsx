@@ -1,4 +1,4 @@
-import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, Magick, MagickFormat, MagickImageInfo } from "@imagemagick/magick-wasm"
+import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, Magick, MagickFormat, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm"
 import React from "react"
 import { createRoot } from "react-dom/client"
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
@@ -19,12 +19,13 @@ const OUTPUT = createRoot(document.getElementById('output'))
 async function handleFile(file: File) {
     await initializeImageMagick(new URL(wasm, import.meta.url))
     const buf = new Uint8Array(await file.arrayBuffer())
-    ImageMagick.read(buf, (image) => {
+    const inputFormat = mimeTypeToFormat(file.type, file.name);
+    ImageMagick.read(buf, inputFormat, (image) => {
         image.writeToCanvas(CANVAS)
     })
-    const imageInfo = MagickImageInfo.create(buf)
+    const imageInfo = MagickImageInfo.create(buf, new MagickReadSettings({ format: inputFormat }))
     const downloadAs = async (format: MagickFormat) => {
-        const data = ImageMagick.read(buf, (image) => {
+        const data = ImageMagick.read(buf, inputFormat, (image) => {
             return image.write(format, (data) => data)
         })
         const outputFile = new File([data], `${getFileStem(file.name)}.${format.toLowerCase()}`)
@@ -40,7 +41,7 @@ async function handleFile(file: File) {
             <div>Compression: {CompressionMethod[imageInfo.compression]}</div>
             <div>Density: {imageInfo.density.x}{imageInfo.density.x != imageInfo.density.y ? ` x ${imageInfo.density.y}` : ''} {DensityUnit[imageInfo.density.units]}</div>
             <div>Format: {imageInfo.format}</div>
-            <div>Size: {imageInfo.width}px x {imageInfo.height}px</div>
+            <div>Size: {imageInfo.width} x {imageInfo.height}px</div>
             <div>Interlace: {Interlace[imageInfo.interlace]}</div>
             <div>Orientation: {OrientationType[imageInfo.orientation]}</div>
             <div>Quality: {imageInfo.quality}</div>
@@ -51,6 +52,30 @@ async function handleFile(file: File) {
             <button onClick={() => downloadAs((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>Download</button>
         </div>
     )
+}
+
+function mimeTypeToFormat(mime: string, filename: string): MagickFormat {
+    switch (mime) {
+        case "image/vnd.microsoft.icon":
+            return MagickFormat.Ico
+        case "image/x-portable-pixmap":
+            return MagickFormat.Pnm
+        case "image/tiff":
+            return MagickFormat.Tiff
+        case "image/vnd.adobe.photoshop":
+            return MagickFormat.Psd
+        case "image/heif":
+            return MagickFormat.Heif
+        case "font/sfnt":
+            return MagickFormat.Ttf
+        case "image/avif":
+            return MagickFormat.Avif
+        default:
+            if (/.*\.raw/i.test(filename)) {
+                return MagickFormat.Raw
+            }
+            return MagickFormat.Unknown
+    }
 }
 
 function getFileStem(filename: string): string {

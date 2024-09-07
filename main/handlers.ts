@@ -20,6 +20,7 @@ export default [
             "image/webp",
             "image/gif",
             "image/svg+xml",
+            "image/vnd.microsoft.icon",
         ]
     },
     {
@@ -58,7 +59,7 @@ export default [
             "application/vnd.android.package-archive",
             {
                 "mime": "application/zip",
-                "filename": /.*\.jar|.*\.aar/,
+                "filename": /.*\.jar|.*\.aar/i,
             }
         ]
     },
@@ -85,8 +86,19 @@ export default [
             "image/png",
             "image/webp",
             "image/gif",
-            "image/svg+xml",
             "image/jxl",
+            "image/vnd.microsoft.icon",
+            "image/x-portable-pixmap",
+            "image/tiff",
+            "image/vnd.adobe.photoshop",
+            "image/heif",
+            {
+                "mime": "application/octet-stream",
+                "filename": /.*\.raw/i,
+            },
+            "font/sfnt",
+            "image/apng",
+            "image/avif",
         ]
     }
 ]
