@@ -19,6 +19,25 @@
             box-sizing: border-box;
         }
 
+        nav {
+            padding: 8px;
+            background-color: #1f225a;
+            color: #fff;
+        }
+
+        #logo {
+            padding: 8px;
+        }
+
+        #title {
+            font-size: 30px;
+            font-family: 'Georgia', serif;
+        }
+
+        #subtitle {
+            color: #ccc;
+        }
+
         #basicinfo {
             display: flex;
             flex-direction: row;
@@ -35,7 +54,8 @@
         }
 
         #droptarget {
-            width: 200px;
+            min-width: 200px;
+            max-width: 512px;
             height: 100%;
             border: 2px dashed #666;
             border-radius: 10px;
@@ -44,8 +64,10 @@
             justify-content: center;
             align-items: center;
             flex-shrink: 0;
+            flex-grow: 1;
             cursor: pointer;
             box-sizing: border-box;
+            flex-direction: column;
         }
 
         #droptarget:hover {
@@ -65,8 +87,8 @@
             pointer-events: none;
         }
 
-        #result .mime {
-            color: #555;
+        #result:not(:empty) {
+            flex-grow: 999;
         }
 
         #handler {
@@ -76,12 +98,26 @@
         #handler:not([src]) {
             display: none;
         }
+
+        iframe {
+            border: 0;
+        }
     </style>
 </head>
 
 <body>
+    <nav>
+        <div id="logo">
+            <div id="title">Finalyzer</div>
+            <div id="subtitle">The File Analyzer</div>
+        </div>
+    </nav>
     <div id="basicinfo">
         <div id="droptarget">
+            <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#434343">
+                <path
+                    d="M186.67-120q-27.5 0-47.09-19.58Q120-159.17 120-186.67v-426.66q0-27.5 19.58-47.09Q159.17-680 186.67-680H380v66.67H186.67v426.66h586.66v-426.66H580V-680h193.33q27.5 0 47.09 19.58Q840-640.83 840-613.33v426.66q0 27.5-19.58 47.09Q800.83-120 773.33-120H186.67ZM480-322 318.67-483.33 366-530.67l80.67 80.34V-960h66.66v509.67L594-530.67l47.33 47.34L480-322Z" />
+            </svg>
             <div>Drop file here</div>
             <input type="file" id="fileinput" style="display: none;" multiple />
         </div>

@@ -2,6 +2,7 @@ import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import * as React from 'react';
 import HANDLERS from './handlers';
+import { FileItem } from "./fileitem";
 
 const dropTarget = document.getElementById('droptarget')
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
@@ -111,11 +112,12 @@ async function renderFile(file: File) {
         </button>
     ))
     return (
-        <div key={file.name}>
-            <div className="filename">{file.name}</div>
-            <div className="mime">{mime}</div>
-            <div className="filedescription">{magic.detect(fileBuf)}</div>
-            <div className="buttonBar">{handlerButtons}</div>
-        </div>
+        <FileItem
+            key={file.name}
+            name={file.name}
+            mimetype={mime}
+            description={magic.detect(fileBuf)}
+            handlers={handlerButtons}
+        />
     )
 }

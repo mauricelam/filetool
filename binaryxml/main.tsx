@@ -17,7 +17,6 @@ const OUTPUT = createRoot(document.getElementById('output')!!)
 async function handleFile(file: File) {
     const fileBytes = new Uint8Array(await file.arrayBuffer());
     const decoded = decode_apk(fileBytes)
-    console.log('decoded', decoded)
     const entries = decoded.map(([name, contents]: [string, string]) => {
         return (
             <div key={name}>

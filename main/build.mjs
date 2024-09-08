@@ -21,6 +21,10 @@ const SETTINGS = {
           to: ["index.html"],
           watch: process.env['BUILD_MODE'] === 'dev',
         },
+        {
+          from: ["icons/icons/*.svg"],
+          to: ["icons/"],
+        },
       ]
     })
   ],

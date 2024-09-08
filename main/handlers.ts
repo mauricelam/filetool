@@ -56,15 +56,16 @@ export default [
         "name": "ClassyShark",
         "handler": "/classyshark",
         "mimetypes": [
-            "application/vnd.android.package-archive",
-            {
-                "mime": "application/zip",
-                "filename": /.*\.jar|.*\.aar/i,
-            }
+            // Disabled since it takes too long to load
+            // "application/vnd.android.package-archive",
+            // {
+            //     "mime": "application/zip",
+            //     "filename": /.*\.jar|.*\.aar/i,
+            // }
         ]
     },
     {
-        "name": "Android binary viewer",
+        "name": "Android APK viewer",
         "handler": "/binaryxml",
         "mimetypes": [
             "application/vnd.android.package-archive"
