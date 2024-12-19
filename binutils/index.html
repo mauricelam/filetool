@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <title>Binutils</title>
     <style>
+        html {
+            height: 100%;
+        }
         body {
             width: 100%;
+            height: 100%;
             box-sizing: border-box;
             background-color: black;
             display: flex;
@@ -13,27 +17,14 @@
             justify-content: center;
             color: #ddd;
             margin: 0;
-            padding: 8px;
         }
-
-        pre {
-            display: block;
-            white-space: pre-wrap;
-            word-break: break-all;
-            text-indent: -4em;
-            padding-left: 4em;
+        #root {
+            height: 100%;
         }
     </style>
 </head>
 <body>
-    <div>
-        <button id="objdump">objdump</button>
-        <button id="nm">nm</button>
-        <button id="strings">strings</button>
-        <button id="readelf">readelf</button>
-        <button id="size">size</button>
-    </div>
-    <pre id="output"></pre>
+    <div id="root"></div>
 </body>
 <script type="module" src="main.js"></script>
 </html>

@@ -1,3 +1,4 @@
+use serde_bytes::ByteBuf;
 use std::fs::File;
 
 use wasm_bindgen::prelude::*;
@@ -12,8 +13,8 @@ pub fn decode_apk(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
     serde_wasm_bindgen::to_value(
         &strings
             .into_iter()
-            .map(|(name, bytes)| (name, String::from_utf8_lossy(&bytes).into()))
-            .collect::<Vec<(String, String)>>(),
+            .map(|(name, contents)| (name, ByteBuf::from(contents)))
+            .collect::<Vec<(String, ByteBuf)>>(),
     )
     .map_err(|e| JsError::new(&format!("{e}")))
 }

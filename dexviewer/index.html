@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DEX viewer</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: row;
+            justify-content: left;
+            padding: 0 48px;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .membername {
+            font-family: 'Roboto Mono', 'Monaco', 'Menlo', monospace;
+        }
+
+        .dexclass > .membername {
+            cursor: pointer;
+        }
+
+        .dexclass > .membername::before {
+            content: "► ";
+            width: 32px;
+            display: inline-block;
+            font-size: 12px;
+        }
+
+        .dexclass.expanded > .membername::before {
+            content: "▼ ";
+        }
+
+        .method > .membername {
+            cursor: pointer;
+        }
+
+        .method > .membername::before {
+            content: "► ";
+            width: 32px;
+            display: inline-block;
+            font-size: 12px;
+        }
+
+        .method.expanded > .membername::before {
+            content: "▼ ";
+        }
+
+        .instruction {
+            font-family: 'Courier New', Courier, monospace;
+            color: #222;
+            padding: 2px 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="output"></div>
+</body>
+<script type="module" src="main.js"></script>
+<script type="module" src="wasm_exec.js"></script>
+</html>

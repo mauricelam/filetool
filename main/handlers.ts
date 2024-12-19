@@ -1,4 +1,29 @@
-export default [
+interface MimeMatchDetailed {
+    mime?: string | RegExp,
+    filename?: string | RegExp,
+}
+
+type MimeMatch = MimeMatchDetailed | string | RegExp;
+
+export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: string): boolean {
+    const matchStringOrRegex = (stringOrRegex: string | RegExp | undefined, matchee: string): boolean => {
+        if (stringOrRegex === undefined) {
+            return true
+        } else if (typeof stringOrRegex === 'string') {
+            return stringOrRegex === matchee
+        } else {
+            return stringOrRegex.test(matchee)
+        }
+    }
+
+    if (typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)) {
+        return matchStringOrRegex(mimeMatch.mime, mime) && matchStringOrRegex(mimeMatch.filename, filename)
+    } else {
+        return matchStringOrRegex(mimeMatch, mime)
+    }
+}
+
+export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
     {
         "name": "Hex",
         "handler": "/hex_viewer",
@@ -7,10 +32,18 @@ export default [
         ]
     },
     {
+        "name": "EML/MHTML",
+        "handler": "/mhtml",
+        "mimetypes": [
+            "message/rfc822",
+        ]
+    },
+    {
         "name": "Browser",
-        "handler": "__browser__",
+        "handler": "/browser",
         "mimetypes": [
             "video/3gpp",
+            "video/mp4",
             "audio/x-m4a",
             "text/html",
             "audio/mpeg",
@@ -24,13 +57,24 @@ export default [
         ]
     },
     {
+        "name": "DEX viewer",
+        "handler": "/dexviewer",
+        "mimetypes": [
+            {
+                mime: "application/octet-stream",
+                filename: /.*\.dex/i,
+            },
+        ]
+    },
+    {
         "name": "Text Viewer",
-        "handler": "__text__",
+        "handler": "/textviewer",
         "mimetypes": [
             /text\/.*/,
             "message/rfc822",
             "image/svg+xml",
             "application/json",
+            "application/javascript",
         ]
     },
     {
@@ -50,6 +94,8 @@ export default [
             "application/vnd.android.package-archive",  // APK
             "application/x-rar",
             "application/x-7z-compressed",
+            "application/java-archive",
+            "application/x-lzh-compressed",
         ]
     },
     {
@@ -68,7 +114,18 @@ export default [
         "name": "Android APK viewer",
         "handler": "/binaryxml",
         "mimetypes": [
-            "application/vnd.android.package-archive"
+            "application/vnd.android.package-archive",
+            {
+                mime: "application/zip",
+                filename: /.*\.apk/i,
+            }
+        ]
+    },
+    {
+        "name": "JVM Classfile",
+        "handler": "/classfile",
+        "mimetypes": [
+            "application/x-java-applet",
         ]
     },
     {
@@ -77,6 +134,7 @@ export default [
         "mimetypes": [
             "application/x-mach-binary",
             "application/x-executable",
+            "application/x-sharedlib",
         ]
     },
     {
@@ -93,6 +151,7 @@ export default [
             "image/tiff",
             "image/vnd.adobe.photoshop",
             "image/heif",
+            "image/heic",
             {
                 "mime": "application/octet-stream",
                 "filename": /.*\.raw/i,
@@ -101,5 +160,51 @@ export default [
             "image/apng",
             "image/avif",
         ]
+    },
+    {
+        "name": "CheerpJ (JVM in browser)",
+        "handler": "/cheerpj",
+        "mimetypes": [
+            {
+                mime: "application/zip",
+                filename: /.*\.jar/,
+            }
+        ]
+    },
+    {
+        "name": "ffmpeg",
+        "handler": "/ffmpeg",
+        "mimetypes": [
+            "video/3gpp",
+            "video/3gpp2",
+            "audio/aac",
+            "video/mpeg",
+            "application/f4v",
+            "audio/x-flac",
+            "video/x-flv",
+            "application/x-mpegURL",
+            "video/mp4",
+            "video/x-m4v",
+            "video/x-matroska",
+            "video/webm",
+            "audio/mpeg",
+            "audio/ogg",
+            "video/ogg",
+            "application/x-shockwave-flash",
+            "audio/x-wav",
+            "video/x-msvideo",
+            "video/quicktime",
+        ]
+    },
+    {
+        "name": "markdown",
+        "handler": "/markdown",
+        "mimetypes": [
+            {
+                filename: /\.md/i,
+            }
+        ]
     }
 ]
+
+export default HANDLERS

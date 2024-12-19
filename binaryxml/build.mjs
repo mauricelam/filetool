@@ -1,6 +1,5 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
-import { wasmPack } from 'esbuild-plugin-wasm-pack';
 import { wasmLoader } from 'esbuild-plugin-wasm';
 import process from 'process';
 
@@ -21,9 +20,6 @@ const SETTINGS = {
         },
       ]
     }),
-    // wasmPack({
-    //   path: 'abxml-wrapper'
-    // }),
     wasmLoader(),
   ],
 }

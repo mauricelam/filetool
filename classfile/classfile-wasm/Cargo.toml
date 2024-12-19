@@ -1,0 +1,21 @@
+[package]
+name = "classfile-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+# Use git dependency for https://gitlab.com/frozo/noak/-/issues/10
+noak = { git = "https://gitlab.com/frozo/noak.git", rev = "d910af1ee40fa63533a86b26ccf0a52ac933b61d" }
+serde-wasm-bindgen = "0.6.5"
+wasm-bindgen = "0.2.93"
+hex = "0.4.3"
+log = "0.4.22"
+console_log = "1.0.0"
+indenter = { version = "0.3.3", features = ["std"] }
+nom = "7.1.3"

@@ -1,0 +1,16 @@
+{
+  "name": "wasmtools-markdown",
+  "version": "1.0.0",
+  "author": "Maurice Lam",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1"
+  },
+  "license": "MIT",
+  "description": ""
+}

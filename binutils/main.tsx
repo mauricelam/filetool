@@ -1,3 +1,11 @@
+import React from "react"
+import { useState } from "react"
+import { createRoot } from "react-dom/client"
+import AceEditor from "react-ace"
+
+import "ace-builds/src-noconflict/theme-twilight"
+import "ace-builds/src-noconflict/mode-lisp"
+
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
         handleFile(e.data.file)
@@ -8,34 +16,34 @@ if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' })
 }
 
-const OUTPUT = document.getElementById('output')
+const ROOT = createRoot(document.getElementById('root'))
 
 async function handleFile(file: File) {
-    OUTPUT.innerText = ''
-    document.getElementById('objdump').onclick = async () => {
-        binutil('objdump', file)
-    };
-    document.getElementById('nm').onclick = async () => {
-        binutil('nm', file)
-    };
-    document.getElementById('strings').onclick = async () => {
-        binutil('strings', file)
-    };
-    document.getElementById('readelf').onclick = async () => {
-        binutil('readelf', file)
-    };
-    document.getElementById('size').onclick = async () => {
-        binutil('size', file)
-    };
+    ROOT.render(<App file={file} />)
 }
 
-async function binutil(action: string, file: File) {
-    OUTPUT.innerText = ''
-    const binutilsWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
-    binutilsWorker.onmessage = (e) => {
-        const div = document.createElement('div')
-        div.innerText = e.data
-        OUTPUT.appendChild(div)
-    }
-    binutilsWorker.postMessage({ action, file }, [await file.arrayBuffer()])
+let currentWorker: Worker | undefined;
+
+function App({ file }: { file: File }) {
+    const [output, setOutput] = useState<string>()
+    return (
+        <>
+            <button onClick={() => binutil('objdump', file, setOutput)}>objdump</button>
+            <button onClick={() => binutil('nm', file, setOutput)}>nm</button>
+            <button onClick={() => binutil('strings', file, setOutput)}>strings</button>
+            <button onClick={() => binutil('readelf', file, setOutput)}>readelf</button>
+            <button onClick={() => binutil('size', file, setOutput)}>size</button>
+
+            <AceEditor value={output} width="100%" height="100%" theme="twilight" mode="lisp" style={{ flexGrow: 1 }} />
+        </>
+    )
+}
+
+async function binutil(action: string, file: File, setOutput: React.Dispatch<React.SetStateAction<string>>) {
+    currentWorker?.terminate()
+    setOutput(_ => "")
+    currentWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
+    const buffer = await file.arrayBuffer()
+    currentWorker.onmessage = (e) => setOutput(text => text + e.data + "\n")
+    currentWorker.postMessage({ action, file }, [buffer])
 }

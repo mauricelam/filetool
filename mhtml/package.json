@@ -1,0 +1,14 @@
+{
+  "name": "wasmtools-mhtml",
+  "version": "1.0.0",
+  "author": "Maurice Lam",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "eml-parse-js": "^1.1.15"
+  },
+  "license": "MIT",
+  "description": ""
+}

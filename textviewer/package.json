@@ -1,0 +1,16 @@
+{
+  "name": "wasmtools-textviewer",
+  "version": "1.0.0",
+  "author": "Maurice Lam",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-syntax-highlighter": "^15.6.1"
+  },
+  "license": "MIT",
+  "description": ""
+}

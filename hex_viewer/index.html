@@ -4,12 +4,21 @@
     <meta charset="UTF-8">
     <title>Hex viewer</title>
     <style>
+        html, body, #output, #hexviewer {
+            height: 100%;
+        }
+
         body {
             background-color: black;
+            margin: 0;
+        }
+
+        #hexviewer {
             display: flex;
             flex-direction: row;
             justify-content: center;
             color: #ddd;
+            line-height: 16px;
         }
 
         #hex {
@@ -30,9 +39,7 @@
     </style>
 </head>
 <body>
-    <pre id="offset"></pre>
-    <pre id="hex"></pre>
-    <pre id="ascii"></pre>
+    <div id="output"></div>
 </body>
 <script type="module" src="main.js"></script>
 </html>
