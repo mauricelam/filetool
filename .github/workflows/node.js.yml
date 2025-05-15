@@ -25,6 +25,12 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23.4' # Specify your Go version if needed
+    - name: Set up Rust
+      uses: actions/setup-rust@v2
+      with:
+        toolchain: stable
+    - name: Install wasm-pack
+      run: cargo install wasm-pack
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
