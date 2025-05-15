@@ -7,12 +7,26 @@ import { FileItem } from "./fileitem";
 const dropTarget = document.getElementById('droptarget')
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
 
-fileInput.onchange = (e) => dispatchOpenFiles(fileInput.files);
+fileInput.onchange = (e) => dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
 dropTarget.addEventListener('drop', (e) => {
     dropTarget.classList.remove('dropover')
     e.preventDefault();
-    dispatchOpenFiles(e.dataTransfer.files)
+    let hasNonFile = false
+    const items = Array.from(e.dataTransfer.items).filter(item => {
+        if (item.webkitGetAsEntry()?.isFile) {
+            return true
+        } else {
+            hasNonFile = true
+            return false
+        }
+    })
+    if (hasNonFile) {
+        alert("Warning: Drop of non-file items (directories or text) is not supported")
+    }
+    if (items.length > 0) {
+        dispatchOpenFiles(items.map(item => item.getAsFile()));
+    }
 }, false);
 
 dropTarget.addEventListener('dragend', (e) => {
@@ -52,8 +66,8 @@ const MIMEMAGIC = WASMagic.create({
 const resultDiv = createRoot(document.getElementById("result"))
 resultDiv.render(<FileList />)
 
-function dispatchOpenFiles(files: FileList) {
-    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: Array.from(files) }))
+function dispatchOpenFiles(files: File[]) {
+    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
 }
 
 const iframe = document.getElementById('handler') as HTMLIFrameElement

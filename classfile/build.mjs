@@ -3,6 +3,7 @@ import { copy } from 'esbuild-plugin-copy';
 import { wasmLoader } from 'esbuild-plugin-wasm';
 import process from 'process';
 import { execSync } from 'child_process';
+import fs from 'fs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -26,12 +27,17 @@ const SETTINGS = {
       name: 'wasm-pack',
       setup(build) {
         build.onStart(() => {
-          execSync('wasm-pack build classfile-wasm --target web', {
+          execSync(`wasm-pack build classfile-wasm --target web`, {
             stdio: 'inherit'
           });
+          fs.copyFileSync(
+            'classfile-wasm/pkg/classfile_wasm_bg.wasm',
+            `${build.initialOptions.outdir}/classfile_wasm_bg.wasm`
+          );
         });
       }
     },
+
   ],
 }
 

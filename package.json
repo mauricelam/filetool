@@ -16,6 +16,7 @@
         "browser",
         "dexviewer",
         "textviewer",
+        "rustdexviewer",
         "main"
     ],
     "scripts": {
@@ -37,6 +38,7 @@
         "watch:browser": "npm run -w browser watch",
         "watch:dexviewer": "npm run -w dexviewer watch",
         "watch:textviewer": "npm run -w textviewer watch",
+        "watch:rustdexviewer": "npm run -w rustdexviewer watch",
         "serve": "run-p copy-index watch:* run-server"
     },
     "devDependencies": {

@@ -57,8 +57,18 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
-        "name": "DEX viewer",
+        "name": "Go DEX viewer",
         "handler": "/dexviewer",
+        "mimetypes": [
+            {
+                mime: "application/octet-stream",
+                filename: /.*\.dex/i,
+            },
+        ]
+    },
+    {
+        "name": "DEX viewer",
+        "handler": "/rustdexviewer",
         "mimetypes": [
             {
                 mime: "application/octet-stream",

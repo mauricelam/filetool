@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { parse_classfile, ParsedClass } from './classfile-wasm/pkg'
+import init, { parse_classfile, ParsedClass } from './classfile-wasm/pkg'
 import React, { ReactElement, useState } from 'react'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs'
@@ -18,6 +18,7 @@ const OUTPUT = createRoot(document.getElementById('output'))
 
 async function handleFile(file: File) {
     const fileBytes = new Uint8Array(await file.arrayBuffer());
+    await init()
     const parsed = parse_classfile(fileBytes)
     OUTPUT.render(<JvmClass classContent={parsed} />);
 }
