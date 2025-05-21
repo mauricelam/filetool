@@ -1,7 +1,9 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import { wasmLoader } from 'esbuild-plugin-wasm';
+import { execSync } from 'child_process';
 import process from 'process';
+import fs from 'fs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -21,6 +23,21 @@ const SETTINGS = {
       ]
     }),
     wasmLoader(),
+    {
+      name: 'wasm-pack',
+      setup(build) {
+        build.onStart(() => {
+          execSync(`wasm-pack build abxml-wrapper --target web`, {
+            stdio: 'inherit'
+          });
+          fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
+          fs.copyFileSync(
+            'abxml-wrapper/pkg/abxml_wrapper_bg.wasm',
+            `${build.initialOptions.outdir}/abxml_wrapper_bg.wasm`
+          );
+        });
+      }
+    },
   ],
 }
 
