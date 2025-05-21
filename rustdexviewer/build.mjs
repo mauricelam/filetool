@@ -16,7 +16,7 @@ const SETTINGS = {
       name: 'build-wasm',
       setup: (build) => {
         function buildWasm() {
-          execSync(`wasm-pack build dexviewer --target web`);
+          execSync('wasm-pack build --target web --out-dir ./pkg --release', { stdio: 'inherit', cwd: './dexviewer' });
           fs.copyFileSync(
             'dexviewer/pkg/dexviewer_bg.wasm',
             `${build.initialOptions.outdir}/dexviewer_bg.wasm`
@@ -45,6 +45,7 @@ const SETTINGS = {
       name: 'build-go-wasm',
       setup: (build) => {
         build.onStart(async () => {
+          fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
           execSync(`cp $(go env GOROOT)/misc/wasm/wasm_exec.js ${build.initialOptions.outdir}/wasm_exec.js`);
           execSync(`cd godexviewer && GOOS=js GOARCH=wasm go build -o ../${build.initialOptions.outdir}/dextk.wasm`);
         });

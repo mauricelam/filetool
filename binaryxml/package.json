@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {
-    "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs"
+    "build": "npm run compile-wasm && node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs",
+    "compile-wasm": "cd abxml-wrapper && wasm-pack build --target web --out-dir ../pkg --release && cd .."
   },
   "license": "MIT",
   "description": "",

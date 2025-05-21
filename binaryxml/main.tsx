@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { decode_apk } from './abxml-wrapper/pkg'
+import { decode_apk } from './pkg/abxml_wrapper'
 import React, { useState } from 'react'
 
 window.onmessage = (e) => {

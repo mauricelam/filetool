@@ -27,8 +27,9 @@ const SETTINGS = {
       name: 'wasm-pack',
       setup(build) {
         build.onStart(() => {
-          execSync(`wasm-pack build classfile-wasm --target web`, {
-            stdio: 'inherit'
+          execSync(`wasm-pack build --target web --out-dir ./pkg --release`, {
+            stdio: 'inherit',
+            cwd: './classfile-wasm'
           });
           fs.copyFileSync(
             'classfile-wasm/pkg/classfile_wasm_bg.wasm',
