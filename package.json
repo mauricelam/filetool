@@ -56,8 +56,8 @@
         "build:textviewer": "npm run -w textviewer build",
         "watch:rustdexviewer": "npm run -w rustdexviewer watch",
         "build:rustdexviewer": "npm run -w rustdexviewer build",
-        "serve": "run-p copy-index watch:* run-server",
-        "build": "run-p copy-index build:*"
+        "serve": "npm run copy-index && run-p watch:* run-server",
+        "build": "npm run copy-index && run-p build:*"
     },
     "devDependencies": {
         "@types/finalhandler": "^1.2.3",

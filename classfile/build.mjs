@@ -30,6 +30,7 @@ const SETTINGS = {
           execSync(`wasm-pack build classfile-wasm --target web`, {
             stdio: 'inherit'
           });
+          fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
           fs.copyFileSync(
             'classfile-wasm/pkg/classfile_wasm_bg.wasm',
             `${build.initialOptions.outdir}/classfile_wasm_bg.wasm`

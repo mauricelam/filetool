@@ -2,7 +2,7 @@ import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import { execSync } from 'child_process';
-import { watch } from 'fs';
+import fs, { watch } from 'fs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -16,6 +16,7 @@ const SETTINGS = {
       name: 'build-wasm',
       setup: (build) => {
         build.onStart(async () => {
+          fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
           execSync(`cp $(go env GOROOT)/misc/wasm/wasm_exec.js ${build.initialOptions.outdir}/wasm_exec.js`);
           execSync(`cd godexviewer && GOOS=js GOARCH=wasm go build -o ../${build.initialOptions.outdir}/dextk.wasm`);
         });

@@ -16,6 +16,7 @@ const SETTINGS = {
       name: 'build-wasm',
       setup: (build) => {
         function buildWasm() {
+          fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
           execSync(`wasm-pack build dexviewer --target web`);
           fs.copyFileSync(
             'dexviewer/pkg/dexviewer_bg.wasm',
@@ -45,6 +46,7 @@ const SETTINGS = {
       name: 'build-go-wasm',
       setup: (build) => {
         build.onStart(async () => {
+          fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
           execSync(`cp $(go env GOROOT)/misc/wasm/wasm_exec.js ${build.initialOptions.outdir}/wasm_exec.js`);
           execSync(`cd godexviewer && GOOS=js GOARCH=wasm go build -o ../${build.initialOptions.outdir}/dextk.wasm`);
         });
