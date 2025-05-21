@@ -1,0 +1,15 @@
+#![no_main]
+extern crate abxml;
+#[macro_use]
+extern crate libfuzzer_sys;
+
+use abxml::chunks::TypeSpecWrapper;
+use abxml::model::TypeSpec;
+
+fuzz_target!(|data: &[u8]| {
+    let tsw = TypeSpecWrapper::new(data);
+
+    tsw.get_id();
+    tsw.get_amount();
+    tsw.get_flag(345235); // Replace with random
+});

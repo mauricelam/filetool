@@ -1,0 +1,58 @@
+
+[package]
+name = "abxml-fuzz"
+version = "0.0.1"
+authors = ["Automatically generated"]
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies.abxml]
+path = ".."
+[dependencies.libfuzzer-sys]
+git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "string_table"
+path = "fuzzers/string_table.rs"
+
+[[bin]]
+name = "package"
+path = "fuzzers/package.rs"
+
+[[bin]]
+name = "resources"
+path = "fuzzers/resources.rs"
+
+[[bin]]
+name = "table_type_spec"
+path = "fuzzers/table_type_spec.rs"
+
+[[bin]]
+name = "table_type"
+path = "fuzzers/table_type.rs"
+
+[[bin]]
+name = "xml_namespace_start"
+path = "fuzzers/xml_namespace_start.rs"
+
+[[bin]]
+name = "xml_namespace_end"
+path = "fuzzers/xml_namespace_end.rs"
+
+[[bin]]
+name = "xml_tag_start"
+path = "fuzzers/xml_tag_start.rs"
+
+[[bin]]
+name = "xml_tag_end"
+path = "fuzzers/xml_tag_end.rs"
+
+[[bin]]
+name = "xml_text"
+path = "fuzzers/xml_text.rs"
