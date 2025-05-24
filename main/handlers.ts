@@ -93,6 +93,8 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         "mimetypes": [
             "model/stl",
             "model/obj",
+            "model/fbx",
+            "model/ply",
             "application/sla", // Common alternative MIME type for STL
             {
                 mime: "application/octet-stream",
@@ -103,10 +105,34 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
                 filename: /.*\.obj$/i,
             },
             {
-                filename: /\.stl$/i, // Direct filename match
+                mime: "application/octet-stream",
+                filename: /.*\.glb$/i,
             },
             {
-                filename: /\.obj$/i, // Direct filename match
+                mime: "application/octet-stream",
+                filename: /.*\.fbx$/i,
+            },
+            {
+                mime: "application/octet-stream",
+                filename: /.*\.ply$/i,
+            },
+            {
+                filename: /\.stl$/i,
+            },
+            {
+                filename: /\.obj$/i,
+            },
+            {
+                filename: /\.gltf$/i,
+            },
+            {
+                filename: /\.glb$/i,
+            },
+            {
+                filename: /\.fbx$/i,
+            },
+            {
+                filename: /\.ply$/i,
             }
         ]
     },

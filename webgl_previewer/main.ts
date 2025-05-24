@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 let scene: THREE.Scene;
@@ -22,6 +26,8 @@ function init(): void {
     const canvas = document.getElementById('webgl-canvas') as HTMLCanvasElement;
     renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     // Lighting
     const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1); // sky color, ground color, intensity
@@ -32,15 +38,15 @@ function init(): void {
     directionalLight.position.set(0, 200, 100);
     directionalLight.castShadow = true;
     scene.add(directionalLight);
-    
+
     // Controls
     if (OrbitControls) {
         controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; 
+        controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.screenSpacePanning = false;
         controls.minDistance = 10;
-        controls.maxDistance = 500;
+        controls.maxDistance = 2000;
         controls.maxPolarAngle = Math.PI / 2;
     } else {
         console.error("OrbitControls not loaded via import");
@@ -74,7 +80,7 @@ function onWindowResize(): void {
 function animate(): void {
     requestAnimationFrame(animate);
     if (controls) {
-        controls.update(); 
+        controls.update();
     }
     renderer.render(scene, camera);
 }
@@ -87,7 +93,7 @@ function loadModel(file: File): void {
 
     if (currentObject) {
         scene.remove(currentObject);
-        if (currentObject instanceof THREE.Mesh) { // Type guard for Mesh
+        if (currentObject instanceof THREE.Mesh) {
             if (currentObject.geometry) currentObject.geometry.dispose();
             if (currentObject.material) {
                 if (Array.isArray(currentObject.material)) {
@@ -96,8 +102,7 @@ function loadModel(file: File): void {
                     currentObject.material.dispose();
                 }
             }
-        } else if (currentObject instanceof THREE.Group) { // Type guard for Group
-             // For groups, traverse and dispose if necessary, or handle based on group structure
+        } else if (currentObject instanceof THREE.Group) {
             currentObject.traverse(child => {
                 if (child instanceof THREE.Mesh) {
                     child.geometry?.dispose();
@@ -114,70 +119,105 @@ function loadModel(file: File): void {
     }
     
     const manager = new THREE.LoadingManager();
-    manager.onProgress = function ( item: string, loaded: number, total: number ) {
-        console.log( 'Loading progress: ' + (loaded / total * 100) + '%' );
+    manager.onProgress = function (item: string, loaded: number, total: number) {
+        console.log('Loading progress: ' + (loaded / total * 100) + '%');
     };
-    manager.onError = function ( url: string ) {
-        console.error( 'There was an error loading ' + url );
-        alert('Error loading model. Check console for details.');
+    manager.onError = function (url: string) {
+        console.error('There was an error loading ' + url);
     };
 
     const objectURL = URL.createObjectURL(file);
     const filename = file.name.toLowerCase();
 
-    let loader: STLLoader | OBJLoader; // Union type for loader
+    // Setup DRACO loader for GLTF compression
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
 
-    if (filename.endsWith('.stl')) {
-        if (!STLLoader) { 
-            console.error("STLLoader not available via import!");
-            alert("STLLoader is not available. Cannot load STL files.");
-            URL.revokeObjectURL(objectURL);
-            return;
-        }
-        loader = new STLLoader(manager);
-        loader.load(objectURL, (geometry: THREE.BufferGeometry) => { // THREE.BufferGeometry for STL
-            const material = new THREE.MeshPhongMaterial({ color: 0x2196F3, specular: 0x111111, shininess: 200 });
-            currentObject = new THREE.Mesh(geometry, material);
-            currentObject.castShadow = true;
-            currentObject.receiveShadow = true;
-            scene.add(currentObject);
-            centerCameraOnObject(currentObject);
-            URL.revokeObjectURL(objectURL); 
-        }, undefined, (error: ErrorEvent) => {
-            console.error("Error loading STL:", error);
-            alert("Error loading STL file. Check console.");
-            URL.revokeObjectURL(objectURL); 
-        });
-    } else if (filename.endsWith('.obj')) {
-        if (!OBJLoader) { 
-            console.error("OBJLoader not available via import!");
-            alert("OBJLoader is not available. Cannot load OBJ files.");
-            URL.revokeObjectURL(objectURL);
-            return;
-        }
-        loader = new OBJLoader(manager);
-        loader.load(objectURL, (object: THREE.Group) => { // OBJLoader returns a Group
-            object.traverse(function (child: THREE.Object3D) {
-                if (child instanceof THREE.Mesh) { 
-                    child.material = new THREE.MeshPhongMaterial({ color: 0x0000ff, specular: 0x111111, shininess: 200 });
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
+    try {
+        if (filename.endsWith('.stl')) {
+            if (!STLLoader) {
+                console.error("STLLoader not available via import!");
+                alert("STLLoader is not available. Cannot load STL files.");
+                URL.revokeObjectURL(objectURL);
+                return;
+            }
+            const loader = new STLLoader(manager);
+            loader.load(objectURL, (geometry: THREE.BufferGeometry) => { // THREE.BufferGeometry for STL
+                const material = new THREE.MeshPhongMaterial({ color: 0x2196F3, specular: 0x111111, shininess: 200 });
+                currentObject = new THREE.Mesh(geometry, material);
+                currentObject.castShadow = true;
+                currentObject.receiveShadow = true;
+                scene.add(currentObject);
+                centerCameraOnObject(currentObject);
             });
-            currentObject = object;
-            scene.add(currentObject);
-            centerCameraOnObject(currentObject);
-            URL.revokeObjectURL(objectURL); 
-        }, undefined, (error: ErrorEvent) => {
-            console.error("Error loading OBJ:", error);
-            alert("Error loading OBJ file. Check console.");
-            URL.revokeObjectURL(objectURL);
-        });
-    } else {
-        console.warn("Unsupported file type:", filename);
-        alert("Unsupported file type: " + filename);
-        URL.revokeObjectURL(objectURL); 
-        return;
+        } else if (filename.endsWith('.obj')) {
+            if (!OBJLoader) { 
+                console.error("OBJLoader not available via import!");
+                alert("OBJLoader is not available. Cannot load OBJ files.");
+                URL.revokeObjectURL(objectURL);
+                return;
+            }
+
+            const loader = new OBJLoader(manager);
+            loader.load(objectURL, (object) => {
+                object.traverse(function (child) {
+                    if (child instanceof THREE.Mesh) {
+                        child.material = new THREE.MeshPhongMaterial({ color: 0x0000ff, specular: 0x111111, shininess: 200 });
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                currentObject = object;
+                scene.add(currentObject);
+                centerCameraOnObject(currentObject);
+            });
+        } else if (filename.endsWith('.gltf') || filename.endsWith('.glb')) {
+            const loader = new GLTFLoader(manager);
+            loader.setDRACOLoader(dracoLoader);
+            loader.load(objectURL, (gltf) => {
+                currentObject = gltf.scene;
+                currentObject.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                scene.add(currentObject);
+                centerCameraOnObject(currentObject);
+            });
+        } else if (filename.endsWith('.fbx')) {
+            const loader = new FBXLoader(manager);
+            loader.load(objectURL, (object) => {
+                currentObject = object;
+                currentObject.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                scene.add(currentObject);
+                centerCameraOnObject(currentObject);
+            });
+        } else if (filename.endsWith('.ply')) {
+            const loader = new PLYLoader(manager);
+            loader.load(objectURL, (geometry) => {
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0x2196F3,
+                    specular: 0x111111,
+                    shininess: 200
+                });
+                currentObject = new THREE.Mesh(geometry, material);
+                currentObject.castShadow = true;
+                currentObject.receiveShadow = true;
+                scene.add(currentObject);
+                centerCameraOnObject(currentObject);
+            });
+        } else {
+            console.warn("Unsupported file type:", filename);
+            alert("Unsupported file type: " + filename);
+        }
+    } finally {
+        URL.revokeObjectURL(objectURL);
     }
 }
 
@@ -188,12 +228,12 @@ function centerCameraOnObject(object: THREE.Object3D): void {
 
     const maxDim = Math.max(size.x, size.y, size.z);
     const fov = camera.fov * (Math.PI / 180);
-    let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov * 2)); 
-    
+    let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov * 2));
+
     cameraZ *= 2.5;
 
     camera.position.set(center.x, center.y, center.z + cameraZ);
-    
+
     if (controls) {
         controls.target.copy(center);
         controls.update();
