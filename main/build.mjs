@@ -37,9 +37,9 @@ if (process.env['BUILD_MODE'] === 'dev') {
     // banner: {
     //   js: `new EventSource('/esbuild').addEventListener('change', () => location.reload());`,
     // },
-    outdir: `../dist/main`
+    outdir: `../dist`
   });
   await ctx.watch();
 } else {
-  await esbuild.build({ ...SETTINGS, minify: true, outdir: `../dist/main` });
+  await esbuild.build({ ...SETTINGS, minify: true, outdir: `../dist` });
 }

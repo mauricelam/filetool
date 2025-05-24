@@ -26,21 +26,21 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
 export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
     {
         "name": "Hex",
-        "handler": "/hex_viewer",
+        "handler": "hex_viewer",
         "mimetypes": [
             /.*/
         ]
     },
     {
         "name": "EML/MHTML",
-        "handler": "/mhtml",
+        "handler": "mhtml",
         "mimetypes": [
             "message/rfc822",
         ]
     },
     {
         "name": "Browser",
-        "handler": "/browser",
+        "handler": "browser",
         "mimetypes": [
             "video/3gpp",
             "video/mp4",
@@ -58,7 +58,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "Go DEX viewer",
-        "handler": "/dexviewer",
+        "handler": "dexviewer",
         "mimetypes": [
             {
                 mime: "application/octet-stream",
@@ -68,7 +68,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "DEX viewer",
-        "handler": "/rustdexviewer",
+        "handler": "rustdexviewer",
         "mimetypes": [
             {
                 mime: "application/octet-stream",
@@ -78,7 +78,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "Text Viewer",
-        "handler": "/textviewer",
+        "handler": "textviewer",
         "mimetypes": [
             /text\/.*/,
             "message/rfc822",
@@ -89,7 +89,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "3D model viewer",
-        "handler": "/webgl_previewer/index.html",
+        "handler": "webgl_previewer",
         "mimetypes": [
             "model/stl",
             "model/obj",
@@ -112,14 +112,14 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "Webassembly text viewer",
-        "handler": "/wat_viewer",
+        "handler": "wat_viewer",
         "mimetypes": [
             "application/wasm",
         ]
     },
     {
         "name": "Open archive",
-        "handler": "/archive",
+        "handler": "archive",
         "mimetypes": [
             "application/zip",
             "application/gzip",
@@ -133,7 +133,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "ClassyShark",
-        "handler": "/classyshark",
+        "handler": "classyshark",
         "mimetypes": [
             // Disabled since it takes too long to load
             // "application/vnd.android.package-archive",
@@ -145,7 +145,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "Android APK viewer",
-        "handler": "/binaryxml",
+        "handler": "binaryxml",
         "mimetypes": [
             "application/vnd.android.package-archive",
             {
@@ -156,14 +156,14 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "JVM Classfile",
-        "handler": "/classfile",
+        "handler": "classfile",
         "mimetypes": [
             "application/x-java-applet",
         ]
     },
     {
         "name": "Binutils",
-        "handler": "/binutils",
+        "handler": "binutils",
         "mimetypes": [
             "application/x-mach-binary",
             "application/x-executable",
@@ -172,7 +172,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "ImageMagick",
-        "handler": "/imagemagick",
+        "handler": "imagemagick",
         "mimetypes": [
             "image/jpeg",
             "image/png",
@@ -196,7 +196,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "CheerpJ (JVM in browser)",
-        "handler": "/cheerpj",
+        "handler": "cheerpj",
         "mimetypes": [
             {
                 mime: "application/zip",
@@ -206,7 +206,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "ffmpeg",
-        "handler": "/ffmpeg",
+        "handler": "ffmpeg",
         "mimetypes": [
             "video/3gpp",
             "video/3gpp2",
@@ -231,7 +231,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "markdown",
-        "handler": "/markdown",
+        "handler": "markdown",
         "mimetypes": [
             {
                 filename: /\.md/i,
