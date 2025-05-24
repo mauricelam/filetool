@@ -124,36 +124,46 @@ const ArchiveViewer: React.FC = () => {
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '20px', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', gap: '20px', overflow: 'hidden' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <h3>Archive Contents</h3>
                 <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-                    {archive ? (
-                        <div className="columns-container" style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
-                            {columns.map((column, index) => (
-                                <div
-                                    key={index}
-                                    style={{
-                                        width: '250px',
-                                        minWidth: '250px',
-                                        maxWidth: '250px',
-                                        borderRight: '1px solid #ccc',
-                                        overflow: 'auto'
-                                    }}
-                                >
-                                    {renderColumn(index, column.content)}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div style={{ padding: '10px', color: '#666' }}>No archive loaded</div>
-                    )}
+                    <div className="columns-container" style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
+                        {columns.map((column, index) => (
+                            <div
+                                key={index}
+                                style={{
+                                    width: '250px',
+                                    minWidth: '250px',
+                                    maxWidth: '250px',
+                                    borderRight: '1px solid #ccc',
+                                    overflow: 'auto',
+                                    height: '100%'
+                                }}
+                            >
+                                {renderColumn(index, column.content)}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
             <style>
                 {`
+                    *, *::before, *::after {
+                        box-sizing: border-box;
+                    }
+                    html, body, #output {
+                        height: 100%;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    #output > div {
+                        height: 100%;
+                    }
                     .column-content {
                         padding: 8px;
+                        height: 100%;
+                        overflow: auto;
                     }
                     .column-item {
                         padding: 8px;
