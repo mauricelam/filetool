@@ -88,7 +88,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
-        "name": "WebGL 3D Previewer",
+        "name": "3D model viewer",
         "handler": "/webgl_previewer/index.html",
         "mimetypes": [
             "model/stl",

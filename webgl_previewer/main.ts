@@ -9,12 +9,6 @@ let renderer: THREE.WebGLRenderer;
 let controls: OrbitControls;
 let currentObject: THREE.Object3D | undefined; // Can be Mesh or Group
 
-// Ensure Three.js objects are available globally via the CDN script tags
-// const {
-//     Scene, PerspectiveCamera, WebGLRenderer, HemisphereLight, DirectionalLight,
-//     Color, Mesh, MeshPhongMaterial, Box3, Vector3, LoadingManager
-// } = THREE; // This is now handled by imports
-
 function init(): void {
     // Scene
     scene = new THREE.Scene();
@@ -142,7 +136,7 @@ function loadModel(file: File): void {
         }
         loader = new STLLoader(manager);
         loader.load(objectURL, (geometry: THREE.BufferGeometry) => { // THREE.BufferGeometry for STL
-            const material = new THREE.MeshPhongMaterial({ color: 0x00ff00, specular: 0x111111, shininess: 200 });
+            const material = new THREE.MeshPhongMaterial({ color: 0x2196F3, specular: 0x111111, shininess: 200 });
             currentObject = new THREE.Mesh(geometry, material);
             currentObject.castShadow = true;
             currentObject.receiveShadow = true;
@@ -196,7 +190,7 @@ function centerCameraOnObject(object: THREE.Object3D): void {
     const fov = camera.fov * (Math.PI / 180);
     let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov * 2)); 
     
-    cameraZ *= 1.5; 
+    cameraZ *= 2.5;
 
     camera.position.set(center.x, center.y, center.z + cameraZ);
     
@@ -209,9 +203,6 @@ function centerCameraOnObject(object: THREE.Object3D): void {
 }
 
 window.addEventListener('message', (event: MessageEvent) => {
-    // Consider adding origin check for security:
-    // if (event.origin !== 'http://your-expected-origin.com') return;
-
     if (event.data && event.data.action === 'respondFile' && event.data.file) {
         console.log("File received from parent:", (event.data.file as File).name);
         loadModel(event.data.file as File);
