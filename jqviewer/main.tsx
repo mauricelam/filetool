@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import ReactJson from '@microlink/react-json-view';
-import * as jqWasm from 'jq-wasm';
 
 // Request file from parent window
 if (window.parent) {
@@ -14,31 +13,55 @@ const JQViewer: React.FC = () => {
     const [output, setOutput] = useState<any>(null);
     const [error, setError] = useState<string>('');
     const [jqVersion, setJqVersion] = useState<string>('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const workerRef = useRef<Worker | null>(null);
 
-    // Check if content is JSONL format
-    const isJSONL = (content: string): boolean => {
-        const lines = content.trim().split('\n');
-        if (lines.length <= 1) return false;
-        
-        try {
-            // Try parsing each line as JSON
-            return lines.every(line => {
-                if (!line.trim()) return true; // Skip empty lines
-                JSON.parse(line);
-                return true;
-            });
-        } catch {
-            return false;
-        }
-    };
+    // Initialize worker
+    useEffect(() => {
+        workerRef.current = new Worker(new URL('./jq.worker.js', import.meta.url), { type: 'module' });
 
-    // Process JSONL content by wrapping in array
-    const processJSONL = (content: string): string => {
-        const lines = content.trim().split('\n')
-            .filter(line => line.trim()) // Remove empty lines
-            .map(line => line.trim());
-        return `[${lines.join(',')}]`;
-    };
+        workerRef.current.onmessage = (e) => {
+            const { type, result, error, version, success } = e.data;
+
+            switch (type) {
+                case 'init':
+                    if (success) {
+                        // Get version after successful initialization
+                        workerRef.current?.postMessage({ type: 'version' });
+                    } else {
+                        setError('Failed to initialize jq-wasm: ' + error);
+                    }
+                    break;
+
+                case 'version':
+                    if (version) {
+                        setJqVersion(version);
+                    } else {
+                        setError('Failed to get jq version: ' + error);
+                    }
+                    break;
+
+                case 'process':
+                    setIsProcessing(false);
+                    if (error) {
+                        setError(error);
+                        setOutput(null);
+                    } else {
+                        setOutput(result);
+                        setError('');
+                    }
+                    break;
+            }
+        };
+
+        // Initialize worker
+        workerRef.current.postMessage({ type: 'init' });
+
+        return () => {
+            workerRef.current?.terminate();
+        };
+    }, []);
 
     useEffect(() => {
         const handleMessage = async (e: MessageEvent) => {
@@ -57,11 +80,6 @@ const JQViewer: React.FC = () => {
         };
         window.addEventListener('message', handleMessage);
 
-        // Get jq version
-        jqWasm.version().then(setJqVersion).catch((err) => {
-            setError('Failed to load jq-wasm: ' + err.message);
-        });
-
         return () => {
             window.removeEventListener('message', handleMessage);
         };
@@ -75,16 +93,14 @@ const JQViewer: React.FC = () => {
                 return;
             }
 
-            try {
-                // Check if input is JSONL and process accordingly
-                const inputToProcess = isJSONL(jsonInput) ? processJSONL(jsonInput) : jsonInput;
-                const result = await jqWasm.json(inputToProcess, jqFilter);
-                setOutput(result);
-                setError('');
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'An error occurred');
-                setOutput(null);
-            }
+            setIsProcessing(true);
+            workerRef.current?.postMessage({
+                type: 'process',
+                data: {
+                    input: jsonInput,
+                    filter: jqFilter
+                }
+            });
         };
 
         processJson();
@@ -92,19 +108,26 @@ const JQViewer: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '20px', gap: '20px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <h3>jq Filter</h3>
-                <textarea
+            <div style={{ display: 'flex', flexDirection: 'row', flex: 0 }}>
+                <label>jq: </label><textarea
+                    ref={textareaRef}
                     value={jqFilter}
                     onChange={(e) => setJqFilter(e.target.value)}
-                    style={{ flex: 1, fontFamily: 'monospace', padding: '10px' }}
+                    style={{
+                        fontFamily: 'monospace',
+                        padding: '10px',
+                        resize: 'none',
+                        overflow: 'hidden',
+                    }}
                     placeholder="Enter your jq filter here..."
                 />
             </div>
             <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
                 <h3>Output</h3>
                 <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', overflow: 'auto', padding: '10px' }}>
-                    {error ? (
+                    {isProcessing ? (
+                        <div style={{ padding: '10px', color: '#666' }}>Processing...</div>
+                    ) : error ? (
                         <div style={{ color: 'red', padding: '10px' }}>{error}</div>
                     ) : output !== null ? (
                         <ReactJson

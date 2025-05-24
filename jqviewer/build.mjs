@@ -5,37 +5,48 @@ import process from 'process';
 
 const isDev = process.env.BUILD_MODE === 'dev';
 
-const ctx = await esbuild.context({
+// Build the main bundle
+await esbuild.build({
     entryPoints: ['main.tsx'],
     bundle: true,
     outdir: '../dist/jqviewer',
-    format: 'esm',
-    target: ['es2020'],
     platform: 'browser',
-    loader: {
-        '.tsx': 'tsx',
-        '.ts': 'ts',
-    },
+    external: ['fs', 'path', 'crypto'],
+    inject: ['./node-shims.js'],
     plugins: [
         wasmLoader(),
         copy({
             assets: [
                 {
-                    from: 'index.html',
-                    to: 'index.html',
-                    watch: isDev,
-                },
-            ],
-        }),
+                    from: './index.html',
+                    to: 'index.html'
+                }
+            ]
+        })
     ],
-    // Handle Node.js built-in modules
-    external: ['fs', 'path', 'crypto'],
-    inject: ['./node-shims.js'],
+    sourcemap: isDev,
+    minify: !isDev,
+    target: ['es2020'],
+    format: 'esm',
+    define: {
+        'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
+    }
 });
 
-if (isDev) {
-    await ctx.watch();
-} else {
-    await ctx.rebuild();
-    await ctx.dispose();
-}
+// Build the worker bundle
+await esbuild.build({
+    entryPoints: ['jq.worker.ts'],
+    bundle: true,
+    outdir: '../dist/jqviewer',
+    platform: 'browser',
+    external: ['fs', 'path', 'crypto'],
+    inject: ['./node-shims.js'],
+    plugins: [wasmLoader()],
+    sourcemap: isDev,
+    minify: !isDev,
+    target: ['es2020'],
+    format: 'esm',
+    define: {
+        'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
+    }
+});
