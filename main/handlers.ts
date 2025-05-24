@@ -88,6 +88,29 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
+        "name": "3D model viewer",
+        "handler": "/webgl_previewer/index.html",
+        "mimetypes": [
+            "model/stl",
+            "model/obj",
+            "application/sla", // Common alternative MIME type for STL
+            {
+                mime: "application/octet-stream",
+                filename: /.*\.stl$/i,
+            },
+            {
+                mime: "application/octet-stream",
+                filename: /.*\.obj$/i,
+            },
+            {
+                filename: /\.stl$/i, // Direct filename match
+            },
+            {
+                filename: /\.obj$/i, // Direct filename match
+            }
+        ]
+    },
+    {
         "name": "Webassembly text viewer",
         "handler": "/wat_viewer",
         "mimetypes": [

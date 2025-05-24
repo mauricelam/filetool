@@ -17,7 +17,8 @@
         "dexviewer",
         "textviewer",
         "rustdexviewer",
-        "main"
+        "main",
+        "webgl_previewer"
     ],
     "scripts": {
         "copy-index": "mkdir -p dist && cp index.html dist/index.html",
@@ -55,6 +56,8 @@
         "watch:textviewer": "npm run -w textviewer watch",
         "build:textviewer": "npm run -w textviewer build",
         "watch:rustdexviewer": "npm run -w rustdexviewer watch",
+        "build:webgl_previewer": "npm run -w webgl_previewer build",
+        "watch:webgl_previewer": "npm run -w webgl_previewer watch",
         "build:rustdexviewer": "npm run -w rustdexviewer build",
         "serve": "npm run copy-index && run-p watch:* run-server",
         "build": "npm run copy-index && run-p build:*"
