@@ -92,8 +92,9 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         "handler": "jqviewer",
         "mimetypes": [
             "application/json",
-            { "filename": /\.json$/i },
-            { "filename": /\.jsonl$/i }
+            {
+                filename: /\.(json|jsonl)$/i,
+            }
         ]
     },
     {

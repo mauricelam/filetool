@@ -1,131 +1,127 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import * as jq from 'jq-wasm';
+import ReactJson from '@microlink/react-json-view';
+import * as jqWasm from 'jq-wasm';
 
 // Request file from parent window
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' });
 }
 
-const App: React.FC = () => {
-    const [fileContent, setFileContent] = useState<string | null>(null);
-    const [fileName, setFileName] = useState<string>('');
-    const [jqQuery, setJqQuery] = useState<string>('.'); // Default query
-    const [output, setOutput] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [jqVersion, setJqVersion] = useState<string | null>(null);
+const JQViewer: React.FC = () => {
+    const [jsonInput, setJsonInput] = useState<string>('');
+    const [jqFilter, setJqFilter] = useState<string>('.');
+    const [output, setOutput] = useState<any>(null);
+    const [error, setError] = useState<string>('');
+    const [jqVersion, setJqVersion] = useState<string>('');
+
+    // Check if content is JSONL format
+    const isJSONL = (content: string): boolean => {
+        const lines = content.trim().split('\n');
+        if (lines.length <= 1) return false;
+        
+        try {
+            // Try parsing each line as JSON
+            return lines.every(line => {
+                if (!line.trim()) return true; // Skip empty lines
+                JSON.parse(line);
+                return true;
+            });
+        } catch {
+            return false;
+        }
+    };
+
+    // Process JSONL content by wrapping in array
+    const processJSONL = (content: string): string => {
+        const lines = content.trim().split('\n')
+            .filter(line => line.trim()) // Remove empty lines
+            .map(line => line.trim());
+        return `[${lines.join(',')}]`;
+    };
 
     useEffect(() => {
         const handleMessage = async (e: MessageEvent) => {
             if (e.data.action === 'respondFile') {
                 try {
                     const file = e.data.file as File;
-                    setFileName(file.name);
                     const textContent = await file.text();
-                    setFileContent(textContent);
+                    setJsonInput(textContent);
                     setOutput(null); // Clear previous output
                     setError(null); // Clear previous error
                 } catch (err) {
                     setError(`Error reading file: ${err.message}`);
-                    setFileContent(null);
+                    setJsonInput(null);
                 }
             }
         };
         window.addEventListener('message', handleMessage);
 
-        // Load jq version
-        jq.version().then(setJqVersion).catch(err => setError(`Failed to load jq: ${err.message}`));
+        // Get jq version
+        jqWasm.version().then(setJqVersion).catch((err) => {
+            setError('Failed to load jq-wasm: ' + err.message);
+        });
 
         return () => {
             window.removeEventListener('message', handleMessage);
         };
     }, []);
 
-    const handleRunQuery = async () => {
-        if (fileContent === null) {
-            setError('No file loaded.');
-            return;
-        }
-        setError(null);
-        setOutput(null);
-        try {
-            // Try to parse the input as JSON. If it's JSONL, jq-wasm should handle it.
-            let inputData: any = fileContent;
+    useEffect(() => {
+        const processJson = async () => {
+            if (!jsonInput.trim()) {
+                setOutput(null);
+                setError('');
+                return;
+            }
+
             try {
-                // If it's a single JSON object/array file, parse it.
-                // jq-wasm's jq.json can also take a string directly.
-                // Forcing JSON.parse here might be too strict if jq is to handle non-strict JSON or multiple objects (JSONL).
-                // Let's pass the raw string content to jq.json, as it's designed to handle it.
-            } catch (parseError) {
-                // Not a single JSON object, could be JSONL or invalid. jq will tell.
-            }
-
-            const result = await jq.json(inputData, jqQuery, ['--color-output']); // Enable color by default
-            
-            if (typeof result === 'string') {
+                // Check if input is JSONL and process accordingly
+                const inputToProcess = isJSONL(jsonInput) ? processJSONL(jsonInput) : jsonInput;
+                const result = await jqWasm.json(inputToProcess, jqFilter);
                 setOutput(result);
-            } else if (result === null && fileContent.trim() !== '' && jqQuery.trim() !== '') {
-                // If result is null but there was input and a query, it might mean no results from jq
-                 setOutput("null (no output from jq or input was empty after query)");
+                setError('');
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'An error occurred');
+                setOutput(null);
             }
-            else {
-                 // jq.json can return multiple results as an array for JSONL, or a single parsed object.
-                 // We need to stringify it for display.
-                setOutput(JSON.stringify(result, null, 2));
-            }
+        };
 
-        } catch (err) {
-            setError(`JQ Error: ${err.message}
-${err.stderr || ''}`);
-            setOutput(null);
-        }
-    };
+        processJson();
+    }, [jsonInput, jqFilter]);
 
     return (
-        <div style={{ fontFamily: 'sans-serif', padding: '10px' }}>
-            <div style={{ marginBottom: '10px' }}>
-                <strong>File:</strong> {fileName || 'No file loaded'}
-                {jqVersion && <small style={{ marginLeft: '10px' }}>(jq version: {jqVersion})</small>}
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-                <label htmlFor="jqQuery" style={{ marginRight: '5px' }}>JQ Query:</label>
-                <input
-                    type="text"
-                    id="jqQuery"
-                    value={jqQuery}
-                    onChange={(e) => setJqQuery(e.target.value)}
-                    style={{ width: 'calc(100% - 100px)', padding: '5px' }}
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '20px', gap: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <h3>jq Filter</h3>
+                <textarea
+                    value={jqFilter}
+                    onChange={(e) => setJqFilter(e.target.value)}
+                    style={{ flex: 1, fontFamily: 'monospace', padding: '10px' }}
+                    placeholder="Enter your jq filter here..."
                 />
-                <button onClick={handleRunQuery} style={{ marginLeft: '5px', padding: '5px 10px' }}>Run</button>
             </div>
-            {error && (
-                <div style={{ marginBottom: '10px', padding: '10px', border: '1px solid red', backgroundColor: '#fee' }}>
-                    <h4>Error</h4>
-                    <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{error}</pre>
+            <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
+                <h3>Output</h3>
+                <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', overflow: 'auto', padding: '10px' }}>
+                    {error ? (
+                        <div style={{ color: 'red', padding: '10px' }}>{error}</div>
+                    ) : output !== null ? (
+                        <ReactJson
+                            src={output}
+                            theme="rjv-default"
+                            name={false}
+                            collapsed={1}
+                            enableClipboard={true}
+                            displayDataTypes={false}
+                            style={{ backgroundColor: 'transparent' }}
+                        />
+                    ) : null}
                 </div>
-            )}
-            {output !== null && (
-                <div>
-                    <h4>Output</h4>
-                    {/* Using a div with pre-wrap for colored output from jq */}
-                    <div
-                        dangerouslySetInnerHTML={{ __html: output.replace(/\n/g, '<br/>') }}
-                        style={{
-                            whiteSpace: 'pre-wrap',
-                            wordWrap: 'break-word',
-                            fontFamily: 'monospace',
-                            backgroundColor: '#f5f5f5',
-                            padding: '10px',
-                            border: '1px solid #ccc',
-                            maxHeight: '60vh',
-                            overflowY: 'auto'
-                        }}
-                    />
-                </div>
-            )}
-             {output === null && !error && fileContent && (
-                <div style={{ marginTop: '10px', fontStyle: 'italic'}}>
-                    Enter a JQ query and click "Run".
+            </div>
+            {jqVersion && (
+                <div style={{ textAlign: 'right', color: '#666' }}>
+                    jq version: {jqVersion}
                 </div>
             )}
         </div>
@@ -135,7 +131,7 @@ ${err.stderr || ''}`);
 const container = document.getElementById('output');
 if (container) {
     const root = createRoot(container);
-    root.render(<App />);
+    root.render(<JQViewer />);
 } else {
     console.error("Could not find root element 'output'");
 }
