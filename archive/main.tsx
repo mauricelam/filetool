@@ -5,7 +5,6 @@ import { createRoot } from 'react-dom/client';
 Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
 
 const ArchiveViewer: React.FC = () => {
-    const [archive, setArchive] = useState<any>(null);
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
 
@@ -14,7 +13,6 @@ const ArchiveViewer: React.FC = () => {
             if (e.data.action === 'respondFile') {
                 const ar = await Archive.open(e.data.file);
                 const files = await ar.getFilesObject();
-                setArchive(files);
                 setColumns([{ path: [], content: files }]);
             }
         };
