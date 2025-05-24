@@ -231,7 +231,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
-        "name": "CheerpJ (JVM in browser)",
+        "name": "CheerpJ (JVM in browser, loads external code)",
         "handler": "cheerpj",
         "mimetypes": [
             {
