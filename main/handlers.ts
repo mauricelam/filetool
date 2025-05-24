@@ -88,6 +88,15 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
+        "name": "JQ Viewer",
+        "handler": "jqviewer",
+        "mimetypes": [
+            "application/json",
+            { "filename": /\.json$/i },
+            { "filename": /\.jsonl$/i }
+        ]
+    },
+    {
         "name": "3D model viewer",
         "handler": "webgl_previewer",
         "mimetypes": [

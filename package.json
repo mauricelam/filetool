@@ -18,7 +18,8 @@
         "textviewer",
         "rustdexviewer",
         "main",
-        "webgl_previewer"
+        "webgl_previewer",
+        "jqviewer"
     ],
     "scripts": {
         "copy-index": "mkdir -p dist && cp index.html dist/index.html",
@@ -59,6 +60,8 @@
         "build:webgl_previewer": "npm run -w webgl_previewer build",
         "watch:webgl_previewer": "npm run -w webgl_previewer watch",
         "build:rustdexviewer": "npm run -w rustdexviewer build",
+        "watch:jqviewer": "npm run -w jqviewer watch",
+        "build:jqviewer": "npm run -w jqviewer build",
         "serve": "npm run copy-index && run-p watch:* run-server",
         "build": "npm run copy-index && run-p build:*"
     },
@@ -76,6 +79,7 @@
         "typescript": "^5.5.4"
     },
     "dependencies": {
+        "jq-wasm": "^1.1.0-jq-1.7.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "react-syntax-highlighter": "^15.6.1",
