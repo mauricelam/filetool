@@ -186,7 +186,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
             "application/vnd.android.package-archive",
             {
                 mime: "application/zip",
-                filename: /.*\.apk/i,
+                filename: /.*\.apk$/i,
             }
         ]
     },

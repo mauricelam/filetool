@@ -1,10 +1,29 @@
 import { createRoot } from 'react-dom/client'
-import { decode_apk } from './abxml-wrapper/pkg'
-import React, { useState } from 'react'
+import init, { decode_apk } from './abxml-wrapper/pkg'
+import React, { useState, useEffect } from 'react'
 
-window.onmessage = (e) => {
+let wasmInitialized = false;
+
+const initializeWasm = async () => {
+    if (!wasmInitialized) {
+        try {
+            await init();
+            wasmInitialized = true;
+        } catch (error) {
+            console.error('Failed to initialize WebAssembly:', error);
+            throw error;
+        }
+    }
+};
+
+window.onmessage = async (e) => {
     if (e.data.action === 'respondFile') {
-        handleFile(e.data.file)
+        try {
+            await handleFile(e.data.file);
+        } catch (error) {
+            console.error('Error handling file:', error);
+            OUTPUT.render(<div style={{ color: 'red', padding: '10px' }}>Error: {error.message}</div>);
+        }
     }
 }
 
@@ -13,6 +32,12 @@ if (window.parent) {
 }
 
 const OUTPUT = createRoot(document.getElementById('output'))
+
+// Initialize WebAssembly when the component mounts
+initializeWasm().catch(error => {
+    console.error('Failed to initialize WebAssembly:', error);
+    OUTPUT.render(<div style={{ color: 'red', padding: '10px' }}>Error: Failed to initialize WebAssembly module</div>);
+});
 
 function pathToTree(paths: [string, string][]): {[key: string]: any} {
     const result = {}
@@ -32,6 +57,9 @@ function pathToTree(paths: [string, string][]): {[key: string]: any} {
 }
 
 async function handleFile(file: File) {
+    if (!wasmInitialized) {
+        await initializeWasm();
+    }
     const fileBytes = new Uint8Array(await file.arrayBuffer());
     const decoded = decode_apk(fileBytes)
     const tree = pathToTree(decoded)
