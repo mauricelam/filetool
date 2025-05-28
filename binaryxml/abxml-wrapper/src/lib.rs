@@ -68,6 +68,10 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
     // Iterate through all packages
     for (package_id, package) in resources.packages.iter() {
         debug!("Processing package {}", package_id);
+        if package_id == &1 {
+            // Skip processing the Android system package
+            continue;
+        }
 
         // Iterate through all type specs
         let type_map: HashMap<u32, String> = package
@@ -90,7 +94,7 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
                 .format_reference(*entry_id, entry.get_key(), None)
                 .unwrap_or_else(|_| "Unknown".into());
 
-            let value = entry.to_string(package);
+            let value = entry.to_string(&resources.packages, *package_id);
 
             let spec_id = u32::from(entry_id.get_spec());
             let spec_str = package
@@ -104,7 +108,9 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
                 name: entry_name,
                 value,
                 entries: match entry {
-                    Entry::Complex(complex_entry) => Some(complex_entry.to_hash_map(package)),
+                    Entry::Complex(complex_entry) => {
+                        Some(complex_entry.to_hash_map(&resources.packages, *package_id))
+                    }
                     _ => None,
                 },
             });
@@ -122,7 +128,7 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
 mod tests {
     #[test]
     fn test_extract_arsc() {
-        let bytes = include_bytes!("resources.arsc").to_vec();
+        let bytes = include_bytes!("example_resources.arsc").to_vec();
         let decoder = abxml::decoder::Decoder::from_arsc(&bytes).unwrap();
         decoder.get_resources();
     }

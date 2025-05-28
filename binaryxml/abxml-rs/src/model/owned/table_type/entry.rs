@@ -5,11 +5,8 @@ use byteorder::{LittleEndian, WriteBytesExt};
 
 use crate::{
     model::{
-        value::{
-            TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID, TOKEN_TYPE_DIMENSION, TOKEN_TYPE_FRACTION,
-            TOKEN_TYPE_REFERENCE_ID, TOKEN_TYPE_STRING,
-        },
-        Library as _, Value,
+        value::{TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID, TOKEN_TYPE_REFERENCE_ID, TOKEN_TYPE_STRING},
+        Identifier, Library as _, Value,
     },
     visitor::model::Library,
 };
@@ -51,14 +48,27 @@ pub struct SimpleEntry {
 }
 
 impl SimpleEntry {
-    pub fn to_string(&self, library: &Library) -> String {
+    pub fn to_string(&self, packages: &HashMap<u8, Library>, main_package_id: u8) -> String {
         match self.value_type {
-            TOKEN_TYPE_REFERENCE_ID => library.resid_to_string(self.value_data),
-            TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID => library.resid_to_string(self.value_data),
-            TOKEN_TYPE_STRING => library
-                .get_string(self.value_data)
-                .map(|e| e.to_string())
-                .unwrap_or_else(|_| format!("Unknown string({})", self.value_data)),
+            TOKEN_TYPE_REFERENCE_ID | TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID => {
+                let package_id = self.value_data.get_package();
+                let package = packages.get(&package_id).unwrap();
+                package.resid_to_string(
+                    self.value_data,
+                    if package_id == 1 {
+                        Some("android".into())
+                    } else {
+                        None
+                    },
+                )
+            }
+            TOKEN_TYPE_STRING => {
+                let package = packages.get(&main_package_id).unwrap();
+                package
+                    .get_string(self.value_data)
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|_| format!("Unknown string({})", self.value_data))
+            }
             _ => Value::create(self.value_type, self.value_data)
                 .map(|x| x.to_string())
                 .unwrap_or_else(|_| format!("Unknown({})", self.value_data)),
@@ -124,16 +134,90 @@ pub struct ComplexEntry {
     entries: Vec<SimpleEntry>,
 }
 
+pub fn get_type_string(type_value: u32) -> String {
+    let mut types = Vec::new();
+
+    if type_value & 0x00000001 != 0 {
+        types.push("reference");
+    }
+    if type_value & 0x00000002 != 0 {
+        types.push("string");
+    }
+    if type_value & 0x00000004 != 0 {
+        types.push("integer");
+    }
+    if type_value & 0x00000008 != 0 {
+        types.push("boolean");
+    }
+    if type_value & 0x00000010 != 0 {
+        types.push("color");
+    }
+    if type_value & 0x00000020 != 0 {
+        types.push("float");
+    }
+    if type_value & 0x00000040 != 0 {
+        types.push("dimension");
+    }
+    if type_value & 0x00000080 != 0 {
+        types.push("fraction");
+    }
+    if type_value & 0x00010000 != 0 {
+        types.push("enum");
+    }
+    if type_value & 0x00020000 != 0 {
+        types.push("flags");
+    }
+
+    if types.is_empty() {
+        "unknown".into()
+    } else {
+        types.join("|")
+    }
+}
+
 impl ComplexEntry {
-    pub fn to_hash_map(&self, library: &Library) -> HashMap<String, String> {
+    pub fn to_hash_map(
+        &self,
+        packages: &HashMap<u8, Library>,
+        main_package_id: u8,
+    ) -> HashMap<String, String> {
         self.entries
             .iter()
-            .map(|e| (library.resid_to_string(e.get_id()), e.to_string(library)))
+            .map(|e| {
+                if e.get_id() == 0x1000000 {
+                    ("type".into(), get_type_string(e.value_data))
+                } else {
+                    (
+                        {
+                            let package_id = e.get_id().get_package();
+                            let package = packages.get(&package_id).unwrap();
+                            package.resid_to_string(
+                                e.get_id(),
+                                if package_id == 1 {
+                                    Some("android".into())
+                                } else {
+                                    None
+                                },
+                            )
+                        },
+                        e.to_string(packages, main_package_id),
+                    )
+                }
+            })
             .collect()
     }
 
-    pub fn to_string(&self, library: &Library) -> String {
-        let refname = library.resid_to_string(self.parent_entry_id);
+    pub fn to_string(&self, packages: &HashMap<u8, Library>) -> String {
+        let package_id = self.parent_entry_id.get_package();
+        let package = packages.get(&package_id).unwrap();
+        let refname = package.resid_to_string(
+            self.parent_entry_id,
+            if package_id == 1 {
+                Some("android".into())
+            } else {
+                None
+            },
+        );
         format!("parent: {refname}")
     }
 }
@@ -219,11 +303,11 @@ pub enum Entry {
 }
 
 impl Entry {
-    pub fn to_string(&self, library: &Library) -> String {
+    pub fn to_string(&self, packages: &HashMap<u8, Library>, main_package_id: u8) -> String {
         match self {
             Self::Empty(a, b) => format!("Empty({}, {})", a, b),
-            Self::Simple(simple) => simple.to_string(library),
-            Self::Complex(complex) => complex.to_string(library),
+            Self::Simple(simple) => simple.to_string(packages, main_package_id),
+            Self::Complex(complex) => complex.to_string(packages),
         }
     }
 

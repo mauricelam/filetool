@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import init, { decode_apk, extract_arsc } from './abxml-wrapper/pkg'
 import React, { useState, useEffect } from 'react'
 
+const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
 
 const initializeWasm = async () => {
@@ -15,29 +16,6 @@ const initializeWasm = async () => {
         }
     }
 };
-
-window.onmessage = async (e) => {
-    if (e.data.action === 'respondFile') {
-        try {
-            await handleFile(e.data.file);
-        } catch (error) {
-            console.error('Error handling file:', error);
-            OUTPUT.render(<div style={{ color: 'red', padding: '10px' }}>Error: {error.message}</div>);
-        }
-    }
-}
-
-if (window.parent) {
-    window.parent.postMessage({ 'action': 'requestFile' })
-}
-
-const OUTPUT = createRoot(document.getElementById('output'))
-
-// Initialize WebAssembly when the component mounts
-initializeWasm().catch(error => {
-    console.error('Failed to initialize WebAssembly:', error);
-    OUTPUT.render(<div style={{ color: 'red', padding: '10px' }}>Error: Failed to initialize WebAssembly module</div>);
-});
 
 function pathToTree(paths: [string, string][]): { [key: string]: any } {
     const result = {}
@@ -56,25 +34,82 @@ function pathToTree(paths: [string, string][]): { [key: string]: any } {
     return result
 }
 
-async function handleFile(file: File) {
-    if (!wasmInitialized) {
-        await initializeWasm();
-    }
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
+function App() {
+    const [view, setView] = useState<'file' | 'resource'>('file');
+    const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
+    const [resources, setResources] = useState<any[]>([]);
+    const [error, setError] = useState<string | null>(null);
 
-    // Check if it's an ARSC file
-    if (file.name.endsWith('.arsc')) {
-        const resources = extract_arsc(fileBytes);
-        OUTPUT.render(<ResourceTableViewer resources={resources} />);
-        return;
+    useEffect(() => {
+        // Request file from parent window
+        if (window.parent) {
+            window.parent.postMessage({ 'action': 'requestFile' });
+        }
+
+        // Set up message handler
+        const handleMessage = async (e: MessageEvent) => {
+            if (e.data.action === 'respondFile') {
+                try {
+                    await handleFile(e.data.file);
+                } catch (error) {
+                    console.error('Error handling file:', error);
+                    setError(error.message);
+                }
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, []);
+
+    const handleFile = async (file: File) => {
+        if (!wasmInitialized) {
+            await initializeWasm();
+        }
+        const fileBytes = new Uint8Array(await file.arrayBuffer());
+
+        // Check if it's an ARSC file
+        if (file.name.endsWith('.arsc')) {
+            const resources = extract_arsc(fileBytes);
+            setResources(resources);
+            setView('resource');
+            return;
+        }
+
+        const decoded = decode_apk(fileBytes)
+        const tree = pathToTree(decoded)
+        setFileTree(tree);
+        setView('file');
     }
 
-    const decoded = decode_apk(fileBytes)
-    const tree = pathToTree(decoded)
-    OUTPUT.render(<FileViewer files={tree} />)
+    const handleItemClick = (level: number, key: string, content: any) => {
+        // Check if it's an ARSC file
+        if (key.endsWith('.arsc') && content instanceof Uint8Array) {
+            const resources = extract_arsc(content);
+            setResources(resources);
+            setView('resource');
+            return;
+        }
+
+        // ... rest of handleItemClick implementation ...
+    };
+
+    if (error) {
+        return <div style={{ color: 'red', padding: '10px' }}>Error: {error}</div>;
+    }
+
+    if (view === 'resource') {
+        return <ResourceTableViewer resources={resources} onBack={() => setView('file')} />;
+    }
+
+    return <FileViewer files={fileTree} onItemClick={handleItemClick} onFileSelect={handleFile} />;
 }
 
-function FileViewer({ files }: { files: { [key: string]: any } }) {
+function FileViewer({ files, onItemClick, onFileSelect }: {
+    files: { [key: string]: any },
+    onItemClick: (level: number, key: string, content: any) => void,
+    onFileSelect: (file: File) => Promise<void>
+}) {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
 
@@ -89,7 +124,7 @@ function FileViewer({ files }: { files: { [key: string]: any } }) {
         // Check if it's an ARSC file
         if (key.endsWith('.arsc') && content instanceof Uint8Array) {
             const resources = extract_arsc(content);
-            OUTPUT.render(<ResourceTableViewer resources={resources} />);
+            onFileSelect(new File([content], key));
             return;
         }
 
@@ -113,10 +148,7 @@ function FileViewer({ files }: { files: { [key: string]: any } }) {
 
     const handleOpenFile = async (file: Uint8Array, filename: string) => {
         const extractedFile = new File([file], filename);
-        window.parent?.postMessage({
-            action: 'openFile',
-            file: extractedFile
-        }, "/", [await extractedFile.arrayBuffer()]);
+        onFileSelect(extractedFile);
     };
 
     const handleDownloadFile = async (file: Uint8Array, filename: string) => {
@@ -273,7 +305,7 @@ function FileViewer({ files }: { files: { [key: string]: any } }) {
     );
 }
 
-function ResourceTableViewer({ resources }: { resources: any[] }) {
+function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: () => void }) {
     // Group resources by type name
     const resourcesByType = resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
@@ -328,111 +360,169 @@ function ResourceTableViewer({ resources }: { resources: any[] }) {
             display: 'flex',
             flexDirection: 'column'
         }}>
-            <h3 style={{ margin: '0 0 8px 0' }}>Resource Table</h3>
-            
-            {/* Type selector tabs */}
             <div style={{
                 display: 'flex',
-                gap: '4px',
+                alignItems: 'center',
+                gap: '16px',
+                marginBottom: '16px'
+            }}>
+                <button
+                    onClick={onBack}
+                    style={{
+                        padding: '8px 16px',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        background: 'white',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                    </svg>
+                    Back
+                </button>
+                <h3 style={{ margin: 0 }}>Resource Table</h3>
+            </div>
+
+            {/* Type selector tabs */}
+            <div style={{
+                overflowX: 'auto',
                 marginBottom: '16px',
                 borderBottom: '1px solid #ccc'
             }}>
-                {Object.entries(resourcesByType).map(([typeName, resources]: [string, any[]]) => (
-                    <button
-                        key={typeName}
-                        onClick={() => setSelectedType(typeName)}
-                        style={{
-                            padding: '8px 16px',
-                            border: 'none',
-                            background: selectedType === typeName ? '#e0e0e0' : 'transparent',
-                            cursor: 'pointer',
-                            borderRadius: '4px 4px 0 0',
-                            fontWeight: selectedType === typeName ? 'bold' : 'normal'
-                        }}
-                    >
-                        {typeName} ({resources.length})
-                    </button>
-                ))}
+                <div style={{
+                    display: 'flex',
+                    gap: '4px',
+                    minWidth: 'min-content'
+                }}>
+                    {Object.entries(resourcesByType).map(([typeName, resources]: [string, any[]]) => (
+                        <button
+                            key={typeName}
+                            onClick={() => setSelectedType(typeName)}
+                            style={{
+                                padding: '8px 16px',
+                                border: 'none',
+                                background: selectedType === typeName ? '#e0e0e0' : 'transparent',
+                                cursor: 'pointer',
+                                borderRadius: '4px 4px 0 0',
+                                fontWeight: selectedType === typeName ? 'bold' : 'normal',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            {typeName}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Resource table */}
             <div style={{
-                display: 'grid',
-                gridTemplateColumns: showValueColumn ? 'auto auto auto' : 'auto auto',
-                gap: '8px',
-                padding: '8px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
                 overflow: 'auto',
-                flex: 1
+                flex: 1,
+                border: '1px solid #ccc',
+                borderRadius: '4px'
             }}>
-                <div 
-                    style={{ 
-                        fontWeight: 'bold', 
-                        padding: '8px', 
-                        borderBottom: '1px solid #ccc',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                    }}
-                    onClick={() => handleSort('entry_id')}
-                >
-                    Entry ID <SortIndicator column="entry_id" />
-                </div>
-                <div 
-                    style={{ 
-                        fontWeight: 'bold', 
-                        padding: '8px', 
-                        borderBottom: '1px solid #ccc',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                    }}
-                    onClick={() => handleSort('name')}
-                >
-                    Name <SortIndicator column="name" />
-                </div>
-                {showValueColumn && (
-                    <div 
-                        style={{ 
-                            fontWeight: 'bold', 
-                            padding: '8px', 
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: showValueColumn ? 'auto auto auto' : 'auto auto',
+                    gap: '8px',
+                    padding: '8px',
+                    minWidth: 'min-content'
+                }}>
+                    <div
+                        style={{
+                            fontWeight: 'bold',
+                            padding: '8px',
                             borderBottom: '1px solid #ccc',
                             cursor: 'pointer',
                             display: 'flex',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            whiteSpace: 'nowrap'
                         }}
-                        onClick={() => handleSort('value')}
+                        onClick={() => handleSort('entry_id')}
                     >
-                        Value <SortIndicator column="value" />
+                        Entry ID <SortIndicator column="entry_id" />
                     </div>
-                )}
+                    <div
+                        style={{
+                            fontWeight: 'bold',
+                            padding: '8px',
+                            borderBottom: '1px solid #ccc',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            whiteSpace: 'nowrap'
+                        }}
+                        onClick={() => handleSort('name')}
+                    >
+                        Name <SortIndicator column="name" />
+                    </div>
+                    {showValueColumn && (
+                        <div
+                            style={{
+                                fontWeight: 'bold',
+                                padding: '8px',
+                                borderBottom: '1px solid #ccc',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                whiteSpace: 'nowrap'
+                            }}
+                            onClick={() => handleSort('value')}
+                        >
+                            Value <SortIndicator column="value" />
+                        </div>
+                    )}
 
-                {getSortedResources().map((resource, index) => (
-                    <React.Fragment key={index}>
-                        <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>0x{resource.entry_id.toString(16).toUpperCase()}</div>
-                        <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>{resource.name}</div>
-                        {showValueColumn && (
-                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
-                                {resource.value}
-                                {resource.entries && (
-                                    <div style={{ marginTop: '8px' }}>
-                                        {Array.from(resource.entries).map(([key, value], i) => (
-                                            <div key={i} style={{ 
-                                                padding: '4px 0',
-                                                borderTop: i > 0 ? '1px solid #eee' : 'none'
-                                            }}>
-                                                <span style={{ fontWeight: 'bold' }}>{key}:</span> {value}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </React.Fragment>
-                ))}
+                    {getSortedResources().map((resource, index) => (
+                        <React.Fragment key={index}>
+                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>0x{resource.entry_id.toString(16).toUpperCase()}</div>
+                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{resource.name}</div>
+                            {showValueColumn && (
+                                <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
+                                    {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {resource.value}
+                                        {resource.value.startsWith('#') && resource.value.length === 9 && (
+                                            <div style={{
+                                                width: '20px',
+                                                height: '20px',
+                                                backgroundColor: resource.value,
+                                                border: '1px solid #ccc',
+                                                borderRadius: '4px'
+                                            }} />
+                                        )}
+                                    </div>}
+                                    {resource.entries && (
+                                        <div style={{ marginTop: '8px' }}>
+                                            {Array.from(resource.entries).map(([key, value], i) => (
+                                                <div key={i} style={{
+                                                    padding: '4px 0',
+                                                    borderTop: i > 0 ? '1px solid #eee' : 'none'
+                                                }}>
+                                                    <span style={{ fontWeight: 'bold' }}>{key}:</span> {value}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </React.Fragment>
+                    ))}
+                </div>
             </div>
         </div>
     );
 }
+
+// Initialize WebAssembly when the component mounts
+initializeWasm().catch(error => {
+    console.error('Failed to initialize WebAssembly:', error);
+    OUTPUT.render(<div style={{ color: 'red', padding: '10px' }}>Error: Failed to initialize WebAssembly module</div>);
+});
+
+// Initial render
+OUTPUT.render(<App />);
 

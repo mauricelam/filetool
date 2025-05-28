@@ -68,8 +68,8 @@ impl<'a> Decoder<'a> {
     pub fn from_arsc(buffer: &'a [u8]) -> Result<ModelVisitor<'a>, Error> {
         let mut visitor = ModelVisitor::default();
 
-        Executor::arsc(buffer, &mut visitor)
-            .context("could not read ARSC resources")?;
+        Executor::arsc(STR_ARSC, &mut visitor).context("could not read Android lib resources")?;
+        Executor::arsc(buffer, &mut visitor).context("could not read ARSC resources")?;
 
         Ok(visitor)
     }

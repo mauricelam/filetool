@@ -78,11 +78,15 @@ pub trait Library {
     fn get_entries_string(&self, str_id: u32) -> Result<Rc<String>, Error>;
     fn get_spec_string(&self, str_id: u32) -> Result<Rc<String>, Error>;
 
-    fn resid_to_string(&self, resid: u32) -> String {
+    fn resid_to_string(&self, resid: u32, namespace: Option<String>) -> String {
         self.get_entry(resid)
+            .map_err(|_| String::from("No entry"))
             .map(|e| e.get_key())
-            .and_then(|key| self.format_reference(resid, key, None))
-            .unwrap_or_else(|_| format!("0x{resid:x}"))
+            .and_then(|key| {
+                self.format_reference(resid, key, namespace)
+                    .map_err(|e| String::from("No reference"))
+            })
+            .unwrap_or_else(|e| format!("0x{resid:x} ({e})"))
     }
 }
 
