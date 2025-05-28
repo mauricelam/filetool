@@ -489,7 +489,7 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
                                             <div style={{
                                                 width: '20px',
                                                 height: '20px',
-                                                backgroundColor: resource.value,
+                                                backgroundColor: `rgba(${parseInt(resource.value.slice(3, 5), 16)}, ${parseInt(resource.value.slice(5, 7), 16)}, ${parseInt(resource.value.slice(7, 9), 16)}, ${parseInt(resource.value.slice(1, 3), 16) / 255})`,
                                                 border: '1px solid #ccc',
                                                 borderRadius: '4px'
                                             }} />
