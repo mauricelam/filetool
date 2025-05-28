@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::HashMap, rc::Rc};
 
-use anyhow::{format_err, Error, Context};
+use anyhow::{format_err, Context, Error};
 use log::{error, info, warn};
 
 use super::{ChunkVisitor, Origin};
@@ -130,12 +130,10 @@ impl<'a> XmlVisitor<'a> {
             let current_value = current_attribute.get_value()?;
             let value = match current_value {
                 Value::StringReference(index) => (*string_table.get_string(index)?).clone(),
-                Value::ReferenceId(id) => {
-                    AttributeHelper::resolve_reference(self.resources, id, "@")
-                        .context("could not resolve reference")?
-                }
+                Value::ReferenceId(id) => AttributeHelper::resolve_reference(self.resources, id)
+                    .context("could not resolve reference")?,
                 Value::AttributeReferenceId(id) => {
-                    AttributeHelper::resolve_reference(self.resources, id, "?")
+                    AttributeHelper::resolve_reference(self.resources, id)
                         .context("could not resolve attribute reference")?
                 }
                 Value::Integer(value) | Value::Flags(value) => {
@@ -188,10 +186,11 @@ impl<'a> ChunkVisitor<'a> for XmlVisitor<'a> {
 
     fn visit_xml_tag_start(&mut self, tag_start: XmlTagStartWrapper<'a>) {
         let element_result = self.build_element(&tag_start);
-        if let Ok(element) = element_result {
-            self.container.start_element(element);
-        } else {
-            error!("Could not build a XML element")
+        match element_result {
+            Ok(element) => {
+                self.container.start_element(element);
+            }
+            Err(e) => error!("Could not build a XML element: {e}"),
         }
     }
 
@@ -216,7 +215,6 @@ impl AttributeHelper {
     pub fn resolve_reference<'a, R: ResourceTrait<'a>>(
         resources: &R,
         id: u32,
-        prefix: &str,
     ) -> Result<String, Error> {
         let res_id = id;
         let package_id = id.get_package();
@@ -234,7 +232,7 @@ impl AttributeHelper {
 
         if let Some(key) = entry_key {
             let namespace = if is_main { None } else { package.get_name() };
-            return package.format_reference(id, key, namespace, prefix);
+            return package.format_reference(id, key, namespace);
         }
 
         Err(format_err!("error resolving reference"))
@@ -448,7 +446,6 @@ mod tests {
             id: u32,
             _: u32,
             namespace: Option<String>,
-            _: &str,
         ) -> Result<String, Error> {
             if id == (1 << 24) | 1 && namespace.is_none() {
                 Ok("reference#1".to_string())
@@ -549,7 +546,7 @@ mod tests {
     fn it_resolves_to_null_if_id_is_0() {
         let resources = FakeResources::fake();
 
-        let reference = AttributeHelper::resolve_reference(&resources, 0, "prefix");
+        let reference = AttributeHelper::resolve_reference(&resources, 0);
 
         assert_eq!("@null", reference.unwrap());
     }
@@ -558,7 +555,7 @@ mod tests {
     fn it_returns_error_if_the_provided_id_is_related_to_a_non_existing_package() {
         let resources = FakeResources::fake();
 
-        let reference = AttributeHelper::resolve_reference(&resources, 3 << 24, "prefix");
+        let reference = AttributeHelper::resolve_reference(&resources, 3 << 24);
 
         assert!(reference.is_err());
         assert_eq!("package not found", reference.err().unwrap().to_string());
@@ -568,7 +565,7 @@ mod tests {
     fn it_resolves_a_reference_without_namespace() {
         let resources = FakeResources::fake();
 
-        let reference = AttributeHelper::resolve_reference(&resources, (1 << 24) | 1, "prefix");
+        let reference = AttributeHelper::resolve_reference(&resources, (1 << 24) | 1);
 
         assert_eq!("reference#1", reference.unwrap());
     }
@@ -577,7 +574,7 @@ mod tests {
     fn it_resolves_a_reference_with_namespace() {
         let resources = FakeResources::fake();
 
-        let result = AttributeHelper::resolve_reference(&resources, (2 << 24) | 1, "prefix");
+        let result = AttributeHelper::resolve_reference(&resources, (2 << 24) | 1);
 
         assert_eq!("NS:reference#2", result.unwrap());
     }

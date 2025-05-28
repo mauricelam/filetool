@@ -11,7 +11,7 @@ use log::info;
 pub mod builder;
 mod element;
 pub mod owned;
-mod value;
+pub mod value;
 
 use self::owned::Entry;
 pub use self::{
@@ -23,6 +23,8 @@ use crate::visitor::Origin;
 pub type Namespaces = BTreeMap<String, String>;
 pub type Entries = HashMap<u32, Entry>;
 
+/// Android resource IDs assigned by AAPT has the format 0xPPTTEEEE
+/// Where PP = package, TT = type (called "spec" here), and EEEE is the unique ID for that resource.
 pub trait Identifier {
     fn get_package(&self) -> u8;
     fn get_spec(&self) -> u8;
@@ -70,12 +72,18 @@ pub trait Library {
         id: u32,
         key: u32,
         namespace: Option<String>,
-        prefix: &str,
     ) -> Result<String, Error>;
     // fn get_entries(&self) -> &Entries;
     fn get_entry(&self, id: u32) -> Result<&Entry, Error>;
     fn get_entries_string(&self, str_id: u32) -> Result<Rc<String>, Error>;
     fn get_spec_string(&self, str_id: u32) -> Result<Rc<String>, Error>;
+
+    fn resid_to_string(&self, resid: u32) -> String {
+        self.get_entry(resid)
+            .map(|e| e.get_key())
+            .and_then(|key| self.format_reference(resid, key, None))
+            .unwrap_or_else(|_| format!("0x{resid:x}"))
+    }
 }
 
 pub trait LibraryBuilder<'a> {

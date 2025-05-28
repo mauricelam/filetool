@@ -129,7 +129,7 @@ pub type RefPackage<'a> = Rc<RefCell<Library<'a>>>;
 
 #[derive(Default, Debug)]
 pub struct Resources<'a> {
-    packages: HashMap<u8, Library<'a>>,
+    pub packages: HashMap<u8, Library<'a>>,
     main_package: Option<u8>,
 }
 
@@ -194,7 +194,28 @@ impl<'a> Library<'a> {
         }
     }
 
-    fn get_spec_as_str(&self, spec_id: u32) -> Result<String, Error> {
+    pub fn iter_specs(&self) -> impl Iterator<Item = (&u32, &TypeSpecWrapper<'a>)> {
+        self.specs.iter()
+    }
+
+    pub fn iter_entries(&self) -> impl Iterator<Item = (&u32, &Entry)> {
+        self.entries.iter()
+    }
+
+    pub fn get_string(&self, str_id: u32) -> Result<Rc<String>, Error> {
+        if let Some(string_table) = &self.string_table {
+            let out_string = string_table.get_string(str_id).context(format_err!(
+                "could not find string {} on string table",
+                str_id
+            ))?;
+
+            return Ok(out_string);
+        }
+
+        Err(format_err!("string not found on string table"))
+    }
+
+    pub fn get_spec_as_str(&self, spec_id: u32) -> Result<String, Error> {
         if self.specs.get(&(spec_id)).is_some() {
             if let Some(spec_string_table) = &self.spec_string_table {
                 if let Ok(spec_str) = spec_string_table.get_string(spec_id - 1) {
@@ -217,7 +238,6 @@ impl<'a> LibraryTrait for Library<'a> {
         id: u32,
         key: u32,
         namespace: Option<String>,
-        prefix: &str,
     ) -> Result<String, Error> {
         let spec_id = u32::from(id.get_spec());
         let spec_str = self
@@ -228,11 +248,9 @@ impl<'a> LibraryTrait for Library<'a> {
             key
         ))?;
 
-        let ending = if spec_str == "attr" {
-            string
-        } else {
-            Rc::new(format!("{}/{}", spec_str, string))
-        };
+        let ending = format!("{}/{}", spec_str, string);
+
+        let prefix = if spec_str == "attr" { "?" } else { "@" };
 
         match namespace {
             Some(ns) => Ok(format!("{}{}:{}", prefix, ns, ending)),

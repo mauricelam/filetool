@@ -1,19 +1,21 @@
 {
-  "name": "wasmtools-binaryxml",
+  "name": "binaryxml",
   "version": "1.0.0",
-  "author": "Maurice Lam",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
   "scripts": {
-    "build": "node build.mjs",
+    "build": "BUILD_MODE=prod node build.mjs",
+    "dev": "BUILD_MODE=dev node build.mjs",
     "watch": "BUILD_MODE=dev node build.mjs"
   },
-  "license": "MIT",
-  "description": "",
-  "devDependencies": {
-    "esbuild-plugin-wasm": "^1.1.0",
-    "esbuild-plugin-wasm-pack": "^1.1.0"
-  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "chokidar": "^3.5.3",
+    "esbuild": "^0.20.1",
+    "esbuild-plugin-copy": "^2.1.0",
+    "esbuild-plugin-wasm": "^0.1.0"
   }
 }

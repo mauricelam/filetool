@@ -1,5 +1,18 @@
-use byteorder::{LittleEndian, WriteBytesExt};
+use std::collections::HashMap;
+
 use anyhow::{format_err, Error};
+use byteorder::{LittleEndian, WriteBytesExt};
+
+use crate::{
+    model::{
+        value::{
+            TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID, TOKEN_TYPE_DIMENSION, TOKEN_TYPE_FRACTION,
+            TOKEN_TYPE_REFERENCE_ID, TOKEN_TYPE_STRING,
+        },
+        Library as _, Value,
+    },
+    visitor::model::Library,
+};
 
 const MASK_COMPLEX: u16 = 0x0001;
 
@@ -35,6 +48,22 @@ pub struct SimpleEntry {
     key_index: u32,
     value_type: u8,
     value_data: u32,
+}
+
+impl SimpleEntry {
+    pub fn to_string(&self, library: &Library) -> String {
+        match self.value_type {
+            TOKEN_TYPE_REFERENCE_ID => library.resid_to_string(self.value_data),
+            TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID => library.resid_to_string(self.value_data),
+            TOKEN_TYPE_STRING => library
+                .get_string(self.value_data)
+                .map(|e| e.to_string())
+                .unwrap_or_else(|_| format!("Unknown string({})", self.value_data)),
+            _ => Value::create(self.value_type, self.value_data)
+                .map(|x| x.to_string())
+                .unwrap_or_else(|_| format!("Unknown({})", self.value_data)),
+        }
+    }
 }
 
 impl SimpleEntry {
@@ -93,6 +122,20 @@ pub struct ComplexEntry {
     key_index: u32,
     parent_entry_id: u32,
     entries: Vec<SimpleEntry>,
+}
+
+impl ComplexEntry {
+    pub fn to_hash_map(&self, library: &Library) -> HashMap<String, String> {
+        self.entries
+            .iter()
+            .map(|e| (library.resid_to_string(e.get_id()), e.to_string(library)))
+            .collect()
+    }
+
+    pub fn to_string(&self, library: &Library) -> String {
+        let refname = library.resid_to_string(self.parent_entry_id);
+        format!("parent: {refname}")
+    }
 }
 
 impl ComplexEntry {
@@ -176,6 +219,14 @@ pub enum Entry {
 }
 
 impl Entry {
+    pub fn to_string(&self, library: &Library) -> String {
+        match self {
+            Self::Empty(a, b) => format!("Empty({}, {})", a, b),
+            Self::Simple(simple) => simple.to_string(library),
+            Self::Complex(complex) => complex.to_string(library),
+        }
+    }
+
     pub fn simple(&self) -> Result<&SimpleEntry, Error> {
         if let Self::Simple(simple) = self {
             Ok(simple)
@@ -198,17 +249,25 @@ impl Entry {
 
     pub fn get_id(&self) -> u32 {
         match self {
-            Self::Complex(complex) => complex.get_id(),
-            Self::Simple(simple) => simple.get_id(),
             Self::Empty(id, _) => *id,
+            Self::Simple(simple) => simple.get_id(),
+            Self::Complex(complex) => complex.get_id(),
         }
     }
 
     pub fn get_key(&self) -> u32 {
         match self {
-            Self::Complex(complex) => complex.get_key(),
-            Self::Simple(simple) => simple.get_key(),
             Self::Empty(_, key) => *key,
+            Self::Simple(simple) => simple.get_key(),
+            Self::Complex(complex) => complex.get_key(),
+        }
+    }
+
+    pub fn get_value(&self) -> Option<u32> {
+        match self {
+            Self::Empty(_, _) => None,
+            Self::Simple(simple) => Some(simple.get_value()),
+            Self::Complex(_) => None,
         }
     }
 

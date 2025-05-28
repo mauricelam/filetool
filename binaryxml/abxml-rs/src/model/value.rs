@@ -2,21 +2,21 @@ use std::{mem, string::ToString};
 
 use anyhow::{format_err, Error};
 
-const TOKEN_TYPE_REFERENCE_ID: u8 = 0x01;
-const TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID: u8 = 0x02;
-const TOKEN_TYPE_STRING: u8 = 0x03;
-const TOKEN_TYPE_FLOAT: u8 = 0x04;
-const TOKEN_TYPE_DIMENSION: u8 = 0x05;
-const TOKEN_TYPE_FRACTION: u8 = 0x06;
-const TOKEN_TYPE_DYN_REFERENCE: u8 = 0x07;
-const TOKEN_TYPE_DYN_ATTRIBUTE: u8 = 0x08;
-const TOKEN_TYPE_INTEGER: u8 = 0x10;
-const TOKEN_TYPE_FLAGS: u8 = 0x11;
-const TOKEN_TYPE_BOOLEAN: u8 = 0x12;
-const TOKEN_TYPE_ARGB8: u8 = 0x1C;
-const TOKEN_TYPE_RGB8: u8 = 0x1D;
-const TOKEN_TYPE_ARGB4: u8 = 0x1E;
-const TOKEN_TYPE_RGB4: u8 = 0x1F;
+pub(crate) const TOKEN_TYPE_REFERENCE_ID: u8 = 0x01;
+pub(crate) const TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID: u8 = 0x02;
+pub(crate) const TOKEN_TYPE_STRING: u8 = 0x03;
+pub(crate) const TOKEN_TYPE_FLOAT: u8 = 0x04;
+pub(crate) const TOKEN_TYPE_DIMENSION: u8 = 0x05;
+pub(crate) const TOKEN_TYPE_FRACTION: u8 = 0x06;
+pub(crate) const TOKEN_TYPE_DYN_REFERENCE: u8 = 0x07;
+pub(crate) const TOKEN_TYPE_DYN_ATTRIBUTE: u8 = 0x08;
+pub(crate) const TOKEN_TYPE_INTEGER: u8 = 0x10;
+pub(crate) const TOKEN_TYPE_FLAGS: u8 = 0x11;
+pub(crate) const TOKEN_TYPE_BOOLEAN: u8 = 0x12;
+pub(crate) const TOKEN_TYPE_ARGB8: u8 = 0x1C;
+pub(crate) const TOKEN_TYPE_RGB8: u8 = 0x1D;
+pub(crate) const TOKEN_TYPE_ARGB4: u8 = 0x1E;
+pub(crate) const TOKEN_TYPE_RGB4: u8 = 0x1F;
 
 #[derive(Debug)]
 /// Represents a value on the binary documents. It is formed by a type and a 32 bits payload. The

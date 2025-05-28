@@ -10,12 +10,25 @@ use anyhow::anyhow;
 use anyhow::{Context, Error};
 use zip::read::ZipArchive;
 
-use crate::decoder::BufferedDecoder;
+use crate::{
+    decoder::BufferedDecoder,
+    model::{Library as LibraryTrait, owned::Entry},
+};
 
 #[derive(Debug)]
 pub struct Apk<Reader: Read + Seek = File> {
     handler: ZipArchive<Reader>,
     decoder: BufferedDecoder,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ArscResource {
+    pub package_id: u8,
+    pub type_id: u8,
+    pub type_name: String,
+    pub entry_id: u16,
+    pub name: String,
+    pub value: String,
 }
 
 impl<Reader: Read + Seek> Apk<Reader> {
@@ -165,5 +178,53 @@ impl<Reader: Read + Seek> Apk<Reader> {
             .context("could not write to target file")?;
 
         Ok(())
+    }
+
+    pub fn list_resources(&mut self) -> Result<Vec<ArscResource>, Error> {
+        let decoder = self
+            .decoder
+            .get_decoder()
+            .context("could not get the decoder")?;
+
+        let resources = decoder.get_resources();
+        let mut result = Vec::new();
+
+        // Iterate through all packages
+        for (package_id, package) in resources.packages.iter() {
+            // Get package name
+            let package_name = package.get_name().unwrap_or_else(|| format!("package_{}", package_id));
+
+            // Iterate through all type specs
+            for (type_id, type_spec) in package.iter_specs() {
+                // Get type name
+                let type_name = package.get_spec_string(*type_id)
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|_| format!("type_{}", type_id));
+
+                // Get entries for this type
+                for (entry_id, entry) in package.iter_entries() {
+                    if (entry_id >> 16) == *type_id {
+                        let entry_name = package.get_entries_string(*entry_id)
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|_| format!("entry_{}", entry_id & 0xFFFF));
+
+                        let value = entry.get_value()
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "".to_string());
+
+                        result.push(ArscResource {
+                            package_id: *package_id,
+                            type_id: *type_id as u8,
+                            type_name: type_name.clone(),
+                            entry_id: (entry_id & 0xFFFF) as u16,
+                            name: format!("{}:{}:{}", package_name, type_name, entry_name),
+                            value,
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(result)
     }
 }

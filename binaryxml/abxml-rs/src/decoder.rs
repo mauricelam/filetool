@@ -65,6 +65,15 @@ impl<'a> Decoder<'a> {
         Ok(decoder)
     }
 
+    pub fn from_arsc(buffer: &'a [u8]) -> Result<ModelVisitor<'a>, Error> {
+        let mut visitor = ModelVisitor::default();
+
+        Executor::arsc(buffer, &mut visitor)
+            .context("could not read ARSC resources")?;
+
+        Ok(visitor)
+    }
+
     pub fn get_resources(&self) -> &'a Resources {
         self.visitor.get_resources()
     }
