@@ -37,8 +37,11 @@ const SETTINGS = {
         },
       ]
     }),
-    rewriteBinutilsWasmPath
+    rewriteBinutilsWasmPath,
   ],
+  loader: {
+    '.css': 'css',
+  }
 }
 
 if (process.env['BUILD_MODE'] === 'dev') {

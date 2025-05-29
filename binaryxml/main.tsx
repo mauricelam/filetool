@@ -1,6 +1,8 @@
 import { createRoot } from 'react-dom/client'
 import init, { decode_apk, extract_arsc } from './abxml-wrapper/pkg'
 import React, { useState, useEffect } from 'react'
+import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
+import 'react-tabs/style/react-tabs.css'
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
@@ -352,6 +354,8 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
 
     const showValueColumn = selectedType !== 'id';
 
+    const resourceTypes = Object.keys(resourcesByType);
+
     return (
         <div style={{
             padding: '20px',
@@ -388,130 +392,118 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
             </div>
 
             {/* Type selector tabs */}
-            <div style={{
-                overflowX: 'auto',
-                marginBottom: '16px',
-                borderBottom: '1px solid #ccc'
-            }}>
-                <div style={{
-                    display: 'flex',
-                    gap: '4px',
-                    minWidth: 'min-content'
-                }}>
-                    {Object.entries(resourcesByType).map(([typeName, resources]: [string, any[]]) => (
-                        <button
-                            key={typeName}
-                            onClick={() => setSelectedType(typeName)}
-                            style={{
-                                padding: '8px 16px',
-                                border: 'none',
-                                background: selectedType === typeName ? '#e0e0e0' : 'transparent',
-                                cursor: 'pointer',
-                                borderRadius: '4px 4px 0 0',
-                                fontWeight: selectedType === typeName ? 'bold' : 'normal',
-                                whiteSpace: 'nowrap'
-                            }}
-                        >
-                            {typeName}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <div style={{ marginBottom: '16px' }}>
+                <Tabs
+                    selectedIndex={resourceTypes.indexOf(selectedType)}
+                    onSelect={(index) => setSelectedType(resourceTypes[index])}
+                >
+                    <TabList>
+                        {resourceTypes.map(typeName => (
+                            <Tab key={typeName}>{typeName}</Tab>
+                        ))}
+                    </TabList>
 
-            {/* Resource table */}
-            <div style={{
-                overflow: 'auto',
-                flex: 1,
-                border: '1px solid #ccc',
-                borderRadius: '4px'
-            }}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: showValueColumn ? 'auto auto auto' : 'auto auto',
-                    gap: '8px',
-                    padding: '8px',
-                    minWidth: 'min-content'
-                }}>
-                    <div
-                        style={{
-                            fontWeight: 'bold',
-                            padding: '8px',
-                            borderBottom: '1px solid #ccc',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            whiteSpace: 'nowrap'
-                        }}
-                        onClick={() => handleSort('entry_id')}
-                    >
-                        Entry ID <SortIndicator column="entry_id" />
-                    </div>
-                    <div
-                        style={{
-                            fontWeight: 'bold',
-                            padding: '8px',
-                            borderBottom: '1px solid #ccc',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            whiteSpace: 'nowrap'
-                        }}
-                        onClick={() => handleSort('name')}
-                    >
-                        Name <SortIndicator column="name" />
-                    </div>
-                    {showValueColumn && (
-                        <div
-                            style={{
-                                fontWeight: 'bold',
-                                padding: '8px',
-                                borderBottom: '1px solid #ccc',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                whiteSpace: 'nowrap'
-                            }}
-                            onClick={() => handleSort('value')}
-                        >
-                            Value <SortIndicator column="value" />
-                        </div>
-                    )}
-
-                    {getSortedResources().map((resource, index) => (
-                        <React.Fragment key={index}>
-                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>0x{resource.entry_id.toString(16).toUpperCase()}</div>
-                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{resource.name}</div>
-                            {showValueColumn && (
-                                <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
-                                    {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        {resource.value}
-                                        {resource.value.startsWith('#') && resource.value.length === 9 && (
-                                            <div style={{
-                                                width: '20px',
-                                                height: '20px',
-                                                backgroundColor: `rgba(${parseInt(resource.value.slice(3, 5), 16)}, ${parseInt(resource.value.slice(5, 7), 16)}, ${parseInt(resource.value.slice(7, 9), 16)}, ${parseInt(resource.value.slice(1, 3), 16) / 255})`,
-                                                border: '1px solid #ccc',
-                                                borderRadius: '4px'
-                                            }} />
-                                        )}
-                                    </div>}
-                                    {resource.entries && (
-                                        <div style={{ marginTop: '8px' }}>
-                                            {Array.from(resource.entries).map(([key, value], i) => (
-                                                <div key={i} style={{
-                                                    padding: '4px 0',
-                                                    borderTop: i > 0 ? '1px solid #eee' : 'none'
-                                                }}>
-                                                    <span style={{ fontWeight: 'bold' }}>{key}:</span> {value}
-                                                </div>
-                                            ))}
+                    {resourceTypes.map(typeName => (
+                        <TabPanel key={typeName}>
+                            {/* Resource table */}
+                            <div style={{
+                                overflow: 'auto',
+                                flex: 1,
+                                border: '1px solid #ccc',
+                                borderRadius: '4px'
+                            }}>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: selectedType !== 'id' ? 'auto auto auto' : 'auto auto',
+                                    gap: '8px',
+                                    padding: '8px',
+                                    minWidth: 'min-content'
+                                }}>
+                                    <div
+                                        style={{
+                                            fontWeight: 'bold',
+                                            padding: '8px',
+                                            borderBottom: '1px solid #ccc',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                        onClick={() => handleSort('entry_id')}
+                                    >
+                                        Entry ID <SortIndicator column="entry_id" />
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontWeight: 'bold',
+                                            padding: '8px',
+                                            borderBottom: '1px solid #ccc',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                        onClick={() => handleSort('name')}
+                                    >
+                                        Name <SortIndicator column="name" />
+                                    </div>
+                                    {selectedType !== 'id' && (
+                                        <div
+                                            style={{
+                                                fontWeight: 'bold',
+                                                padding: '8px',
+                                                borderBottom: '1px solid #ccc',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                            onClick={() => handleSort('value')}
+                                        >
+                                            Value <SortIndicator column="value" />
                                         </div>
                                     )}
+
+                                    {getSortedResources().map((resource, index) => (
+                                        <React.Fragment key={index}>
+                                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>0x{resource.entry_id.toString(16).toUpperCase()}</div>
+                                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{resource.name}</div>
+                                            {selectedType !== 'id' && (
+                                                <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
+                                                    {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        {resource.value}
+                                                        {resource.value.startsWith('#') && resource.value.length === 9 && (
+                                                            <div style={{
+                                                                width: '20px',
+                                                                height: '20px',
+                                                                backgroundColor: `rgba(${parseInt(resource.value.slice(3, 5), 16)}, ${parseInt(resource.value.slice(5, 7), 16)}, ${parseInt(resource.value.slice(7, 9), 16)}, ${parseInt(resource.value.slice(1, 3), 16) / 255})`,
+                                                                border: '1px solid #ccc',
+                                                                borderRadius: '4px'
+                                                            }} />
+                                                        )}
+                                                    </div>}
+                                                    {resource.entries && (
+                                                        <div style={{ marginTop: '8px' }}>
+                                                            {Array.from(resource.entries).map(([key, value], i) => (
+                                                                <div key={i} style={{
+                                                                    padding: '4px 0',
+                                                                    borderTop: i > 0 ? '1px solid #eee' : 'none'
+                                                                }}>
+                                                                    <span style={{ fontWeight: 'bold' }}>{key}:</span> {value}
+                                                                </div>
+                                                            ))
+                                                            }
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
                                 </div>
-                            )}
-                        </React.Fragment>
+                            </div>
+                        </TabPanel>
                     ))}
-                </div>
+                </Tabs>
             </div>
         </div>
     );
