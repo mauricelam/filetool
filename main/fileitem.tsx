@@ -1,6 +1,7 @@
 import React, { CSSProperties, ReactElement, useState } from "react";
 import CustomTypes from "./mime-db/custom-types.json";
 import IanaTypes from "./mime-db/iana-types.json";
+import { setDefaultHandler } from './defaultHandlers';
 // import { extensions } from "./icons/supportedExtensions";
 
 function getIcon(name: string) {
@@ -24,7 +25,22 @@ function getIcon(name: string) {
 //     console.log('ICON_LOOKUP', result)
 // }
 
-export function FileItem({ name, mimetype, description, handlers }: { name: string, mimetype: string, description: string, handlers: any[] }) {
+interface HandlerConfig {
+    name: string;
+    handler: string;
+    mimetypes?: any[]; // Optional, as it's not used directly here but good for type consistency
+}
+
+interface FileItemProps {
+    name: string;
+    mimetype: string;
+    description: string;
+    matchedHandlers: HandlerConfig[];
+    onOpenHandler: (handlerId: string, filename: string, mimetype: string) => void;
+}
+
+export function FileItem(props: FileItemProps) {
+    const { name, mimetype, description, matchedHandlers, onOpenHandler } = props;
     const labelStyle: CSSProperties = {
         color: '#fff',
         padding: '1px 4px',
@@ -73,7 +89,32 @@ export function FileItem({ name, mimetype, description, handlers }: { name: stri
                     <label style={labelStyle}>description</label>
                     <span className="filedescription" style={{ fontSize: '14px' }}>{description}</span>
                 </div>
-                <div className="buttonBar">{handlers}</div>
+                <div className="buttonBar">
+                    {matchedHandlers.length === 0 && <span style={{fontSize: '12px', color: '#777'}}>No specific handlers available. File might have been opened by a default.</span>}
+                    {matchedHandlers.map(handlerConfig => (
+                        <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                            <button 
+                                onClick={() => onOpenHandler(handlerConfig.handler, name, mimetype)}
+                                style={{marginRight: '5px'}}
+                            >
+                                Open with {handlerConfig.name}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setDefaultHandler(mimetype, name, handlerConfig.handler);
+                                    console.log(`Set ${handlerConfig.name} (id: ${handlerConfig.handler}) as default for mimetype: ${mimetype}`);
+                                    // Simple visual feedback: alert or a temporary message
+                                    // For now, we'll rely on the console log and the actual functionality.
+                                    // A more sophisticated UI feedback can be added later.
+                                    alert(`Set ${handlerConfig.name} as default for ${mimetype}`);
+                                }}
+                                style={{fontSize: '10px', padding: '2px 5px'}}
+                            >
+                                Set as default
+                            </button>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     )

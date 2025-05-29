@@ -4,6 +4,23 @@ Vibe coded WASM file inspection tool in the browser: https://mauricelam.github.i
 
 The idea is that you drag a file into the tool, using the browser sandbox, be able to inspect the contents of the file.
 
+## Default File Handlers
+
+This application now supports setting a default file handler for specific file types. This allows you to customize how files are opened, streamlining your workflow.
+
+### How it Works
+- When you open a file, the application determines its mimetype (e.g., `text/plain`, `application/pdf`).
+- If multiple handlers are available for that mimetype, you will see buttons to open the file with each handler.
+- Next to each "Open with..." button, you will find a "Set as default" button.
+
+### Setting a Default Handler
+- To set a default handler for the current file's type (based on its mimetype), simply click the "Set as default" button next to your preferred handler.
+- An alert will confirm that the default has been set.
+
+### Benefits
+- Once a default handler is set for a mimetype, any subsequent files of that same type will automatically open with your chosen handler. You will no longer need to manually select a handler each time.
+- Your default handler preferences are stored locally in your web browser's `localStorage`.
+
 ## Cross-iframe Communication
 
 The application uses postMessage for communication between the main window and tool iframes. Here's the message format specification:

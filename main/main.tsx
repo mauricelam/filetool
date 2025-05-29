@@ -2,6 +2,7 @@ import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
 import HANDLERS, { matchMimetype } from './handlers';
+import { getDefaultHandler } from './defaultHandlers';
 import { FileItem } from "./fileitem";
 
 const dropTarget = document.getElementById('droptarget')
@@ -154,8 +155,42 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
         fun().then(
             ([mime, handlers, description]: [string, any, string]) => {
                 setMime(_ => mime)
-                setHandlers(_ => handlers)
+                setHandlers(_ => handlers) // handlers here are ALL matching handlers
                 setDescription(_ => description)
+
+                // --- BEGINNING OF NEW LOGIC ---
+                const defaultHandlerId = getDefaultHandler(mime, file.name);
+                let openedByDefault = false;
+
+                if (defaultHandlerId) {
+                    const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
+                    if (defaultHandlerConfig) {
+                        const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
+                        if (isMatch) {
+                            openHandler(defaultHandlerConfig.handler, file, mime);
+                            openedByDefault = true;
+                            // Optionally, you might want to clear the 'handlers' array 
+                            // or set a specific state to indicate it was opened by default,
+                            // so FileItem doesn't render chooser buttons.
+                            // For now, just opening is fine. If 'handlers' is passed as empty,
+                            // FileItem might render nothing in the button bar.
+                            // Let's try setting handlers to an empty array if opened by default.
+                            if (openedByDefault) {
+                                 setHandlers(_ => []); // Clear handlers so no buttons are shown by FileItem
+                            }
+                        } else {
+                            // Default handler is set but no longer matches the file.
+                            // Proceed to show all available handlers.
+                            console.warn(`Default handler '${defaultHandlerId}' no longer matches file '${file.name}' (mime: '${mime}').`);
+                        }
+                    } else {
+                        // Default handler is set but not found in current HANDLERS configuration.
+                        console.warn(`Default handler '${defaultHandlerId}' not found in HANDLERS configuration.`);
+                    }
+                }
+                // If not opened by default, the original 'handlers' (all matches)
+                // will be passed to FileItem, and the user can choose.
+                // --- END OF NEW LOGIC ---
             },
             (reason) => {
                 setMime(_ => "")
@@ -169,14 +204,14 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             name={file.name}
             mimetype={mime}
             description={description}
-            handlers={handlers.map(handler => (
-                <button
-                    key={handler.name}
-                    onClick={() => openHandler(handler.handler, file, mime)}
-                >
-                    {handler.name}
-                </button>
-            ))}
+            matchedHandlers={handlers} // Pass the raw handlers array
+            onOpenHandler={(handlerId, filename, mimetype) => {
+                // 'file' is from LoadFileItem's props { file }
+                // 'handlerId' and 'mimetype' are passed up from FileItem
+                // 'filename' from FileItem can be used for logging or confirmation if needed,
+                // but 'file' object is the source of truth for openHandler.
+                openHandler(handlerId, file, mimetype);
+            }}
         />
     )
 }
