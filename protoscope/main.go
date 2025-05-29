@@ -23,7 +23,10 @@ func protoscopeFile(this js.Value, args []js.Value) interface{} {
 
 	// Disassemble the protobuf bytes into Protoscope text format.
 	// The Write function here means "write as Protoscope text".
-	disassembled := protoscope.Write(goBytes, protoscope.WriterOptions{})
+	disassembled := protoscope.Write(goBytes, protoscope.WriterOptions{
+		ExplicitWireTypes:      true,
+		ExplicitLengthPrefixes: true,
+	})
 	// The Write function does not return an error.
 	// It might panic for severely malformed inputs, but we'll rely on
 	// JavaScript to catch that if it propagates as an exception.

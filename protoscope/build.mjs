@@ -27,6 +27,18 @@ async function fetchWasmExecJs(targetPath) {
 const srcDir = '.'; // Current directory where build.mjs is
 const outDir = '../dist/protoscope';
 
+// Function to build Go code to WASM
+function buildGoCode() {
+  try {
+    console.log('Building Go code to WASM...');
+    execSync(`GOOS=js GOARCH=wasm go build -o ${path.join(outDir, 'protoscope.wasm')} main.go`, { stdio: 'inherit' });
+    console.log('Go code built successfully.');
+  } catch (error) {
+    console.error('Error building Go code:', error.message);
+    process.exit(1);
+  }
+}
+
 const SETTINGS = {
   entryPoints: [path.join(srcDir, 'main.tsx')],
   outdir: outDir,
@@ -44,14 +56,7 @@ const SETTINGS = {
             fs.mkdirSync(outDir, { recursive: true });
           }
           // Build Go code to WASM
-          try {
-            console.log('Building Go code to WASM...');
-            execSync(`GOOS=js GOARCH=wasm go build -o ${path.join(outDir, 'protoscope.wasm')} main.go`, { stdio: 'inherit' });
-            console.log('Go code built successfully.');
-          } catch (error) {
-            console.error('Error building Go code:', error.message);
-            process.exit(1);
-          }
+          buildGoCode();
           // Fetch wasm_exec.js
           await fetchWasmExecJs(path.join(outDir, 'wasm_exec.js'));
         });
@@ -76,6 +81,15 @@ async function runBuild() {
         ...SETTINGS,
         sourcemap: true,
       });
+      
+      // Watch for changes in main.go
+      fs.watch('main.go', (eventType) => {
+        if (eventType === 'change') {
+          console.log('main.go changed, rebuilding WASM...');
+          buildGoCode();
+        }
+      });
+      
       await ctx.watch();
       console.log('Watching for changes...');
     } else {
