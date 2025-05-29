@@ -276,7 +276,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "Protoscope Viewer",
-        "handler": "protoscopeviewer", // This will be used to construct the path to /protoscopeviewer/index.html
+        "handler": "protoscope",
         "mimetypes": [
             {
                 mime: "application/octet-stream",

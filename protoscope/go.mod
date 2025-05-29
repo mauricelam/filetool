@@ -1,4 +1,4 @@
-module protoscopeviewer
+module protoscope
 
 go 1.21
 

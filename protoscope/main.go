@@ -32,7 +32,7 @@ func protoscopeFile(this js.Value, args []js.Value) interface{} {
 
 func main() {
 	c := make(chan struct{}, 0)
-	js.Global().Set("protoscopeviewer", js.ValueOf(map[string]interface{}{
+	js.Global().Set("protoscope", js.ValueOf(map[string]interface{}{
 		"protoscopeFile": js.FuncOf(protoscopeFile),
 	}))
 	<-c
