@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { Archive } from 'libarchive.js';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
+import { ColumnView } from '../components/ColumnView';
 
 Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
 
@@ -22,93 +23,28 @@ async function handleFile(file: File) {
 
 const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const [archiveFile, setArchiveFile] = useState<File | null>(initialFile);
-    const [selectedPath, setSelectedPath] = useState<string[]>([]);
-    const [columns, setColumns] = useState<any[]>([]);
-
-    const columnsContainerRef = useRef<HTMLDivElement>(null);
+    const [files, setFiles] = useState<{ [key: string]: any }>({});
 
     useEffect(() => {
         const loadArchive = async () => {
             if (!archiveFile) return;
-            // await init(); // No longer needed with libarchive.js
             const ar = await Archive.open(archiveFile);
             const files = await ar.getFilesObject();
-            setColumns([{ path: [], content: files }]);
+            setFiles(files);
         };
 
         loadArchive();
-
-    }, [archiveFile]); // Depend on archiveFile state
-
-    const handleItemClick = (level: number, key: string, content: any) => {
-        const newPath = [...selectedPath.slice(0, level), key];
-        setSelectedPath(newPath);
-
-        // Update columns - always add a new column for directories
-        const newColumns = columns.slice(0, level + 1);
-        if (!('extract' in content)) {  // If it's a directory
-            newColumns.push({ path: newPath, content });
-        }
-        setColumns(newColumns);
-
-        // Scroll to the right after the new column is added
-        if (!('extract' in content)) {
-            setTimeout(() => {
-                if (columnsContainerRef.current) {
-                    columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
-                }
-            }, 0);
-        }
-    };
+    }, [archiveFile]);
 
     const handleFileDownload = () => {
         if (archiveFile) {
             const url = URL.createObjectURL(archiveFile);
             const anchor = document.createElement('a');
             anchor.href = url;
-            anchor.download = archiveFile.name.replace(/\.[^/.]+$/, '') + '.zip'; // Suggest .zip extension
+            anchor.download = archiveFile.name.replace(/\.[^/.]+$/, '') + '.zip';
             anchor.click();
             URL.revokeObjectURL(url);
         }
-    };
-
-    const renderColumn = (level: number, content: any) => {
-        if (!content || typeof content !== 'object') {
-            return (
-                <div className="column-content">
-                    <div className="value">{String(content)}</div>
-                </div>
-            );
-        }
-
-        const items = Object.entries(content);
-        return (
-            <div className="column-content">
-                {items.map(([key, value]) => {
-                    const isDirectory = value && typeof value === 'object' && !('extract' in value);
-                    const isSelected = selectedPath[level] === key;
-
-                    return (
-                        <div
-                            key={key}
-                            className={`column-item ${isSelected ? 'selected' : ''} ${isDirectory ? 'has-children' : ''}`}
-                            onClick={() => handleItemClick(level, key, value)}
-                            title={key}
-                        >
-                            <div className="item-name">
-                                {isDirectory ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                                        <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Z" />
-                                    </svg>
-                                ) : null}
-                                {key}
-                            </div>
-                            {!isDirectory && renderFileActions(value)}
-                        </div>
-                    );
-                })}
-            </div>
-        );
     };
 
     const handleOpenFile = async (file: any) => {
@@ -128,7 +64,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         anchor.click();
     };
 
-    const renderFileActions = (file: any) => {
+    const renderFileActions = (file: any, path: string[]) => {
         if (!window.parent) return null;
 
         return (
@@ -148,29 +84,9 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', gap: '20px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                <button
-                    onClick={() => { /* handle back logic here if needed */ }}
-                    style={{
-                        padding: '8px 16px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        background: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
-                    </svg>
-                    Back
-                </button>
                 <h3 style={{ margin: 0 }}>Archive Contents</h3>
-
-                {/* Download Button */}
                 {archiveFile && (
                     <button
                         onClick={handleFileDownload}
@@ -193,93 +109,11 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                         Download as zip
                     </button>
                 )}
-
             </div>
-            <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-                <div className="columns-container" ref={columnsContainerRef} style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
-                    {columns.map((column, index) => (
-                        <div
-                            key={index}
-                            style={{
-                                width: '250px',
-                                minWidth: '250px',
-                                maxWidth: '250px',
-                                borderRight: '1px solid #ccc',
-                                overflow: 'auto',
-                                height: '100%'
-                            }}
-                        >
-                            {renderColumn(index, column.content)}
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <style>
-                {`
-                    *, *::before, *::after {
-                        box-sizing: border-box;
-                    }
-                    html, body, #output {
-                        height: 100%;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    #output > div {
-                        height: 100%;
-                    }
-                    .column-content {
-                        padding: 8px;
-                        height: 100%;
-                        overflow: auto;
-                    }
-                    .column-item {
-                        padding: 8px;
-                        cursor: pointer;
-                        border-radius: 4px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        white-space: nowrap;
-                        overflow: hidden;
-                    }
-                    .column-item:hover {
-                        background-color: #f0f0f0;
-                    }
-                    .column-item.selected {
-                        background-color: #e0e0e0;
-                    }
-                    .item-name {
-                        font-weight: 500;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        flex: 1;
-                        min-width: 0;
-                    }
-                    .item-type {
-                        color: #666;
-                        font-size: 0.9em;
-                    }
-                    .value {
-                        color: #666;
-                        font-family: monospace;
-                    }
-                    .file-actions {
-                        display: flex;
-                        gap: 8px;
-                        margin-left: 8px;
-                    }
-                    .file-actions button {
-                        background: none;
-                        border: none;
-                        padding: 4px;
-                        cursor: pointer;
-                        border-radius: 4px;
-                    }
-                    .file-actions button:hover {
-                        background-color: #f0f0f0;
-                    }
-                `}
-            </style>
+            <ColumnView
+                initialContent={files}
+                renderFileActions={renderFileActions}
+            />
         </div>
     );
-}
+};
