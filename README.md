@@ -56,3 +56,7 @@ window.onmessage = (e) => {
     }
 }
 ```
+
+## Supported File Types
+
+- **X.509 Certificates (.der, .crt, .cer, .pem):** Displays detailed information from X.509 digital certificates, including subject, issuer, validity period, public key information, and extensions.
