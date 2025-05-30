@@ -1,7 +1,7 @@
-import React, { CSSProperties, ReactElement, useState } from "react";
+import React, { CSSProperties, ReactElement, useEffect, useState } from "react";
 import CustomTypes from "./mime-db/custom-types.json";
 import IanaTypes from "./mime-db/iana-types.json";
-// import { extensions } from "./icons/supportedExtensions";
+import { setDefaultHandler, getDefaultHandler } from './defaultHandlers';
 
 function getIcon(name: string) {
     for (const ext in ICON_LOOKUP) {
@@ -12,19 +12,34 @@ function getIcon(name: string) {
     return `icons/default_file.svg`
 }
 
-// // Parse supportedExtensions.ts into an object for faster lookup
-// function parseSupported() {
-//     const result = {}
-//     for (const supported of extensions.supported) {
-//         for (const ext of supported.extensions) {
-//             result[ext] = result[ext] || []
-//             result[ext].push(supported.icon)
-//         }
-//     }
-//     console.log('ICON_LOOKUP', result)
-// }
+interface HandlerConfig {
+    name: string;
+    handler: string;
+    mimetypes?: any[]; // Optional, as it's not used directly here but good for type consistency
+}
 
-export function FileItem({ name, mimetype, description, handlers }: { name: string, mimetype: string, description: string, handlers: any[] }) {
+interface FileItemProps {
+    name: string;
+    mimetype: string;
+    description: string;
+    matchedHandlers: HandlerConfig[];
+    onOpenHandler: (handlerId: string, filename: string, mimetype: string) => void;
+    initialActiveHandler?: string;
+}
+
+export function FileItem(props: FileItemProps) {
+    const { name, mimetype, description, matchedHandlers, onOpenHandler, initialActiveHandler } = props;
+    const currentDefaultHandlerId = getDefaultHandler(mimetype, name);
+    const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
+    const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
+
+    // Set initial active handler if provided
+    useEffect(() => {
+        if (activeHandlerId === null && initialActiveHandler) {
+            setActiveHandlerId(initialActiveHandler);
+        }
+    }, [activeHandlerId, initialActiveHandler]);
+
     const labelStyle: CSSProperties = {
         color: '#fff',
         padding: '1px 4px',
@@ -34,6 +49,36 @@ export function FileItem({ name, mimetype, description, handlers }: { name: stri
         marginRight: '2px',
         userSelect: 'none',
     }
+
+    const buttonStyle: CSSProperties = {
+        marginRight: '5px',
+        padding: '6px 12px',
+        borderRadius: '4px',
+        border: '1px solid #ccc',
+        backgroundColor: '#fff',
+        cursor: 'pointer',
+        fontSize: '14px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        transition: 'all 0.2s ease',
+    }
+
+    const activeButtonStyle: CSSProperties = {
+        ...buttonStyle,
+        backgroundColor: '#e6f3ff',
+        border: '1px solid #0066cc',
+        color: '#0066cc',
+    }
+
+    const defaultIndicatorStyle: CSSProperties = {
+        fontSize: '11px',
+        color: '#666',
+        textAlign: 'center',
+        marginTop: '2px',
+        fontStyle: 'italic',
+    }
+
     const icon = getIcon(name)
     const [mimeDetails, setMimeDetails] = useState<ReactElement>()
     async function showMimeDetails() {
@@ -55,6 +100,7 @@ export function FileItem({ name, mimetype, description, handlers }: { name: stri
             }
         })
     }
+    console.log('active handler', activeHandlerId, initialActiveHandler)
     return (
         <div style={{ display: 'flex' }}>
             <img src={icon} style={{ width: 32, height: 32, marginRight: 4 }} />
@@ -73,8 +119,67 @@ export function FileItem({ name, mimetype, description, handlers }: { name: stri
                     <label style={labelStyle}>description</label>
                     <span className="filedescription" style={{ fontSize: '14px' }}>{description}</span>
                 </div>
-                <div className="buttonBar">{handlers}</div>
+                <div className="buttonBar" style={{ display: 'flex', alignItems: 'center' }}>
+                    {matchedHandlers.length === 0 && <span style={{ fontSize: '12px', color: '#777' }}>No specific handlers available. File might have been opened by a default.</span>}
+                    {matchedHandlers.length > 0 && (
+                        <>
+                            <label style={labelStyle}>Open with</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
+                                {matchedHandlers
+                                    .sort((a, b) => {
+                                        // Sort active handler to the front
+                                        if (a.handler === activeHandlerId) return -1;
+                                        if (b.handler === activeHandlerId) return 1;
+                                        return 0;
+                                    })
+                                    .map(handlerConfig => {
+                                        const isCurrentDefault = handlerConfig.handler === currentDefaultHandlerId;
+                                        const isActive = handlerConfig.handler === activeHandlerId;
+                                        return (
+                                            <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        setActiveHandlerId(handlerConfig.handler);
+                                                        onOpenHandler(handlerConfig.handler, name, mimetype);
+                                                    }}
+                                                    style={isActive ? activeButtonStyle : buttonStyle}
+                                                >
+                                                    {handlerConfig.name}
+                                                </button>
+                                                {isCurrentDefault && (
+                                                    <div style={defaultIndicatorStyle}>Default</div>
+                                                )}
+                                                {isActive && !isCurrentDefault && localDefaultHandlerId !== handlerConfig.handler && (
+                                                    <div
+                                                        onClick={() => {
+                                                            setDefaultHandler(mimetype, name, handlerConfig.handler);
+                                                            setLocalDefaultHandlerId(handlerConfig.handler);
+                                                            console.log(`Set ${handlerConfig.name} (id: ${handlerConfig.handler}) as default for mimetype: ${mimetype}`);
+                                                        }}
+                                                        title="Set as default"
+                                                        className="circle-container"
+                                                        style={defaultIndicatorStyle}
+                                                    >Default</div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
+            <style>
+                {`
+                    .circle-container {
+                        opacity: 0.2;
+                        cursor: pointer;
+                    }
+                    .circle-container:hover {
+                        opacity: 1;
+                    }
+                `}
+            </style>
         </div>
     )
 }
@@ -1206,6 +1311,7 @@ const ICON_LOOKUP = {
     ".snyk": ["snyk"],
     ".solidarity": ["solidarity"],
     ".solidarity.json": ["solidarity"],
+    ".solidarity.yml": ["solidarity"],
     "spe": ["spacengine"],
     "spin.toml": ["spin"],
     "sqlite": ["sqlite"],
