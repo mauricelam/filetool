@@ -1,290 +1,121 @@
-import React, { useEffect, useState } from 'react';
-import { Certificate, GeneralName, GeneralNames, RelativeDistinguishedNames, Extension, BasicConstraints, ExtKeyUsage, RSAPublicKey } from 'pkijs';
-import { fromBER, BitString } from 'asn1js';
+import React, { useState, useCallback, useEffect } from 'react';
+import SyntaxHighlighter from 'react-syntax-highlighter';
+import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import { createRoot } from 'react-dom/client';
 
-interface DerViewerProps {
-  fileContent: ArrayBuffer;
+declare global {
+  interface Window {
+    derToAscii: (data: ArrayBuffer) => string;
+  }
 }
 
-// Helper function to convert ArrayBuffer to hex string
-const bufferToHex = (buffer: ArrayBuffer): string => {
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-};
+function DerAsciiViewer() {
+  const [output, setOutput] = useState<string>('');
+  const [error, setError] = useState<string>('');
 
-// Helper function to format RDNs (Relative Distinguished Names)
-const formatRDNs = (rdn: RelativeDistinguishedNames): string => {
-  return rdn.typesAndValues.map(tv => {
-    let typeStr = tv.type;
-    // Attempt to map OID to a friendly name
-    // Common OIDs can be added here
-    if (tv.type === '2.5.4.6') typeStr = 'C';
-    else if (tv.type === '2.5.4.10') typeStr = 'O';
-    else if (tv.type === '2.5.4.11') typeStr = 'OU';
-    else if (tv.type === '2.5.4.3') typeStr = 'CN';
-    else if (tv.type === '2.5.4.7') typeStr = 'L';
-    else if (tv.type === '2.5.4.8') typeStr = 'ST';
-    else if (tv.type === '0.9.2342.19200300.100.1.25') typeStr = 'DC';
-    else if (tv.type === '1.2.840.113549.1.9.1') typeStr = 'emailAddress';
-    return `${typeStr}=${tv.value.valueBlock.value}`;
-  }).join(', ');
-};
-
-const oidNameMapping: { [oid: string]: string } = {
-  '2.5.29.14': 'Subject Key Identifier',
-  '2.5.29.15': 'Key Usage',
-  '2.5.29.17': 'Subject Alternative Name',
-  '2.5.29.19': 'Basic Constraints',
-  '2.5.29.31': 'CRL Distribution Points',
-  '2.5.29.32': 'Certificate Policies',
-  '2.5.29.35': 'Authority Key Identifier',
-  '2.5.29.37': 'Extended Key Usage',
-  '1.3.6.1.5.5.7.1.1': 'Authority Information Access',
-  // Add more common OIDs here
-};
-
-const getOidName = (oid: string): string => {
-  return oidNameMapping[oid] || oid;
-}
-
-const DerViewer: React.FC<DerViewerProps> = ({ fileContent }) => {
-  const [certificate, setCertificate] = useState<Certificate | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [parsedCertData, setParsedCertData] = useState<any | null>(null);
+  const handleFile = useCallback(async (file: File) => {
+    try {
+      // Read file as ArrayBuffer and convert to Uint8Array
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Call the Go function with the ArrayBuffer
+      const result = window.derToAscii(uint8Array);
+      setOutput(result);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setOutput('');
+    }
+  }, []);
 
   useEffect(() => {
-    if (!fileContent || fileContent.byteLength === 0) {
-      setError(null);
-      setCertificate(null);
-      setParsedCertData(null);
-      return;
+    // Request file when component mounts if in iframe
+    if (window.parent !== window) {
+      window.parent.postMessage({ action: 'requestFile' }, '*');
     }
 
-    try {
-      setError(null);
-      setCertificate(null); // Clear previous cert
-      setParsedCertData(null); // Clear previous data
-
-      const asn1 = fromBER(fileContent);
-
-      if (asn1.offset === -1) {
-        throw new Error("Failed to parse ASN.1 from BER. The file might not be in DER format or is corrupted.");
+    // Listen for file response
+    const messageHandler = (e: MessageEvent) => {
+      if (e.data.action === 'respondFile') {
+        handleFile(e.data.file);
       }
+    };
 
-      const cert = new Certificate({ schema: asn1.result });
-      setCertificate(cert); // Storing the full cert object might be useful for debugging or future features
+    window.addEventListener('message', messageHandler);
+    return () => window.removeEventListener('message', messageHandler);
+  }, [handleFile]);
 
-      const data: any = {};
-      data.version = cert.version + 1; // PKIjs version is 0-indexed
-      data.serialNumber = bufferToHex(cert.serialNumber.valueBlock.valueHexView);
-      
-      data.subject = formatRDNs(cert.subject);
-      data.issuer = formatRDNs(cert.issuer);
-
-      data.notBefore = cert.notBefore.value.toLocaleString();
-      data.notAfter = cert.notAfter.value.toLocaleString();
-
-      data.signatureAlgorithm = getOidName(cert.signatureAlgorithm.algorithmId);
-      data.signatureValue = bufferToHex(cert.signatureValue.valueBlock.valueHexView);
-      
-      data.publicKeyAlgorithm = getOidName(cert.subjectPublicKeyInfo.algorithm.algorithmId);
-      // Extract public key details
-      if (cert.subjectPublicKeyInfo.algorithm.algorithmId === "1.2.840.113549.1.1.1") { // RSA
-        // cert.subjectPublicKeyInfo.parsedKey should already be an RSAPublicKey if the OID matches
-        const rsaPublicKey = cert.subjectPublicKeyInfo.parsedKey as RSAPublicKey;
-        data.publicKey = {
-          modulus: bufferToHex(rsaPublicKey.modulus.valueBlock.valueHexView),
-          publicExponent: bufferToHex(rsaPublicKey.publicExponent.valueBlock.valueHexView),
-        };
-      } else {
-         data.publicKey = bufferToHex(cert.subjectPublicKeyInfo.subjectPublicKey.valueBlock.valueHexView);
-      }
-
-
-      // Extensions
-      data.extensions = [];
-      if (cert.extensions) {
-        for (const ext of cert.extensions) {
-          const extEntry: any = {
-            oid: ext.extnID,
-            name: getOidName(ext.extnID),
-            critical: ext.critical,
-            value: null, // Placeholder for parsed value
-          };
-
-          try {
-            if (ext.parsedValue) { // PKIjs often provides a parsedValue
-                if (ext.extnID === '2.5.29.17') { // Subject Alternative Name
-                    const altNames = ext.parsedValue as GeneralNames; // Changed to GeneralNames
-                    // GeneralNames contains an array of GeneralName objects in its 'names' property
-                    extEntry.value = altNames.names.map((name: GeneralName) => {
-                        let valueRepresentation = "N/A";
-                        // GeneralName's 'value' can be of various types.
-                        // For simple ones like dNSName, uniformResourceIdentifier, it's a string.
-                        // For others like directoryName, it's an object (RelativeDistinguishedNames).
-                        if (typeof name.value === "string") {
-                            valueRepresentation = name.value;
-                        } else if (name.value && typeof name.value === "object") {
-                            // If it's a complex object like RDNs, try to format it or get a string representation
-                            if (name.value.valueBlock && name.value.valueBlock.value && typeof name.value.valueBlock.value === "string") {
-                                valueRepresentation = name.value.valueBlock.value; // common case for some simple types within complex structures
-                            } else if (name.value.typesAndValues) { // Heuristic for RDNs-like structures
-                                valueRepresentation = formatRDNs(name.value as RelativeDistinguishedNames);
-                            } else {
-                                try {
-                                    valueRepresentation = JSON.stringify(name.value);
-                                } catch (_) {
-                                    valueRepresentation = "[Complex Value]";
-                                }
-                            }
-                        }
-                        return `Type: ${name.type}, Value: ${valueRepresentation}`;
-                    }).join('; ');
-
-                } else if (ext.extnID === '2.5.29.19') { // Basic Constraints
-                    const basicConstraints = ext.parsedValue as BasicConstraints;
-                    extEntry.value = {
-                        isCA: basicConstraints.cA || false,
-                        pathLenConstraint: basicConstraints.pathLenConstraint !== undefined ? basicConstraints.pathLenConstraint : 'None',
-                    };
-                } else if (ext.extnID === '2.5.29.15') { // Key Usage
-                    const keyUsageBitString = ext.parsedValue as BitString;
-                    const usages = [];
-                    const bitArray = new Uint8Array(keyUsageBitString.valueBlock.valueHex);
-                    
-                    // Helper to check a bit in MSB0 order
-                    const isKeyUsageBitSet = (bitNumber: number): boolean => {
-                      const byteIndex = Math.floor(bitNumber / 8);
-                      const bitInByte = bitNumber % 8;
-                      if (byteIndex < bitArray.length) {
-                        return (bitArray[byteIndex] & (1 << (7 - bitInByte))) !== 0;
-                      }
-                      return false;
-                    };
-
-                    if (isKeyUsageBitSet(0)) usages.push("Digital Signature (0)");
-                    if (isKeyUsageBitSet(1)) usages.push("Non Repudiation / Content Commitment (1)");
-                    if (isKeyUsageBitSet(2)) usages.push("Key Encipherment (2)");
-                    if (isKeyUsageBitSet(3)) usages.push("Data Encipherment (3)");
-                    if (isKeyUsageBitSet(4)) usages.push("Key Agreement (4)");
-                    if (isKeyUsageBitSet(5)) usages.push("Key Cert Sign (5)");
-                    if (isKeyUsageBitSet(6)) usages.push("CRL Sign (6)");
-                    if (isKeyUsageBitSet(7)) usages.push("Encipher Only (7)"); // Usually for keyAgreement
-                    if (bitArray.length > 1 && isKeyUsageBitSet(8)) usages.push("Decipher Only (8)"); // Usually for keyAgreement
-                    extEntry.value = usages.length > 0 ? usages.join(', ') : "No specific usages set or unknown bitstring";
-                } else if (ext.extnID === '2.5.29.37') { // Extended Key Usage
-                    const extKeyUsage = ext.parsedValue as ExtKeyUsage;
-                    extEntry.value = extKeyUsage.keyPurposes.map(kp => getOidName(kp)).join(', ');
-                } else if (ext.parsedValue.toJSON) {
-                   extEntry.value = ext.parsedValue.toJSON(); // Generic fallback
-                } else {
-                   // If no specific parser and no toJSON, try to get raw hex
-                   extEntry.value = `Raw Value (Hex): ${bufferToHex(ext.extnValue.valueBlock.valueHexView)}`;
-                }
-            } else {
-              // Fallback for extensions where PKIjs doesn't provide a direct parsedValue
-              // or if you need to handle specific OIDs manually without relying on parsedValue
-              extEntry.value = `Raw Value (Hex): ${bufferToHex(ext.extnValue.valueBlock.valueHexView)}`;
-            }
-          } catch (parseError: any) {
-            console.warn(`Could not parse extension ${ext.extnID}:`, parseError);
-            extEntry.value = `Error parsing extension value: ${parseError.message || 'Unknown error'}. Raw (Hex): ${bufferToHex(ext.extnValue.valueBlock.valueHexView)}`;
-          }
-          data.extensions.push(extEntry);
-        }
-      }
-      setParsedCertData(data);
-
-    } catch (e: any) {
-      console.error("Error parsing X.509 certificate:", e);
-      setError(`Error: Could not parse DER content. ${e.message || 'Is this a valid X.509 certificate in DER format?'}`);
-    }
-  }, [fileContent]);
-
-  if (error) {
-    return <div style={{ color: 'red', padding: '10px' }}>{error}</div>;
-  }
-
-  if (!parsedCertData) {
-    return <div style={{ padding: '10px' }}>Loading certificate data or no file selected...</div>;
-  }
-
-  // --- Rendering Logic Here ---
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '15px' }}>
-      <h1>X.509 Certificate Details</h1>
-      
-      <Section title="General">
-        <Detail label="Version" value={parsedCertData.version} />
-        <Detail label="Serial Number" value={parsedCertData.serialNumber} pre />
-      </Section>
+    <div className="der-ascii-viewer">
+      <h2>DER ASCII Viewer</h2>
 
-      <Section title="Subject">
-        <Detail label="Subject" value={parsedCertData.subject} />
-      </Section>
-
-      <Section title="Issuer">
-        <Detail label="Issuer" value={parsedCertData.issuer} />
-      </Section>
-
-      <Section title="Validity Period">
-        <Detail label="Not Before" value={parsedCertData.notBefore} />
-        <Detail label="Not After" value={parsedCertData.notAfter} />
-      </Section>
-
-      <Section title="Public Key Information">
-        <Detail label="Algorithm" value={parsedCertData.publicKeyAlgorithm} />
-        {typeof parsedCertData.publicKey === 'object' ? (
-          <>
-            <Detail label="Modulus (Hex)" value={parsedCertData.publicKey.modulus} pre />
-            <Detail label="Public Exponent (Hex)" value={parsedCertData.publicKey.publicExponent} pre />
-          </>
-        ) : (
-          <Detail label="Key (Hex)" value={parsedCertData.publicKey} pre />
-        )}
-      </Section>
-
-      <Section title="Signature">
-        <Detail label="Signature Algorithm" value={parsedCertData.signatureAlgorithm} />
-        <Detail label="Signature Value (Hex)" value={parsedCertData.signatureValue} pre />
-      </Section>
-
-      {parsedCertData.extensions && parsedCertData.extensions.length > 0 && (
-        <Section title="Extensions">
-          {parsedCertData.extensions.map((ext: any, index: number) => (
-            <div key={index} style={{ marginBottom: '15px', paddingLeft: '10px', borderLeft: '2px solid #eee' }}>
-              <h3>{ext.name} ({ext.oid}) {ext.critical ? <strong style={{color: 'red'}}>(Critical)</strong> : ''}</h3>
-              {typeof ext.value === 'string' ? (
-                <p>{ext.value}</p>
-              ) : ext.value && typeof ext.value === 'object' ? (
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', backgroundColor: '#f5f5f5', padding: '10px', borderRadius: '4px' }}>
-                  {JSON.stringify(ext.value, null, 2)}
-                </pre>
-              ) : (
-                 <p>No value or value could not be displayed.</p>
-              )}
-            </div>
-          ))}
-        </Section>
+      {error && (
+        <div className="error">
+          Error: {error}
+        </div>
       )}
+
+      {output && (
+        <div className="output">
+          <SyntaxHighlighter
+            language="text"
+            style={docco}
+            customStyle={{
+              backgroundColor: '#f5f5f5',
+              padding: '1em',
+              borderRadius: '4px',
+              overflow: 'auto',
+              maxHeight: '500px'
+            }}
+          >
+            {output}
+          </SyntaxHighlighter>
+        </div>
+      )}
+
+      <style>
+        {`
+          .der-ascii-viewer {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+
+          h2 {
+            color: #333;
+            margin-bottom: 10px;
+          }
+
+          p {
+            color: #666;
+            margin-bottom: 20px;
+          }
+
+          .error {
+            color: #d32f2f;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 4px;
+            margin-bottom: 20px;
+          }
+
+          .output {
+            margin-top: 20px;
+          }
+
+          .output h3 {
+            color: #333;
+            margin-bottom: 10px;
+          }
+        `}
+      </style>
     </div>
   );
-};
+}
 
-// Helper components for consistent styling
-const Section: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
-  <div style={{ marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
-    <h2 style={{ borderBottom: '1px solid #eee', paddingBottom: '5px', marginBottom: '10px' }}>{title}</h2>
-    {children}
-  </div>
-);
-
-const Detail: React.FC<{ label: string, value: string | number, pre?: boolean }> = ({ label, value, pre }) => (
-  <div style={{ marginBottom: '8px' }}>
-    <strong style={{ marginRight: '8px' }}>{label}:</strong>
-    {pre ? <pre style={{ display: 'inline', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{value}</pre> : <span>{value}</span>}
-  </div>
-);
-
-export default DerViewer;
+const container = document.getElementById('root');
+if (container) {
+  const reactRoot = createRoot(container);
+  reactRoot.render(<DerAsciiViewer />);
+}

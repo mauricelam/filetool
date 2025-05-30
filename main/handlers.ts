@@ -275,16 +275,14 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
-        "name": "X.509 Certificate",
+        "name": "DER",
         "handler": "der",
         "mimetypes": [
             {
-                filename: /\.(der|crt|cer|pem)$/i,
+                filename: /\.(der|crt|cer|pem|rsa)$/i,
             },
             "application/x-x509-ca-cert",
             "application/pkix-cert",
-            // For PEM files, which are base64 encoded DER
-            // The viewer itself will need to handle the PEM decoding
             "application/x-pem-file",
         ]
     },
