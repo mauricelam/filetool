@@ -1,17 +1,3 @@
-// Copyright 2023 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /**
  * @fileoverview Manages default file handlers for different mime types.
  */
@@ -33,31 +19,28 @@ export interface DefaultHandlerPreferences {
 /**
  * Retrieves the default handler preferences from localStorage.
  *
- * @returns {DefaultHandlerPreferences} The stored preferences, or an empty object if none are found or an error occurs.
+ * @returns {DefaultHandlerPreferences} The stored preferences, or an empty object if none are found.
+ * @throws {Error} If `JSON.parse` fails due to invalid JSON in localStorage.
  */
 export function getPreferences(): DefaultHandlerPreferences {
-  try {
-    const prefsString = localStorage.getItem(DEFAULT_FILE_HANDLERS_KEY);
-    if (prefsString) {
-      return JSON.parse(prefsString) as DefaultHandlerPreferences;
-    }
-  } catch (error) {
-    console.error("Error parsing default handler preferences:", error);
+  const storedPrefs = localStorage.getItem(DEFAULT_FILE_HANDLERS_KEY);
+  if (storedPrefs === null) { // Check explicitly for null
+    return {};
   }
-  return {};
+  // Let JSON.parse throw if storedPrefs is invalid JSON
+  return JSON.parse(storedPrefs) as DefaultHandlerPreferences;
 }
 
 /**
  * Saves the default handler preferences to localStorage.
  *
  * @param {DefaultHandlerPreferences} prefs The preferences to save.
+ * @throws {Error} If `JSON.stringify` fails (e.g., circular references).
  */
 export function savePreferences(prefs: DefaultHandlerPreferences): void {
-  try {
-    localStorage.setItem(DEFAULT_FILE_HANDLERS_KEY, JSON.stringify(prefs));
-  } catch (error) {
-    console.error("Error saving default handler preferences:", error);
-  }
+  // Let JSON.stringify throw if prefs is not serializable
+  const stringifiedPrefs = JSON.stringify(prefs);
+  localStorage.setItem(DEFAULT_FILE_HANDLERS_KEY, stringifiedPrefs);
 }
 
 /**

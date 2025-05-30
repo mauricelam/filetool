@@ -1,7 +1,7 @@
 import React, { CSSProperties, ReactElement, useState } from "react";
 import CustomTypes from "./mime-db/custom-types.json";
 import IanaTypes from "./mime-db/iana-types.json";
-import { setDefaultHandler } from './defaultHandlers';
+import { setDefaultHandler, getDefaultHandler } from './defaultHandlers';
 // import { extensions } from "./icons/supportedExtensions";
 
 function getIcon(name: string) {
@@ -41,6 +41,7 @@ interface FileItemProps {
 
 export function FileItem(props: FileItemProps) {
     const { name, mimetype, description, matchedHandlers, onOpenHandler } = props;
+    const currentDefaultHandlerId = getDefaultHandler(mimetype, name);
     const labelStyle: CSSProperties = {
         color: '#fff',
         padding: '1px 4px',
@@ -91,29 +92,35 @@ export function FileItem(props: FileItemProps) {
                 </div>
                 <div className="buttonBar">
                     {matchedHandlers.length === 0 && <span style={{fontSize: '12px', color: '#777'}}>No specific handlers available. File might have been opened by a default.</span>}
-                    {matchedHandlers.map(handlerConfig => (
-                        <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
-                            <button 
-                                onClick={() => onOpenHandler(handlerConfig.handler, name, mimetype)}
-                                style={{marginRight: '5px'}}
-                            >
-                                Open with {handlerConfig.name}
-                            </button>
-                            <button 
-                                onClick={() => {
-                                    setDefaultHandler(mimetype, name, handlerConfig.handler);
-                                    console.log(`Set ${handlerConfig.name} (id: ${handlerConfig.handler}) as default for mimetype: ${mimetype}`);
-                                    // Simple visual feedback: alert or a temporary message
-                                    // For now, we'll rely on the console log and the actual functionality.
-                                    // A more sophisticated UI feedback can be added later.
-                                    alert(`Set ${handlerConfig.name} as default for ${mimetype}`);
-                                }}
-                                style={{fontSize: '10px', padding: '2px 5px'}}
-                            >
-                                Set as default
-                            </button>
-                        </div>
-                    ))}
+                    {matchedHandlers.map(handlerConfig => {
+                        const isCurrentDefault = handlerConfig.handler === currentDefaultHandlerId;
+                        return (
+                            <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                                <button 
+                                    onClick={() => onOpenHandler(handlerConfig.handler, name, mimetype)}
+                                    style={{marginRight: '5px'}}
+                                >
+                                    Open with {handlerConfig.name}
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (!isCurrentDefault) {
+                                            setDefaultHandler(mimetype, name, handlerConfig.handler);
+                                            console.log(`Set ${handlerConfig.name} (id: ${handlerConfig.handler}) as default for mimetype: ${mimetype}`);
+                                            alert(`Set ${handlerConfig.name} as default for ${mimetype}`);
+                                            // To see the change immediately, we'd need to force a re-render of FileItem
+                                            // One way is to lift currentDefaultHandlerId to state and update it here.
+                                            // For now, the alert is the primary feedback. The UI will update on next file load / selection.
+                                        }
+                                    }}
+                                    disabled={isCurrentDefault}
+                                    style={{fontSize: '10px', padding: '2px 5px'}}
+                                >
+                                    {isCurrentDefault ? "✓ Default" : "Set as default"}
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>

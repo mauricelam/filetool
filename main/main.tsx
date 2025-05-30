@@ -169,15 +169,8 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
                         if (isMatch) {
                             openHandler(defaultHandlerConfig.handler, file, mime);
                             openedByDefault = true;
-                            // Optionally, you might want to clear the 'handlers' array 
-                            // or set a specific state to indicate it was opened by default,
-                            // so FileItem doesn't render chooser buttons.
-                            // For now, just opening is fine. If 'handlers' is passed as empty,
-                            // FileItem might render nothing in the button bar.
-                            // Let's try setting handlers to an empty array if opened by default.
-                            if (openedByDefault) {
-                                 setHandlers(_ => []); // Clear handlers so no buttons are shown by FileItem
-                            }
+                            // Handler buttons will still be shown, allowing the user to switch
+                            // or to change the default.
                         } else {
                             // Default handler is set but no longer matches the file.
                             // Proceed to show all available handlers.
