@@ -273,6 +273,23 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
                 filename: /\.md/i,
             }
         ]
+    },
+    {
+        "name": "Protoscope Viewer",
+        "handler": "protoscope",
+        "mimetypes": [
+            {
+                mime: "application/octet-stream",
+                filename: /\.pb$/i,
+            },
+            {
+                mime: "application/x-protobuf",
+                filename: /\.pb$/i,
+            },
+            { // Fallback for just filename if mime type is generic
+                filename: /\.pb$/i,
+            }
+        ]
     }
 ]
 
