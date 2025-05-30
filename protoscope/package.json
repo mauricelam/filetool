@@ -6,8 +6,16 @@
     "build": "node build.mjs"
   },
   "devDependencies": {
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
     "esbuild": "^0.20.0",
+    "esbuild-plugin-copy": "^2.1.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.12"
+  },
+  "dependencies": {
+    "protobufjs": "^7.5.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   }
 }
