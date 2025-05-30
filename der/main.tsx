@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Certificate, GeneralName, RelativeDistinguishedNames, Extension, BasicConstraints, KeyUsage, ExtKeyUsage, RSAPublicKey } from 'pkijs';
-import { fromBER } from 'asn1js';
+import { Certificate, GeneralName, GeneralNames, RelativeDistinguishedNames, Extension, BasicConstraints, ExtKeyUsage, RSAPublicKey } from 'pkijs';
+import { fromBER, BitString } from 'asn1js';
 
 interface DerViewerProps {
   fileContent: ArrayBuffer;
@@ -67,6 +67,7 @@ const DerViewer: React.FC<DerViewerProps> = ({ fileContent }) => {
       setParsedCertData(null); // Clear previous data
 
       const asn1 = fromBER(fileContent);
+
       if (asn1.offset === -1) {
         throw new Error("Failed to parse ASN.1 from BER. The file might not be in DER format or is corrupted.");
       }
@@ -90,7 +91,8 @@ const DerViewer: React.FC<DerViewerProps> = ({ fileContent }) => {
       data.publicKeyAlgorithm = getOidName(cert.subjectPublicKeyInfo.algorithm.algorithmId);
       // Extract public key details
       if (cert.subjectPublicKeyInfo.algorithm.algorithmId === "1.2.840.113549.1.1.1") { // RSA
-        const rsaPublicKey = new RSAPublicKey({ schema: cert.subjectPublicKeyInfo.parsedKey.fromBER(cert.subjectPublicKeyInfo.subjectPublicKey.valueBlock.valueHexView) });
+        // cert.subjectPublicKeyInfo.parsedKey should already be an RSAPublicKey if the OID matches
+        const rsaPublicKey = cert.subjectPublicKeyInfo.parsedKey as RSAPublicKey;
         data.publicKey = {
           modulus: bufferToHex(rsaPublicKey.modulus.valueBlock.valueHexView),
           publicExponent: bufferToHex(rsaPublicKey.publicExponent.valueBlock.valueHexView),
@@ -114,17 +116,30 @@ const DerViewer: React.FC<DerViewerProps> = ({ fileContent }) => {
           try {
             if (ext.parsedValue) { // PKIjs often provides a parsedValue
                 if (ext.extnID === '2.5.29.17') { // Subject Alternative Name
-                    const altNames = ext.parsedValue as GeneralName; // Assuming GeneralName type based on common usage
-                    // This is a simplification. SAN can have various forms (DNS, IP, etc.)
-                    // and `altNames.toJSON()` might be a good way to get a serializable form.
-                    // For a more detailed display, you'd iterate `altNames.names` if it's an array
-                    // or handle different GeneralName types.
-                     extEntry.value = altNames.names.map((name: GeneralName) => {
-                        let value = name.value;
-                        if (typeof name.value !== "string" && name.value.valueBlock && name.value.valueBlock.value) {
-                           value = name.value.valueBlock.value; // for things like DirectoryName
+                    const altNames = ext.parsedValue as GeneralNames; // Changed to GeneralNames
+                    // GeneralNames contains an array of GeneralName objects in its 'names' property
+                    extEntry.value = altNames.names.map((name: GeneralName) => {
+                        let valueRepresentation = "N/A";
+                        // GeneralName's 'value' can be of various types.
+                        // For simple ones like dNSName, uniformResourceIdentifier, it's a string.
+                        // For others like directoryName, it's an object (RelativeDistinguishedNames).
+                        if (typeof name.value === "string") {
+                            valueRepresentation = name.value;
+                        } else if (name.value && typeof name.value === "object") {
+                            // If it's a complex object like RDNs, try to format it or get a string representation
+                            if (name.value.valueBlock && name.value.valueBlock.value && typeof name.value.valueBlock.value === "string") {
+                                valueRepresentation = name.value.valueBlock.value; // common case for some simple types within complex structures
+                            } else if (name.value.typesAndValues) { // Heuristic for RDNs-like structures
+                                valueRepresentation = formatRDNs(name.value as RelativeDistinguishedNames);
+                            } else {
+                                try {
+                                    valueRepresentation = JSON.stringify(name.value);
+                                } catch (_) {
+                                    valueRepresentation = "[Complex Value]";
+                                }
+                            }
                         }
-                        return `Type: ${name.type}, Value: ${value}`;
+                        return `Type: ${name.type}, Value: ${valueRepresentation}`;
                     }).join('; ');
 
                 } else if (ext.extnID === '2.5.29.19') { // Basic Constraints
@@ -134,18 +149,30 @@ const DerViewer: React.FC<DerViewerProps> = ({ fileContent }) => {
                         pathLenConstraint: basicConstraints.pathLenConstraint !== undefined ? basicConstraints.pathLenConstraint : 'None',
                     };
                 } else if (ext.extnID === '2.5.29.15') { // Key Usage
-                    const keyUsage = ext.parsedValue as KeyUsage;
+                    const keyUsageBitString = ext.parsedValue as BitString;
                     const usages = [];
-                    if (keyUsage.digitalSignature) usages.push("Digital Signature");
-                    if (keyUsage.contentCommitment) usages.push("Content Commitment");
-                    if (keyUsage.keyEncipherment) usages.push("Key Encipherment");
-                    if (keyUsage.dataEncipherment) usages.push("Data Encipherment");
-                    if (keyUsage.keyAgreement) usages.push("Key Agreement");
-                    if (keyUsage.keyCertSign) usages.push("Key Cert Sign");
-                    if (keyUsage.cRLSign) usages.push("CRL Sign");
-                    if (keyUsage.encipherOnly) usages.push("Encipher Only");
-                    if (keyUsage.decipherOnly) usages.push("Decipher Only");
-                    extEntry.value = usages.join(', ');
+                    const bitArray = new Uint8Array(keyUsageBitString.valueBlock.valueHex);
+                    
+                    // Helper to check a bit in MSB0 order
+                    const isKeyUsageBitSet = (bitNumber: number): boolean => {
+                      const byteIndex = Math.floor(bitNumber / 8);
+                      const bitInByte = bitNumber % 8;
+                      if (byteIndex < bitArray.length) {
+                        return (bitArray[byteIndex] & (1 << (7 - bitInByte))) !== 0;
+                      }
+                      return false;
+                    };
+
+                    if (isKeyUsageBitSet(0)) usages.push("Digital Signature (0)");
+                    if (isKeyUsageBitSet(1)) usages.push("Non Repudiation / Content Commitment (1)");
+                    if (isKeyUsageBitSet(2)) usages.push("Key Encipherment (2)");
+                    if (isKeyUsageBitSet(3)) usages.push("Data Encipherment (3)");
+                    if (isKeyUsageBitSet(4)) usages.push("Key Agreement (4)");
+                    if (isKeyUsageBitSet(5)) usages.push("Key Cert Sign (5)");
+                    if (isKeyUsageBitSet(6)) usages.push("CRL Sign (6)");
+                    if (isKeyUsageBitSet(7)) usages.push("Encipher Only (7)"); // Usually for keyAgreement
+                    if (bitArray.length > 1 && isKeyUsageBitSet(8)) usages.push("Decipher Only (8)"); // Usually for keyAgreement
+                    extEntry.value = usages.length > 0 ? usages.join(', ') : "No specific usages set or unknown bitstring";
                 } else if (ext.extnID === '2.5.29.37') { // Extended Key Usage
                     const extKeyUsage = ext.parsedValue as ExtKeyUsage;
                     extEntry.value = extKeyUsage.keyPurposes.map(kp => getOidName(kp)).join(', ');
@@ -261,4 +288,3 @@ const Detail: React.FC<{ label: string, value: string | number, pre?: boolean }>
 );
 
 export default DerViewer;
-```

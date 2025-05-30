@@ -4,7 +4,7 @@ import process from 'process';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
-  outdir: "../dist/der_viewer",
+  outdir: "../dist/der",
   bundle: true,
   format: "esm",
   platform: "browser",

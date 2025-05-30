@@ -276,7 +276,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
 },
 {
     "name": "X.509 Certificate",
-    "handler": "der_viewer",
+    "handler": "der",
     "mimetypes": [
         {
             filename: /\.(der|crt|cer|pem)$/i,
