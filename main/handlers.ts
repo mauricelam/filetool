@@ -273,20 +273,37 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
                 filename: /\.md/i,
             }
         ]
-},
-{
-    "name": "X.509 Certificate",
-    "handler": "der",
-    "mimetypes": [
-        {
-            filename: /\.(der|crt|cer|pem)$/i,
-        },
-        "application/x-x509-ca-cert",
-        "application/pkix-cert",
-        // For PEM files, which are base64 encoded DER
-        // The viewer itself will need to handle the PEM decoding
-        "application/x-pem-file", 
-    ]
+    },
+    {
+        "name": "X.509 Certificate",
+        "handler": "der",
+        "mimetypes": [
+            {
+                filename: /\.(der|crt|cer|pem)$/i,
+            },
+            "application/x-x509-ca-cert",
+            "application/pkix-cert",
+            // For PEM files, which are base64 encoded DER
+            // The viewer itself will need to handle the PEM decoding
+            "application/x-pem-file",
+        ]
+    },
+    {
+        "name": "Protoscope",
+        "handler": "protoscope",
+        "mimetypes": [
+            {
+                mime: "application/octet-stream",
+                filename: /\.pb$/i,
+            },
+            {
+                mime: "application/x-protobuf",
+                filename: /\.pb$/i,
+            },
+            { // Fallback for just filename if mime type is generic
+                filename: /\.pb$/i,
+            }
+        ]
     }
 ]
 

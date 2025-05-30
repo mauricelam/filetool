@@ -1,6 +1,6 @@
 ## File tool
 
-Vibe coded WASM file inspection tool in the browser: https://mauricelam.github.io/filetool/main/
+Vibe coded WASM file inspection tool in the browser: https://mauricelam.github.io/filetool/
 
 The idea is that you drag a file into the tool, using the browser sandbox, be able to inspect the contents of the file.
 
@@ -57,6 +57,24 @@ window.onmessage = (e) => {
 }
 ```
 
-## Supported File Types
+## Supported Handlers and File Types
 
-- **X.509 Certificates (.der, .crt, .cer, .pem):** Displays detailed information from X.509 digital certificates, including subject, issuer, validity period, public key information, and extensions.
+| Handler | Supported File Types |
+|---------|---------------------|
+| Hex | All files |
+| EML/MHTML | EML files |
+| Browser | Videos (3GPP, MP4), Audio (M4A, MP3), HTML, PDF, Images (JPEG, PNG, WebP, GIF, SVG, ICO) |
+| DEX Viewers (Go/Rust) | Android DEX files |
+| Text | Text files, EML, SVG, JSON, JavaScript |
+| JQ | JSON files |
+| 3D Model | STL, OBJ, GLB, GLTF, FBX, PLY |
+| WebAssembly | WASM files |
+| Archive | ZIP, GZIP, XZ, APK, RAR, 7Z, JAR, LZH |
+| Android APK | APK files |
+| JVM Classfile | Java class files |
+| Binutils | Mach-O, Executables, Shared Libraries |
+| ImageMagick | JPEG, PNG, WebP, GIF, JXL, ICO, PNM, TIFF, PSD, HEIF, Fonts, APNG, AVIF, RAW |
+| FFmpeg | 3GPP, AAC, MPEG, F4V, FLAC, FLV, HLS, MP4, MKV, WebM, MP3, Ogg, SWF, WAV, AVI, QuickTime |
+| Markdown | MD files |
+| Protoscope | Protocol Buffer files |
+| X.509 Certificates | .der, .crt, .cer, .pem |

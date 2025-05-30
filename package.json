@@ -20,6 +20,7 @@
         "main",
         "webgl_previewer",
         "jqviewer",
+        "protoscope",
         "der"
     ],
     "scripts": {
@@ -63,6 +64,8 @@
         "build:rustdexviewer": "npm run -w rustdexviewer build",
         "watch:jqviewer": "npm run -w jqviewer watch",
         "build:jqviewer": "npm run -w jqviewer build",
+        "build:protoscope": "cd protoscope && npm run build",
+        "watch:protoscope": "cd protoscope && BUILD_MODE=dev npm run build",
         "serve": "npm run copy-index && run-p watch:* run-server",
         "build": "npm run copy-index && run-p build:*"
     },

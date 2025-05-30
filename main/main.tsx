@@ -2,6 +2,7 @@ import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
 import HANDLERS, { matchMimetype } from './handlers';
+import { getDefaultHandler } from './defaultHandlers';
 import { FileItem } from "./fileitem";
 
 const dropTarget = document.getElementById('droptarget')
@@ -156,6 +157,24 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
                 setMime(_ => mime)
                 setHandlers(_ => handlers)
                 setDescription(_ => description)
+
+                // Check for and use default handler
+                const defaultHandlerId = getDefaultHandler(mime, file.name);
+                if (defaultHandlerId) {
+                    const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
+                    if (defaultHandlerConfig) {
+                        const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
+                        if (isMatch) {
+                            setTimeout(
+                                () => openHandler(defaultHandlerConfig.handler, file, mime),
+                                0);
+                        } else {
+                            console.warn(`Default handler '${defaultHandlerId}' no longer matches file '${file.name}' (mime: '${mime}').`);
+                        }
+                    } else {
+                        console.warn(`Default handler '${defaultHandlerId}' not found in HANDLERS configuration.`);
+                    }
+                }
             },
             (reason) => {
                 setMime(_ => "")
@@ -163,20 +182,19 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
                 setDescription(_ => `Error: ${reason}`)
             })
     }, [setHandlers, setDescription, setMime, file])
+    const defaultHandler = getDefaultHandler(mime, file.name);
+    console.log("defaultHandler", defaultHandler)
     return (
         <FileItem
             key={file.name}
             name={file.name}
             mimetype={mime}
             description={description}
-            handlers={handlers.map(handler => (
-                <button
-                    key={handler.name}
-                    onClick={() => openHandler(handler.handler, file, mime)}
-                >
-                    {handler.name}
-                </button>
-            ))}
+            matchedHandlers={handlers}
+            initialActiveHandler={defaultHandler}
+            onOpenHandler={(handlerId, filename, mimetype) => {
+                openHandler(handlerId, file, mimetype);
+            }}
         />
     )
 }

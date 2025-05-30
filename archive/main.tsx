@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { Archive } from 'libarchive.js';
+import { Archive, ArchiveCompression, ArchiveFormat, ArchiveFile, ArchiveEntryFile, ArchiveEntry } from 'libarchive.js';
 import React, { useEffect, useState } from 'react';
 import { ColumnView } from '../components/ColumnView';
 
@@ -21,9 +21,97 @@ async function handleFile(file: File) {
     ROOT.render(<ArchiveViewer initialFile={file} />)
 }
 
+const SUPPORTED_DOWNLOAD_FORMATS = [
+    // Not supported due to https://github.com/nika-begiashvili/libarchivejs/issues/70
+    // { 
+    //     id: 'zip', 
+    //     name: 'ZIP', 
+    //     format: ArchiveFormat.ZIP,
+    //     compression: null
+    // },
+    // { 
+    //     id: '7z', 
+    //     name: '7Z', 
+    //     format: ArchiveFormat.SEVEN_ZIP,
+    //     compression: null
+    // },
+    {
+        id: 'tar.gz',
+        name: 'TAR.GZ',
+        format: ArchiveFormat.PAX,
+        compression: ArchiveCompression.GZIP
+    }
+];
+
+const FormatDialog: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSelect: (format: string) => void;
+}> = ({ isOpen, onClose, onSelect }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+        }}>
+            <div style={{
+                backgroundColor: 'white',
+                padding: '20px',
+                borderRadius: '8px',
+                minWidth: '300px'
+            }}>
+                <h3 style={{ margin: '0 0 16px 0' }}>Select Archive Format</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {SUPPORTED_DOWNLOAD_FORMATS.map(format => (
+                        <button
+                            key={format.id}
+                            onClick={() => onSelect(format.id)}
+                            style={{
+                                padding: '8px 16px',
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                                background: 'white',
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                            }}
+                        >
+                            {format.name}
+                        </button>
+                    ))}
+                </div>
+                <button
+                    onClick={onClose}
+                    style={{
+                        marginTop: '16px',
+                        padding: '8px 16px',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        background: '#f5f5f5',
+                        cursor: 'pointer',
+                        width: '100%'
+                    }}
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
+    );
+};
+
 const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const [archiveFile, setArchiveFile] = useState<File | null>(initialFile);
-    const [files, setFiles] = useState<{ [key: string]: any }>({});
+    const [files, setFiles] = useState<{ [key: string]: ArchiveFile }>({});
+    const [isFormatDialogOpen, setIsFormatDialogOpen] = useState(false);
+    const [isCompressing, setIsCompressing] = useState(false);
 
     useEffect(() => {
         const loadArchive = async () => {
@@ -36,18 +124,85 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         loadArchive();
     }, [archiveFile]);
 
-    const handleFileDownload = () => {
-        if (archiveFile) {
-            const url = URL.createObjectURL(archiveFile);
+    const handleFileDownload = async (format: string) => {
+        if (!archiveFile) return;
+
+        setIsCompressing(true);
+        try {
+            const formatInfo = SUPPORTED_DOWNLOAD_FORMATS.find(f => f.id === format);
+            if (!formatInfo) throw new Error('Unsupported format');
+
+            const ar = await Archive.open(archiveFile);
+            const extractedFiles: { [key: string]: ArchiveEntry } = await ar.getFilesObject();
+
+            // Helper function to recursively process files and directories
+            const processEntry = async (entry: ArchiveEntry, currentPath: string): Promise<ArchiveEntryFile[]> => {
+                try {
+                    if (typeof (entry as ArchiveFile).extract === 'function') {
+                        // It's a file
+                        const file = entry as ArchiveFile;
+                        try {
+                            const extractedFile = await file.extract();
+                            return [{
+                                file: extractedFile,
+                                pathname: file._path
+                            } as unknown as ArchiveEntryFile];
+                        } catch (extractError) {
+                            console.error('Error extracting file:', file._path, extractError);
+                            return [];
+                        }
+                    } else {
+                        // It's a directory
+                        const dir = entry as { [filename: string]: ArchiveEntry };
+                        const results: ArchiveEntryFile[] = [];
+                        for (const [filename, nestedEntry] of Object.entries(dir)) {
+                            const nestedPath = currentPath ? `${currentPath}/${filename}` : filename;
+                            const nestedFiles = await processEntry(nestedEntry, nestedPath);
+                            results.push(...nestedFiles);
+                        }
+                        return results;
+                    }
+                } catch (error) {
+                    console.error('Error processing entry:', currentPath, error);
+                    return [];
+                }
+            };
+
+            // Process all entries recursively
+            const filesToArchive = await Promise.all(
+                Object.entries(extractedFiles).map(([path, entry]) => processEntry(entry, path))
+            ).then(results => results.flat());
+
+            if (filesToArchive.length === 0) {
+                throw new Error('No files were successfully extracted from the archive');
+            }
+
+            // Create new archive
+            console.log('write archive', formatInfo.compression, formatInfo.format, formatInfo)
+            const newArchiveFile = await Archive.write({
+                files: filesToArchive,
+                outputFileName: archiveFile.name.replace(/\.[^/.]+$/, '') + '.' + format,
+                compression: formatInfo.compression,
+                format: formatInfo.format,
+                passphrase: null
+            });
+
+            // Download the new archive
+            const url = URL.createObjectURL(newArchiveFile);
             const anchor = document.createElement('a');
             anchor.href = url;
-            anchor.download = archiveFile.name.replace(/\.[^/.]+$/, '') + '.zip';
+            anchor.download = newArchiveFile.name;
             anchor.click();
             URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error creating archive:', error);
+            alert('Failed to create archive. Please try again.');
+        } finally {
+            setIsCompressing(false);
         }
     };
 
-    const handleOpenFile = async (file: any) => {
+    const handleOpenFile = async (file: ArchiveFile) => {
         const extractedFile = await file.extract();
         window.parent?.postMessage({
             action: 'openFile',
@@ -55,7 +210,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         }, "/", [await extractedFile.arrayBuffer()]);
     };
 
-    const handleDownloadFile = async (file: any) => {
+    const handleDownloadFile = async (file: ArchiveFile) => {
         const extractedFile = await file.extract();
         const url = URL.createObjectURL(extractedFile);
         const anchor = document.createElement('a');
@@ -64,7 +219,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         anchor.click();
     };
 
-    const renderFileActions = (file: any, path: string[]) => {
+    const renderFileActions = (file: ArchiveFile, path: string[]) => {
         if (!window.parent) return null;
 
         return (
@@ -89,30 +244,39 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                 <h3 style={{ margin: 0 }}>Archive Contents</h3>
                 {archiveFile && (
                     <button
-                        onClick={handleFileDownload}
+                        onClick={() => setIsFormatDialogOpen(true)}
+                        disabled={isCompressing}
                         style={{
                             padding: '4px 8px',
                             border: 'none',
                             background: 'transparent',
-                            cursor: 'pointer',
+                            cursor: isCompressing ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
-                            color: '#666',
+                            color: isCompressing ? '#999' : '#666',
                             marginLeft: 'auto'
                         }}
-                        title="Download as zip"
+                        title={isCompressing ? "Compressing..." : "Download"}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#666">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill={isCompressing ? "#999" : "#666"}>
                             <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
                         </svg>
-                        Download as zip
+                        {isCompressing ? "Compressing..." : "Download"}
                     </button>
                 )}
             </div>
             <ColumnView
                 initialContent={files}
                 renderFileActions={renderFileActions}
+            />
+            <FormatDialog
+                isOpen={isFormatDialogOpen}
+                onClose={() => setIsFormatDialogOpen(false)}
+                onSelect={(format) => {
+                    handleFileDownload(format);
+                    setIsFormatDialogOpen(false);
+                }}
             />
         </div>
     );
