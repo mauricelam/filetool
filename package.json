@@ -20,7 +20,8 @@
         "main",
         "webgl_previewer",
         "jqviewer",
-        "protoscope"
+        "protoscope",
+        "der"
     ],
     "scripts": {
         "copy-index": "mkdir -p dist && cp index.html dist/index.html",
@@ -65,6 +66,8 @@
         "build:jqviewer": "npm run -w jqviewer build",
         "build:protoscope": "cd protoscope && npm run build",
         "watch:protoscope": "cd protoscope && BUILD_MODE=dev npm run build",
+        "build:der": "cd der && npm run build",
+        "watch:der": "cd der && BUILD_MODE=dev npm run build",
         "serve": "npm run copy-index && run-p watch:* run-server",
         "build": "npm run copy-index && run-p build:*"
     },

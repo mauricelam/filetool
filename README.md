@@ -77,3 +77,4 @@ window.onmessage = (e) => {
 | FFmpeg | 3GPP, AAC, MPEG, F4V, FLAC, FLV, HLS, MP4, MKV, WebM, MP3, Ogg, SWF, WAV, AVI, QuickTime |
 | Markdown | MD files |
 | Protoscope | Protocol Buffer files |
+| X.509 Certificates | .der, .crt, .cer, .pem |
