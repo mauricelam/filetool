@@ -155,35 +155,26 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
         fun().then(
             ([mime, handlers, description]: [string, any, string]) => {
                 setMime(_ => mime)
-                setHandlers(_ => handlers) // handlers here are ALL matching handlers
+                setHandlers(_ => handlers)
                 setDescription(_ => description)
 
-                // --- BEGINNING OF NEW LOGIC ---
+                // Check for and use default handler
                 const defaultHandlerId = getDefaultHandler(mime, file.name);
-                let openedByDefault = false;
-
                 if (defaultHandlerId) {
                     const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
                     if (defaultHandlerConfig) {
                         const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
                         if (isMatch) {
-                            openHandler(defaultHandlerConfig.handler, file, mime);
-                            openedByDefault = true;
-                            // Handler buttons will still be shown, allowing the user to switch
-                            // or to change the default.
+                            setTimeout(
+                                () => openHandler(defaultHandlerConfig.handler, file, mime),
+                                0);
                         } else {
-                            // Default handler is set but no longer matches the file.
-                            // Proceed to show all available handlers.
                             console.warn(`Default handler '${defaultHandlerId}' no longer matches file '${file.name}' (mime: '${mime}').`);
                         }
                     } else {
-                        // Default handler is set but not found in current HANDLERS configuration.
                         console.warn(`Default handler '${defaultHandlerId}' not found in HANDLERS configuration.`);
                     }
                 }
-                // If not opened by default, the original 'handlers' (all matches)
-                // will be passed to FileItem, and the user can choose.
-                // --- END OF NEW LOGIC ---
             },
             (reason) => {
                 setMime(_ => "")
@@ -191,18 +182,17 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
                 setDescription(_ => `Error: ${reason}`)
             })
     }, [setHandlers, setDescription, setMime, file])
+    const defaultHandler = getDefaultHandler(mime, file.name);
+    console.log("defaultHandler", defaultHandler)
     return (
         <FileItem
             key={file.name}
             name={file.name}
             mimetype={mime}
             description={description}
-            matchedHandlers={handlers} // Pass the raw handlers array
+            matchedHandlers={handlers}
+            initialActiveHandler={defaultHandler}
             onOpenHandler={(handlerId, filename, mimetype) => {
-                // 'file' is from LoadFileItem's props { file }
-                // 'handlerId' and 'mimetype' are passed up from FileItem
-                // 'filename' from FileItem can be used for logging or confirmation if needed,
-                // but 'file' object is the source of truth for openHandler.
                 openHandler(handlerId, file, mimetype);
             }}
         />

@@ -275,7 +275,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
-        "name": "Protoscope Viewer",
+        "name": "Protoscope",
         "handler": "protoscope",
         "mimetypes": [
             {
