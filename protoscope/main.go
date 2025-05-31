@@ -9,6 +9,8 @@ import (
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/dynamicpb"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 func protoscopeFile(this js.Value, args []js.Value) interface{} {
@@ -106,6 +108,75 @@ func main() {
 	c := make(chan struct{}, 0)
 	js.Global().Set("protoscope", js.ValueOf(map[string]interface{}{
 		"protoscopeFile": js.FuncOf(protoscopeFile),
+		"protoscopeFileAsTextproto": js.FuncOf(protoscopeFileAsTextproto),
 	}))
 	<-c
+}
+
+func protoscopeFileAsTextproto(this js.Value, args []js.Value) interface{} {
+	if len(args) != 3 {
+		return "Error: Invalid number of arguments. Expected 3 (input, schema, messageName)"
+	}
+
+	input := args[0]
+	schema := args[1]
+	messageName := args[2].String()
+
+	if input.Type() != js.TypeObject || !input.Truthy() || input.Get("byteLength").IsUndefined() {
+		return "Error: First argument (protobuf bytes) must be a Uint8Array."
+	}
+	inputGoBytes := make([]byte, input.Get("byteLength").Int())
+	js.CopyBytesToGo(inputGoBytes, input)
+
+	if schema.IsNull() || schema.IsUndefined() {
+		return "Error: Schema is required for textproto output"
+	}
+
+	if schema.Type() != js.TypeObject || !schema.Truthy() || schema.Get("byteLength").IsUndefined() {
+		return "Error: Second argument (schema bytes) must be a Uint8Array."
+	}
+	schemaGoBytes := make([]byte, schema.Get("byteLength").Int())
+	js.CopyBytesToGo(schemaGoBytes, schema)
+
+	if messageName == "" {
+		return "Error: Third argument (messageName) must be a non-empty string."
+	}
+	// Remove leading "." if present
+	if len(messageName) > 0 && messageName[0] == '.' {
+		messageName = messageName[1:]
+	}
+
+
+	fds := &descriptorpb.FileDescriptorSet{}
+	if err := proto.Unmarshal(schemaGoBytes, fds); err != nil {
+		return fmt.Sprintf("Error unmarshalling schema: %s", err.Error())
+	}
+
+	files, err := protodesc.NewFiles(fds)
+	if err != nil {
+		return fmt.Sprintf("Error creating new files from schema: %s", err.Error())
+	}
+
+	desc, err := files.FindDescriptorByName(protoreflect.FullName(messageName))
+	if err != nil {
+		return fmt.Sprintf("Error finding message descriptor '%s': %s", messageName, err.Error())
+	}
+
+	md, ok := desc.(protoreflect.MessageDescriptor)
+	if !ok {
+		return fmt.Sprintf("Error: %s is not a message type", messageName)
+	}
+
+	dynamicMessage := dynamicpb.NewMessage(md)
+	if err := proto.Unmarshal(inputGoBytes, dynamicMessage); err != nil {
+		return fmt.Sprintf("Error unmarshalling input protobuf: %s", err.Error())
+	}
+
+	// Use Marshal to get ([]byte, error) for proper error handling
+	textprotoBytes, err := prototext.MarshalOptions{Multiline: true}.Marshal(dynamicMessage)
+	if err != nil {
+		return fmt.Sprintf("Error marshalling to textproto: %s", err.Error())
+	}
+
+	return string(textprotoBytes) // Convert bytes to string for the final result
 }

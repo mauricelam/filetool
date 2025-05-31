@@ -15,6 +15,7 @@ declare global {
         protoscope?: {
             // Updated signature to accept main bytes, optional FDS bytes, and optional message name string
             protoscopeFile?: (mainFileBytes: Uint8Array, fdsBytes?: Uint8Array | null, messageName?: string | null) => string;
+            protoscopeFileAsTextproto?: (mainFileBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
         };
     }
 }
@@ -23,7 +24,9 @@ const ROOT = createRoot(document.getElementById('root')!);
 
 const App: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
+    const [mainFileUint8Array, setMainFileUint8Array] = useState<Uint8Array | null>(null);
     const [schemaFile, setSchemaFile] = useState<File | null>(null);
+    const [fdsBytes, setFdsBytes] = useState<Uint8Array | null>(null);
     const [messageName, setMessageName] = useState<string>('');
     const [messageTypes, setMessageTypes] = useState<string[]>([]);
     const [output, setOutput] = useState<string | null>(null);
@@ -40,10 +43,17 @@ const App: React.FC = () => {
 
     // Effect for handling messages from parent (receiving main file)
     useEffect(() => {
-        const messageHandler = (e: MessageEvent) => {
+        const messageHandler = async (e: MessageEvent) => {
             if (e.data.action === 'respondFile' && e.data.file instanceof File) {
                 setMainFile(e.data.file);
-                setLoading("Main file received. Ready to process.");
+                try {
+                    const arrayBuffer = await e.data.file.arrayBuffer();
+                    setMainFileUint8Array(new Uint8Array(arrayBuffer));
+                    setLoading("Main file received. Ready to process.");
+                } catch (err) {
+                    setError(`Error reading main file: ${err instanceof Error ? err.message : String(err)}`);
+                    setLoading(null);
+                }
             } else if (e.data.action === 'respondFile') {
                 setError("Received 'respondFile' but data.file was not a File object.");
                 setLoading(null);
@@ -59,6 +69,7 @@ const App: React.FC = () => {
             setSchemaFile(file);
             setOutput(null);
             setError(null);
+            setFdsBytes(null); // Reset fdsBytes
             setMessageTypes([]); // Reset message types
             setMessageName(''); // Reset selected message
 
@@ -66,6 +77,9 @@ const App: React.FC = () => {
                 const protoContents = await file.text();
                 const parsed = protobuf.parse(protoContents);
                 const root = parsed.root;
+                const fds = (root as any).toDescriptor();
+                const encodedFdsBytes = FileDescriptorSet.encode(fds).finish();
+                setFdsBytes(encodedFdsBytes);
 
                 // Extract all message types from the root
                 const types: string[] = [];
@@ -90,10 +104,12 @@ const App: React.FC = () => {
             } catch (err) {
                 console.error('Error parsing schema:', err); // Debug log
                 setError(`Error parsing schema file: ${err instanceof Error ? err.message : String(err)}`);
+                setFdsBytes(null); // Clear fdsBytes on error
                 setLoading(null);
             }
         } else {
             setSchemaFile(null);
+            setFdsBytes(null);
             setMessageTypes([]);
             setMessageName('');
         }
@@ -152,7 +168,7 @@ const App: React.FC = () => {
 
 
     const processFile = useCallback(async () => {
-        if (!mainFile) {
+        if (!mainFile) { // Early exit if mainFile isn't there
             setError("Main file not yet received or selected.");
             return;
         }
@@ -164,40 +180,42 @@ const App: React.FC = () => {
         const wasmReady = await loadWasm();
         if (!wasmReady) return;
 
-        try {
-            const mainFileArrayBuffer = await mainFile.arrayBuffer();
-            const mainFileUint8Array = new Uint8Array(mainFileArrayBuffer);
+        let currentMainFileUint8Array = mainFileUint8Array;
+        if (!currentMainFileUint8Array && mainFile) { // Ensure mainFileUint8Array is populated
+            try {
+                const arrayBuffer = await mainFile.arrayBuffer();
+                currentMainFileUint8Array = new Uint8Array(arrayBuffer);
+                setMainFileUint8Array(currentMainFileUint8Array);
+            } catch (err) {
+                setError(`Error reading main file for processing: ${err instanceof Error ? err.message : String(err)}`);
+                setLoading(null);
+                return;
+            }
+        }
 
+        if (!currentMainFileUint8Array) {
+            setError("Main file data could not be read.");
+            setLoading(null);
+            return;
+        }
+
+
+        try {
             if (typeof window.protoscope?.protoscopeFile !== 'function') {
                 throw new Error('protoscopeFile function not available. WASM module may not have initialized correctly.');
             }
 
             let result: string;
 
-            if (schemaFile && messageName) {
-                setLoading("Parsing .proto schema and processing...");
-                const protoContents = await schemaFile.text();
-                try {
-                    const parsed = protobuf.parse(protoContents);
-                    const root = parsed.root;
-                    const fds = (root as any).toDescriptor();
-                    console.log('parsed', fds)
-
-                    const fdsBytes = FileDescriptorSet.encode(fds).finish();
-                    result = window.protoscope.protoscopeFile(mainFileUint8Array, fdsBytes, messageName);
-                } catch (protoErr) {
-                    console.error('Error processing .proto schema:', protoErr);
-                    const errMsg = protoErr instanceof Error ? protoErr.message : String(protoErr);
-                    setError(`Error processing .proto schema: ${errMsg}`);
-                    setLoading(null);
-                    return;
-                }
+            if (schemaFile && messageName && fdsBytes) { // Use fdsBytes from state
+                setLoading("Processing with schema...");
+                result = window.protoscope.protoscopeFile(currentMainFileUint8Array, fdsBytes, messageName);
             } else {
                 setLoading("Processing without schema...");
-                result = window.protoscope.protoscopeFile(mainFileUint8Array, null, null);
+                result = window.protoscope.protoscopeFile(currentMainFileUint8Array, null, null);
             }
 
-            if (typeof result === 'string') {
+            if (typeof result === 'string' && !result.startsWith("Error:")) {
                 setOutput(result);
             } else {
                 throw new Error(`Unexpected result type: ${typeof result}\n${JSON.stringify(result, null, 2)}`);
@@ -314,8 +332,69 @@ const App: React.FC = () => {
                 </SyntaxHighlighter>
             )}
             {!mainFile && !loading && !error && <p>Waiting for main protobuf data file to be sent from the parent application...</p>}
+
+            <button
+                onClick={handleDownloadTextproto}
+                disabled={!mainFileUint8Array || !fdsBytes || !messageName || !!loading}
+                style={{
+                    padding: '10px 15px',
+                    backgroundColor: (!mainFileUint8Array || !fdsBytes || !messageName || !!loading) ? '#ccc' : '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: (!mainFileUint8Array || !fdsBytes || !messageName || !!loading) ? 'not-allowed' : 'pointer',
+                    marginTop: '10px'
+                }}
+            >
+                Download as Textproto
+            </button>
         </div>
     );
+
+    const handleDownloadTextproto = async () => {
+        console.log("Download textproto clicked");
+
+        if (!mainFileUint8Array || !fdsBytes || !messageName) {
+            setError("Cannot download textproto: main file, schema, or message name is missing.");
+            return;
+        }
+        const wasmReady = await loadWasm();
+        if (!wasmReady) {
+            setError("WASM module not loaded. Cannot download textproto.");
+            return;
+        }
+
+        setLoading("Generating textproto...");
+        try {
+            if (!window.protoscope?.protoscopeFileAsTextproto) {
+                setError("Textproto download function is not available (protoscopeFileAsTextproto missing).");
+                setLoading(null);
+                return;
+            }
+            // Ensure states are directly accessed here
+            const textprotoContent = window.protoscope.protoscopeFileAsTextproto(mainFileUint8Array, fdsBytes, messageName);
+
+            if (typeof textprotoContent === 'string' && !textprotoContent.startsWith("Error:")) {
+                const blob = new Blob([textprotoContent], { type: 'text/plain' });
+                const href = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = href;
+                a.download = `${messageName || 'message'}.textproto`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(href);
+                setError(null); // Clear previous errors
+            } else {
+                setError(textprotoContent || "Failed to generate textproto.");
+            }
+        } catch (err) {
+            console.error("Error downloading textproto:", err);
+            setError(`Error during textproto download: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            setLoading(null);
+        }
+    };
 };
 
 ROOT.render(<App />);
