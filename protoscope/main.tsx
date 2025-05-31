@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+import SyntaxHighlighter from 'react-syntax-highlighter';
+import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 // Declare the Go global object
 declare const Go: any;
 import * as protobuf from 'protobufjs'; // Using full version
 import 'protobufjs/ext/descriptor'; // Import the descriptor extension
-import { DescriptorProto, FileDescriptorProto, FileDescriptorSet } from 'protobufjs/ext/descriptor';
+import { FileDescriptorSet } from 'protobufjs/ext/descriptor';
 
 // Declare protoscope on window
 declare global {
@@ -253,54 +255,64 @@ const App: React.FC = () => {
                             width: '100%',
                             padding: '8px',
                             borderRadius: '4px',
-                            border: '1px solid #ddd'
+                            border: '1px solid #ddd',
+                            boxSizing: 'border-box'
                         }}
                     />
-                    {schemaFile && (
-                        <p style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
-                            Selected: {schemaFile.name}
-                        </p>
-                    )}
                 </div>
 
-                <div>
-                    <label htmlFor="messagename" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                        Message type:
-                    </label>
-                    <select
-                        id="messagename"
-                        value={messageName}
-                        onChange={handleMessageNameChange}
-                        disabled={!schemaFile || (!!loading && loading !== "Initializing..." && !loading?.includes("Ready to process"))}
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            borderRadius: '4px',
-                            border: '1px solid #ddd',
-                            backgroundColor: 'white'
-                        }}
-                    >
-                        <option value="">Select a message type</option>
-                        {messageTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                        ))}
-                    </select>
-                    {!messageName && schemaFile && messageTypes.length > 0 && (
-                        <p style={{ color: '#f90', marginTop: '8px', fontSize: '0.9em' }}>
-                            Please select a message type from the dropdown.
-                        </p>
-                    )}
-                    {schemaFile && messageTypes.length === 0 && (
-                        <p style={{ color: '#f90', marginTop: '8px', fontSize: '0.9em' }}>
-                            No message types found in the schema file.
-                        </p>
-                    )}
-                </div>
+                {schemaFile && (
+                    <div>
+                        <label htmlFor="messagename" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                            Message type:
+                        </label>
+                        <select
+                            id="messagename"
+                            value={messageName}
+                            onChange={handleMessageNameChange}
+                            disabled={!schemaFile || (!!loading && loading !== "Initializing..." && !loading?.includes("Ready to process"))}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                border: '1px solid #ddd',
+                                backgroundColor: 'white'
+                            }}
+                        >
+                            <option value="">Select a message type</option>
+                            {messageTypes.map(type => (
+                                <option key={type} value={type}>{type}</option>
+                            ))}
+                        </select>
+                        {!messageName && messageTypes.length > 0 && (
+                            <p style={{ color: '#f90', marginTop: '8px', fontSize: '0.9em' }}>
+                                Please select a message type from the dropdown.
+                            </p>
+                        )}
+                        {messageTypes.length === 0 && (
+                            <p style={{ color: '#f90', marginTop: '8px', fontSize: '0.9em' }}>
+                                No message types found in the schema file.
+                            </p>
+                        )}
+                    </div>
+                )}
             </div>
 
             {loading && <pre>Loading: {loading}</pre>}
             {error && <pre style={{ color: 'red' }}>Error: {error}</pre>}
-            {output && <pre>{output}</pre>}
+            {output && (
+                <SyntaxHighlighter
+                    language="python"
+                    style={docco}
+                    customStyle={{
+                        backgroundColor: '#f5f5f5',
+                        padding: '1em',
+                        borderRadius: '4px',
+                    }}
+                >
+                    {output}
+                </SyntaxHighlighter>
+            )}
             {!mainFile && !loading && !error && <p>Waiting for main protobuf data file to be sent from the parent application...</p>}
         </div>
     );
