@@ -4,7 +4,8 @@ import { createRoot } from 'react-dom/client';
 // Declare the Go global object
 declare const Go: any;
 import * as protobuf from 'protobufjs'; // Using full version
-// import 'protobufjs/ext/descriptor'; // May be needed if toDescriptor or FileDescriptorSet are not in light
+import 'protobufjs/ext/descriptor'; // Import the descriptor extension
+import { DescriptorProto, FileDescriptorProto, FileDescriptorSet } from 'protobufjs/ext/descriptor';
 
 // Declare protoscope on window
 declare global {
@@ -22,6 +23,7 @@ const App: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
     const [schemaFile, setSchemaFile] = useState<File | null>(null);
     const [messageName, setMessageName] = useState<string>('');
+    const [messageTypes, setMessageTypes] = useState<string[]>([]);
     const [output, setOutput] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<string>("Initializing...");
@@ -49,25 +51,64 @@ const App: React.FC = () => {
         return () => window.removeEventListener('message', messageHandler);
     }, []);
 
-    const handleSchemaFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleSchemaFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             setSchemaFile(file);
-            setOutput(null); 
-            setError(null); 
-            if (mainFile) setLoading("Schema file selected. Ready to process or enter message name.");
+            setOutput(null);
+            setError(null);
+            setMessageTypes([]); // Reset message types
+            setMessageName(''); // Reset selected message
+
+            try {
+                const protoContents = await file.text();
+                const parsed = protobuf.parse(protoContents);
+                const root = parsed.root;
+
+                // Extract all message types from the root
+                const types: string[] = [];
+                const processNested = (nested: any) => {
+                    if (nested instanceof protobuf.Type) {
+                        types.push(nested.fullName);
+                    }
+                    if (nested.nestedArray) {
+                        nested.nestedArray.forEach(processNested);
+                    }
+                };
+
+                root.nestedArray.forEach(processNested);
+                console.log('Found message types:', types); // Debug log
+
+                setMessageTypes(types);
+                // Automatically select the first message type if available
+                if (types.length > 0) {
+                    setMessageName(types[0]);
+                }
+                if (mainFile) setLoading("Schema file selected. Ready to process or select message type.");
+            } catch (err) {
+                console.error('Error parsing schema:', err); // Debug log
+                setError(`Error parsing schema file: ${err instanceof Error ? err.message : String(err)}`);
+                setLoading(null);
+            }
         } else {
-            setSchemaFile(null); // Clear schema if no file is selected
+            setSchemaFile(null);
+            setMessageTypes([]);
+            setMessageName('');
         }
     };
 
-    const handleMessageNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setMessageName(event.target.value);
+    const handleMessageNameChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const selectedMessage = event.target.value;
+        setMessageName(selectedMessage);
         setOutput(null);
         setError(null);
-        if (mainFile && schemaFile) setLoading("Ready to process with new message name.");
+
+        if (selectedMessage && mainFile && schemaFile) {
+            setLoading("Processing with selected message type...");
+            processFile();
+        }
     };
-    
+
     const loadWasm = useCallback(async () => {
         if (wasmLoaded) return true;
         setLoading("Loading WebAssembly module...");
@@ -90,10 +131,10 @@ const App: React.FC = () => {
             const wasmBytes = await wasmResponse.arrayBuffer();
             const mod = await WebAssembly.compile(wasmBytes);
             const inst = await WebAssembly.instantiate(mod, go.importObject);
-            go.run(inst); 
-            
+            go.run(inst);
+
             if (typeof window.protoscope?.protoscopeFile !== 'function') {
-                 throw new Error('protoscopeFile function not found on window.protoscope. Ensure Wasm is loaded and initialized correctly.');
+                throw new Error('protoscopeFile function not found on window.protoscope. Ensure Wasm is loaded and initialized correctly.');
             }
             setWasmLoaded(true);
             setLoading(null);
@@ -110,7 +151,6 @@ const App: React.FC = () => {
 
     const processFile = useCallback(async () => {
         if (!mainFile) {
-            // This case should ideally not be hit if UI enables button appropriately
             setError("Main file not yet received or selected.");
             return;
         }
@@ -132,31 +172,17 @@ const App: React.FC = () => {
 
             let result: string;
 
-            if (schemaFile && messageName.trim()) {
+            if (schemaFile && messageName) {
                 setLoading("Parsing .proto schema and processing...");
                 const protoContents = await schemaFile.text();
-                if (!messageName.trim()) {
-                    setError("Message name is required when a schema file is provided.");
-                    setLoading(null);
-                    return;
-                }
                 try {
-                    // protobuf.parse returns { package, imports, weakImports, syntax, root: Root }
                     const parsed = protobuf.parse(protoContents);
                     const root = parsed.root;
-                    
-                    // The 'toDescriptor' method might not be on the light version's Root.
-                    // It's often on the full Root or needs protobufjs/ext/descriptor.
-                    // For now, assuming it exists or will be polyfilled if build fails.
-                    const descriptorMsg = root.toDescriptor("proto3");
-                    
-                    // Similarly, FileDescriptorSet might need to be imported or available.
-                    // protobuf.common['google/protobuf/descriptor.proto'] might provide types.
-                    // Or, if using full version: protobuf.FileDescriptorSet.encode(descriptorMsg).finish();
-                    // For now, trying with direct access:
-                    const fdsBytes = protobuf.FileDescriptorSet.encode(descriptorMsg).finish();
-                    
-                    result = window.protoscope.protoscopeFile(mainFileUint8Array, fdsBytes, messageName.trim());
+                    const fds = (root as any).toDescriptor();
+                    console.log('parsed', fds)
+
+                    const fdsBytes = FileDescriptorSet.encode(fds).finish();
+                    result = window.protoscope.protoscopeFile(mainFileUint8Array, fdsBytes, messageName);
                 } catch (protoErr) {
                     console.error('Error processing .proto schema:', protoErr);
                     const errMsg = protoErr instanceof Error ? protoErr.message : String(protoErr);
@@ -164,9 +190,6 @@ const App: React.FC = () => {
                     setLoading(null);
                     return;
                 }
-            } else if (schemaFile && !messageName.trim()) {
-                 setError("Message name is required when a schema file is selected. Processing without schema.");
-                 result = window.protoscope.protoscopeFile(mainFileUint8Array, null, null);
             } else {
                 setLoading("Processing without schema...");
                 result = window.protoscope.protoscopeFile(mainFileUint8Array, null, null);
@@ -190,8 +213,8 @@ const App: React.FC = () => {
         } finally {
             setLoading(null);
         }
-    }, [mainFile, schemaFile, loadWasm]);
-    
+    }, [mainFile, schemaFile, messageName, loadWasm]);
+
     // Automatically attempt to load WASM on component mount if not already loaded.
     // This makes the UX smoother as WASM is likely ready when user interacts.
     useEffect(() => {
@@ -207,43 +230,77 @@ const App: React.FC = () => {
 
 
     return (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '20px', fontFamily: 'Roboto, Helvetica, Arial, sans-serif' }}>
             <h1>Protoscope Viewer</h1>
-            <div>
-                <label htmlFor="schemafile">Optional .proto schema: </label>
-                <input
-                    type="file"
-                    id="schemafile"
-                    accept=".proto"
-                    onChange={handleSchemaFileChange}
-                    disabled={!!loading && loading !== "Initializing..." && !loading?.includes("Ready to process")}
-                />
-                {schemaFile && <p>Selected schema: {schemaFile.name}</p>}
+            <div style={{
+                padding: '20px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                height: 'fit-content'
+            }}>
+                <div style={{ marginBottom: '20px' }}>
+                    <label htmlFor="schemafile" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                        .proto schema:
+                    </label>
+                    <input
+                        type="file"
+                        id="schemafile"
+                        accept=".proto"
+                        onChange={handleSchemaFileChange}
+                        disabled={!!loading && loading !== "Initializing..." && !loading?.includes("Ready to process")}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            border: '1px solid #ddd'
+                        }}
+                    />
+                    {schemaFile && (
+                        <p style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                            Selected: {schemaFile.name}
+                        </p>
+                    )}
+                </div>
+
+                <div>
+                    <label htmlFor="messagename" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                        Message type:
+                    </label>
+                    <select
+                        id="messagename"
+                        value={messageName}
+                        onChange={handleMessageNameChange}
+                        disabled={!schemaFile || (!!loading && loading !== "Initializing..." && !loading?.includes("Ready to process"))}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            border: '1px solid #ddd',
+                            backgroundColor: 'white'
+                        }}
+                    >
+                        <option value="">Select a message type</option>
+                        {messageTypes.map(type => (
+                            <option key={type} value={type}>{type}</option>
+                        ))}
+                    </select>
+                    {!messageName && schemaFile && messageTypes.length > 0 && (
+                        <p style={{ color: '#f90', marginTop: '8px', fontSize: '0.9em' }}>
+                            Please select a message type from the dropdown.
+                        </p>
+                    )}
+                    {schemaFile && messageTypes.length === 0 && (
+                        <p style={{ color: '#f90', marginTop: '8px', fontSize: '0.9em' }}>
+                            No message types found in the schema file.
+                        </p>
+                    )}
+                </div>
             </div>
-            <div>
-                <label htmlFor="messagename">Message name (e.g., my.package.MyMessage): </label>
-                <input
-                    type="text"
-                    id="messagename"
-                    placeholder="my.package.MyMessage"
-                    value={messageName}
-                    onChange={handleMessageNameChange}
-                    disabled={!schemaFile || (!!loading && loading !== "Initializing..." && !loading?.includes("Ready to process"))}
-                    style={{ width: '300px' }}
-                />
-                {!messageName && schemaFile && <p style={{color: 'orange'}}>Message name is recommended when schema is selected.</p>}
-            </div>
-            
-            {mainFile && wasmLoaded && (
-                 <button onClick={processFile} disabled={!!loading && loading !== "Initializing..." && !loading?.includes("Ready to process")}>
-                    Process {mainFile.name} {schemaFile && messageName ? `with ${schemaFile.name} (${messageName})` : (schemaFile ? `with ${schemaFile.name}` : '')}
-                </button>
-            )}
 
             {loading && <pre>Loading: {loading}</pre>}
             {error && <pre style={{ color: 'red' }}>Error: {error}</pre>}
             {output && <pre>{output}</pre>}
-            
             {!mainFile && !loading && !error && <p>Waiting for main protobuf data file to be sent from the parent application...</p>}
         </div>
     );
