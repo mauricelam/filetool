@@ -1,5 +1,0 @@
-syntax = "proto3";
-
-message Broken {
-  string name = 1 // missing semicolon
-}
