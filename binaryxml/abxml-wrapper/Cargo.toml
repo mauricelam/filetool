@@ -3,6 +3,10 @@ name = "abxml-wrapper"
 version = "0.1.0"
 edition = "2021"
 
+[package.metadata.wasm-pack.profile.release]
+# Workaround for https://github.com/rustwasm/wasm-pack/issues/1441
+wasm-opt = false
+
 [lib]
 crate-type = ["cdylib"]
 

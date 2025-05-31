@@ -867,8 +867,9 @@ export const extensions = {
       format: FileFormat.svg,
     },
     {
-      icon: 'cert',
+      icon: 'certificate', // Changed from 'cert' to 'certificate' for clarity if adding a new icon
       extensions: [
+        'pem', // Added pem
         'csr',
         'crt',
         'cer',
@@ -880,7 +881,7 @@ export const extensions = {
         'src',
         'crl',
         'sst',
-        'stl',
+        // 'stl', // STL is a 3D model format, removing from certs
       ],
       format: FileFormat.svg,
     },
@@ -5164,7 +5165,7 @@ export const extensions = {
       format: FileFormat.svg,
     },
     { icon: 'xib', extensions: ['xib'], format: FileFormat.svg },
-    { icon: 'xliff', extensions: ['xliff', 'xlf'], format: FileFormat.svg },
+      icon: 'key', extensions: ['key'], format: FileFormat.svg }, // Removed 'pem' from here as it's added to 'certificate'
     {
       icon: 'xmake',
       extensions: [],

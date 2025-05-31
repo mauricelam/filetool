@@ -1,0 +1,367 @@
+# DER ASCII Language Specification.
+
+# DER ASCII was designed to represent valid DER and BER encodings in a
+# human-readable and human-editable format. This gives it different properties
+# from a typical ASN.1 printer.
+#
+# First, it is reversible, so all encoding variations must be represented in the
+# language directly. Indefinite lengths print differently from definite lengths,
+# BER constructed strings capture the entire tree of constructed and primitive
+# elements, etc.
+#
+# Second, DER ASCII is intended to create both valid and invalid encodings. It
+# has minimal knowledge of DER and BER, so elements in the input file may freely
+# be replaced by raw byte strings. This means element contents do not have
+# type-specific interpretations, and length-prefixes may not even correspond to
+# tags.
+#
+# As a consequence, it is not a goal to abstract all details of DER and BER
+# encoding from the user.
+#
+# This specification is a valid DER ASCII file.
+
+
+# A DER ASCII file is a sequence of tokens. Most tokens resolve to a byte
+# string which is emitted as soon as it is processed.
+
+# Tokens are separated by whitespace, which is defined to be space (0x20), TAB
+# (0x09), CR (0x0d), and LF (0x0a). Apart from acting as a token separator,
+# whitespace is not significant.
+
+# Comments begin with # and run to the end of the line. Comments are treated as
+# whitespace.
+
+
+# Quoted strings.
+
+"Quoted strings are delimited by double quotes. Backslash denotes escape
+sequences. Legal escape sequences are: \\ \" \x00 \n. \x00 consumes two hex
+digits and emits a byte. Otherwise, any byte before the closing quote,
+including a newline, is emitted as-is."
+
+# Tokens in the file are emitted one after another, so the following lines
+# produce the same output:
+"hello world"
+"hello " "world"
+
+
+# UTF-16 literals.
+
+u"A quoted string beginning with 'u' is a UTF-16 literal. Unescaped octets are
+interpreted as UTF-8 and then encoded as big-endian UTF-16. Legal escape
+sequences are: \\ \" \n \x00 \u0000 \U00000000. The last three forms differ
+only in the number of hex digits they consume. If the value is 0xffff or below,
+it emits the value as a big-endian 16-bit integer. Otherwise, it emits the
+big-endian UTF-16 encoding. (The special case for small values is so unpaired
+high or low surrogates are legal.)"
+
+
+# UTF-32 literals.
+
+U"A quoted string beginning with 'U' is a UTF-32 literal. Unescaped octets are
+interpreted as UTF-8 and then encoded as big-endian UTF-32. Legal escape
+sequences are: \\ \" \n \x00 \u0000 \U00000000. The last three forms differ
+only in the number of hex digits they consume. Numerical escape sequences emit
+their value as a big-endian 32-bit integer, regardless of whether it is a legal
+Unicode code point."
+
+
+# Hex literals.
+
+# Backticks denote hex literals. Either uppercase or lowercase is legal, but no
+# characters other than hexadecimal digits may appear. A hex literal emits the
+# decoded byte string.
+`00`
+`abcdef`
+`AbCdEf`
+
+
+# Bit string literals.
+
+# A backtick string beginning with 'b' is a bit string literal. 0 or 1
+# characters denote bits in a bit string. | characters are interpreted as below.
+# No other characters may appear. The emit the contents of the bit string's DER
+# encoding as a BIT STRING. (Big-endian bit order, prefixed with the number of
+# trailing padding bits)
+
+# This encodes as `00aa`.
+b`10101010`
+
+# This encodes as `04a0`.
+b`1010`
+
+# A single | may appear, which marks the beginning of explicit padding bits. BER
+# permits any bit sequence after the padding bytes. However, it is an error for
+# padding to cross the byte boundary.
+
+# This encodes as `04aa`.
+b`1010|1010`
+
+# This is an error, since only four padding bits are available for the user to
+# specify.
+# b`1010|10101`
+
+
+# Integers.
+
+# Tokens which match /-?[0-9]+/ are integer tokens. They emit the contents of
+# the value's DER encoding as an INTEGER. (Big-endian, base-256,
+# two's-complement, and minimally-encoded.)
+456
+
+
+# Object identifiers.
+
+# Tokens which match /[0-9]+(\.[0-9]+)+/ are object identifier (OID) tokens.
+# They emit the contents of the value's DER encoding as an OBJECT IDENTIFIER.
+1.2.840.113554.4.1.72585
+
+
+# Relative object identifiers.
+
+# Tokens which match /(\.[0-9]+)+/ are relative OID tokens.
+# They emit the contents of the value's DER encoding as a RELATIVE-OID.
+.4.1.72585
+
+
+# Booleans.
+
+# The following tokens emit `ff` and `00`, respectively.
+TRUE
+FALSE
+
+
+# Tag expressions.
+
+# Square brackets denote a tag expression, similar to ASN.1's syntax. Unlike
+# ASN.1, the constructed bit is treated as part of the tag.
+#
+# A tag expression contains components separated by space (0x20): an optional
+# long-form modifier, an optional tag class, a decimal tag number, and an
+# optional constructed bit. By default, tags have class context-specific and
+# set the constructed bit. Alternatively, the first two components may be
+# replaced by a type name (see below).
+#
+# A tag expression emits the tag portion of a DER element with the specified
+# tag class, tag number, and constructed bit. Note that it does not emit an
+# element body. Those are specified separately.
+#
+# The optional long-form modifier specifies long tag number form with the
+# specified number of bytes after the leading byte. This may be used for
+# non-minimal tag encodings.
+#
+# Examples:
+[0]
+[0 PRIMITIVE]
+[0 CONSTRUCTED] # This is equivalent to [0]
+[APPLICATION 1]
+[PRIVATE 2]
+[UNIVERSAL 16] # This is a SEQUENCE.
+[UNIVERSAL 2 PRIMITIVE] # This is an INTEGER.
+[long-form:2 UNIVERSAL 2 PRIMITIVE] # This is `1f0002` instead of `02`.
+
+# As a shorthand, one may write type names from ASN.1, replacing spaces with
+# underscore. These specify tag, number, and the constructed bit. The
+# constructed bit is set for SEQUENCE and SET and unset otherwise.
+INTEGER
+SEQUENCE
+OCTET_STRING
+
+# Within a tag expression, type names may also be used in place of the class
+# and tag number. If unspecified, the constructed bit is CONSTRUCTED for
+# SEQUENCE and SET and PRIMITIVE otherwise.
+[SEQUENCE PRIMITIVE]
+[OCTET_STRING CONSTRUCTED]
+[INTEGER] # This is the same as INTEGER
+[INTEGER PRIMITIVE] # This is the same as INTEGER
+
+
+# Length prefixes.
+
+# Matching curly brace tokens denote length prefixes. They emit a DER-encoded
+# length prefix followed by the encoding of the brace contents.
+#
+# Tag expressions should always be followed by a length prefix to emit a valid
+# DER element, but there is no requirement to do so. See below for examples of
+# intentionally malformed test inputs where tags and length prefixes do not
+# match.
+#
+# An open curly brace may optionally be preceded by 'indefinite' to use
+# indefinite-length encoding. It may alternatively be preceded by 'long-form:N'
+# to use long-form encoding with the specified number of bytes after the
+# leading byte. This may be used for non-minimal length encodings.
+#
+# An open curly brace may also optionally be preceded by 'adjust-length:N', to
+# add N (which may be negative) to the length before encoding.
+
+# This is an OID.
+OBJECT_IDENTIFIER { 1.2.840.113554.4.1.72585 }
+
+# This is a NULL.
+NULL {}
+
+# This is a SEQUENCE of two INTEGERs.
+SEQUENCE {
+  INTEGER { 1 }
+  INTEGER { `00ff` }
+}
+
+# This is an explicitly-tagged SEQUENCE.
+[0] {
+  SEQUENCE {
+    INTEGER { 1 }
+    INTEGER { `00ff` }
+  }
+}
+
+# Note that curly braces are not optional, even in explicit tagging. Thus this
+# isn't the same thing, despite the similar ASN.1 syntax. (It concatenates the
+# [0] and SEQUENCE tags with no length prefix in between.)
+[0] SEQUENCE {
+  INTEGER { 1 }
+  INTEGER { `00ff` }
+}
+
+# This is an indefinite-length SEQUENCE.
+SEQUENCE indefinite {
+  INTEGER { 1 }
+  INTEGER { `00ff` }
+}
+
+# This INTEGER encodes its length as `8101` instead of `01`.
+INTEGER long-form:1 { 5 }
+
+# This integer encodes a length of 2, when it should encode a length of 1.
+INTEGER adjust-length:1 { 5 }
+
+# This integer encodes a length of 0, when it should encode a length of 1.
+INTEGER adjust-length:-1 { 5 }
+
+# Modifiers may be combined. This encodes a length of `8102`.
+INTEGER long-form:1 adjust-length:1 { 5 }
+
+# This is a BER constructed OCTET STRING.
+[OCTET_STRING CONSTRUCTED] {
+  OCTET_STRING { "hello " }
+  OCTET_STRING { "world" }
+}
+
+# Implicit tagging is written without the underlying tag, as in the DER
+# encoding. Note that the constructed bit must match the underlying tag for a
+# correct encoding.
+[0 PRIMITIVE] { 1 }  # [0] IMPLICIT INTEGER.
+[0] {  # [0] IMPLICIT SEQUENCE OF INTEGER.
+  INTEGER { 1 }
+  INTEGER { `00ff` }
+}
+
+
+# Examples.
+
+# These primitives may be combined with raw byte strings to produce other
+# encodings.
+
+# This is another way to write an indefinite-length SEQUENCE.
+SEQUENCE `80`
+  INTEGER { 1 }
+  INTEGER { 2 }
+`0000`
+
+# This is an indefinite-length SEQUENCE missing the EOC marker.
+SEQUENCE `80`
+  INTEGER { 1 }
+  INTEGER { 2 }
+
+# This is a SEQUENCE with the wrong constructed bit.
+[SEQUENCE PRIMITIVE] {
+  INTEGER { 1 }
+  INTEGER { 2 }
+}
+
+# This is a SEQUENCE with the tag encoded in high tag number form. This is
+# incorrect in DER, but valid in BER.
+`3f90` {
+  INTEGER { 1 }
+  INTEGER { 2 }
+}
+
+# Note the above may also be written like this.
+[long-form:1 SEQUENCE] {
+  INTEGER { 1 }
+  INTEGER { 2 }
+}
+
+# This is a SEQUENCE with garbage instead of the length.
+SEQUENCE `aabbcc`
+  INTEGER { 1 }
+  INTEGER { 2 }
+
+
+# Disassembler.
+
+# Although the conversion from DER ASCII to a byte string is well-defined, the
+# inverse is not. A given byte string may have multiple disassemblies. The
+# disassembler heuristically attempts to give a useful conversion for its
+# input.
+#
+# It is a goal that any valid BER or DER input will be decoded reasonably, along
+# with common embeddings of encoded structures within OCTET STRINGs, etc.
+# Invalid encodings, however, will likely disassemble to a hex literal and not
+# be easily editable.
+#
+# The algorithm is as follows:
+#
+# 1. Greedily parse BER elements out of the input. Indefinite-length encoding is
+#    legal. On parse error, encode the remaining bytes as quoted strings or hex
+#    literals depending on what fraction is printable ASCII.
+#
+# 2. Minimally encode the tag in the BER element. If the element is
+#    definite-length, encode the body wrapped in curly braces. If the element
+#    is indefinite-length but missing the EOC marker, use `80` for the opening
+#    brace and omit the closing one.
+#
+# 3. If the element has the constructed bit, recurse to encode the body.
+#
+# 4. Otherwise, heuristically encode the body based on the tag:
+#
+#    a. If the tag is INTEGER and the body is a valid integer under some
+#       threshold, encode as an integer. Otherwise encode as a hex literal.
+#
+#    b. If the tag is OBJECT IDENTIFIER and the body is a valid OID, encode as
+#       an OID. Otherwise encode as a hex literal.
+#
+#    c. If the tag is BOOLEAN and the body is valid, encode as TRUE or FALSE.
+#       Otherwise encode as a hex literal.
+#
+#    d. If the tag is a BIT STRING:
+#       
+#       i.   If the body is a valid bit string, contains a whole number of
+#            bytes, and may be parsed as a series of BER elements with no
+#            trailing data, encode as `00` followed by recursing into the body
+#            as in step g. This accounts for X.509 incorrectly using BIT STRING
+#            instead of OCTET STRING for SubjectPublicKeyInfo and signatures.
+#
+#       ii.  If the body is a valid bit string with at most 32 bits, encode as a
+#            bit string literal. If any padding bits are non-zero, they are
+#            encoded explicitly.
+#
+#       iii. If the body is a valid bit string with more than 32 bits, encode as
+#            apair of hex literals, containing the initial byte and the data
+#            bytes.
+#
+#       iv.  Otherwise, the body is not a valid bit string. Encode as a single
+#            hex literal.
+#
+#    e. If the tag is BMPString, decode the body as UTF-16 and encode as a
+#       UTF-16 literal. Unpaired surrogates and unprintable code points are
+#       escaped. If there is a byte left over, encode it in an additional hex
+#       literal.
+#
+#    f. If the tag is UniversalString, decode the body as UTF-32 and encode as
+#       a UTF-32 literal. Unpaired surrogates and unprintable code points are
+#       escaped. If there are bytes left over, encode them in an additional hex
+#       literal.
+#
+#    g. Otherwise, if the body may be parsed as a series of BER elements without
+#       trailing data, recurse into the body. If not, encode it as a raw byte
+#       string as excess bytes are encoded in step 1.

@@ -275,6 +275,18 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
+        "name": "DER",
+        "handler": "der",
+        "mimetypes": [
+            {
+                filename: /\.(der|crt|cer|pem|rsa)$/i,
+            },
+            "application/x-x509-ca-cert",
+            "application/pkix-cert",
+            "application/x-pem-file",
+        ]
+    },
+    {
         "name": "Protoscope",
         "handler": "protoscope",
         "mimetypes": [
