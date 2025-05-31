@@ -6,33 +6,40 @@ interface MimeMatchDetailed {
 
 type MimeMatch = MimeMatchDetailed | string | RegExp;
 
-export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: string, description?: string): boolean {
-    const matchStringOrRegex = (stringOrRegex: string | RegExp | undefined, matchee: string): boolean => {
+export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: string, description?: string | null): boolean {
+    const matchStringOrRegex = (stringOrRegex: string | RegExp | undefined, matchee: string | null | undefined): boolean => {
         if (stringOrRegex === undefined) {
-            return true;
-        } else if (typeof stringOrRegex === 'string') {
+            return true; // Handler rule does not specify this part, so it's a match for this part
+        }
+        if (matchee === undefined || matchee === null) {
+            return false; // Handler rule requires something, but we don't have it
+        }
+        // Now matchee is definitely a string
+        if (typeof stringOrRegex === 'string') {
             return stringOrRegex === matchee;
-        } else {
-            return stringOrRegex.test(matchee);
+        } else { // stringOrRegex is a RegExp
+            return stringOrRegex.test(matchee as string);
         }
     }
 
     if (typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)) {
-        if (mime === 'application/octet-stream' && mimeMatch.description) {
-            // If mimeMatch expects a description for octet-stream, the passed 'description' must exist and match
-            if (description) { // Check if description argument is truthy (not null, not undefined, not empty string)
-                return matchStringOrRegex(mimeMatch.mime, mime) &&
-                       matchStringOrRegex(mimeMatch.filename, filename) &&
-                       matchStringOrRegex(mimeMatch.description, description);
-            } else {
-                // mimeMatch.description is set, but no description argument provided or it's null/undefined/empty
-                return false;
-            }
+        // Check mime part
+        if (!matchStringOrRegex(mimeMatch.mime, mime)) {
+            return false;
         }
-        // Original logic for other cases (no specific description rule for octet-stream, or not octet-stream)
-        return matchStringOrRegex(mimeMatch.mime, mime) &&
-               matchStringOrRegex(mimeMatch.filename, filename);
-    } else {
+        // Check filename part
+        if (!matchStringOrRegex(mimeMatch.filename, filename)) {
+            return false;
+        }
+        // Check description part if specified in the handler rule
+        if (mimeMatch.description !== undefined) {
+            // If handler expects a description, the provided description must match
+            return matchStringOrRegex(mimeMatch.description, description);
+        }
+        // If mimeMatch.description is undefined, it means this rule doesn't care about description.
+        // And we've already matched mime and filename.
+        return true;
+    } else { // mimeMatch is a string or RegExp (only for mime type)
         return matchStringOrRegex(mimeMatch, mime);
     }
 }
@@ -311,7 +318,9 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         "handler": "der",
         "mimetypes": [
             {
-                filename: /\.(der|crt|cer|pem|rsa)$/i,
+                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"), // Using new RegExp()
+                // mime: undefined, // Implicitly undefined
+                // description: undefined // Implicitly undefined
             },
             "application/x-x509-ca-cert",
             "application/pkix-cert",
