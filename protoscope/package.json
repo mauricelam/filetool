@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.20.0",
