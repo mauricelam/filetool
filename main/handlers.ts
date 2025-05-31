@@ -1,29 +1,61 @@
 interface MimeMatchDetailed {
     mime?: string | RegExp,
     filename?: string | RegExp,
+    description?: string | RegExp, // Added field
 }
 
 type MimeMatch = MimeMatchDetailed | string | RegExp;
 
-export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: string): boolean {
+export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: string, description?: string): boolean {
     const matchStringOrRegex = (stringOrRegex: string | RegExp | undefined, matchee: string): boolean => {
         if (stringOrRegex === undefined) {
-            return true
+            return true;
         } else if (typeof stringOrRegex === 'string') {
-            return stringOrRegex === matchee
+            return stringOrRegex === matchee;
         } else {
-            return stringOrRegex.test(matchee)
+            return stringOrRegex.test(matchee);
         }
     }
 
     if (typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)) {
-        return matchStringOrRegex(mimeMatch.mime, mime) && matchStringOrRegex(mimeMatch.filename, filename)
+        if (mime === 'application/octet-stream' && mimeMatch.description) {
+            // If mimeMatch expects a description for octet-stream, the passed 'description' must exist and match
+            if (description) { // Check if description argument is truthy (not null, not undefined, not empty string)
+                return matchStringOrRegex(mimeMatch.mime, mime) &&
+                       matchStringOrRegex(mimeMatch.filename, filename) &&
+                       matchStringOrRegex(mimeMatch.description, description);
+            } else {
+                // mimeMatch.description is set, but no description argument provided or it's null/undefined/empty
+                return false;
+            }
+        }
+        // Original logic for other cases (no specific description rule for octet-stream, or not octet-stream)
+        return matchStringOrRegex(mimeMatch.mime, mime) &&
+               matchStringOrRegex(mimeMatch.filename, filename);
     } else {
-        return matchStringOrRegex(mimeMatch, mime)
+        return matchStringOrRegex(mimeMatch, mime);
     }
 }
 
 export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
+    {
+        "name": "DER Viewer",
+        "handler": "der", // Assuming "der" is the correct handler ID
+        "mimetypes": [
+            {
+                mime: "application/octet-stream",
+                description: /DER Encoded PKCS#7 Signed Data/i,
+            },
+            // Keep existing DER handler entries if they are different
+            // For example, if there's one for specific file extensions:
+            // {
+            //     filename: /\.(der|crt|cer|pem|rsa)$/i,
+            // },
+            // "application/x-x509-ca-cert",
+            // "application/pkix-cert",
+            // "application/x-pem-file",
+        ]
+    },
     {
         "name": "Hex",
         "handler": "hex_viewer",
