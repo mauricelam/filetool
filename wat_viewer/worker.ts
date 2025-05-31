@@ -10,7 +10,7 @@ self.onmessage = async (e) => {
     }
 }
 
-async function fileToWat(file: File): Promise<string> {
+export async function fileToWat(file: File): Promise<string> {
     const wabtool = await wabt()
     const module = wabtool.readWasm(new Uint8Array(await file.arrayBuffer()), ALL_WASM_FEATURES)
     return module.toText({})
