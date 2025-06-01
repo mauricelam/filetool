@@ -1,6 +1,5 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
-import { wasmLoader } from 'esbuild-plugin-wasm'; // Keep for now
 import process from 'process';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs'; // Import the new plugin
 
@@ -21,7 +20,6 @@ const SETTINGS = {
         },
       ]
     }),
-    wasmLoader(), // Keep for now, verify during testing
     rustWasm({
       projectDir: 'classfile-wasm',
       outName: 'classfile_wasm', // wasm-pack will generate classfile_wasm_bg.wasm and classfile_wasm.js

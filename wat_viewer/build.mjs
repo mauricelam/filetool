@@ -1,5 +1,4 @@
 import * as esbuild from 'esbuild';
-import { wasmLoader } from 'esbuild-plugin-wasm';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 
@@ -11,7 +10,6 @@ const SETTINGS = {
   platform: "browser",
   external: ['require', 'fs', 'path'],
   plugins: [
-    wasmLoader(),
     copy({
       assets: [
         {

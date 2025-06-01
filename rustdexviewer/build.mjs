@@ -4,7 +4,6 @@ import process from 'process';
 import path from 'path'; // Import path
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
-import { wasmLoader } from 'esbuild-plugin-wasm'; // Import wasmLoader, might be needed for Rust Wasm
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -30,7 +29,6 @@ const SETTINGS = {
       outWasmFile: 'dextk.wasm',
       watchPaths: ['**/*.go', 'go.mod'] // Relative to goDexViewerDir
     }),
-    wasmLoader(),
     copy({
       assets: [
         {
