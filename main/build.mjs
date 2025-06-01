@@ -4,7 +4,7 @@ import process from 'process';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
-  outdir: "dist",
+  outdir: "../dist",
   bundle: true,
   format: "esm",
   platform: "browser",
@@ -34,12 +34,8 @@ if (process.env['BUILD_MODE'] === 'dev') {
   const ctx = await esbuild.context({
     ...SETTINGS,
     sourcemap: true,
-    // banner: {
-    //   js: `new EventSource('/esbuild').addEventListener('change', () => location.reload());`,
-    // },
-    outdir: `../dist`
   });
   await ctx.watch();
 } else {
-  await esbuild.build({ ...SETTINGS, minify: true, outdir: `../dist` });
+  await esbuild.build({ ...SETTINGS, minify: true });
 }

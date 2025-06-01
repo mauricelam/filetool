@@ -21,15 +21,15 @@
         "webgl_previewer",
         "jqviewer",
         "protoscope",
-        "der"
+        "der",
+        "esbuild-plugins"
     ],
     "scripts": {
-        "copy-index": "mkdir -p dist && cp index.html dist/index.html",
-        "run-server": "node serve.mjs",
-        "build:workspaces": "npm run build -ws --if-present",
-        "watch:workspaces": "npm run watch -ws --if-present",
-        "serve": "npm run copy-index && run-p \"watch:workspaces\" run-server",
-        "build": "npm run copy-index && npm run build:workspaces"
+        "start": "node serve.mjs",
+        "build:workspaces": "npm run build -ws",
+        "watch:workspaces": "npm pkg get name -ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch -w {}",
+        "serve": "run-p \"watch:workspaces\" start",
+        "build": "npm run build:workspaces"
     },
     "devDependencies": {
         "@types/finalhandler": "^1.2.3",

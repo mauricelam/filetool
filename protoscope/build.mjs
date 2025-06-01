@@ -1,34 +1,23 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
-import path from 'path'; // Import path
-import { fileURLToPath } from 'url'; // Import for __dirname
-import { dirname } from 'path'; // Import for __dirname
-import { esbuildPluginGoWasm } from '../../tools/esbuild-plugins/esbuild-plugin-go-wasm.mjs'; // Import the new plugin
+import { goWasm } from '../esbuild-plugins/go-wasm.mjs'; // Import the new plugin
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Resolve the project directory for the Wasm module
-// In protoscope, main.go is in the same directory as build.mjs
-const goProtoscopeDir = __dirname;
-const outDir = '../dist/protoscope';
 
 const SETTINGS = {
-  entryPoints: [path.join(__dirname, 'main.tsx')],
-  outdir: outDir,
+  entryPoints: ['main.tsx'],
+  outdir: '../dist/protoscope',
   bundle: true,
   format: 'esm',
   platform: 'browser',
   external: ['require', 'fs', 'path'],
   plugins: [
-    esbuildPluginGoWasm({
-      projectDir: goProtoscopeDir,
+    goWasm({
+      projectDir: '.',
       // main.go is directly in projectDir, so no subpath needed for build command.
       // The plugin's default goBuildCommand builds sources in projectDir.
       outWasmFile: 'protoscope.wasm', // Output file name in the esbuild outdir
-      wasmExecJsDest: 'wasm_exec.js', // Destination for wasm_exec.js in esbuild outdir
-      watchPaths: ['main.go', 'go.mod', 'go.sum'] // Relative to projectDir
+      watchPaths: ['main.go', 'go.mod'] // Relative to projectDir
     }),
     copy({
       assets: [

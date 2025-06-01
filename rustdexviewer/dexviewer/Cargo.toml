@@ -8,6 +8,10 @@ crate-type = ["cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.wasm-pack.profile.release]
+# Workaround for https://github.com/rustwasm/wasm-pack/issues/1441
+wasm-opt = false
+
 [dependencies]
 log = "0.4.22"
 console_log = "1.0.0"

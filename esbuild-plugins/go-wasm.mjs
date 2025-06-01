@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import chokidar from 'chokidar';
 
-export const esbuildPluginGoWasm = (options) => {
+export const goWasm = (options) => {
   return {
     name: 'go-wasm-builder',
     setup(build) {
@@ -28,13 +28,7 @@ export const esbuildPluginGoWasm = (options) => {
       let watcher = null;
       let goRoot = '';
 
-      try {
-        goRoot = execSync('go env GOROOT', { encoding: 'utf-8' }).trim();
-      } catch (e) {
-        console.error('[go-wasm-builder] Failed to get GOROOT. Ensure Go is installed and in PATH.', e);
-        // Potentially throw an error or allow proceeding if wasm_exec.js path is manually specified and valid
-        return;
-      }
+      goRoot = execSync('go env GOROOT', { encoding: 'utf-8' }).trim();
 
       const wasmExecJsSrc = path.join(goRoot, 'misc', 'wasm', 'wasm_exec.js');
 
@@ -46,11 +40,14 @@ export const esbuildPluginGoWasm = (options) => {
         isBuilding = true;
         console.log(`[go-wasm-builder] Building Go Wasm module from ${projectDir}...`);
 
-        const absoluteOutWasmPath = path.join(outDir, outWasmFile);
+        const absoluteOutWasmPath = path.resolve(outDir, outWasmFile);
         const fullBuildCommand = `${goBuildCommand} "${absoluteOutWasmPath}"`;
 
         try {
-          fs.mkdirSync(path.dirname(absoluteOutWasmPath), { recursive: true }); // Ensure target directory for wasm file exists
+          // Ensure the output directory exists
+          fs.mkdirSync(path.resolve(outDir), { recursive: true });
+          
+          // Run the build command from the project directory
           execSync(fullBuildCommand, { stdio: 'inherit', cwd: projectDir });
           console.log(`[go-wasm-builder] Successfully built ${outWasmFile}`);
 
@@ -63,8 +60,6 @@ export const esbuildPluginGoWasm = (options) => {
           } else {
             console.warn(`[go-wasm-builder] wasm_exec.js not found at ${wasmExecJsSrc}. Skipping copy.`);
           }
-        } catch (error) {
-          console.error(`[go-wasm-builder] Failed to build Go Wasm module:`, error);
         } finally {
           isBuilding = false;
           if (needsRebuild) {
@@ -81,10 +76,10 @@ export const esbuildPluginGoWasm = (options) => {
       if (process.env['BUILD_MODE'] === 'dev') {
         const fullWatchPaths = watchPaths.map(p => path.join(projectDir, p));
         watcher = chokidar.watch(fullWatchPaths, {
-          ignored: /(^|[\/\])\../,
+          ignored: /^(?!.*\.go$).*$/,
           persistent: true,
           awaitWriteFinish: {
-            stabilityThreshold: 300,
+            stabilityThreshold: 500,
             pollInterval: 100
           }
         });
