@@ -46,24 +46,6 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
 
 export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
     {
-        "name": "DER Viewer",
-        "handler": "der", // Assuming "der" is the correct handler ID
-        "mimetypes": [
-            {
-                mime: "application/octet-stream",
-                description: /DER Encoded PKCS#7 Signed Data/i,
-            },
-            // Keep existing DER handler entries if they are different
-            // For example, if there's one for specific file extensions:
-            // {
-            //     filename: /\.(der|crt|cer|pem|rsa)$/i,
-            // },
-            // "application/x-x509-ca-cert",
-            // "application/pkix-cert",
-            // "application/x-pem-file",
-        ]
-    },
-    {
         "name": "Hex",
         "handler": "hex_viewer",
         "mimetypes": [
@@ -319,12 +301,14 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         "mimetypes": [
             {
                 filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"), // Using new RegExp()
-                // mime: undefined, // Implicitly undefined
-                // description: undefined // Implicitly undefined
             },
             "application/x-x509-ca-cert",
             "application/pkix-cert",
             "application/x-pem-file",
+            {
+                mime: "application/octet-stream",
+                description: /DER Encoded PKCS#7 Signed Data/i,
+            },
         ]
     },
     {

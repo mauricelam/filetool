@@ -211,7 +211,6 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             })
     }, [setHandlers, setDescription, setMime, file])
     const defaultHandler = getDefaultHandler(mime, file.name);
-    console.log("defaultHandler", defaultHandler)
     return (
         <FileItem
             key={file.name}
