@@ -1,10 +1,8 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
-import { wasmLoader } from 'esbuild-plugin-wasm';
-import { execSync } from 'child_process';
 import process from 'process';
-import fs from 'fs';
-import chokidar from 'chokidar';
+import path from 'path'; // Import path
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs'; // Import the new plugin
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -12,7 +10,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path'],
+  external: ['require', 'fs', 'path'], // 'crypto' might not be needed here
   plugins: [
     copy({
       assets: [
@@ -23,68 +21,22 @@ const SETTINGS = {
         },
       ]
     }),
-    wasmLoader(),
-    {
-      name: 'wasm-pack',
-      setup(build) {
-        let isBuilding = false;
-        let needsRebuild = false;
-        let watcher = null;
-
-        const buildWasm = () => {
-          if (isBuilding) {
-            needsRebuild = true;
-            return;
-          }
-          isBuilding = true;
-          try {
-            execSync(`wasm-pack build abxml-wrapper --target web`, {
-              stdio: 'inherit'
-            });
-            fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
-            fs.copyFileSync(
-              'abxml-wrapper/pkg/abxml_wrapper_bg.wasm',
-              `${build.initialOptions.outdir}/abxml_wrapper_bg.wasm`
-            );
-          } catch (error) {
-            console.error(`Failed to build WASM module:`, error);
-          } finally {
-            isBuilding = false;
-            if (needsRebuild) {
-              needsRebuild = false;
-              buildWasm();
-            }
-          }
-        };
-
-        build.onStart(() => {
-          buildWasm();
-        });
-
-        if (process.env['BUILD_MODE'] === 'dev') {
-          watcher = chokidar.watch([
-            'abxml-wrapper/src/**/*.rs',
-            'abxml-rs/src/**/*.rs',
-            'abxml-wrapper/Cargo.toml',
-            'abxml-rs/Cargo.toml'
-          ], {
-            ignored: /(^|[\/\\])\../, // ignore dotfiles
-            persistent: true,
-            awaitWriteFinish: {
-              stabilityThreshold: 300,
-              pollInterval: 100
-            }
-          });
-
-          watcher
-            .on('change', path => {
-              console.log(`Rust file changed: ${path}`);
-              buildWasm();
-            })
-            .on('error', error => console.error(`Watcher error: ${error}`));
-        }
-      }
-    },
+    rustWasm({
+      projectDir: 'abxml-wrapper',
+      outName: 'abxml_wrapper', // wasm-pack will add _bg to the .wasm file, so this becomes abxml_wrapper_bg.wasm and abxml_wrapper.js
+      watchPaths: [ // Paths relative to projectDir (abxml-wrapper)
+        'src/**/*.rs',
+        'Cargo.toml',
+        // Watch paths for the dependent local workspace abxml-rs
+        // This requires careful relative pathing from abxml-wrapper to abxml-rs
+        // Assuming abxml-rs is a sibling or at a known relative path to abxml-wrapper
+        // For this example, let's assume direct relative path for simplicity
+        // This might need adjustment based on actual monorepo structure if chokidar has issues.
+        // A robust solution might involve passing absolute paths or resolving them carefully.
+        path.join('..', 'abxml-rs', 'src', '**', '*.rs'),
+        path.join('..', 'abxml-rs', 'Cargo.toml'),
+      ]
+    }),
   ],
 }
 

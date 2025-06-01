@@ -1,8 +1,7 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
-import { execSync } from 'child_process';
-import fs, { watch } from 'fs';
+import { goWasm } from '../esbuild-plugins/go-wasm.mjs'; // Import the new plugin
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -12,26 +11,10 @@ const SETTINGS = {
   platform: "browser",
   external: ['require', 'fs', 'path'],
   plugins: [
-    {
-      name: 'build-wasm',
-      setup: (build) => {
-        build.onStart(async () => {
-          fs.mkdirSync(build.initialOptions.outdir, { recursive: true });
-          execSync(`cp $(go env GOROOT)/misc/wasm/wasm_exec.js ${build.initialOptions.outdir}/wasm_exec.js`);
-          execSync(`cd godexviewer && GOOS=js GOARCH=wasm go build -o ../${build.initialOptions.outdir}/dextk.wasm`);
-        });
-
-        if (process.env['BUILD_MODE'] === 'dev') {
-          watch('./godexviewer', { recursive: true }, (eventType, filename) => {
-            try {
-              execSync(`cd godexviewer && GOOS=js GOARCH=wasm go build -o ../${build.initialOptions.outdir}/dextk.wasm`);
-            } catch (err) {
-              console.error('Failed to build Go wasm:', err.message);
-            }
-          });
-        }
-      }
-    },
+    goWasm({
+      projectDir: 'godexviewer',
+      outWasmFile: 'dextk.wasm', // Output file name in the esbuild outdir
+    }),
     copy({
       assets: [
         {
@@ -48,11 +31,10 @@ if (process.env['BUILD_MODE'] === 'dev') {
   const ctx = await esbuild.context({
     ...SETTINGS,
     sourcemap: true,
-    // banner: {
-    //   js: `new EventSource('/esbuild').addEventListener('change', () => location.reload()); `,
-    // },
   });
   await ctx.watch();
 } else {
-  await esbuild.build({ ...SETTINGS, minify: true });
+  const buildSettings = { ...SETTINGS, minify: true };
+  delete buildSettings.banner; // Ensure no banner in prod
+  await esbuild.build(buildSettings);
 }

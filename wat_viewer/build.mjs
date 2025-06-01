@@ -1,5 +1,4 @@
 import * as esbuild from 'esbuild';
-import { wasmLoader } from 'esbuild-plugin-wasm';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 
@@ -11,7 +10,6 @@ const SETTINGS = {
   platform: "browser",
   external: ['require', 'fs', 'path'],
   plugins: [
-    wasmLoader(),
     copy({
       assets: [
         {
@@ -28,9 +26,6 @@ if (process.env['BUILD_MODE'] === 'dev') {
   const ctx = await esbuild.context({
     ...SETTINGS,
     sourcemap: true,
-    // banner: {
-    //   js: `new EventSource('/esbuild').addEventListener('change', () => location.reload());`,
-    // },
   });
   await ctx.watch();
 } else {

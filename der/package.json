@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "run-p watch:*",
+    "watch": "BUILD_MODE=dev node build.mjs",
     "test": "jest"
   },
   "dependencies": {

@@ -1,6 +1,5 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
-import { wasmLoader } from 'esbuild-plugin-wasm';
 import process from 'process';
 
 const isDev = process.env.BUILD_MODE === 'dev';
@@ -14,7 +13,6 @@ await esbuild.build({
     external: ['fs', 'path', 'crypto'],
     inject: ['./node-shims.js'],
     plugins: [
-        wasmLoader(),
         copy({
             assets: [
                 {
@@ -41,7 +39,6 @@ await esbuild.build({
     platform: 'browser',
     external: ['fs', 'path', 'crypto'],
     inject: ['./node-shims.js'],
-    plugins: [wasmLoader()],
     sourcemap: isDev,
     minify: !isDev,
     target: ['es2020'],
