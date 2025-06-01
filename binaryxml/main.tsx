@@ -42,6 +42,7 @@ function App() {
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
     const [resources, setResources] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [isStandaloneArsc, setIsStandaloneArsc] = useState<boolean>(false);
 
     useEffect(() => {
         // Request file from parent window
@@ -75,10 +76,13 @@ function App() {
         if (file.name.endsWith('.arsc')) {
             const resources = extract_arsc(fileBytes);
             setResources(resources);
+            setIsStandaloneArsc(true);
             setView('resource');
             return;
         }
 
+        // If not a standalone .arsc, ensure isStandaloneArsc is false
+        setIsStandaloneArsc(false);
         const decoded = decode_apk(fileBytes)
         const tree = pathToTree(decoded)
         setFileTree(tree);
@@ -90,6 +94,7 @@ function App() {
         if (key.endsWith('.arsc') && content instanceof Uint8Array) {
             const resources = extract_arsc(content);
             setResources(resources);
+            setIsStandaloneArsc(false);
             setView('resource');
         }
     };
@@ -99,7 +104,7 @@ function App() {
     }
 
     if (view === 'resource') {
-        return <ResourceTableViewer resources={resources} onBack={() => setView('file')} />;
+        return <ResourceTableViewer resources={resources} onBack={() => { setView('file'); setIsStandaloneArsc(false); }} showBackButton={!isStandaloneArsc} />;
     }
 
     return <FileViewer files={fileTree} onItemClick={handleItemClick} />;
@@ -160,7 +165,13 @@ function FileViewer({ files, onItemClick }: {
     );
 }
 
-function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: () => void }) {
+interface ResourceTableViewerProps {
+    resources: any[];
+    onBack: () => void;
+    showBackButton?: boolean;
+}
+
+function ResourceTableViewer({ resources, onBack, showBackButton = true }: ResourceTableViewerProps) {
     // Group resources by type name
     const resourcesByType = resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
@@ -223,24 +234,26 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
                 gap: '16px',
                 marginBottom: '16px'
             }}>
-                <button
-                    onClick={onBack}
-                    style={{
-                        padding: '8px 16px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        background: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
-                    </svg>
-                    Back
-                </button>
+                {showBackButton && (
+                    <button
+                        onClick={onBack}
+                        style={{
+                            padding: '8px 16px',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            background: 'white',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                            <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                        </svg>
+                        Back
+                    </button>
+                )}
                 <h3 style={{ margin: 0 }}>Resource Table</h3>
             </div>
 

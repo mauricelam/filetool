@@ -180,6 +180,19 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
+        "name": "Android ARSC viewer",
+        "handler": "binaryxml",
+        "mimetypes": [
+            {
+                mime: "application/octet-stream",
+                filename: /.*\.arsc/i,
+            },
+            { // Fallback for just filename if mime type is generic
+                filename: /.*\.arsc/i,
+            }
+        ]
+    },
+    {
         "name": "Android APK viewer",
         "handler": "binaryxml",
         "mimetypes": [
