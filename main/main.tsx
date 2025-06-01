@@ -71,34 +71,40 @@ function dispatchOpenFiles(files: File[]) {
     window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
 }
 
-const iframe = document.getElementById('handler') as HTMLIFrameElement
+const framecontainer = document.getElementById('framecontainer')
 
 async function openHandler(handler: string, file: File, mime: string) {
+    // Clear existing iframes
+    framecontainer.innerHTML = '';
+
+    // Create new iframe
+    const iframe = document.createElement('iframe');
+    framecontainer.appendChild(iframe);
+
     if (handler === '__text__') {
-        iframe.src = ''
-        iframe.setAttribute('sandbox', '')
-        iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }))
+        iframe.setAttribute('sandbox', '');
+        iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
     } else {
-        iframe.src = ''
-        iframe.removeAttribute('sandbox')
-        iframe.src = handler
+        iframe.removeAttribute('sandbox');
+        iframe.src = handler;
     }
+
     window.onmessage = async (e) => {
         if (e.source === iframe.contentWindow) {
             if (e.data.action === 'requestFile') {
                 if (file.type !== mime) {
-                    console.log("Mismatched mime types", file.type, mime)
+                    console.log("Mismatched mime types", file.type, mime);
                 }
-                const fileCopy = new File([file], file.name, { type: mime })
+                const fileCopy = new File([file], file.name, { type: mime });
                 iframe.contentWindow.postMessage(
                     { 'action': 'respondFile', file: fileCopy, 'originalType': file.type },
-                    "/", [await file.arrayBuffer()])
+                    "/", [await file.arrayBuffer()]);
             } else if (e.data.action === 'openFile') {
-                console.log('onmessage', e.data)
-                window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: [e.data.file] }))
+                console.log('onmessage', e.data);
+                window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: [e.data.file] }));
             }
         }
-    }
+    };
 }
 
 function FileList() {
@@ -113,6 +119,19 @@ function FileList() {
         window.addEventListener("openFiles", handleOpenFile, false)
         return () => window.removeEventListener("openFiles", handleOpenFile)
     }, [setFiles, files])
+
+    useEffect(() => {
+        const handlePopState = (event: PopStateEvent) => {
+            if (event.state && event.state.fileName) {
+                const fileIndex = files.findIndex(f => f.name === event.state.fileName);
+                if (fileIndex !== -1) {
+                    setSelected(fileIndex);
+                }
+            }
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [files, setSelected]);
 
     if (files.length) {
         return (
@@ -131,7 +150,7 @@ function FileList() {
 }
 
 function LoadFileItem({ file }: { file: File }): ReactNode {
-    iframe.removeAttribute('src')
+    framecontainer.innerHTML = ''
     const [handlers, setHandlers] = useState([])
     const [mime, setMime] = useState("")
     const [description, setDescription] = useState("Loading...")
@@ -157,6 +176,13 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
                 setMime(_ => mime)
                 setHandlers(_ => handlers)
                 setDescription(_ => description)
+
+                // Push new state to history
+                if (window.history.state.fileName !== file.name) {
+                    window.history.pushState({
+                        fileName: file.name,
+                    }, file.name);
+                }
 
                 // Check for and use default handler
                 const defaultHandlerId = getDefaultHandler(mime, file.name);

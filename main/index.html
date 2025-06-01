@@ -92,16 +92,18 @@
             flex-grow: 999;
         }
 
-        #handler {
+        #framecontainer {
             flex-grow: 100;
         }
 
-        #handler:not([src]) {
+        #framecontainer:empty {
             display: none;
         }
 
         iframe {
             border: 0;
+            width: 100%;
+            height: 100%;
         }
     </style>
 </head>
@@ -124,7 +126,7 @@
         </div>
         <div id="result"></div>
     </div>
-    <iframe id="handler"></iframe>
+    <div id="framecontainer"></div>
 </body>
 <script src="main.js" type="module"></script>
 
