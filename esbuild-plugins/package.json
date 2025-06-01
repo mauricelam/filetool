@@ -1,0 +1,21 @@
+{
+    "name": "@filemagic/esbuild-plugins",
+    "version": "1.0.0",
+    "description": "ESBuild plugins for WebAssembly compilation",
+    "type": "module",
+    "main": "index.mjs",
+    "exports": {
+        "./rust-wasm": "./rust-wasm.mjs",
+        "./go-wasm": "./go-wasm.mjs"
+    },
+    "scripts": {
+        "build": ":",
+        "watch": ":"
+    },
+    "dependencies": {
+        "chokidar": "^3.5.3",
+        "esbuild": "^0.23.1",
+        "glob": "^10.3.10"
+    },
+    "license": "MIT"
+} 

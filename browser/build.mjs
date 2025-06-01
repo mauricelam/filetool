@@ -26,9 +26,6 @@ if (process.env['BUILD_MODE'] === 'dev') {
   const ctx = await esbuild.context({
     ...SETTINGS,
     sourcemap: true,
-    // banner: {
-    //   js: `new EventSource('/esbuild').addEventListener('change', () => location.reload());`,
-    // },
   });
   await ctx.watch();
 } else {
