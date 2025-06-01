@@ -5,8 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs",
-    "test": "jest"
+    "watch": "BUILD_MODE=dev node build.mjs"
   },
   "dependencies": {
     "react": "^18.2.0",

@@ -1,25 +1,46 @@
 interface MimeMatchDetailed {
     mime?: string | RegExp,
     filename?: string | RegExp,
+    description?: string | RegExp, // Added field
 }
 
 type MimeMatch = MimeMatchDetailed | string | RegExp;
 
-export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: string): boolean {
-    const matchStringOrRegex = (stringOrRegex: string | RegExp | undefined, matchee: string): boolean => {
+export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: string, description?: string | null): boolean {
+    const matchStringOrRegex = (stringOrRegex: string | RegExp | undefined, matchee: string | null | undefined): boolean => {
         if (stringOrRegex === undefined) {
-            return true
-        } else if (typeof stringOrRegex === 'string') {
-            return stringOrRegex === matchee
-        } else {
-            return stringOrRegex.test(matchee)
+            return true; // Handler rule does not specify this part, so it's a match for this part
+        }
+        if (matchee === undefined || matchee === null) {
+            return false; // Handler rule requires something, but we don't have it
+        }
+        // Now matchee is definitely a string
+        if (typeof stringOrRegex === 'string') {
+            return stringOrRegex === matchee;
+        } else { // stringOrRegex is a RegExp
+            return stringOrRegex.test(matchee as string);
         }
     }
 
     if (typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)) {
-        return matchStringOrRegex(mimeMatch.mime, mime) && matchStringOrRegex(mimeMatch.filename, filename)
-    } else {
-        return matchStringOrRegex(mimeMatch, mime)
+        // Check mime part
+        if (!matchStringOrRegex(mimeMatch.mime, mime)) {
+            return false;
+        }
+        // Check filename part
+        if (!matchStringOrRegex(mimeMatch.filename, filename)) {
+            return false;
+        }
+        // Check description part if specified in the handler rule
+        if (mimeMatch.description !== undefined) {
+            // If handler expects a description, the provided description must match
+            return matchStringOrRegex(mimeMatch.description, description);
+        }
+        // If mimeMatch.description is undefined, it means this rule doesn't care about description.
+        // And we've already matched mime and filename.
+        return true;
+    } else { // mimeMatch is a string or RegExp (only for mime type)
+        return matchStringOrRegex(mimeMatch, mime);
     }
 }
 
@@ -279,11 +300,15 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         "handler": "der",
         "mimetypes": [
             {
-                filename: /\.(der|crt|cer|pem|rsa)$/i,
+                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"), // Using new RegExp()
             },
             "application/x-x509-ca-cert",
             "application/pkix-cert",
             "application/x-pem-file",
+            {
+                mime: "application/octet-stream",
+                description: /DER Encoded PKCS#7 Signed Data/i,
+            },
         ]
     },
     {

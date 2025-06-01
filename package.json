@@ -29,7 +29,8 @@
         "build:workspaces": "npm run build -ws",
         "watch:workspaces": "npm pkg get name -ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch -w {}",
         "serve": "run-p \"watch:workspaces\" start",
-        "build": "npm run build:workspaces"
+        "build": "npm run build:workspaces",
+        "test": "npm run test -ws -if-present"
     },
     "devDependencies": {
         "@types/finalhandler": "^1.2.3",

@@ -162,14 +162,16 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             if (mime !== file.type) {
                 file = new File([fileBuf], file.name, { type: mime })
             }
+            const fileDescription = magic.detect(fileBuf) // Store description
             const handlers = [];
             for (const handler of HANDLERS) {
-                const match = handler.mimetypes.some(m => matchMimetype(m, mime, file.name))
+                // Pass fileDescription to matchMimetype
+                const match = handler.mimetypes.some(m => matchMimetype(m, mime, file.name, fileDescription))
                 if (match) {
                     handlers.push(handler)
                 }
             }
-            return [mime, handlers, magic.detect(fileBuf)]
+            return [mime, handlers, fileDescription] // return fileDescription
         }
         fun().then(
             ([mime, handlers, description]: [string, any, string]) => {
@@ -209,7 +211,6 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             })
     }, [setHandlers, setDescription, setMime, file])
     const defaultHandler = getDefaultHandler(mime, file.name);
-    console.log("defaultHandler", defaultHandler)
     return (
         <FileItem
             key={file.name}

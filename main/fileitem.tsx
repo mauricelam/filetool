@@ -100,7 +100,6 @@ export function FileItem(props: FileItemProps) {
             }
         })
     }
-    console.log('active handler', activeHandlerId, initialActiveHandler)
     return (
         <div style={{ display: 'flex' }}>
             <img src={icon} style={{ width: 32, height: 32, marginRight: 4 }} />
