@@ -44,7 +44,13 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
     }
 }
 
-export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
+export interface HandlerDefinition {
+    name: string,
+    handler: string,
+    mimetypes: MimeMatch[]
+}
+
+export const HANDLERS: HandlerDefinition[] = [
     {
         "name": "Hex",
         "handler": "hex_viewer",
