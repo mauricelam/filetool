@@ -42,6 +42,16 @@ function App() {
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
     const [resources, setResources] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [highlightPath, setHighlightPath] = useState<string | null>(null);
+
+    const handleHighlightDone = () => {
+        setHighlightPath(null);
+    };
+
+    const handleRequestHighlightPath = (path: string) => {
+        setView('file');
+        setHighlightPath(path);
+    };
 
     useEffect(() => {
         // Request file from parent window
@@ -59,6 +69,7 @@ function App() {
                     setError(error.message);
                 }
             }
+            // Removed the else if (e.data.action === 'doHighlightInArchive') block
         };
 
         window.addEventListener('message', handleMessage);
@@ -99,16 +110,21 @@ function App() {
     }
 
     if (view === 'resource') {
-        return <ResourceTableViewer resources={resources} onBack={() => setView('file')} />;
+        return <ResourceTableViewer resources={resources} onBack={() => setView('file')} onRequestHighlightPath={handleRequestHighlightPath} />;
     }
 
-    return <FileViewer files={fileTree} onItemClick={handleItemClick} />;
+    return <FileViewer files={fileTree} onItemClick={handleItemClick} highlightPath={highlightPath} onHighlightDone={handleHighlightDone} />;
 }
 
-function FileViewer({ files, onItemClick }: {
-    files: { [key: string]: any },
-    onItemClick: (level: number, key: string, content: any) => void,
-}) {
+interface FileViewerProps {
+    files: { [key: string]: any };
+    onItemClick: (level: number, key: string, content: any) => void;
+    highlightPath?: string | null;
+    onHighlightDone?: () => void;
+}
+
+function FileViewer({ files, onItemClick, highlightPath, onHighlightDone }: FileViewerProps) {
+    // FileViewer remains the same, no changes needed here for this subtask
     const handleOpenFile = async (file: Uint8Array, filename: string) => {
         const extractedFile = new File([file], filename);
         window.parent?.postMessage({
@@ -155,12 +171,20 @@ function FileViewer({ files, onItemClick }: {
                 initialContent={files}
                 onItemClick={onItemClick}
                 renderFileActions={renderFileActions}
+                highlightPath={highlightPath}
+                onHighlightDone={onHighlightDone}
             />
         </div>
     );
 }
 
-function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: () => void }) {
+interface ResourceTableViewerProps {
+    resources: any[];
+    onBack: () => void;
+    onRequestHighlightPath: (path: string) => void;
+}
+
+function ResourceTableViewer({ resources, onBack, onRequestHighlightPath }: ResourceTableViewerProps) {
     // Group resources by type name
     const resourcesByType = resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
@@ -208,6 +232,10 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
     const showValueColumn = selectedType !== 'id';
 
     const resourceTypes = Object.keys(resourcesByType);
+
+    const handleResourceLinkClick = (filePath: string) => {
+        onRequestHighlightPath(filePath);
+    };
 
     return (
         <div style={{
@@ -324,7 +352,13 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
                                             {selectedType !== 'id' && (
                                                 <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
                                                     {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {typeof resource.value === 'string' && (resource.value.toLowerCase().endsWith('.xml') || resource.value.toLowerCase().endsWith('.png')) ? (
+                                                    <a href="#" onClick={() => handleResourceLinkClick(resource.value)}>
                                                         {resource.value}
+                                                    </a>
+                                                ) : (
+                                                    resource.value
+                                                )}
                                                         {resource.value.startsWith('#') && resource.value.length === 9 && (
                                                             <div style={{
                                                                 width: '20px',

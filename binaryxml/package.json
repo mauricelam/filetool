@@ -16,6 +16,9 @@
     "chokidar": "^3.5.3",
     "esbuild": "^0.20.1",
     "esbuild-plugin-copy": "^2.1.0",
-    "esbuild-plugin-wasm": "^1.1.0"
+    "esbuild-plugin-wasm": "^1.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-tabs": "^6.1.0"
   }
 }

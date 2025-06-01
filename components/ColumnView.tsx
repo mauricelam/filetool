@@ -11,6 +11,10 @@ interface ColumnViewProps {
     onItemClick?: (level: number, key: string, content: any) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
     renderFileActions?: (file: any, path: string[]) => React.ReactNode;
+    /** Optional path to highlight/select automatically within the ColumnView */
+    highlightPath?: string | null;
+    /** Optional callback to signal that the highlight operation is complete */
+    onHighlightDone?: () => void;
 }
 
 /**
@@ -128,14 +132,90 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
     initialContent,
     onItemClick,
     renderFileActions,
+    highlightPath,
+    onHighlightDone,
 }) => {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        // Initialize with root content
         setColumns([{ path: [], content: initialContent }]);
-    }, [initialContent]);
+        // If there's an initial highlight path, reset selectedPath to empty
+        // to ensure the highlight logic can take over.
+        if (highlightPath) {
+            setSelectedPath([]);
+        }
+    }, [initialContent]); // highlightPath is intentionally not in deps here to avoid loop with below effect
+
+    useEffect(() => {
+        if (highlightPath) {
+            console.log("Highlighting path:", highlightPath);
+            const segments = highlightPath.split('/').filter(s => s);
+            let currentContent = initialContent;
+            const newSelectedPath: string[] = [];
+            const newColumns = [{ path: [], content: initialContent }];
+            let pathFound = true;
+
+            for (let i = 0; i < segments.length; i++) {
+                const segment = segments[i];
+                if (currentContent && typeof currentContent === 'object' && segment in currentContent) {
+                    newSelectedPath.push(segment);
+                    const itemContent = currentContent[segment];
+                    const isDirectory = typeof itemContent === 'object' &&
+                        !(itemContent instanceof Uint8Array) &&
+                        Object.keys(itemContent).some(k => !k.startsWith('_'));
+
+                    if (isDirectory || i === segments.length - 1) { // If it's a directory or the last segment (file)
+                        newColumns.push({ path: [...newSelectedPath], content: itemContent });
+                    }
+                    currentContent = itemContent;
+                } else {
+                    console.error(`Path segment not found: ${segment} in ${highlightPath}`);
+                    pathFound = false;
+                    break;
+                }
+            }
+
+            if (pathFound) {
+                setSelectedPath(newSelectedPath);
+                // If the last segment is a file, we might not want to "open" it as a new column.
+                // The newColumns up to the parent directory of the file should be set.
+                // If the target is a file, the last entry in newColumns is the file itself.
+                // We actually want to display its parent's content in the last column,
+                // and the file itself will be selected.
+
+                // If the target (last segment) is not a directory, remove it from columns to show its parent
+                const finalSegmentContent = newSelectedPath.reduce((acc, seg) => acc?.[seg], initialContent);
+                const isFinalSegmentDirectory = typeof finalSegmentContent === 'object' &&
+                    !(finalSegmentContent instanceof Uint8Array) &&
+                    Object.keys(finalSegmentContent).some(k => !k.startsWith('_'));
+
+                if (!isFinalSegmentDirectory && newColumns.length > 1 && newColumns[newColumns.length-1].path.join('/') === newSelectedPath.join('/')) {
+                     // If the very last item in newColumns is the file itself (not a dir), pop it.
+                     // We want to show the parent directory of the file.
+                     // However, the logic above already correctly forms newColumns up to the item itself.
+                     // If the item is a file, its content will be shown in the Column component's "value" div.
+                     // If it's a directory, its items will be listed.
+                     // So, current newColumns structure should be fine.
+                }
+                setColumns(newColumns);
+
+
+                // Scroll to the right
+                setTimeout(() => {
+                    if (columnsContainerRef.current) {
+                        columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
+                    }
+                }, 0);
+            }
+
+            if (onHighlightDone) {
+                onHighlightDone();
+            }
+        }
+    }, [highlightPath, initialContent, onHighlightDone]); // Added initialContent and onHighlightDone
 
     const handleItemClick = (level: number, key: string, content: any) => {
         const newPath = [...selectedPath.slice(0, level), key];
