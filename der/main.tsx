@@ -59,14 +59,13 @@ function DerAsciiViewer() {
       {output && (
         <div className="output">
           <SyntaxHighlighter
-            language="text"
+            language="python"
             style={docco}
             customStyle={{
               backgroundColor: '#f5f5f5',
               padding: '1em',
               borderRadius: '4px',
               overflow: 'auto',
-              maxHeight: '500px'
             }}
           >
             {output}
