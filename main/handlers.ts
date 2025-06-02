@@ -109,6 +109,17 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
+        "name": "Graphviz Viewer",
+        "handler": "graphvizviewer",
+        "mimetypes": [
+            "text/vnd.graphviz",
+            "application/vnd.graphviz",
+            {
+                "filename": /\.(dot|gv)$/i // Match .dot or .gv extensions
+            }
+        ]
+    },
+    {
         "name": "JQ Viewer",
         "handler": "jqviewer",
         "mimetypes": [
