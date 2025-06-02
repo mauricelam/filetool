@@ -5,12 +5,14 @@ import React, { useState, useEffect, useRef } from 'react';
  * @interface ColumnViewProps
  */
 interface ColumnViewProps {
-    /** The initial content to display in the column view. Should be an object where keys are item names and values are either nested objects (for directories) or any other type (for files) */
+    /** The initial content to display in the column view. Should be an object where keys are item names and values are either nested objects (for directories)or any other type (for files) */
     initialContent: { [key: string]: any };
     /** Optional callback function that is called when an item is clicked. Receives the level (column index), key (item name), and content of the clicked item */
     onItemClick?: (level: number, key: string, content: any) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
     renderFileActions?: (file: any, path: string[]) => React.ReactNode;
+    /** Optional function to render a preview of the selected file. Receives the file content and the full path to the file as arguments */
+    renderPreview?: (file: any, path: string[]) => React.ReactNode;
 }
 
 /**
@@ -128,9 +130,11 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
     initialContent,
     onItemClick,
     renderFileActions,
+    renderPreview,
 }) => {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
+    const [previewContent, setPreviewContent] = useState<React.ReactNode | null>(null);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -149,6 +153,14 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
         const newColumns = columns.slice(0, level + 1);
         if (isDirectory) {
             newColumns.push({ path: newPath, content });
+            setPreviewContent(null); // Clear preview when a directory is clicked
+        } else {
+            // If renderPreview is provided and it's a file, call it
+            if (renderPreview) {
+                setPreviewContent(renderPreview(content, newPath));
+            } else {
+                setPreviewContent(null); // Clear preview if no renderPreview is provided
+            }
         }
         setColumns(newColumns);
 
@@ -169,15 +181,24 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
 
     return (
         <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-            <div className="columns-container" ref={columnsContainerRef} style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
+            <div
+                className="columns-container"
+                ref={columnsContainerRef}
+                style={{
+                    display: 'flex',
+                    flex: previewContent ? '0 0 50%' : '1 1 100%', // Adjust flex basis based on preview
+                    overflow: 'auto',
+                    borderRight: previewContent ? '1px solid #ccc' : 'none', // Add border if preview is shown
+                }}
+            >
                 {columns.map((column, index) => (
                     <div
                         key={index}
                         style={{
-                            width: '250px',
+                            width: '250px', // Fixed width for each column
                             minWidth: '250px',
-                            maxWidth: '250px',
-                            borderRight: '1px solid #ccc',
+                            // maxWidth: '250px', // Removed to allow shrinking if needed by flex container
+                            borderRight: '1px solid #ccc', // Keep border between columns
                             overflow: 'auto',
                             height: '100%'
                         }}
@@ -192,6 +213,11 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                     </div>
                 ))}
             </div>
+            {previewContent && (
+                <div className="preview-pane" style={{ flex: '1 1 50%', overflow: 'auto', height: '100%', padding: '8px' }}>
+                    {previewContent}
+                </div>
+            )}
             <style>
                 {`
                     *, *::before, *::after {
