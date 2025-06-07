@@ -115,6 +115,17 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
+        "name": "Graphviz Viewer",
+        "handler": "graphviz",
+        "mimetypes": [
+            "text/vnd.graphviz",
+            "application/vnd.graphviz",
+            {
+                "filename": /\.(dot|gv)$/i // Match .dot or .gv extensions
+            }
+        ]
+    },
+    {
         "name": "JQ Viewer",
         "handler": "jqviewer",
         "mimetypes": [

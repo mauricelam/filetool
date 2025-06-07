@@ -22,7 +22,8 @@
         "jqviewer",
         "protoscope",
         "der",
-        "esbuild-plugins"
+        "esbuild-plugins",
+        "graphviz"
     ],
     "scripts": {
         "start": "node serve.mjs",
