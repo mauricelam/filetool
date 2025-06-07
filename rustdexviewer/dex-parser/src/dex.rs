@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader, num::NonZeroUsize, ops::Range};
+use std::{io::BufReader, num::NonZeroUsize, ops::Range};
 
 use adler32;
 use getset::{CopyGetters, Getters};
@@ -27,7 +27,6 @@ use crate::{
     string::{DexString, StringId, Strings, StringsIter},
     ubyte, uint, ulong, ushort, utils, Endian, ENDIAN_CONSTANT, NO_INDEX, REVERSE_ENDIAN_CONSTANT,
 };
-use std::path::Path;
 
 /// Dex file header
 #[derive(Debug, Pread, CopyGetters)]

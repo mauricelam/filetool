@@ -76,7 +76,7 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
         // Iterate through all type specs
         let type_map: HashMap<u32, String> = package
             .iter_specs()
-            .map(|(type_id, type_spec)| {
+            .map(|(type_id, _type_spec)| {
                 (
                     *type_id,
                     package

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -251,7 +253,7 @@ fn parse_class_type_signature(input: &str) -> nom::IResult<&str, ClassTypeSignat
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct TypeVariableSignature<'a> {
+pub struct TypeVariableSignature<'a> {
     ident: &'a str,
 }
 
@@ -262,7 +264,7 @@ fn parse_type_variable_signature(input: &str) -> nom::IResult<&str, TypeVariable
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct ArrayTypeSignature<'a> {
+pub struct ArrayTypeSignature<'a> {
     element_type: JavaTypeSignature<'a>,
 }
 
