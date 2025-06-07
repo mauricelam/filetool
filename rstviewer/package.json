@@ -1,0 +1,20 @@
+{
+  "name": "rstviewer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "source": "main.tsx",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "NODE_ENV=production ../node_modules/.bin/esbuild main.tsx --bundle --outfile=../dist/rstviewer.js --format=esm --external:esbuild --external:fs --external:path --external:process --external:react --external:react-dom",
+    "dev": "../node_modules/.bin/esbuild main.tsx --bundle --outfile=../dist/rstviewer.js --format=esm --external:esbuild --external:fs --external:path --external:process --external:react --external:react-dom --watch"
+  },
+  "dependencies": {
+    "rst-compiler": "^0.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "esbuild": "^0.25.5"
+  }
+}

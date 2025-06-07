@@ -46,6 +46,16 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
 
 export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
     {
+        "name": "reStructuredText Viewer",
+        "handler": "rstviewer",
+        "mimetypes": [
+            {
+                filename: /\.(rst)$/i,
+            },
+            "text/x-rst",
+        ]
+    },
+    {
         "name": "Hex",
         "handler": "hex_viewer",
         "mimetypes": [
