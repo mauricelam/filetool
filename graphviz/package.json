@@ -1,14 +1,14 @@
 {
-  "name": "graphvizviewer",
+  "name": "graphviz",
   "version": "0.0.0",
   "description": "Graphviz File Viewer",
   "main": "main.tsx",
   "scripts": {
     "build": "node build.mjs",
-    "dev": "node build.mjs --dev"
+    "watch": "node build.mjs --dev"
   },
   "dependencies": {
-    "@hpcc-js/wasm": "^2.12.1",
+    "graphviz-react": "^1.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

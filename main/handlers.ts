@@ -110,7 +110,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
     },
     {
         "name": "Graphviz Viewer",
-        "handler": "graphvizviewer",
+        "handler": "graphviz",
         "mimetypes": [
             "text/vnd.graphviz",
             "application/vnd.graphviz",

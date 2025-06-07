@@ -6,25 +6,18 @@ const isDev = process.argv.includes('--dev');
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
-  outdir: "../dist/graphvizviewer",
+  outdir: "../dist/graphviz",
   bundle: true,
   format: "esm",
   platform: "browser",
   external: ['require', 'fs', 'path'], // external for node modules if any are accidentally imported
   plugins: [
     copy({
-      // this is optional, targetPaths are relative to outdir
-      resolveFrom: 'cwd',
       assets: [
         {
-          from: ["./index.html"],
-          to: ["./index.html"],
+          from: ["index.html"],
+          to: ["index.html"],
           watch: isDev,
-        },
-        {
-          from: ['./node_modules/@hpcc-js/wasm/dist/*.wasm'],
-          to: ['./'], // copies wasm files to the root of the outdir
-          watch: false, // No need to watch wasm files
         }
       ],
     }),
@@ -37,8 +30,8 @@ if (isDev) {
     sourcemap: true,
   });
   await ctx.watch();
-  console.log("Watching for changes in graphvizviewer...");
+  console.log("Watching for changes in graphviz...");
 } else {
   await esbuild.build({ ...SETTINGS, minify: true });
-  console.log("Built graphvizviewer successfully!");
+  console.log("Built graphviz successfully!");
 }
