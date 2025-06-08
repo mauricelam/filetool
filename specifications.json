@@ -1,4 +1,10 @@
 {
+    "latex": {
+      "name": "LaTeX Viewer",
+      "handler": "latex",
+      "host": "latex/index.html",
+      "title": "LaTeX Viewer"
+    },
     "https://www.iana.org/assignments/media-types/application/1d-interleaved-parityfec": "Published specification: [RFC6015].\n",
     "https://www.iana.org/assignments/media-types/application/3gpdash-qoe-report+xml": "Published specification:\n3GPP TS 26.247\n",
     "https://www.iana.org/assignments/media-types/application/3gpp-ims+xml": "Published specification:\n3GPP TS 24.229 version 8.4.1: \"IP multimedia call control protocol\n   based on Session Initiation Protocol (SIP) and Session Description\n   Protocol (SDP), stage 3\"\n",

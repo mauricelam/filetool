@@ -1,0 +1,21 @@
+{
+  "name": "latex-viewer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "katex": "^0.16.0"
+  },
+  "devDependencies": {
+    "@types/react": "^17.0.39",
+    "@types/react-dom": "^17.0.11",
+    "esbuild": "^0.14.25",
+    "esbuild-plugin-copy": "^1.0.0",
+    "typescript": "^4.5.5"
+  }
+}

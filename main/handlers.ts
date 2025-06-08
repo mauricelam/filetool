@@ -46,6 +46,19 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
 
 export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
     {
+      "name": "LaTeX Viewer",
+      "handler": "latex",
+      "mimetypes": [
+        "application/x-tex",
+        "application/x-latex",
+        "text/x-tex",
+        "text/x-latex",
+        {
+          "filename": /\.(tex|latex)$/i
+        }
+      ]
+    },
+    {
         "name": "Hex",
         "handler": "hex_viewer",
         "mimetypes": [
