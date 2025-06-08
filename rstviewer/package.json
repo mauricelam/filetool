@@ -6,8 +6,8 @@
   "source": "main.tsx",
   "main": "dist/main.js",
   "scripts": {
-    "build": "NODE_ENV=production ../node_modules/.bin/esbuild main.tsx --bundle --outfile=../dist/rstviewer.js --format=esm --external:esbuild --external:fs --external:path --external:process --external:react --external:react-dom",
-    "dev": "../node_modules/.bin/esbuild main.tsx --bundle --outfile=../dist/rstviewer.js --format=esm --external:esbuild --external:fs --external:path --external:process --external:react --external:react-dom --watch"
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
   },
   "dependencies": {
     "rst-compiler": "^0.5.0"

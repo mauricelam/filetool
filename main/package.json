@@ -8,8 +8,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "wasmagic": "^1.0.2",
-    "rstviewer": "workspace:*"
+    "wasmagic": "^1.0.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

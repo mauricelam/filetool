@@ -59,6 +59,7 @@ export const HANDLERS: HandlerDefinition[] = [
                 filename: /\.(rst)$/i,
             },
             "text/x-rst",
+            "text/prs.fallenstein.rst"
         ]
     },
     {
