@@ -5165,7 +5165,7 @@ export const extensions = {
       format: FileFormat.svg,
     },
     { icon: 'xib', extensions: ['xib'], format: FileFormat.svg },
-      icon: 'key', extensions: ['key'], format: FileFormat.svg }, // Removed 'pem' from here as it's added to 'certificate'
+    {  icon: 'key', extensions: ['key'], format: FileFormat.svg }, // Removed 'pem' from here as it's added to 'certificate'
     {
       icon: 'xmake',
       extensions: [],
