@@ -4,7 +4,8 @@
   "author": "Maurice Lam",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs"
+    "watch": "BUILD_MODE=dev node build.mjs",
+    "test": "jest"
   },
   "dependencies": {
     "react": "^18.3.1",
