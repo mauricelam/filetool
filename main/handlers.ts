@@ -52,6 +52,17 @@ export interface HandlerDefinition {
 
 export const HANDLERS: HandlerDefinition[] = [
     {
+        "name": "reStructuredText Viewer",
+        "handler": "rstviewer",
+        "mimetypes": [
+            {
+                filename: /\.(rst)$/i,
+            },
+            "text/x-rst",
+            "text/prs.fallenstein.rst"
+        ]
+    },
+    {
         "name": "Hex",
         "handler": "hex_viewer",
         "mimetypes": [
