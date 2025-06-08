@@ -1,10 +1,12 @@
 import { createRoot } from 'react-dom/client'
 import init, { decode_apk, extract_arsc } from './abxml-wrapper/pkg'
-import React, { useState, useEffect, useRef } from 'react' // Added useRef
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
-import 'react-tabs/style/react-tabs.css'
-import { ColumnView } from '../components/ColumnView'
-import { HANDLERS, matchMimetype } from '../../main/handlers'; // Added imports
+import React, { useState, useEffect, useRef } from 'react';
+import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
+import 'react-tabs/style/react-tabs.css';
+import { ColumnView } from '../components/ColumnView';
+import { HANDLERS, matchMimetype } from '../../main/handlers';
+import { FilePreviewer } from '../components/FilePreviewer';
+import { inferMimeType } from '../../lib/magic/inferMime'; // Import inferMimeType
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
@@ -110,124 +112,7 @@ function FileViewer({ files, onItemClick }: {
     files: { [key: string]: any },
     onItemClick: (level: number, key: string, content: any) => void,
 }) {
-
-    // Simple MimeType Inference (can be expanded)
-    const inferMimeType = (filename: string): string => {
-        const extension = filename.split('.').pop()?.toLowerCase();
-        if (!extension) return 'application/octet-stream';
-
-        // Prioritize specific known types that might be in APKs
-        // and are distinct from generic text/xml for binary XML.
-        switch (extension) {
-            case 'png': return 'image/png';
-            case 'jpg': case 'jpeg': return 'image/jpeg';
-            case 'gif': return 'image/gif';
-            case 'webp': return 'image/webp';
-            case 'svg': return 'image/svg+xml'; // XML-based, but distinct rendering
-            case 'xml': // Could be binary XML or plain XML. Default to application/xml for previews.
-                        // Actual binary XML files are often named AndroidManifest.xml, layouts, etc.
-                        // The decode_apk process already converts known binary XMLs to strings.
-                        // So, if it's still a Uint8Array named .xml, it might be some other raw XML.
-                return 'application/xml';
-            case 'dex': return 'application/vnd.android.dex'; // Specific for .dex files
-            case 'arsc': return 'application/vnd.android.arsc'; // Specific for .arsc files
-            // Common text types often found
-            case 'txt': return 'text/plain';
-            case 'json': return 'application/json';
-            case 'html': return 'text/html';
-            case 'js': return 'application/javascript';
-            case 'css': return 'text/css';
-            // Add more common types as needed
-            default: return 'application/octet-stream';
-        }
-    };
-
-    interface FilePreviewerProps {
-        fileContent: Uint8Array;
-        fileName: string;
-        fullPath: string[];
-    }
-
-    const FilePreviewer: React.FC<FilePreviewerProps> = ({ fileContent, fileName, fullPath }) => {
-        const [fileForPreview, setFileForPreview] = useState<File | null>(null);
-        const [handlerUrl, setHandlerUrl] = useState<string | null>(null);
-        const [error, setError] = useState<string | null>(null);
-        const iframeRef = useRef<HTMLIFrameElement>(null);
-
-        useEffect(() => {
-            const mimeType = inferMimeType(fileName);
-            const file = new File([fileContent], fileName, { type: mimeType });
-            setFileForPreview(file);
-
-            let foundHandler = null;
-            for (const handler of HANDLERS) {
-                for (const mimeMatch of handler.mimetypes) {
-                    // Using file.type (inferred) and file.name for matching
-                    if (matchMimetype(mimeMatch, file.type, file.name, null)) {
-                        foundHandler = handler;
-                        break;
-                    }
-                }
-                if (foundHandler) break;
-            }
-
-            if (foundHandler) {
-                setHandlerUrl(`/${foundHandler.handler}/index.html`);
-            } else {
-                setError(`No suitable preview handler found for this file type (${file.type}).`);
-            }
-        }, [fileContent, fileName]); // fullPath is not needed here as fileName is derived from it or passed
-
-        useEffect(() => {
-            if (fileForPreview && handlerUrl && iframeRef.current) {
-                const iframe = iframeRef.current;
-                const sendData = async () => {
-                    try {
-                        const data = await fileForPreview.arrayBuffer();
-                        if (iframe.contentWindow) {
-                            iframe.contentWindow.postMessage({
-                                fileData: data,
-                                fileName: fileForPreview.name,
-                                filePath: fullPath, // Send the original fullPath
-                                action: 'displayFile'
-                            }, window.origin, [data]);
-                        } else {
-                            console.warn("iframe contentWindow not available yet for postMessage");
-                        }
-                    } catch (e) {
-                        console.error("Error sending data to iframe:", e);
-                        setError("Error sending data to preview handler.");
-                    }
-                };
-
-                const handleLoad = () => sendData();
-                iframe.addEventListener('load', handleLoad);
-
-                if (iframe.contentWindow && iframe.ownerDocument.readyState === 'complete') {
-                    sendData();
-                }
-
-                return () => iframe.removeEventListener('load', handleLoad);
-            }
-        }, [fileForPreview, handlerUrl, fullPath]); // Added fullPath here for postMessage
-
-        if (error) {
-            return <div style={{ padding: '10px', color: 'red' }}>{error}</div>;
-        }
-        if (!handlerUrl) {
-            return <div style={{ padding: '10px' }}>Determining preview handler...</div>;
-        }
-
-        return (
-            <iframe
-                ref={iframeRef}
-                src={handlerUrl}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                title={`Preview of ${fileName}`}
-                sandbox="allow-scripts allow-same-origin"
-            />
-        );
-    };
+    // inferMimeType function is removed from here, will use the imported one.
 
     const handleOpenFile = async (file: Uint8Array, filename: string) => {
         const extractedFile = new File([file], filename);
@@ -276,13 +161,24 @@ function FileViewer({ files, onItemClick }: {
                 onItemClick={onItemClick}
                 renderFileActions={renderFileActions}
                 renderPreview={(content, path) => {
-                    // content is the direct value from the fileTree.
-                    // For files, this should be Uint8Array. For directories, it's an object.
                     if (content instanceof Uint8Array) {
                         const fileName = path[path.length - 1];
-                        return <FilePreviewer fileContent={content} fileName={fileName} fullPath={path} />;
+                        const uint8ArrayContent = content; // Alias for clarity
+
+                        const fileDataProvider = async (): Promise<File> => {
+                            const mimeType = inferMimeType(fileName);
+                            return new File([uint8ArrayContent], fileName, { type: mimeType });
+                        };
+
+                        return (
+                            <FilePreviewer
+                                fileDataProvider={fileDataProvider}
+                                fileName={fileName}
+                                fullPath={path}
+                            />
+                        );
                     }
-                    return null; // No preview for directories or non-Uint8Array content
+                    return null;
                 }}
             />
         </div>

@@ -1,8 +1,9 @@
 import { createRoot } from 'react-dom/client'
 import { Archive, ArchiveCompression, ArchiveFormat, ArchiveFile, ArchiveEntryFile, ArchiveEntry } from 'libarchive.js';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react'; // Keep useRef if other parts of ArchiveViewer use it, else it might be removable if FilePreviewer was the only user.
 import { ColumnView } from '../components/ColumnView';
 import { HANDLERS, matchMimetype } from '../../main/handlers';
+import { FilePreviewer } from '../components/FilePreviewer'; // Import the new common component
 
 Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
 
@@ -108,120 +109,7 @@ const FormatDialog: React.FC<{
     );
 };
 
-interface FilePreviewerProps {
-    archiveFile: ArchiveFile;
-    fullPath: string[];
-}
-
-const FilePreviewer: React.FC<FilePreviewerProps> = ({ archiveFile, fullPath }) => {
-    const [extractedFile, setExtractedFile] = useState<File | null>(null);
-    const [handlerUrl, setHandlerUrl] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const iframeRef = useRef<HTMLIFrameElement>(null);
-
-    useEffect(() => {
-        let alive = true;
-        const extractAndDetermineHandler = async () => {
-            try {
-                const file = await archiveFile.extract();
-                if (!alive) return;
-                setExtractedFile(file);
-
-                const fileName = fullPath[fullPath.length - 1] || file.name;
-                let foundHandler = null;
-
-                for (const handler of HANDLERS) {
-                    for (const mimeMatch of handler.mimetypes) {
-                        if (matchMimetype(mimeMatch, file.type, fileName, null)) {
-                            foundHandler = handler;
-                            break;
-                        }
-                    }
-                    if (foundHandler) break;
-                }
-
-                if (foundHandler) {
-                    // Assuming handlers are in subdirectories relative to the main app's root
-                    // e.g. /textviewer/index.html if main app is at /
-                    // Adjust if archive app is hosted in a subpath itself.
-                    // For now, let's assume handlers are at /<handler_name>/index.html
-                    setHandlerUrl(`/${foundHandler.handler}/index.html`);
-                } else {
-                    setError("No suitable preview handler found for this file type.");
-                }
-
-            } catch (e) {
-                console.error("Error extracting file or finding handler:", e);
-                if (alive) setError("Error extracting file for preview.");
-            }
-        };
-
-        extractAndDetermineHandler();
-        return () => { alive = false; };
-    }, [archiveFile, fullPath]);
-
-    useEffect(() => {
-        if (extractedFile && handlerUrl && iframeRef.current) {
-            const iframe = iframeRef.current;
-            const sendData = async () => {
-                try {
-                    const data = await extractedFile.arrayBuffer();
-                    // Ensure contentWindow is available before posting message
-                    if (iframe.contentWindow) {
-                         // Use window.origin for targetOrigin if handlers are same-origin,
-                         // or be more specific if they are cross-origin.
-                        iframe.contentWindow.postMessage({
-                            fileData: data,
-                            fileName: extractedFile.name,
-                            filePath: fullPath,
-                            action: 'displayFile' // Common action for handlers
-                        }, window.origin, [data]);
-                    } else {
-                        console.warn("iframe contentWindow not available yet for postMessage");
-                    }
-                } catch (e) {
-                    console.error("Error sending data to iframe:", e);
-                    setError("Error sending data to preview handler.");
-                }
-            };
-
-            // Post message when iframe is loaded
-            const handleLoad = () => {
-                sendData();
-            };
-            iframe.addEventListener('load', handleLoad);
-
-            // If iframe is already loaded (e.g. src didn't change, but content did), try sending.
-            // Check readyState, though it's not foolproof for all browsers or fast loads.
-            if (iframe.contentWindow && iframe.ownerDocument.readyState === 'complete') {
-                 sendData();
-            }
-
-            return () => {
-                iframe.removeEventListener('load', handleLoad);
-            };
-        }
-    }, [extractedFile, handlerUrl, fullPath]);
-
-    if (error) {
-        return <div style={{ padding: '10px', color: 'red' }}>{error}</div>;
-    }
-
-    if (!handlerUrl) {
-        return <div style={{ padding: '10px' }}>Determining preview handler...</div>;
-    }
-
-    return (
-        <iframe
-            ref={iframeRef}
-            src={handlerUrl}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            title={`Preview of ${fullPath[fullPath.length - 1]}`}
-            sandbox="allow-scripts allow-same-origin" // Adjust sandbox as needed by handlers
-        />
-    );
-};
-
+// Old FilePreviewer component (and its props interface) is removed from here.
 
 const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const [archiveFile, setArchiveFile] = useState<File | null>(initialFile);
@@ -385,7 +273,19 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             <ColumnView
                 initialContent={files}
                 renderFileActions={renderFileActions}
-                renderPreview={(fileData, filePath) => <FilePreviewer archiveFile={fileData as ArchiveFile} fullPath={filePath} />}
+                renderPreview={(fileData, filePath) => {
+                    const archiveFileInstance = fileData as ArchiveFile;
+                    // Determine fileName: use the last part of the path, or ArchiveFile's internal path's last part as fallback.
+                    const fileName = filePath.length > 0 ? filePath[filePath.length - 1] : (archiveFileInstance._path || 'unknownfile');
+
+                    return (
+                        <FilePreviewer
+                            fileDataProvider={() => archiveFileInstance.extract()}
+                            fileName={fileName}
+                            fullPath={filePath}
+                        />
+                    );
+                }}
             />
             <FormatDialog
                 isOpen={isFormatDialogOpen}
