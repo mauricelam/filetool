@@ -23,7 +23,8 @@
         "protoscope",
         "der",
         "esbuild-plugins",
-        "rstviewer"
+        "rstviewer",
+        "graphviz"
     ],
     "scripts": {
         "start": "node serve.mjs",

@@ -44,7 +44,13 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
     }
 }
 
-export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
+export interface HandlerDefinition {
+    name: string,
+    handler: string,
+    mimetypes: MimeMatch[]
+}
+
+export const HANDLERS: HandlerDefinition[] = [
     {
         "name": "reStructuredText Viewer",
         "handler": "rstviewer",
@@ -116,6 +122,17 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
             "image/svg+xml",
             "application/json",
             "application/javascript",
+        ]
+    },
+    {
+        "name": "Graphviz Viewer",
+        "handler": "graphviz",
+        "mimetypes": [
+            "text/vnd.graphviz",
+            "application/vnd.graphviz",
+            {
+                "filename": /\.(dot|gv)$/i // Match .dot or .gv extensions
+            }
         ]
     },
     {

@@ -29,7 +29,7 @@ interface FileItemProps {
 
 export function FileItem(props: FileItemProps) {
     const { name, mimetype, description, matchedHandlers, onOpenHandler, initialActiveHandler } = props;
-    const currentDefaultHandlerId = getDefaultHandler(mimetype, name);
+    const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
 
@@ -119,7 +119,7 @@ export function FileItem(props: FileItemProps) {
                     <span className="filedescription" style={{ fontSize: '14px' }}>{description}</span>
                 </div>
                 <div className="buttonBar" style={{ display: 'flex', alignItems: 'center' }}>
-                    {matchedHandlers.length === 0 && <span style={{ fontSize: '12px', color: '#777' }}>No specific handlers available. File might have been opened by a default.</span>}
+                    {matchedHandlers.length === 0 && <span style={{ fontSize: '12px', color: '#777' }}>No handlers available.</span>}
                     {matchedHandlers.length > 0 && (
                         <>
                             <label style={labelStyle}>Open with</label>

@@ -138,45 +138,45 @@ fn format_attr(
 ) -> Result<(), std::fmt::Error> {
     let name = attr.name().lookup_str(pool);
     match attr.read_content(pool) {
-        Ok(AttributeContent::AnnotationDefault(annotation_default)) => {
+        Ok(AttributeContent::AnnotationDefault(_annotation_default)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::BootstrapMethods(bootstrap_methods)) => {
+        Ok(AttributeContent::BootstrapMethods(_bootstrap_methods)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::Code(code)) => {}
-        Ok(AttributeContent::ConstantValue(constant_value)) => writeln!(write, "[attr={name}]")?,
-        Ok(AttributeContent::Deprecated(deprecated)) => writeln!(write, "@Deprecated")?,
-        Ok(AttributeContent::EnclosingMethod(enclosing_method)) => {
+        Ok(AttributeContent::Code(_code)) => {}
+        Ok(AttributeContent::ConstantValue(_constant_value)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::Deprecated(_deprecated)) => writeln!(write, "@Deprecated")?,
+        Ok(AttributeContent::EnclosingMethod(_enclosing_method)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::Exceptions(exceptions)) => writeln!(write, "[attr={name}]")?,
-        Ok(AttributeContent::InnerClasses(inner_classes)) => writeln!(write, "[attr={name}]")?,
-        Ok(AttributeContent::LineNumberTable(line_number_table)) => {
+        Ok(AttributeContent::Exceptions(_exceptions)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::InnerClasses(_inner_classes)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::LineNumberTable(_line_number_table)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::LocalVariableTable(local_variable_table)) => {
+        Ok(AttributeContent::LocalVariableTable(_local_variable_table)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::LocalVariableTypeTable(local_variable_type_table)) => {
+        Ok(AttributeContent::LocalVariableTypeTable(_local_variable_type_table)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::MethodParameters(method_parameters)) => {
+        Ok(AttributeContent::MethodParameters(_method_parameters)) => {
             // for param in method_parameters.parameters().iter().flatten() {
             //     write!(write, "{}", param.name().lookup_str(pool)).unwrap();
             // }
         }
-        Ok(AttributeContent::Module(module)) => writeln!(write, "[attr={name}]")?,
-        Ok(AttributeContent::ModuleMainClass(module_main_class)) => {
+        Ok(AttributeContent::Module(_module)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::ModuleMainClass(_module_main_class)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::ModulePackages(module_packages)) => writeln!(write, "[attr={name}]")?,
-        Ok(AttributeContent::NestHost(nest_host)) => writeln!(write, "[attr={name}]")?,
-        Ok(AttributeContent::NestMembers(nest_members)) => writeln!(write, "[attr={name}]")?,
-        Ok(AttributeContent::PermittedSubclasses(permitted_subclasses)) => {
+        Ok(AttributeContent::ModulePackages(_module_packages)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::NestHost(_nest_host)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::NestMembers(_nest_members)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::PermittedSubclasses(_permitted_subclasses)) => {
             writeln!(write, "[attr={name}]")?
         }
-        Ok(AttributeContent::Record(record)) => writeln!(write, "[attr={name}]")?,
+        Ok(AttributeContent::Record(_record)) => writeln!(write, "[attr={name}]")?,
         Ok(AttributeContent::RuntimeInvisibleAnnotations(runtime_invisible_annotations)) => {
             for annotation in runtime_invisible_annotations.annotations().iter().flatten() {
                 writeln!(write, "{}", format_annotation(annotation, pool))?

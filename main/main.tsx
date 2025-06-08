@@ -1,20 +1,20 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
-import HANDLERS, { matchMimetype } from './handlers';
+import HANDLERS, { HandlerDefinition, matchMimetype } from './handlers';
 import { getDefaultHandler } from './defaultHandlers';
 import { FileItem } from "./fileitem";
 
-const dropTarget = document.getElementById('droptarget')
+const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
 
-fileInput.onchange = (e) => dispatchOpenFiles(Array.from(fileInput.files));
+fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
 dropTarget.addEventListener('drop', (e) => {
     dropTarget.classList.remove('dropover')
     e.preventDefault();
     let hasNonFile = false
-    const items = Array.from(e.dataTransfer.items).filter(item => {
+    const items = Array.from(e.dataTransfer!.items).filter(item => {
         if (item.webkitGetAsEntry()?.isFile) {
             return true
         } else {
@@ -26,7 +26,7 @@ dropTarget.addEventListener('drop', (e) => {
         alert("Warning: Drop of non-file items (directories or text) is not supported")
     }
     if (items.length > 0) {
-        dispatchOpenFiles(items.map(item => item.getAsFile()));
+        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file) => file !== null));
     }
 }, false);
 
@@ -37,7 +37,7 @@ dropTarget.addEventListener('dragend', (e) => {
 dropTarget.addEventListener('dragover', (e) => {
     e.preventDefault()
     e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
+    e.dataTransfer!.dropEffect = 'copy'
 }, false);
 dropTarget.addEventListener('dragenter', (e) => {
     dropTarget.classList.add('dropover')
@@ -49,8 +49,8 @@ dropTarget.addEventListener('dragleave', (e) => {
 }, false);
 
 document.ondragover = (e) => {
-    e.dataTransfer.dropEffect = 'none'
-    e.dataTransfer.effectAllowed = 'none'
+    e.dataTransfer!.dropEffect = 'none'
+    e.dataTransfer!.effectAllowed = 'none'
     e.preventDefault()
 }
 document.ondragend = (e) => e.preventDefault()
@@ -64,14 +64,14 @@ const MIMEMAGIC = WASMagic.create({
     flags: WASMagicFlags.MIME_TYPE,
     stdio: (name, text) => console.log(text)
 })
-const resultDiv = createRoot(document.getElementById("result"))
+const resultDiv = createRoot(document.getElementById("result")!)
 resultDiv.render(<FileList />)
 
 function dispatchOpenFiles(files: File[]) {
     window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
 }
 
-const framecontainer = document.getElementById('framecontainer')
+const framecontainer = document.getElementById('framecontainer')!
 
 async function openHandler(handler: string, file: File, mime: string) {
     // Clear existing iframes
@@ -96,7 +96,7 @@ async function openHandler(handler: string, file: File, mime: string) {
                     console.log("Mismatched mime types", file.type, mime);
                 }
                 const fileCopy = new File([file], file.name, { type: mime });
-                iframe.contentWindow.postMessage(
+                iframe.contentWindow!.postMessage(
                     { 'action': 'respondFile', file: fileCopy, 'originalType': file.type },
                     "/", [await file.arrayBuffer()]);
             } else if (e.data.action === 'openFile') {
@@ -109,15 +109,15 @@ async function openHandler(handler: string, file: File, mime: string) {
 
 function FileList() {
     const [selected, setSelected] = useState(0)
-    const [files, setFiles] = useState([])
+    const [files, setFiles] = useState<File[]>([])
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
             setFiles(cur => [...cur, ...e.detail])
             setSelected(_ => files.length)
         }
-        window.addEventListener("openFiles", handleOpenFile, false)
-        return () => window.removeEventListener("openFiles", handleOpenFile)
+        window.addEventListener("openFiles", handleOpenFile as EventListener, false)
+        return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
     }, [setFiles, files])
 
     useEffect(() => {
@@ -151,7 +151,7 @@ function FileList() {
 
 function LoadFileItem({ file }: { file: File }): ReactNode {
     framecontainer.innerHTML = ''
-    const [handlers, setHandlers] = useState([])
+    const [handlers, setHandlers] = useState<any[]>([])
     const [mime, setMime] = useState("")
     const [description, setDescription] = useState("Loading...")
     useEffect(() => {
@@ -163,7 +163,7 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
                 file = new File([fileBuf], file.name, { type: mime })
             }
             const fileDescription = magic.detect(fileBuf) // Store description
-            const handlers = [];
+            const handlers: HandlerDefinition[] = [];
             for (const handler of HANDLERS) {
                 // Pass fileDescription to matchMimetype
                 const match = handler.mimetypes.some(m => matchMimetype(m, mime, file.name, fileDescription))
@@ -171,44 +171,36 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
                     handlers.push(handler)
                 }
             }
-            return [mime, handlers, fileDescription] // return fileDescription
-        }
-        fun().then(
-            ([mime, handlers, description]: [string, any, string]) => {
-                setMime(_ => mime)
-                setHandlers(_ => handlers)
-                setDescription(_ => description)
+            setMime(_ => mime)
+            setHandlers(_ => handlers)
+            setDescription(_ => fileDescription)
 
-                // Push new state to history
-                if (window.history.state.fileName !== file.name) {
-                    window.history.pushState({
-                        fileName: file.name,
-                    }, file.name);
-                }
+            // Push new state to history
+            if (window.history.state?.fileName !== file.name) {
+                window.history.pushState({
+                    fileName: file.name,
+                }, file.name);
+            }
 
-                // Check for and use default handler
-                const defaultHandlerId = getDefaultHandler(mime, file.name);
-                if (defaultHandlerId) {
-                    const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
-                    if (defaultHandlerConfig) {
-                        const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
-                        if (isMatch) {
-                            setTimeout(
-                                () => openHandler(defaultHandlerConfig.handler, file, mime),
-                                0);
-                        } else {
-                            console.warn(`Default handler '${defaultHandlerId}' no longer matches file '${file.name}' (mime: '${mime}').`);
-                        }
+            // Check for and use default handler
+            const defaultHandlerId = getDefaultHandler(mime, file.name);
+            if (defaultHandlerId) {
+                const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
+                if (defaultHandlerConfig) {
+                    const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
+                    if (isMatch) {
+                        setTimeout(
+                            () => openHandler(defaultHandlerConfig.handler, file, mime),
+                            0);
                     } else {
-                        console.warn(`Default handler '${defaultHandlerId}' not found in HANDLERS configuration.`);
+                        console.warn(`Default handler '${defaultHandlerId}' no longer matches file '${file.name}' (mime: '${mime}').`);
                     }
+                } else {
+                    console.warn(`Default handler '${defaultHandlerId}' not found in HANDLERS configuration.`);
                 }
-            },
-            (reason) => {
-                setMime(_ => "")
-                setHandlers(_ => [])
-                setDescription(_ => `Error: ${reason}`)
-            })
+            }
+        }
+        fun()
     }, [setHandlers, setDescription, setMime, file])
     const defaultHandler = getDefaultHandler(mime, file.name);
     return (
