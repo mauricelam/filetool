@@ -22,7 +22,8 @@
         "jqviewer",
         "protoscope",
         "der",
-        "esbuild-plugins"
+        "esbuild-plugins",
+        "latex"
     ],
     "scripts": {
         "start": "node serve.mjs",

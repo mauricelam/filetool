@@ -1,40 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
-const LaTeXViewer: React.FC = () => {
-  const [latexContent, setLatexContent] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'SET_CONTENT') {
-        setLatexContent(event.data.content);
-        setError(null);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    window.parent.postMessage({ type: 'GET_CONTENT' }, '*');
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, []);
-
+const LaTeXViewer: React.FC<{
+  latexContent: string;
+  error: string | null;
+}> = ({ latexContent, error }) => {
   const renderLatex = () => {
     if (!latexContent) {
       return <p>No LaTeX content loaded.</p>;
     }
     try {
       const html = katex.renderToString(latexContent, {
-        throwOnError: false,
-        output: 'htmlAndMathml'
+        output: 'html'
       });
       return <div dangerouslySetInnerHTML={{ __html: html }} />;
     } catch (e: any) {
-      setError(`Error rendering LaTeX: ${e.message}`);
       return <pre style={{ color: 'red' }}>{`Error rendering LaTeX: ${e.message}\n${latexContent}`}</pre>;
     }
   };
@@ -47,4 +29,45 @@ const LaTeXViewer: React.FC = () => {
   );
 };
 
-ReactDOM.render(<LaTeXViewer />, document.getElementById('root'));
+const App: React.FC = () => {
+  const [latexContent, setLatexContent] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Request file when component mounts
+    if (window.parent) {
+      window.parent.postMessage({ action: 'requestFile' }, '*');
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+
+      if (message.action === 'respondFile') {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          setLatexContent(content);
+          setError(null);
+        };
+
+        reader.onerror = () => {
+          setError('Error reading file');
+        };
+
+        reader.readAsText(message.file);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  return <LaTeXViewer latexContent={latexContent} error={error} />;
+};
+
+const root = createRoot(document.getElementById('root')!);
+root.render(<App />);

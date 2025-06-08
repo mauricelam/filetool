@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
   },
   "dependencies": {
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "katex": "^0.16.0"
+    "katex": "^0.16.0",
+    "@fontsource/fira-code": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^17.0.39",

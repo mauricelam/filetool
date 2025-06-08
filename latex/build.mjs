@@ -1,20 +1,28 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isDev = process.env.BUILD_MODE === 'dev';
 
 const sharedConfig = {
   entryPoints: ['main.tsx'],
   bundle: true,
-  minify: isProduction,
-  sourcemap: !isProduction,
+  minify: !isDev,
+  sourcemap: isDev,
   outdir: '../dist/latex',
   plugins: [
     copy({
-      assets: {
-        from: ['./index.html'],
-        to: ['./'],
-      },
+      assets: [
+        {
+          from: ['./index.html'],
+          to: ['./index.html'],
+          watch: isDev
+        },
+        {
+          from: ['./node_modules/@fontsource/fira-code/files/fira-code-latin-400-normal.woff2'],
+          to: ['./fonts/fira-code.woff2'],
+          watch: isDev
+        }
+      ],
     }),
   ],
   loader: {
@@ -25,4 +33,10 @@ const sharedConfig = {
   }
 };
 
-esbuild.build(sharedConfig).catch(() => process.exit(1));
+if (!isDev) {
+  esbuild.build(sharedConfig).catch(() => process.exit(1));
+} else {
+  const ctx = await esbuild.context(sharedConfig);
+  await ctx.watch();
+  console.log('Watching for changes...');
+}

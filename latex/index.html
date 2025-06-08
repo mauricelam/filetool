@@ -3,14 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <title>LaTeX Viewer</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
-  <link rel="stylesheet" href="/file-icons.css">
-  <link rel="stylesheet" href="/vscode-icons.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
-  <script src="/main.js" type="module" defer></script>
+  <style>
+    @font-face {
+      font-family: 'Fira Code';
+      src: url('./fonts/fira-code.woff2') format('woff2');
+      font-weight: 400;
+      font-style: normal;
+    }
+  </style>
 </head>
 <body>
   <div id="root"></div>
-  <script src="./main.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
