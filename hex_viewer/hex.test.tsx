@@ -1,5 +1,5 @@
 import React from 'react'; // Import React for JSX
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import '@testing-library/jest-dom'; // For extended matchers like .toHaveClass
 import { offset, renderAscii, renderHex } from './hex';
 
