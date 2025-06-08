@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "abxml-wrapper"
+name = "abxml-wasm-bindings"
 version = "0.1.0"
 dependencies = [
  "abxml",

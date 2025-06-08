@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { decode_apk, extract_arsc } from './abxml-wrapper/pkg'
+import init, { decode_apk, extract_arsc } from './abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
