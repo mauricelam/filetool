@@ -90,24 +90,26 @@ function TranscodeVideo({ file }: { file: File }) {
     return (
         <>
             <video src={videoUrl()} controls></video>
-            {
-                Object.values(Format).map(format => {
-                    const result = results[format]
-                    return (
-                        <div key={format}>
-                            {current == format ? '> ' + format : format}
-                            {
-                                result instanceof File ? (<>
-                                    <button onClick={() => download(result)}>Download</button>
-                                    <button onClick={() => setCurrent(_ => format)}>Preview</button>
-                                </>)
-                                    : typeof result === 'number' ? (<span> (Transcoding {Math.round(result as number * 10000) / 100}%...)</span>)
-                                        : (<button onClick={() => transcode(format)}>Transcode</button>)
-                            }
-                        </div>
-                    )
-                })
-            }
+            <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '10px' }}>
+                {
+                    Object.values(Format).map(format => {
+                        const result = results[format]
+                        return (
+                            <div key={format}>
+                                {current == format ? '> ' + format : format}
+                                {
+                                    result instanceof File ? (<>
+                                        <button className="button" onClick={() => download(result)}>Download</button>
+                                        <button className="button" onClick={() => setCurrent(_ => format)}>Preview</button>
+                                    </>)
+                                        : typeof result === 'number' ? (<span> (Transcoding {Math.round(result as number * 10000) / 100}%...)</span>)
+                                            : (<button className="button" onClick={() => transcode(format)}>Transcode</button>)
+                                }
+                            </div>
+                        )
+                    })
+                }
+            </div>
         </>
     )
 }
