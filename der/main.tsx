@@ -6,12 +6,14 @@ import { createRoot } from 'react-dom/client';
 declare global {
   interface Window {
     derToAscii: (data: ArrayBuffer) => string;
+    Go: any;
   }
 }
 
 function DerAsciiViewer() {
   const [output, setOutput] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
 
   const handleFile = useCallback(async (file: File) => {
     try {
@@ -30,6 +32,19 @@ function DerAsciiViewer() {
   }, []);
 
   useEffect(() => {
+    const loadWasm = async () => {
+      try {
+        const go = new window.Go();
+        const result = await WebAssembly.instantiateStreaming(fetch('der.wasm'), go.importObject);
+        go.run(result.instance);
+        setLoading(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load WebAssembly module');
+        setLoading(false);
+      }
+    };
+    loadWasm();
+
     // Request file when component mounts if in iframe
     if (window.parent !== window) {
       window.parent.postMessage({ action: 'requestFile' }, '*');
@@ -45,6 +60,10 @@ function DerAsciiViewer() {
     window.addEventListener('message', messageHandler);
     return () => window.removeEventListener('message', messageHandler);
   }, [handleFile]);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="der-ascii-viewer">
