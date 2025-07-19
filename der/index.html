@@ -25,11 +25,13 @@
         WebAssembly.instantiateStreaming(fetch('der.wasm'), go.importObject)
             .then((result) => {
                 go.run(result.instance);
+                const script = document.createElement('script');
+                script.src = 'main.js';
+                document.body.appendChild(script);
             })
             .catch((err) => {
                 console.error('Failed to load WebAssembly module:', err);
             });
     </script>
-    <script src="main.js"></script>
 </body>
 </html> 
