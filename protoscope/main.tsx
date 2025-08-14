@@ -13,8 +13,8 @@ import { FileDescriptorSet } from 'protobufjs/ext/descriptor';
 declare global {
     interface Window {
         protoscope?: {
-            // Updated signature to accept main bytes, optional FDS bytes, and optional message name string
             protoscopeFile?: (mainFileBytes: Uint8Array, fdsBytes?: Uint8Array | null, messageName?: string | null) => string;
+            exportToTextProto?: (mainFileBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
         };
     }
 }
@@ -230,6 +230,58 @@ const App: React.FC = () => {
         }
     }, [mainFile, wasmLoaded, processFile]);
 
+    const handleExport = async () => {
+        if (!mainFile || !schemaFile || !messageName) {
+            setError("Cannot export: main file, schema, or message name is missing.");
+            return;
+        }
+
+        const wasmReady = await loadWasm();
+        if (!wasmReady) return;
+
+        try {
+            const mainFileArrayBuffer = await mainFile.arrayBuffer();
+            const mainFileUint8Array = new Uint8Array(mainFileArrayBuffer);
+
+            if (typeof window.protoscope?.exportToTextProto !== 'function') {
+                throw new Error('exportToTextProto function not available. WASM module may not have initialized correctly.');
+            }
+
+            const protoContents = await schemaFile.text();
+            const parsed = protobuf.parse(protoContents);
+            const root = parsed.root;
+            const fds = (root as any).toDescriptor();
+            const fdsBytes = FileDescriptorSet.encode(fds).finish();
+
+            const textProtoContent = window.protoscope.exportToTextProto(mainFileUint8Array, fdsBytes, messageName);
+
+            if (textProtoContent.startsWith("Error:")) {
+                setError(textProtoContent);
+                return;
+            }
+
+            const blob = new Blob([textProtoContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${mainFile.name}.textproto`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+        } catch (err) {
+            console.error('Error during export:', err);
+            let errorMessageText = 'Error during export.';
+            if (err instanceof Error) {
+                errorMessageText += `\n${err.name}: ${err.message}`;
+            } else {
+                errorMessageText += `\n${String(err)}`;
+            }
+            setError(errorMessageText);
+        }
+    };
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '20px', fontFamily: 'Roboto, Helvetica, Arial, sans-serif' }}>
@@ -301,9 +353,26 @@ const App: React.FC = () => {
             {loading && <pre>Loading: {loading}</pre>}
             {error && <pre style={{ color: 'red' }}>Error: {error}</pre>}
             {output && (
-                <SyntaxHighlighter
-                    language="python"
-                    style={docco}
+                <div>
+                    <button
+                        onClick={handleExport}
+                        disabled={!schemaFile || !messageName}
+                        style={{
+                            marginBottom: '10px',
+                            padding: '10px 15px',
+                            cursor: 'pointer',
+                            backgroundColor: (!schemaFile || !messageName) ? '#ccc' : '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                        }}
+                        title={(!schemaFile || !messageName) ? "Schema and message type must be selected to export" : "Export as textproto"}
+                    >
+                        Export to Textproto
+                    </button>
+                    <SyntaxHighlighter
+                        language="python"
+                        style={docco}
                     customStyle={{
                         backgroundColor: '#f5f5f5',
                         padding: '1em',
@@ -312,6 +381,7 @@ const App: React.FC = () => {
                 >
                     {output}
                 </SyntaxHighlighter>
+                </div>
             )}
             {!mainFile && !loading && !error && <p>Waiting for main protobuf data file to be sent from the parent application...</p>}
         </div>

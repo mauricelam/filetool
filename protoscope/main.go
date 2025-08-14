@@ -5,11 +5,101 @@ import (
 	"syscall/js"
 
 	"github.com/protocolbuffers/protoscope"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
+
 	"google.golang.org/protobuf/types/descriptorpb"
 )
+
+func exportToTextProto(this js.Value, args []js.Value) interface{} {
+	// This function requires a schema, so it must have 3 arguments.
+	if len(args) != 3 {
+		return "Error: Invalid number of arguments. Expected 3 (protobuf bytes, message descriptor bytes, message name string)."
+	}
+
+	// Process main protobuf bytes (args[0])
+	inputBytesJS := args[0]
+	if inputBytesJS.Type() != js.TypeObject || !inputBytesJS.Truthy() || inputBytesJS.Get("byteLength").IsUndefined() {
+		return "Error: First argument (protobuf bytes) must be a Uint8Array."
+	}
+	inputLength := inputBytesJS.Get("byteLength").Int()
+	inputGoBytes := make([]byte, inputLength)
+	js.CopyBytesToGo(inputGoBytes, inputBytesJS)
+
+	// Process schema (args[1] message descriptor bytes, args[2] message name)
+	descBytesJS := args[1]
+	messageNameJS := args[2]
+
+	if descBytesJS.Type() != js.TypeObject || !descBytesJS.Truthy() || descBytesJS.Get("byteLength").IsUndefined() {
+		return "Error: Second argument (message descriptor bytes) must be a Uint8Array."
+	}
+	if messageNameJS.Type() != js.TypeString {
+		return "Error: Third argument (message name) must be a string."
+	}
+
+	descLength := descBytesJS.Get("byteLength").Int()
+	descGoBytes := make([]byte, descLength)
+	js.CopyBytesToGo(descGoBytes, descBytesJS)
+
+	goMessageName := messageNameJS.String()
+	// Remove leading "." if present
+	if len(goMessageName) > 0 && goMessageName[0] == '.' {
+		goMessageName = goMessageName[1:]
+	}
+
+	if descLength == 0 {
+		return "Error: Message descriptor bytes are empty."
+	}
+	if goMessageName == "" {
+		return "Error: Message name is empty."
+	}
+
+	// Parse the message descriptor
+	fileProto := &descriptorpb.FileDescriptorSet{}
+	if err := proto.Unmarshal(descGoBytes, fileProto); err != nil {
+		return fmt.Sprintf("Error unmarshalling proto message descriptor: %v", err)
+	}
+
+	// Create a file descriptor
+	files, err := protodesc.NewFiles(fileProto)
+	if err != nil {
+		return fmt.Sprintf("Error creating file descriptor: %v", err)
+	}
+
+	// Get the message descriptor
+	desc, err := files.FindDescriptorByName(protoreflect.FullName(goMessageName))
+	if err != nil {
+		return fmt.Sprintf("Error finding message '%s' in schema: %v", goMessageName, err)
+	}
+
+	md, ok := desc.(protoreflect.MessageDescriptor)
+	if !ok {
+		return fmt.Sprintf("Error: Descriptor for '%s' is not a message descriptor", goMessageName)
+	}
+
+	// Create a new dynamic message from the descriptor
+	dynMessage := dynamicpb.NewMessage(md)
+
+	// Unmarshal the input bytes into the dynamic message
+	if err := proto.Unmarshal(inputGoBytes, dynMessage); err != nil {
+		return fmt.Sprintf("Error unmarshalling input into dynamic message: %v", err)
+	}
+
+	// Marshal the dynamic message to textproto
+	opts := prototext.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+	}
+	textProtoBytes, err := opts.Marshal(dynMessage)
+	if err != nil {
+		return fmt.Sprintf("Error marshalling to textproto: %v", err)
+	}
+
+	return string(textProtoBytes)
+}
 
 func protoscopeFile(this js.Value, args []js.Value) interface{} {
 	if len(args) != 1 && len(args) != 3 {
@@ -105,7 +195,8 @@ func protoscopeFile(this js.Value, args []js.Value) interface{} {
 func main() {
 	c := make(chan struct{}, 0)
 	js.Global().Set("protoscope", js.ValueOf(map[string]interface{}{
-		"protoscopeFile": js.FuncOf(protoscopeFile),
+		"protoscopeFile":    js.FuncOf(protoscopeFile),
+		"exportToTextProto": js.FuncOf(exportToTextProto),
 	}))
 	<-c
 }
