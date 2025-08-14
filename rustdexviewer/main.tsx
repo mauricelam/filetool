@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import React, { useState, useEffect } from 'react'
-import init, { dex_classes, dex_methods, dex_instructions, JClass, JMethod, JInstruction, init_logger } from './dexviewer/pkg'
+import init, { dex_classes, dex_methods, dex_instructions, JClass, JMethod, JInstruction, init_logger, load_proguard_mapping } from './dexviewer/pkg'
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -14,15 +14,64 @@ if (window.parent) {
 
 const OUTPUT = createRoot(document.getElementById('output'))
 
+function App({ file }: { file: File }) {
+    const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+    const [classes, setClasses] = useState<JClass[]>([]);
+
+    useEffect(() => {
+        async function setup() {
+            await init();
+            init_logger();
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            setFileBytes(bytes);
+            const klasses = dex_classes(bytes);
+            setClasses(klasses);
+        }
+        setup();
+    }, [file]);
+
+    const handleProguardUpload = (mappingContent: string) => {
+        if (fileBytes) {
+            load_proguard_mapping(mappingContent);
+            const klasses = dex_classes(fileBytes);
+            setClasses(klasses);
+        }
+    }
+
+    if (classes.length === 0) {
+        return <div>Loading...</div>
+    }
+
+    return (
+        <>
+            <ProguardUploader onUpload={handleProguardUpload} />
+            <ClassTree classes={classes} dexfile={fileBytes} />
+        </>
+    )
+}
+
+function ProguardUploader({ onUpload }: { onUpload: (content: string) => void }) {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) {
+            return;
+        }
+        const mappingContent = await file.text();
+        onUpload(mappingContent);
+    };
+
+    return (
+        <div>
+            <label>
+                Proguard mapping.txt:
+                <input type="file" onChange={handleFileChange} />
+            </label>
+        </div>
+    );
+}
+
 async function handleFile(file: File) {
-    console.log('Rust dex handleFile', file)
-    await init()
-    const fileBytes = new Uint8Array(await file.arrayBuffer())
-
-    init_logger()
-
-    const classes = dex_classes(fileBytes)
-    OUTPUT.render(<ClassTree classes={classes} dexfile={fileBytes} />)
+    OUTPUT.render(<App file={file} />);
 }
 
 function ClassTree({ classes, dexfile }: { classes: JClass[], dexfile: Uint8Array }) {
@@ -57,7 +106,7 @@ function DexClass({ javaClass, dexfile }: { javaClass: JClass, dexfile: Uint8Arr
     return (
         <div className={["dexclass", expanded ? "expanded" : ""].join(" ")}>
             <div className="membername" onClick={() => setExpanded(current => !current)}>
-                {javaClass.name}
+                {javaClass.original_name}
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
                 {loading ? (

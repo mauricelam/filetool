@@ -1,12 +1,28 @@
+use lazy_static::lazy_static;
+use proguard::ProguardMapper;
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
 mod opcodes;
+
+lazy_static! {
+    static ref PROGUARD_MAPPER: Mutex<Option<ProguardMapper<'static>>> = Mutex::new(None);
+}
+
+#[wasm_bindgen]
+pub fn load_proguard_mapping(mapping: String) {
+    let mapping_static: &'static str = Box::leak(mapping.into_boxed_str());
+    let mapper = ProguardMapper::from(mapping_static);
+    let mut guard = PROGUARD_MAPPER.lock().unwrap();
+    *guard = Some(mapper);
+}
 
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Serialize, Deserialize)]
 pub struct JClass {
     pub name: String,
+    pub original_name: String,
     pub descriptor: String,
     /// The class ID that the Go side uses, which is the index of the class in the iterator.
     /// Note: This is not the same as class.id()
@@ -28,14 +44,30 @@ pub fn dex_classes(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
 
 fn dex_classes_impl(bytes: Vec<u8>) -> Result<Vec<JClass>, anyhow::Error> {
     let dex = dex::DexReader::from_vec(bytes)?;
+    let mapper_guard = PROGUARD_MAPPER.lock().unwrap();
+    let mapper = mapper_guard.as_ref();
+
     let classes = dex
         .classes()
         .enumerate()
         .map(|(i, c)| {
-            c.map(|c| JClass {
-                name: c.jtype().to_java_type(),
-                descriptor: c.jtype().type_descriptor().to_string(),
-                id: i as u32,
+            c.map(|c| {
+                let obfuscated_name = c.jtype().to_java_type();
+                let original_name = if let Some(mapper) = mapper {
+                    mapper
+                        .remap_class(&obfuscated_name)
+                        .unwrap_or(&obfuscated_name)
+                        .to_string()
+                } else {
+                    obfuscated_name.clone()
+                };
+
+                JClass {
+                    name: obfuscated_name,
+                    original_name,
+                    descriptor: c.jtype().type_descriptor().to_string(),
+                    id: i as u32,
+                }
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -119,4 +151,35 @@ fn dex_instructions_impl(
         });
     }
     Ok(instructions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_proguard_mapping() {
+        let mapping_content = "
+com.example.MyClass -> a.b.c:
+    int myField -> a
+    void myMethod() -> a
+com.example.AnotherClass -> a.b.d:
+        "
+        .to_string();
+
+        load_proguard_mapping(mapping_content);
+
+        let mapper_guard = PROGUARD_MAPPER.lock().unwrap();
+        let mapper = mapper_guard.as_ref().unwrap();
+
+        assert_eq!(
+            mapper.remap_class("a.b.c"),
+            Some("com.example.MyClass")
+        );
+        assert_eq!(
+            mapper.remap_class("a.b.d"),
+            Some("com.example.AnotherClass")
+        );
+        assert_eq!(mapper.remap_class("non.existent"), None);
+    }
 }

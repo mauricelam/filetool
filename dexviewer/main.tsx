@@ -13,28 +13,79 @@ if (window.parent) {
 
 const OUTPUT = createRoot(document.getElementById('output'))
 
+function App({ file }: { file: File }) {
+    const [dextk, setDextk] = useState(null);
+    const [classes, setClasses] = useState([]);
+    const [dexId, setDexId] = useState(-1);
+
+    useEffect(() => {
+        async function setup() {
+            const fileBytes = new Uint8Array(await file.arrayBuffer());
+            const go = new window['Go']()
+            const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
+            go.run(result.instance)
+            const dextk = window['godexviewer']
+            setDextk(dextk);
+            const id = dextk.createDex(fileBytes)
+            setDexId(id);
+            const klasses = dextk.getClasses(id)
+            setClasses(klasses);
+        }
+        setup();
+    }, [file]);
+
+    const handleProguardUpload = async (mappingContent: string) => {
+        if (dextk) {
+            dextk.loadProguardMapping(mappingContent);
+            // re-fetch classes
+            const klasses = dextk.getClasses(dexId);
+            setClasses(klasses);
+        }
+    }
+
+    if (classes.length === 0) {
+        return <div>Loading...</div>
+    }
+
+    return (
+        <>
+            <ProguardUploader onUpload={handleProguardUpload} />
+            <ClassTree classes={classes} dexfile={dexId} />
+        </>
+    )
+}
+
+function ProguardUploader({ onUpload }: { onUpload: (content: string) => void }) {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) {
+            return;
+        }
+        const mappingContent = await file.text();
+        onUpload(mappingContent);
+    };
+
+    return (
+        <div>
+            <label>
+                Proguard mapping.txt:
+                <input type="file" onChange={handleFileChange} />
+            </label>
+        </div>
+    );
+}
+
+
 async function handleFile(file: File) {
-    console.log('godex handleFile', file)
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
-    const go = new window['Go']()
-    const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
-    go.run(result.instance)
-
-
-    const dextk = window['godexviewer']
-    // Create a dex file and get its ID
-    const dexId = dextk.createDex(fileBytes)
-    // Get the list of classes 
-    const classes = dextk.getClasses(dexId)
-    OUTPUT.render(<ClassTree classes={classes} dexfile={dexId} />)
+    OUTPUT.render(<App file={file} />)
 }
 
-function ClassTree({ classes, dexfile }: { classes: string[], dexfile: number }) {
-    return classes.map(className => <DexClass key={className} name={className} dexfile={dexfile} />)
+function ClassTree({ classes, dexfile }: { classes: {obfuscated: string, original: string}[], dexfile: number }) {
+    return classes.map(cls => <DexClass key={cls.obfuscated} name={cls.obfuscated} displayName={cls.original} dexfile={dexfile} />)
 }
 
 
-function DexClass({ name, dexfile }: { name: string, dexfile: number }) {
+function DexClass({ name, displayName, dexfile }: { name: string, displayName: string, dexfile: number }) {
     const [expanded, setExpanded] = useState(false)
     const [methods, setMethods] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
@@ -62,7 +113,7 @@ function DexClass({ name, dexfile }: { name: string, dexfile: number }) {
     return (
         <div className={["dexclass", expanded ? "expanded" : ""].join(" ")}>
             <div className="membername" onClick={() => setExpanded(current => !current)}>
-                {name}
+                {displayName}
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
                 {loading ? (

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"strings"
@@ -14,6 +15,29 @@ type DexFile struct {
 }
 
 var dexFiles = make(map[int]DexFile)
+var proguardMapping = make(map[string]string)
+
+func parseProguardMapping(content string) map[string]string {
+	mapping := make(map[string]string)
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasSuffix(line, ":") && strings.Contains(line, " -> ") {
+			parts := strings.Split(line, " -> ")
+			originalName := parts[0]
+			obfuscatedName := strings.TrimSuffix(parts[1], ":")
+			mapping[obfuscatedName] = originalName
+		}
+	}
+	return mapping
+}
+
+func loadProguardMapping(this js.Value, args []js.Value) any {
+	mappingContent := args[0].String()
+	proguardMapping = parseProguardMapping(mappingContent)
+	fmt.Println("Loaded ProGuard mapping for", len(proguardMapping), "classes")
+	return nil
+}
 
 func main() {
 	// Create dextk object to store functions
@@ -22,6 +46,7 @@ func main() {
 		"getClasses":            js.FuncOf(getClasses),
 		"getMethodNames":        js.FuncOf(getMethodNames),
 		"getMethodInstructions": js.FuncOf(getMethodInstructions),
+		"loadProguardMapping":   js.FuncOf(loadProguardMapping),
 	}
 
 	// Export dextk object to JavaScript
@@ -66,7 +91,7 @@ func getClasses(this js.Value, args []js.Value) any {
 		fmt.Println(err)
 	}
 
-	var classNames []string
+	var classInfos []any
 
 	ci := r.ClassIter()
 	for ci.HasNext() {
@@ -76,11 +101,20 @@ func getClasses(this js.Value, args []js.Value) any {
 			continue
 		}
 
-		classNames = append(classNames, node.Name.String())
+		obfuscatedName := node.Name.String()
+		originalName, ok := proguardMapping[obfuscatedName]
+		if !ok {
+			originalName = obfuscatedName
+		}
+
+		classInfos = append(classInfos, map[string]any{
+			"obfuscated": obfuscatedName,
+			"original":   originalName,
+		})
 	}
 
 	fmt.Println("Done")
-	return js.ValueOf(stringSliceToAnySlice(classNames))
+	return js.ValueOf(classInfos)
 }
 
 func getMethodNames(this js.Value, args []js.Value) any {
