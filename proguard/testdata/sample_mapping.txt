@@ -1,0 +1,5 @@
+com.example.MyClass -> a.b.c:
+    void myMethod() -> a
+    int otherMethod(java.lang.String) -> b
+com.example.AnotherClass -> a.b.d:
+    java.lang.String anotherMethod() -> c

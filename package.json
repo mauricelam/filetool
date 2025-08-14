@@ -24,7 +24,8 @@
         "der",
         "esbuild-plugins",
         "rstviewer",
-        "graphviz"
+        "graphviz",
+        "proguard"
     ],
     "scripts": {
         "start": "node serve.mjs",

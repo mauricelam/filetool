@@ -355,6 +355,18 @@ export const HANDLERS: HandlerDefinition[] = [
                 filename: /\.pb$/i,
             }
         ]
+    },
+    {
+        "name": "Proguard",
+        "handler": "proguard",
+        "mimetypes": [
+            {
+                filename: /mapping\.txt$/i,
+            },
+            {
+                filename: /\.(map|mapping)$/i,
+            }
+        ]
     }
 ]
 
