@@ -5,12 +5,12 @@ import { createRoot } from 'react-dom/client';
 
 declare global {
   interface Window {
-    derToAscii: (data: ArrayBuffer) => string;
+    derToAscii: (data: Uint8Array) => string;
     Go: any;
   }
 }
 
-function DerAsciiViewer() {
+export function DerAsciiViewer() {
   const [output, setOutput] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
