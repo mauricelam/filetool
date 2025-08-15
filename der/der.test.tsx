@@ -26,7 +26,7 @@ describe('der', () => {
     go.run(result.instance);
   });
 
-  test('derToAscii', () => {
+  test('derToAscii with simple DER', () => {
     const der = new Uint8Array([
       0x30, 0x0c, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02, 0x02, 0x01, 0x03, 0x02,
       0x01, 0x04,
@@ -41,5 +41,14 @@ describe('der', () => {
 }
 `
     );
+  });
+
+  test('derToAscii with cert file', () => {
+    const certPath = join(__dirname, 'example', 'cert');
+    const certBytes = new Uint8Array(readFileSync(certPath));
+    const ascii = window.derToAscii(certBytes);
+    // This will initially fail, and we'll use the output to update the expected string.
+    const expectedOutput = readFileSync(join(__dirname, 'example', 'cert.output.txt'), 'utf-8');
+    expect(ascii).toBe(expectedOutput);
   });
 });
