@@ -19,17 +19,6 @@
 <body>
     <div id="root"></div>
     <script src="wasm_exec.js"></script>
-    <script>
-        // Load WebAssembly module
-        const go = new Go();
-        WebAssembly.instantiateStreaming(fetch('der.wasm'), go.importObject)
-            .then((result) => {
-                go.run(result.instance);
-            })
-            .catch((err) => {
-                console.error('Failed to load WebAssembly module:', err);
-            });
-    </script>
     <script src="main.js"></script>
 </body>
 </html> 
