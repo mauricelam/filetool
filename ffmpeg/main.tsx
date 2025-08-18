@@ -79,7 +79,7 @@ const FORMAT_MIME = {
 
 type TranscodeResults = { [format: string]: undefined | number | File }
 
-async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; rawOutput: string }> {
+export async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; rawOutput: string }> {
     const basicInfo: VideoInfo = {
         name: file.name,
         size: file.size,
@@ -153,7 +153,7 @@ async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; rawOutpu
     }
 }
 
-function parseFFmpegOutput(output: string) {
+export function parseFFmpegOutput(output: string) {
     const info: any = { streams: [], format: {} };
     
     // Extract duration
