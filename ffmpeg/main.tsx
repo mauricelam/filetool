@@ -1,5 +1,4 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -79,6 +78,681 @@ const FORMAT_MIME = {
 }
 
 type TranscodeResults = { [format: string]: undefined | number | File }
+
+async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; rawOutput: string }> {
+    const basicInfo: VideoInfo = {
+        name: file.name,
+        size: file.size,
+        type: file.type
+    };
+
+    try {
+        // Load FFmpeg
+        const ffmpeg = new FFmpeg();
+        await ffmpeg.load({
+            coreURL: new URL(
+                window.SharedArrayBuffer ? 'ffmpeg-core-mt.js' : 'ffmpeg-core.js',
+                import.meta.url
+            ).toString(),
+            wasmURL: new URL(
+                window.SharedArrayBuffer ? 'ffmpeg-core-mt.wasm' : 'ffmpeg-core.wasm',
+                import.meta.url
+            ).toString(),
+            workerURL: window.SharedArrayBuffer ?
+                new URL('ffmpeg-core-worker-mt.js', import.meta.url).toString() : ''
+        });
+
+        // Write file to FFmpeg filesystem
+        await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()));
+        
+        // Use ffmpeg with verbose output to extract information
+        let logOutput = '';
+        ffmpeg.on('log', ({ message }) => {
+            logOutput += message + '\n';
+        });
+        
+        // Run ffmpeg -i to get stream information (it will "fail" but output info)
+        await ffmpeg.exec(['-i', file.name]);
+
+        console.log('ffmpeg output=', logOutput)
+        
+        // Parse the log output to extract information
+        const info = parseFFmpegOutput(logOutput);
+        
+        // Extract video and audio stream information
+        const videoStream = info.streams?.find((s: any) => s.codec_type === 'video');
+        const audioStream = info.streams?.find((s: any) => s.codec_type === 'audio');
+        
+        const duration = parseFloat(info.format?.duration || '0');
+        const minutes = Math.floor(duration / 60);
+        const seconds = Math.floor(duration % 60);
+        const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        return {
+            info: {
+                ...basicInfo,
+                duration: durationStr,
+                width: videoStream?.width,
+                height: videoStream?.height,
+                videoCodec: videoStream?.codec_name,
+                audioCodec: audioStream?.codec_name,
+                videoBitrate: videoStream?.bit_rate ? `${Math.round(videoStream.bit_rate / 1000)} kbps` : undefined,
+                audioBitrate: audioStream?.bit_rate ? `${Math.round(audioStream.bit_rate / 1000)} kbps` : undefined,
+                framerate: videoStream?.r_frame_rate ? `${parseFloat(videoStream.r_frame_rate).toFixed(2)} fps` : undefined,
+                colorSpace: videoStream?.pix_fmt,
+                container: info.format?.format_name,
+                streams: info.streams?.length
+            },
+            rawOutput: logOutput
+        };
+        
+    } catch (error) {
+        console.error('FFmpeg analysis failed:', error);
+        // Return basic info if FFmpeg fails
+        return { info: basicInfo, rawOutput: '' };
+    }
+}
+
+function parseFFmpegOutput(output: string) {
+    const info: any = { streams: [], format: {} };
+    
+    // Extract duration
+    const durationMatch = output.match(/Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})/);
+    if (durationMatch) {
+        const hours = parseInt(durationMatch[1]);
+        const minutes = parseInt(durationMatch[2]);
+        const seconds = parseFloat(durationMatch[3]);
+        info.format.duration = (hours * 3600 + minutes * 60 + seconds).toString();
+    }
+    
+    // Extract container format
+    const formatMatch = output.match(/Input #0, ([^,]+)/);
+    if (formatMatch) {
+        info.format.format_name = formatMatch[1];
+    }
+    
+    // Extract video stream info
+    const videoMatch = output.match(/Stream #0:(\d+).*: Video: ([^\s(]+)(?:\s*\([^)]*\))?(?:\s*\([^)]*\))?,\s*([^,(]+)(?:\([^)]*\))?,\s*(\d+x\d+)[^,]*,\s*(\d+(?:\.\d+)?)\s*kb\/s,\s*(\d+(?:\.\d+)?)\s*fps/);
+    if (videoMatch) {
+        const videoStream = {
+            codec_type: 'video',
+            codec_name: videoMatch[2],
+            pix_fmt: videoMatch[3],
+            width: parseInt(videoMatch[4].split('x')[0]),
+            height: parseInt(videoMatch[4].split('x')[1]),
+            bit_rate: parseInt(videoMatch[5]) * 1000, // Convert kb/s to bits/s
+            r_frame_rate: videoMatch[6] || '0'
+        };
+        info.streams.push(videoStream);
+    }
+    
+    // Extract audio stream info
+    const audioMatch = output.match(/Stream #0:(\d+).*: Audio: ([^,]+)[^,]*,\s*(\d+) Hz[^,]*(?:,\s*([^,]+))?.*?(\d+) kb\/s/);
+    if (audioMatch) {
+        const audioStream = {
+            codec_type: 'audio',
+            codec_name: audioMatch[2],
+            sample_rate: audioMatch[3],
+            bit_rate: parseInt(audioMatch[5]) * 1000
+        };
+        info.streams.push(audioStream);
+    }
+    
+    return info;
+}
+
+interface VideoInfo {
+    name: string;
+    size: number;
+    type: string;
+    duration?: string;
+    width?: number;
+    height?: number;
+    videoCodec?: string;
+    audioCodec?: string;
+    videoBitrate?: string;
+    audioBitrate?: string;
+    framerate?: string;
+    colorSpace?: string;
+    profile?: string;
+    container?: string;
+    streams?: number;
+    metadata?: { [key: string]: string };
+}
+
+interface VideoPreviewProps {
+    file: File;
+    error: string | null;
+}
+
+function VideoPreview({ file, error }: VideoPreviewProps) {
+    const [videoInfo, setVideoInfo] = useState<VideoInfo>({
+        name: file.name,
+        size: file.size,
+        type: file.type
+    });
+    const [videoUrl, setVideoUrl] = useState<string>('');
+    const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+    const [rawFFmpegOutput, setRawFFmpegOutput] = useState<string>('');
+    const [showRawOutput, setShowRawOutput] = useState<boolean>(false);
+
+    const videoRef = useRef<HTMLVideoElement>(null);
+
+    const analyzeVideoWithFFmpeg = async () => {
+        try {
+            setIsAnalyzing(true);
+            const result = await extractVideoInfo(file);
+            setVideoInfo(result.info);
+            setRawFFmpegOutput(result.rawOutput);
+        } catch (error) {
+            console.error('Video analysis failed:', error);
+            // Fallback to basic HTML5 video metadata
+            if (videoRef.current) {
+                const video = videoRef.current;
+                const minutes = Math.floor(video.duration / 60);
+                const seconds = Math.floor(video.duration % 60);
+                const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                setVideoInfo(prev => ({
+                    ...prev,
+                    duration: durationStr,
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    videoCodec: 'Unknown (analysis failed)',
+                    audioCodec: 'Unknown (analysis failed)'
+                }));
+            }
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    useEffect(() => {
+        if (videoRef.current) {
+            const video = videoRef.current;
+            const handleLoadedMetadata = () => {
+                // Start FFmpeg analysis after basic metadata is loaded
+                analyzeVideoWithFFmpeg();
+            };
+            video.addEventListener('loadedmetadata', handleLoadedMetadata);
+            return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        }
+    }, [file]);
+
+    useEffect(() => {
+        // Clean up previous URL
+        if (videoUrl) {
+            URL.revokeObjectURL(videoUrl);
+        }
+
+        const newUrl = URL.createObjectURL(file);
+        setVideoUrl(newUrl);
+
+        // Cleanup function
+        return () => {
+            URL.revokeObjectURL(newUrl);
+        };
+    }, [file]);
+
+    const formatFileSize = (bytes: number): string => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    return (
+        <div style={{ flex: 1, padding: '20px', borderRight: '1px solid #e0e0e0' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#333' }}>Video Preview</h3>
+
+            <div style={{ marginBottom: '20px' }}>
+                <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    controls
+                    style={{
+                        width: '100%',
+                        maxHeight: '300px',
+                        border: '1px solid #ddd',
+                        borderRadius: '8px'
+                    }}
+                />
+            </div>
+
+            <div style={{
+                background: '#f8f9fa',
+                padding: '15px',
+                borderRadius: '8px',
+                border: '1px solid #e9ecef'
+            }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#495057' }}>Video Information</h4>
+                <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+                    {isAnalyzing && (
+                        <div style={{ color: '#007bff', marginBottom: '10px', fontStyle: 'italic' }}>
+                            Analyzing video with FFmpeg...
+                        </div>
+                    )}
+                    <div><strong>Name:</strong> {videoInfo.name}</div>
+                    <div><strong>Size:</strong> {formatFileSize(videoInfo.size)}</div>
+                    <div><strong>Type:</strong> {videoInfo.type}</div>
+                    {videoInfo.duration && <div><strong>Duration:</strong> {videoInfo.duration}</div>}
+                    {videoInfo.width && videoInfo.height && (
+                        <div><strong>Resolution:</strong> {videoInfo.width} × {videoInfo.height}</div>
+                    )}
+                    {videoInfo.container && <div><strong>Container:</strong> {videoInfo.container}</div>}
+                    {videoInfo.streams && <div><strong>Streams:</strong> {videoInfo.streams}</div>}
+                    {videoInfo.videoCodec && <div><strong>Video Codec:</strong> {videoInfo.videoCodec}</div>}
+                    {videoInfo.profile && <div><strong>Profile:</strong> {videoInfo.profile}</div>}
+                    {videoInfo.colorSpace && <div><strong>Color Space:</strong> {videoInfo.colorSpace}</div>}
+                    {videoInfo.videoBitrate && <div><strong>Video Bitrate:</strong> {videoInfo.videoBitrate}</div>}
+                    {videoInfo.framerate && <div><strong>Frame Rate:</strong> {videoInfo.framerate}</div>}
+                    {videoInfo.audioCodec && <div><strong>Audio Codec:</strong> {videoInfo.audioCodec}</div>}
+                    {videoInfo.audioBitrate && <div><strong>Audio Bitrate:</strong> {videoInfo.audioBitrate}</div>}
+                    {videoInfo.metadata && Object.keys(videoInfo.metadata).length > 0 && (
+                        <div style={{ marginTop: '10px' }}>
+                            <strong>Metadata:</strong>
+                            <div style={{ marginLeft: '10px', fontSize: '12px' }}>
+                                {Object.entries(videoInfo.metadata).map(([key, value]) => (
+                                    <div key={key}><em>{key}:</em> {value}</div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {rawFFmpegOutput && (
+                        <div style={{ marginTop: '15px' }}>
+                            <button
+                                onClick={() => setShowRawOutput(!showRawOutput)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#007bff',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    textDecoration: 'underline',
+                                    padding: 0,
+                                    fontWeight: 'bold'
+                                }}
+                            >
+                                {showRawOutput ? '▼' : '▶'} Raw FFmpeg Output
+                            </button>
+                            {showRawOutput && (
+                                <div style={{
+                                    marginTop: '10px',
+                                    padding: '10px',
+                                    background: '#f1f1f1',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    fontFamily: 'monospace',
+                                    whiteSpace: 'pre-wrap',
+                                    maxHeight: '200px',
+                                    overflowY: 'auto',
+                                    wordBreak: 'break-all'
+                                }}>
+                                    {rawFFmpegOutput}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {error && (
+                <div style={{
+                    color: '#dc3545',
+                    background: '#f8d7da',
+                    padding: '10px',
+                    borderRadius: '4px',
+                    marginTop: '15px',
+                    fontSize: '14px'
+                }}>
+                    <strong>Error:</strong> {error}
+                </div>
+            )}
+        </div>
+    );
+}
+
+interface TranscodeControlsProps {
+    file: File;
+    current: Format;
+    setCurrent: (format: Format) => void;
+    audioCodec: AudioCodec;
+    setAudioCodec: (codec: AudioCodec) => void;
+    videoCodec: VideoCodec;
+    setVideoCodec: (codec: VideoCodec) => void;
+    results: TranscodeResults;
+    isFFmpegLoading: boolean;
+    running: boolean;
+    commandString: string;
+    onTranscode: (format: Format) => void;
+    onStop: () => void;
+    onDownload: (file: File) => void;
+    onCustomCommand: (command: string) => void;
+}
+
+function TranscodeControls({
+    file,
+    current,
+    setCurrent,
+    audioCodec,
+    setAudioCodec,
+    videoCodec,
+    setVideoCodec,
+    results,
+    isFFmpegLoading,
+    running,
+    commandString,
+    onTranscode,
+    onStop,
+    onDownload,
+    onCustomCommand
+}: TranscodeControlsProps) {
+    const [customCommand, setCustomCommand] = useState('');
+    const [isEditingCommand, setIsEditingCommand] = useState(false);
+    const [transcodedUrl, setTranscodedUrl] = useState<string>('');
+
+    useEffect(() => {
+        // Clean up previous URL
+        if (transcodedUrl) {
+            URL.revokeObjectURL(transcodedUrl);
+        }
+
+        let newUrl = '';
+        if (current !== Format.Original && results[current] instanceof Blob) {
+            newUrl = URL.createObjectURL(results[current] as Blob);
+        }
+
+        setTranscodedUrl(newUrl);
+
+        // Cleanup function
+        return () => {
+            if (newUrl) {
+                URL.revokeObjectURL(newUrl);
+            }
+        };
+    }, [current, results]);
+
+    const handleTranscode = () => {
+        if (isEditingCommand && customCommand.trim()) {
+            onCustomCommand(customCommand.trim());
+        } else {
+            onTranscode(current);
+        }
+    };
+
+    const handleEditCommand = () => {
+        setCustomCommand(commandString.replace('ffmpeg ', ''));
+        setIsEditingCommand(true);
+    };
+
+    const handleSaveCommand = () => {
+        setIsEditingCommand(false);
+    };
+
+    const handleCancelEdit = () => {
+        setCustomCommand('');
+        setIsEditingCommand(false);
+    };
+
+    return (
+        <div style={{ flex: 1, padding: '20px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#333' }}>Transcode Options</h3>
+
+            {/* Transcoded Preview */}
+            {current !== Format.Original && results[current] instanceof File && (
+                <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', color: '#495057' }}>Transcoded Preview</h4>
+                    <div style={{ marginBottom: '15px' }}>
+                        {(current === Format.Gif || current === Format.WebP) ? (
+                            <img
+                                src={transcodedUrl}
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '200px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '8px'
+                                }}
+                                alt="Transcoded Preview"
+                            />
+                        ) : (
+                            <video
+                                src={transcodedUrl}
+                                controls
+                                style={{
+                                    width: '100%',
+                                    maxHeight: '200px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '8px'
+                                }}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+
+            <div style={{ marginBottom: '20px' }}>
+                <label htmlFor="format-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Container Format:</label>
+                <select
+                    id="format-select"
+                    onChange={(e) => setCurrent(e.target.value as Format)}
+                    value={current}
+                    style={{
+                        width: '100%',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #ced4da',
+                        fontSize: '14px'
+                    }}
+                    disabled={isEditingCommand}
+                >
+                    {Object.values(Format).map(format => (
+                        <option key={format} value={format}>{format.toUpperCase()}</option>
+                    ))}
+                </select>
+            </div>
+
+            {current !== Format.WebP && current !== Format.Gif && (
+                <div style={{ marginBottom: '20px' }}>
+                    <label htmlFor="audio-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio Codec:</label>
+                    <select
+                        id="audio-codec-select"
+                        onChange={(e) => setAudioCodec(e.target.value as AudioCodec)}
+                        value={audioCodec}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            border: '1px solid #ced4da',
+                            fontSize: '14px'
+                        }}
+                        disabled={isEditingCommand}
+                    >
+                        {Object.values(AudioCodec).map(codec => (
+                            <option key={codec} value={codec}>{codec === 'copy' ? 'Original' : codec.toUpperCase()}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
+            {current !== Format.Gif && current !== Format.WebP && (
+                <div style={{ marginBottom: '20px' }}>
+                    <label htmlFor="video-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Video Codec:</label>
+                    <select
+                        id="video-codec-select"
+                        onChange={(e) => setVideoCodec(e.target.value as VideoCodec)}
+                        value={videoCodec}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            border: '1px solid #ced4da',
+                            fontSize: '14px'
+                        }}
+                        disabled={isEditingCommand}
+                    >
+                        {Object.values(VideoCodec).map(codec => (
+                            <option key={codec} value={codec}>{codec === 'copy' ? 'Original' : codec.toUpperCase()}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
+            {commandString && (
+                <div style={{
+                    background: '#f8f9fa',
+                    padding: '15px',
+                    borderRadius: '4px',
+                    marginBottom: '20px',
+                    border: '1px solid #e9ecef'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <strong style={{ fontSize: '14px' }}>FFmpeg Command:</strong>
+                        {!isEditingCommand && (
+                            <button
+                                onClick={handleEditCommand}
+                                style={{
+                                    background: '#007bff',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Edit
+                            </button>
+                        )}
+                    </div>
+
+                    {isEditingCommand ? (
+                        <div>
+                            <textarea
+                                value={customCommand}
+                                onChange={(e) => setCustomCommand(e.target.value)}
+                                placeholder="Enter custom FFmpeg command (without 'ffmpeg' prefix)"
+                                style={{
+                                    width: '100%',
+                                    minHeight: '80px',
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ced4da',
+                                    fontSize: '12px',
+                                    fontFamily: 'monospace',
+                                    resize: 'vertical',
+                                    marginBottom: '10px',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    onClick={handleSaveCommand}
+                                    style={{
+                                        background: '#28a745',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '6px 12px',
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Save
+                                </button>
+                                <button
+                                    onClick={handleCancelEdit}
+                                    style={{
+                                        background: '#6c757d',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '6px 12px',
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <code style={{ fontSize: '12px', wordBreak: 'break-all' }}>
+                            {isEditingCommand && customCommand ? `ffmpeg ${customCommand}` : commandString}
+                        </code>
+                    )}
+                </div>
+            )}
+
+            <div style={{ marginBottom: '20px' }}>
+                <button
+                    className="button"
+                    onClick={running ? onStop : handleTranscode}
+                    disabled={isFFmpegLoading || (!running && results[current] instanceof File) || (isEditingCommand && !customCommand.trim())}
+                    style={{
+                        width: '100%',
+                        padding: '12px',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        borderRadius: '6px',
+                        border: 'none',
+                        cursor: isFFmpegLoading || (!running && results[current] instanceof File) ? 'not-allowed' : 'pointer',
+                        background: running ? '#dc3545' : '#28a745',
+                        color: 'white'
+                    }}
+                >
+                    {isFFmpegLoading ? 'Loading FFmpeg...' : running ? 'Stop Transcoding' : 'Start Transcoding'}
+                </button>
+            </div>
+
+            {results[current] instanceof File && (
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                        className="button"
+                        onClick={() => onDownload(results[current] as File)}
+                        style={{
+                            flex: 1,
+                            padding: '10px',
+                            borderRadius: '4px',
+                            border: '1px solid #007bff',
+                            background: '#007bff',
+                            color: 'white',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Download
+                    </button>
+                </div>
+            )}
+
+            {typeof results[current] === 'number' && (
+                <div style={{
+                    background: '#e7f3ff',
+                    padding: '10px',
+                    borderRadius: '4px',
+                    marginTop: '10px'
+                }}>
+                    <div style={{ fontSize: '14px', marginBottom: '5px' }}>Progress: {Math.round(results[current] as number * 100)}%</div>
+                    <div style={{
+                        width: '100%',
+                        height: '8px',
+                        background: '#ddd',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            width: `${(results[current] as number) * 100}%`,
+                            height: '100%',
+                            background: '#007bff',
+                            transition: 'width 0.3s ease'
+                        }} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 function TranscodeVideo({ file }: { file: File }) {
     const [current, setCurrent] = useState<Format>(Format.Original)
@@ -266,68 +940,70 @@ function TranscodeVideo({ file }: { file: File }) {
             URL.createObjectURL(transcoded) : ''
     }
 
-    return (
-        <>
-            {isFFmpegLoading && <div>Loading FFmpeg...</div>}
-            {(current === Format.Gif || current === Format.WebP) ? (
-                <img src={url()} style={{ maxWidth: '100%', maxHeight: '400px' }} />
-            ) : (
-                <video src={url()} controls></video>
-            )}
-            {error && <div style={{ color: 'red', marginTop: '10px' }}>Error: {error}</div>}
-            <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '10px', padding: '10px', border: '1px solid #ccc', borderRadius: '5px' }}>
-                {commandString && <div style={{ fontSize: '0.8em', color: '#555' }}>
-                    <p>Command: <code>{commandString}</code></p>
-                </div>}
-                <div style={{ marginBottom: '10px' }}>
-                    <label htmlFor="format-select">Select Format:</label>
-                    <select id="format-select" onChange={(e) => setCurrent(e.target.value as Format)} value={current} style={{ marginLeft: '5px', padding: '5px', borderRadius: '3px' }}>
-                        {Object.values(Format).map(format => (
-                            <option key={format} value={format}>{format}</option>
-                        ))}
-                    </select>
-                </div>
-                {current !== Format.WebP && current !== Format.Gif && (
-                    <div style={{ marginBottom: '10px' }}>
-                        <label htmlFor="audio-codec-select">Select Audio Codec:</label>
-                        <select id="audio-codec-select" onChange={(e) => setAudioCodec(e.target.value as AudioCodec)} value={audioCodec} style={{ marginLeft: '5px', padding: '5px', borderRadius: '3px' }}>
-                            {Object.values(AudioCodec).map(codec => (
-                                <option key={codec} value={codec}>{codec}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-                {
-                    <div style={{ marginBottom: '10px' }}>
-                        {current !== Format.Gif && current !== Format.WebP && (
-                            <>
-                                <label htmlFor="video-codec-select">Select Video Codec:</label>
-                                <select id="video-codec-select" onChange={(e) => setVideoCodec(e.target.value as VideoCodec)} value={videoCodec} style={{ marginLeft: '5px', padding: '5px', borderRadius: '3px' }}>
-                                    {Object.values(VideoCodec).map(codec => (
-                                        <option key={codec} value={codec}>{codec}</option>
-                                    ))}
-                                </select>
-                            </>
-                        )}
-                        {
-                            <button
-                                className="button"
-                                onClick={running ? stopTranscoding : () => transcode(current)}
-                                disabled={isFFmpegLoading || (!running && results[current] instanceof File)}
-                            >
-                                {running ? "Stop" : "Transcode"}
-                            </button>
-                        }
-                    </div>
-                }
+    const handleCustomCommand = async (command: string) => {
+        try {
+            setRunning(true)
+            const ffmpeg = await loadFFmpegInstance()
+            const onprogress = ({ progress, time }) => {
+                console.log(`Progress: ${progress}, Time: ${time}`)
+                setResults(f => ({ ...f, [current]: progress }))
+            }
+            ffmpeg.on('progress', onprogress)
 
-                {results[current] instanceof File && (
-                    <div style={{ marginTop: '10px' }}>
-                        <button className="button" onClick={() => download(results[current] as File)}>Download</button>
-                        <button className="button" onClick={() => setCurrent(Format.Original)}>View Original</button>
-                    </div>
-                )}
-            </div>
-        </>
+            // Parse custom command and execute
+            const args = command.split(' ').filter(arg => arg.trim() !== '')
+            await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()))
+            await ffmpeg.exec(args)
+
+            // Try to find output file (look for common output patterns)
+            const files = await ffmpeg.listDir('/')
+            const outputFile = files.find(f => f.name !== file.name && !f.name.endsWith('/'))
+
+            if (outputFile) {
+                const data = await ffmpeg.readFile(outputFile.name) as Uint8Array
+                const outputFormat = outputFile.name.split('.').pop() || 'output'
+                const mimeType = FORMAT_MIME[outputFormat] || 'application/octet-stream'
+                setResults(f => ({ ...f, [current]: new File([data.buffer], outputFile.name, { type: mimeType }) }))
+            }
+
+            ffmpeg.off('progress', onprogress)
+            setRunning(false)
+        } catch (e) {
+            setError(e.message)
+            setRunning(false)
+        }
+    }
+
+    return (
+        <div style={{
+            display: 'flex',
+            width: '100%',
+            minHeight: '600px',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            background: '#ffffff',
+            boxSizing: 'border-box'
+        }}>
+            <VideoPreview
+                file={file}
+                error={error}
+            />
+            <TranscodeControls
+                file={file}
+                current={current}
+                setCurrent={setCurrent}
+                audioCodec={audioCodec}
+                setAudioCodec={setAudioCodec}
+                videoCodec={videoCodec}
+                setVideoCodec={setVideoCodec}
+                results={results}
+                isFFmpegLoading={isFFmpegLoading}
+                running={running}
+                commandString={commandString}
+                onTranscode={transcode}
+                onStop={stopTranscoding}
+                onDownload={download}
+                onCustomCommand={handleCustomCommand}
+            />
+        </div>
     )
 }
