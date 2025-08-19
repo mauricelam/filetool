@@ -4,7 +4,10 @@
   "author": "Maurice Lam",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs"
+    "watch": "BUILD_MODE=dev node build.mjs",
+    "test": "jest",
+    "test:unit": "jest --testPathIgnorePatterns=integration",
+    "test:integration": "jest --testPathPattern=integration"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.6",
