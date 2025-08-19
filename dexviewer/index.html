@@ -132,7 +132,21 @@
             background-color: #f9fafb;
         }
 
-        .method > .membername::before {
+        .method-header {
+            cursor: pointer;
+            padding: 8px 12px;
+            display: block;
+            transition: background-color 0.2s ease;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 12px;
+            color: #374151;
+        }
+
+        .method-header:hover {
+            background-color: #f9fafb;
+        }
+
+        .method-header::before {
             content: "▶ ";
             width: 16px;
             display: inline-block;
@@ -141,8 +155,24 @@
             transition: transform 0.2s ease;
         }
 
-        .method.expanded > .membername::before {
+        .method.expanded > .method-header::before {
             content: "▼ ";
+        }
+
+        .method-signature {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 12px;
+            color: #374151;
+        }
+
+        .access-flags {
+            color: #7c3aed;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+
+        .method-name {
+            color: #059669;
         }
 
         .instruction {

@@ -2,6 +2,13 @@ import { createRoot } from 'react-dom/client'
 import React, { useState, useEffect } from 'react'
 import init, { dex_classes, dex_methods, dex_instructions, JClass, JMethod, JInstruction, init_logger, load_proguard_mapping } from './dexviewer/pkg'
 
+// Extended interface to include the new fields we added to JMethod
+interface ExtendedJMethod extends JMethod {
+    parameters: string[];
+    return_type: string;
+    access_flags: string;
+}
+
 interface PackageNode {
     name: string;
     fullPath: string;
@@ -121,7 +128,7 @@ function buildPackageTree(classes: JClass[]): PackageNode {
     classes.forEach(javaClass => {
         const className = javaClass.original_name;
         const parts = className.split('.');
-        
+
         // If it's a simple class name without package, add to root
         if (parts.length === 1) {
             root.classes.push(javaClass);
@@ -131,11 +138,11 @@ function buildPackageTree(classes: JClass[]): PackageNode {
         let currentNode = root;
         const classNamePart = parts[parts.length - 1]; // The actual class name
         const packageParts = parts.slice(0, -1); // All but the last part (class name)
-        
+
         // Navigate/create package hierarchy - each dot creates a new level
         packageParts.forEach((part, index) => {
             const fullPath = packageParts.slice(0, index + 1).join('.');
-            
+
             if (!currentNode.subPackages.has(part)) {
                 currentNode.subPackages.set(part, {
                     name: part,
@@ -147,7 +154,7 @@ function buildPackageTree(classes: JClass[]): PackageNode {
             }
             currentNode = currentNode.subPackages.get(part)!;
         });
-        
+
         // Add class to the final package node
         currentNode.classes.push(javaClass);
     });
@@ -180,8 +187,8 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
 
     return (
         <div className="package-node">
-            <div 
-                className="package-header" 
+            <div
+                className="package-header"
                 onClick={() => setIsExpanded(!isExpanded)}
                 style={{ cursor: hasContent ? 'pointer' : 'default' }}
             >
@@ -194,9 +201,9 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
                         const totalClasses = getTotalClassCount(node);
                         const directClasses = node.classes.length;
                         const hasSubPackages = node.subPackages.size > 0;
-                        
+
                         if (totalClasses === 0) return null;
-                        
+
                         if (hasSubPackages && directClasses > 0) {
                             return `(${directClasses} + ${totalClasses - directClasses} classes)`;
                         } else if (hasSubPackages) {
@@ -208,7 +215,7 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
                     }
                 </span>
             </div>
-            
+
             {isExpanded && (
                 <div className="package-content">
                     {/* Render sub-packages first, sorted alphabetically */}
@@ -269,7 +276,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: JClass, dexfile: U
                     <div className="loading">Loading methods...</div>
                 ) : (
                     methods.map(method => (
-                        <DexMethod key={method.name} method={method} dexfile={dexfile} />
+                        <DexMethod key={method.name} method={method as ExtendedJMethod} dexfile={dexfile} />
                     ))
                 )}
             </div>
@@ -277,7 +284,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: JClass, dexfile: U
     )
 }
 
-function DexMethod({ method, dexfile }: { method: JMethod, dexfile: Uint8Array }) {
+function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint8Array }) {
     const [expanded, setExpanded] = useState(false)
     const [instructions, setInstructions] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
@@ -304,10 +311,20 @@ function DexMethod({ method, dexfile }: { method: JMethod, dexfile: Uint8Array }
 
     useEffect(() => { loadInstructions() }, [expanded])
 
+    const formatMethodSignature = () => {
+        const params = method.parameters?.length > 0
+            ? method.parameters.join(', ')
+            : '';
+        return `${method.return_type} ${method.name}(${params})`;
+    }
+
     return (
         <div className={["method", expanded ? "expanded" : ""].join(" ")}>
-            <div className="method membername" onClick={() => setExpanded(current => !current)}>
-                {method.name}
+            <div className="method-header" onClick={() => setExpanded(current => !current)}>
+                {method.access_flags && (
+                    <span className="access-flags">{method.access_flags} </span>
+                )}
+                <span className="method-name">{formatMethodSignature()}</span>
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
                 {loading ? (<div>Loading instructions...</div>) :

@@ -80,6 +80,9 @@ pub struct JMethod {
     pub name: String,
     pub class_descriptor: String,
     pub class_id: u32,
+    pub parameters: Vec<String>,
+    pub return_type: String,
+    pub access_flags: String,
 }
 
 #[wasm_bindgen]
@@ -97,10 +100,36 @@ fn dex_methods_impl(bytes: Vec<u8>, class_id: u32) -> Result<Vec<JMethod>, anyho
     };
     let methods = class
         .methods()
-        .map(|m| JMethod {
-            name: m.name().to_string(),
-            class_descriptor: class.jtype().type_descriptor().to_string(),
-            class_id: class_id,
+        .map(|m| {
+            let parameters: Vec<String> = m.params()
+                .iter()
+                .map(|p| p.to_java_type())
+                .collect();
+            
+            let return_type = m.return_type().to_java_type();
+            
+            let access_flags = {
+                let mut flags = Vec::new();
+                if m.is_public() { flags.push("public"); }
+                if m.is_private() { flags.push("private"); }
+                if m.is_protected() { flags.push("protected"); }
+                if m.is_static() { flags.push("static"); }
+                if m.is_final() { flags.push("final"); }
+                if m.is_synchronized() { flags.push("synchronized"); }
+                if m.is_native() { flags.push("native"); }
+                if m.is_abstract() { flags.push("abstract"); }
+                if m.is_constructor() { flags.push("constructor"); }
+                flags.join(" ")
+            };
+            
+            JMethod {
+                name: m.name().to_string(),
+                class_descriptor: class.jtype().type_descriptor().to_string(),
+                class_id: class_id,
+                parameters,
+                return_type,
+                access_flags,
+            }
         })
         .collect::<Vec<_>>();
     Ok(methods)
