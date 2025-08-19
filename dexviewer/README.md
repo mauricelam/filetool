@@ -1,14 +1,15 @@
-# Android DEX Viewer
+# Rust DEX Viewer
 
-A handler for Android DEX files that displays class information and bytecode.
+A handler for Android DEX files that provides parsing and analysis using Rust and WebAssembly.
 
 ## Features
 
-- Parse Android DEX files
+- Parse and analyze Android DEX files
 - Display class hierarchy and structure
 - View method information and bytecode
-- Show field definitions
+- Show field definitions and types
 - Support for APK files (extracts and parses DEX)
+- Rust-based parsing implementation
 
 ## Supported File Types
 
@@ -18,22 +19,23 @@ A handler for Android DEX files that displays class information and bytecode.
 ## Usage
 
 1. Drag and drop a .dex file or APK into the main application
-2. The DEX viewer will automatically open for supported files
+2. The Rust DEX viewer will automatically open for supported files
 3. Browse the class structure in the tree view
 4. View method information and bytecode
 5. Examine field definitions and types
 
 ## Implementation Details
 
-- Built with Go and compiled to WebAssembly
-- Uses custom Go library for parsing DEX files
+- Built with Rust and compiled to WebAssembly
+- Uses custom Rust library for parsing DEX files
 - Implements the standard `requestFile`/`respondFile` messaging protocol
 - Processes files entirely in the browser
 - No external dependencies or network requests
 
 ## Dependencies
 
-- **godexviewer** - Go library compiled to WebAssembly for parsing DEX files
+- **dex-parser** - Rust library for parsing DEX files
+- **dexviewer** - WebAssembly bindings for the Rust library
 
 ## Development
 
@@ -57,27 +59,53 @@ npm test
 ## File Structure
 
 ```
-dexviewer/
+rustdexviewer/
 ├── build.mjs              # Build configuration
 ├── index.html             # Entry point
 ├── main.tsx               # Main React component
 ├── package.json           # Dependencies and scripts
-├── godexviewer/           # Go library
-│   ├── main.go            # Main Go code
-│   ├── go.mod             # Go dependencies
-│   └── go.sum             # Go dependency checksums
+├── dex-parser/            # Rust DEX parsing library
+│   ├── src/               # Rust source code
+│   ├── examples/          # Usage examples
+│   ├── tests/             # Test suite
+│   └── Cargo.toml         # Rust dependencies
+├── dexviewer/             # WebAssembly bindings
+│   ├── src/               # Rust binding code
+│   ├── pkg/               # Compiled WebAssembly
+│   └── Cargo.toml         # Rust dependencies
 └── README.md              # This file
 ```
 
 ## Technical Architecture
 
-- **main.tsx** - React component that handles file parsing and DEX structure display
-- **godexviewer/** - Go library containing DEX file parsing logic
+- **main.tsx** - React component that handles file loading and DEX structure display
+- **dex-parser/** - Rust library containing the core DEX parsing logic
+- **dexviewer/** - WebAssembly bindings that expose the Rust library to JavaScript
 
-The handler uses a Go library compiled to WebAssembly to parse Android DEX files. The parsed class structure is displayed in a tree view showing methods, fields, and bytecode information.
+The handler uses a Rust library compiled to WebAssembly to parse Android DEX files. The parsed class structure is displayed in a tree view showing methods, fields, and bytecode information.
 
-## TODO
+## Rust Library Features
 
-- Add bytecode instruction visualization
-- Implement class hierarchy diagrams
-- Add export to readable format
+The `dex-parser` directory contains the core Rust library for parsing Android DEX files:
+
+- **Class Parsing** - Complete class structure analysis
+- **Method Analysis** - Bytecode instruction parsing
+- **Field Handling** - Field type and access information
+- **Constant Pool** - String and reference resolution
+- **Performance** - Optimized for large DEX files
+- **Error Handling** - Comprehensive error reporting
+
+## WebAssembly Bindings
+
+The `dexviewer` directory contains the WebAssembly interface:
+
+- **src/lib.rs** - Main binding code for browser integration
+- **pkg/** - Compiled WebAssembly output
+- **opcodes.rs** - DEX opcode definitions and handling
+
+## Use Cases
+
+- **APK Analysis** - Reverse engineering Android applications
+- **Security Research** - Malware analysis and security auditing
+- **Development** - Understanding app structure and behavior
+- **Education** - Learning Android development and DEX format

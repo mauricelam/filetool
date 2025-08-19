@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import React, { useState, useEffect } from 'react'
+import init, { dex_classes, dex_methods, dex_instructions, JClass, JMethod, JInstruction, init_logger, load_proguard_mapping } from './dexviewer/pkg'
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -14,31 +15,25 @@ if (window.parent) {
 const OUTPUT = createRoot(document.getElementById('output'))
 
 function App({ file }: { file: File }) {
-    const [dextk, setDextk] = useState(null);
-    const [classes, setClasses] = useState([]);
-    const [dexId, setDexId] = useState(-1);
+    const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+    const [classes, setClasses] = useState<JClass[]>([]);
 
     useEffect(() => {
         async function setup() {
-            const fileBytes = new Uint8Array(await file.arrayBuffer());
-            const go = new window['Go']()
-            const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
-            go.run(result.instance)
-            const dextk = window['godexviewer']
-            setDextk(dextk);
-            const id = dextk.createDex(fileBytes)
-            setDexId(id);
-            const klasses = dextk.getClasses(id)
+            await init();
+            init_logger();
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            setFileBytes(bytes);
+            const klasses = dex_classes(bytes);
             setClasses(klasses);
         }
         setup();
     }, [file]);
 
-    const handleProguardUpload = async (mappingContent: string) => {
-        if (dextk) {
-            dextk.loadProguardMapping(mappingContent);
-            // re-fetch classes
-            const klasses = dextk.getClasses(dexId);
+    const handleProguardUpload = (mappingContent: string) => {
+        if (fileBytes) {
+            load_proguard_mapping(mappingContent);
+            const klasses = dex_classes(fileBytes);
             setClasses(klasses);
         }
     }
@@ -50,7 +45,7 @@ function App({ file }: { file: File }) {
     return (
         <>
             <ProguardUploader onUpload={handleProguardUpload} />
-            <ClassTree classes={classes} dexfile={dexId} />
+            <ClassTree classes={classes} dexfile={fileBytes} />
         </>
     )
 }
@@ -75,19 +70,18 @@ function ProguardUploader({ onUpload }: { onUpload: (content: string) => void })
     );
 }
 
-
 async function handleFile(file: File) {
-    OUTPUT.render(<App file={file} />)
+    OUTPUT.render(<App file={file} />);
 }
 
-function ClassTree({ classes, dexfile }: { classes: {obfuscated: string, original: string}[], dexfile: number }) {
-    return classes.map(cls => <DexClass key={cls.obfuscated} name={cls.obfuscated} displayName={cls.original} dexfile={dexfile} />)
+function ClassTree({ classes, dexfile }: { classes: JClass[], dexfile: Uint8Array }) {
+    return classes.map(javaClass => <DexClass key={javaClass.name} javaClass={javaClass} dexfile={dexfile} />)
 }
 
 
-function DexClass({ name, displayName, dexfile }: { name: string, displayName: string, dexfile: number }) {
+function DexClass({ javaClass, dexfile }: { javaClass: JClass, dexfile: Uint8Array }) {
     const [expanded, setExpanded] = useState(false)
-    const [methods, setMethods] = useState<string[]>([])
+    const [methods, setMethods] = useState<JMethod[]>([])
     const [loading, setLoading] = useState(false)
 
     const loadMethods = async () => {
@@ -95,9 +89,8 @@ function DexClass({ name, displayName, dexfile }: { name: string, displayName: s
 
         setLoading(true)
         try {
-            const dextk = window['godexviewer']
-            const methodNames = dextk.getMethodNames(dexfile, name)
-            setMethods(methodNames)
+            const methods = dex_methods(dexfile, javaClass.id)
+            setMethods(methods)
         } catch (error) {
             console.error('Error loading methods:', error)
         } finally {
@@ -113,14 +106,14 @@ function DexClass({ name, displayName, dexfile }: { name: string, displayName: s
     return (
         <div className={["dexclass", expanded ? "expanded" : ""].join(" ")}>
             <div className="membername" onClick={() => setExpanded(current => !current)}>
-                {displayName}
+                {javaClass.original_name}
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
                 {loading ? (
                     <div>Loading methods...</div>
                 ) : (
                     methods.map(method => (
-                        <DexMethod key={method} method={method} dexfile={dexfile} className={name} />
+                        <DexMethod key={method.name} method={method} dexfile={dexfile} />
                     ))
                 )}
             </div>
@@ -128,7 +121,7 @@ function DexClass({ name, displayName, dexfile }: { name: string, displayName: s
     )
 }
 
-function DexMethod({ method, dexfile, className }: { method: string, dexfile: number, className: string }) {
+function DexMethod({ method, dexfile }: { method: JMethod, dexfile: Uint8Array }) {
     const [expanded, setExpanded] = useState(false)
     const [instructions, setInstructions] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
@@ -138,10 +131,14 @@ function DexMethod({ method, dexfile, className }: { method: string, dexfile: nu
 
         setLoading(true)
         try {
+            if (!window['godexviewer']) {
+                const go = new window['Go']()
+                const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
+                go.run(result.instance)
+            }
             const dextk = window['godexviewer']
-            const methodName = method.split(' ')[1].split('(')[0]
-            const methodInstructions = dextk.getMethodInstructions(dexfile, className, methodName)
-            setInstructions(methodInstructions)
+            const methodInstructions = dextk.getMethodInstructions(dexfile, method.class_id, method.name)
+            setInstructions(methodInstructions || [])
         } catch (error) {
             console.error('Error loading instructions:', error)
         } finally {
@@ -154,7 +151,7 @@ function DexMethod({ method, dexfile, className }: { method: string, dexfile: nu
     return (
         <div className={["method", expanded ? "expanded" : ""].join(" ")}>
             <div className="method membername" onClick={() => setExpanded(current => !current)}>
-                {method}
+                {method.name}
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
                 {loading ? (<div>Loading instructions...</div>) :
