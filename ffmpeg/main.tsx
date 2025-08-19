@@ -1,6 +1,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { getFFmpegCoreURL, getFFmpegWasmURL, getFFmpegWorkerURL } from './ffmpegUtils';
 
 if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' })
@@ -19,16 +20,9 @@ async function loadFFmpeg() {
     ffmpeg.on('log', ({ message }) => { console.log(message) })
     console.log("SharedArrayBuffer:", window.SharedArrayBuffer)
     await ffmpeg.load({
-        coreURL: new URL(
-            window.SharedArrayBuffer ? 'ffmpeg-core-mt.js' : 'ffmpeg-core.js',
-            import.meta.url
-        ).toString(),
-        wasmURL: new URL(
-            window.SharedArrayBuffer ? 'ffmpeg-core-mt.wasm' : 'ffmpeg-core.wasm',
-            import.meta.url
-        ).toString(),
-        workerURL: window.SharedArrayBuffer ?
-            new URL('ffmpeg-core-worker-mt.js', import.meta.url).toString() : ''
+        coreURL: getFFmpegCoreURL(!!window.SharedArrayBuffer),
+        wasmURL: getFFmpegWasmURL(!!window.SharedArrayBuffer),
+        workerURL: getFFmpegWorkerURL(!!window.SharedArrayBuffer)
     })
     return ffmpeg
 }
@@ -90,44 +84,37 @@ export async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; r
         // Load FFmpeg
         const ffmpeg = new FFmpeg();
         await ffmpeg.load({
-            coreURL: new URL(
-                window.SharedArrayBuffer ? 'ffmpeg-core-mt.js' : 'ffmpeg-core.js',
-                import.meta.url
-            ).toString(),
-            wasmURL: new URL(
-                window.SharedArrayBuffer ? 'ffmpeg-core-mt.wasm' : 'ffmpeg-core.wasm',
-                import.meta.url
-            ).toString(),
-            workerURL: window.SharedArrayBuffer ?
-                new URL('ffmpeg-core-worker-mt.js', import.meta.url).toString() : ''
+            coreURL: getFFmpegCoreURL(!!window.SharedArrayBuffer),
+            wasmURL: getFFmpegWasmURL(!!window.SharedArrayBuffer),
+            workerURL: getFFmpegWorkerURL(!!window.SharedArrayBuffer)
         });
 
         // Write file to FFmpeg filesystem
         await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()));
-        
+
         // Use ffmpeg with verbose output to extract information
         let logOutput = '';
         ffmpeg.on('log', ({ message }) => {
             logOutput += message + '\n';
         });
-        
+
         // Run ffmpeg -i to get stream information (it will "fail" but output info)
         await ffmpeg.exec(['-i', file.name]);
 
         console.log('ffmpeg output=', logOutput)
-        
+
         // Parse the log output to extract information
         const info = parseFFmpegOutput(logOutput);
-        
+
         // Extract video and audio stream information
         const videoStream = info.streams?.find((s: any) => s.codec_type === 'video');
         const audioStream = info.streams?.find((s: any) => s.codec_type === 'audio');
-        
+
         const duration = parseFloat(info.format?.duration || '0');
         const minutes = Math.floor(duration / 60);
         const seconds = Math.floor(duration % 60);
         const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        
+
         return {
             info: {
                 ...basicInfo,
@@ -145,7 +132,7 @@ export async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; r
             },
             rawOutput: logOutput
         };
-        
+
     } catch (error) {
         console.error('FFmpeg analysis failed:', error);
         // Return basic info if FFmpeg fails
@@ -155,7 +142,7 @@ export async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; r
 
 export function parseFFmpegOutput(output: string) {
     const info: any = { streams: [], format: {} };
-    
+
     // Extract duration
     const durationMatch = output.match(/Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})/);
     if (durationMatch) {
@@ -164,13 +151,13 @@ export function parseFFmpegOutput(output: string) {
         const seconds = parseFloat(durationMatch[3]);
         info.format.duration = (hours * 3600 + minutes * 60 + seconds).toString();
     }
-    
+
     // Extract container format
     const formatMatch = output.match(/Input #0, ([^,]+)/);
     if (formatMatch) {
         info.format.format_name = formatMatch[1];
     }
-    
+
     // Extract video stream info
     const videoMatch = output.match(/Stream #0:(\d+).*: Video: ([^\s(]+)(?:\s*\([^)]*\))?(?:\s*\([^)]*\))?,\s*([^,(]+)(?:\([^)]*\))?,\s*(\d+x\d+)[^,]*,\s*(\d+(?:\.\d+)?)\s*kb\/s,\s*(\d+(?:\.\d+)?)\s*fps/);
     if (videoMatch) {
@@ -185,7 +172,7 @@ export function parseFFmpegOutput(output: string) {
         };
         info.streams.push(videoStream);
     }
-    
+
     // Extract audio stream info
     const audioMatch = output.match(/Stream #0:(\d+).*: Audio: ([^,]+)[^,]*,\s*(\d+) Hz[^,]*(?:,\s*([^,]+))?.*?(\d+) kb\/s/);
     if (audioMatch) {
@@ -197,7 +184,7 @@ export function parseFFmpegOutput(output: string) {
         };
         info.streams.push(audioStream);
     }
-    
+
     return info;
 }
 
@@ -252,7 +239,7 @@ function VideoPreview({ file, error }: VideoPreviewProps) {
                 const minutes = Math.floor(video.duration / 60);
                 const seconds = Math.floor(video.duration % 60);
                 const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                
+
                 setVideoInfo(prev => ({
                     ...prev,
                     duration: durationStr,

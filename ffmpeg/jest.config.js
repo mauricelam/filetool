@@ -13,7 +13,7 @@ module.exports = {
       }
     }],
   },
-  testMatch: ['**/*.test.(ts|tsx|js)'],
+  testMatch: ['**/*.test.(ts|tsx|js)', '**/*.integration.test.(ts|tsx|js)'],
   collectCoverageFrom: [
     'main.tsx',
     '!**/*.d.ts',
