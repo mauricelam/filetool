@@ -103,6 +103,56 @@ The `dexviewer` directory contains the WebAssembly interface:
 - **pkg/** - Compiled WebAssembly output
 - **opcodes.rs** - DEX opcode definitions and handling
 
+## Smali Linkification (clickable references)
+
+Smali instruction lines rendered in the UI are linkified so you can click method and class references to navigate within the viewer.
+
+- __Implementation file__: `dexviewer/linkify.ts`
+- __Entry function__: `linkifySmaliInstruction(instruction, onMethodClick, onClassClick, onFieldClick)`
+
+### What gets linkified
+- __Method references__ in plain form, e.g.
+  - `processing/core/PShapeSVG:setParent:([Lprocessing/core/PShapeSVG;]):V`
+- __Field references__ in plain form, e.g.
+  - `processing/core/PShapeSVG:stroke:Z`
+- __Class references__ in Dalvik form, e.g.
+  - `Ljava/util/ArrayList;`
+
+Regex matchers used:
+- __Methods__: `/([\w$][\w\d_$/]*(?:\/[\w$][\w\d_$]*)*):([^:]+):(\([^)]*\))([^\s,;)]*)/g`
+- __Fields__: `/([\w$][\w\d_$/]*(?:\/[\w$][\w\d_$]*)*):([\w$][\w\d_$]*):([VZBSCIJFD]|\[+[VZBSCIJFD]|L[^;]+;)/g`
+- __Classes__: `/L([\w$][\w\d_$/]*(?:\/[\w$][\w\d_$]*)*);/g`
+
+### How it renders
+- Text before/after matches is preserved as text nodes.
+- Matches are wrapped as clickable spans via:
+  - `createMethodLink(MethodReference, onClick)`
+  - `createFieldLink(FieldReference, onFieldClick)`
+  - `createClassLink(className, originalText, onClick)`
+
+### Click behavior
+
+- Method links expand the package path, class, and method, then scroll to the method header.
+- Class links expand the package path and class, then scroll to the class header.
+- Field links expand the package path and class, then scroll directly to the field row when available.
+
+### Field rendering and navigation
+
+Field references are rendered as clickable links. When clicked, the viewer navigates to the declaring class and scrolls to the field row. The `generateFieldId` function creates a unique anchor for each field, allowing for direct navigation.
+
+```javascript
+const fieldId = generateFieldId(className, fieldName);
+const fieldAnchor = document.getElementById(fieldId);
+if (fieldAnchor) {
+  fieldAnchor.scrollIntoView();
+}
+```
+
+### Notes
+- The linkifier processes method references first, then class references only for the remaining tail of the line to avoid duplicating leading opcode text.
+- Field references are processed after methods and before classes to avoid overlap or duplication.
+- Helper IDs: `generateClassId()` and `generateMethodId()` create stable anchors for scrolling.
+
 ## Use Cases
 
 - **APK Analysis** - Reverse engineering Android applications

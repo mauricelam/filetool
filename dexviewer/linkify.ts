@@ -11,11 +11,24 @@ export interface MethodReference {
     fullSignature: string;
 }
 
+export interface FieldReference {
+    className: string;
+    fieldName: string;
+    fieldType: string;
+    fullSignature: string;
+}
+
 /**
  * Regular expression to match method references in smali output
  * Matches patterns like: processing/core/PShapeSVG:<init>:([Lprocessing/core/PShapeSVG; Lprocessing/data/XML; Z]):V
  */
 const METHOD_REFERENCE_REGEX = /([a-zA-Z_$][a-zA-Z0-9_$/]*(?:\/[a-zA-Z_$][a-zA-Z0-9_$]*)*):(<init>|<clinit>|[a-zA-Z_$][a-zA-Z0-9_$]*):(\([^)]*\)):([VZBSCIJFD]|\[+[VZBSCIJFD]|L[^;]+;)/g;
+
+/**
+ * Field reference: package/name/ClassName:fieldName:Type
+ * Example: processing/core/PShapeSVG:stroke:Z
+ */
+const FIELD_REFERENCE_REGEX = /([a-zA-Z_$][a-zA-Z0-9_$/]*(?:\/[a-zA-Z_$][a-zA-Z0-9_$]*)*):([a-zA-Z_$][a-zA-Z0-9_$]*):([VZBSCIJFD]|\[+[VZBSCIJFD]|L[^;]+;)/g;
 
 /**
  * Regular expression to match class references in smali output
@@ -100,6 +113,15 @@ export function generateClassId(className: string): string {
     return `class_${className.replace(/[^a-zA-Z0-9]/g, '_')}`;
 }
 
+/**
+ * Generates a unique ID for a field anchor
+ */
+export function generateFieldId(className: string, fieldName: string): string {
+    const cleanClass = className.replace(/[^a-zA-Z0-9]/g, '_');
+    const cleanField = fieldName.replace(/[^a-zA-Z0-9]/g, '_');
+    return `field_${cleanClass}_${cleanField}`.toLowerCase();
+}
+
 // Store click handlers in a WeakMap to avoid memory leaks
 const methodClickHandlers = new WeakMap<HTMLElement, (reference: MethodReference) => void>();
 const classClickHandlers = new WeakMap<HTMLElement, (className: string) => void>();
@@ -131,6 +153,31 @@ export function createMethodLink(reference: MethodReference, onClick?: (referenc
         });
     }
     
+    return link;
+}
+
+/**
+ * Creates a clickable link element for a field reference
+ * Navigates to the declaring class (field-level anchors not implemented yet)
+ */
+export function createFieldLink(reference: FieldReference, onClassClick?: (className: string) => void): HTMLElement {
+    const link = document.createElement('span');
+    link.className = 'field-link';
+    link.textContent = reference.fullSignature;
+    link.style.color = '#2563eb';
+    link.style.textDecoration = 'underline';
+    link.style.cursor = 'pointer';
+
+    if (onClassClick) {
+        link.setAttribute('data-field-ref', reference.fullSignature);
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[createFieldLink] Clicked on field:', reference);
+            onClassClick(reference.className);
+        });
+    }
+
     return link;
 }
 
@@ -170,7 +217,8 @@ export function createClassLink(className: string, originalText: string, onClick
 export function linkifySmaliInstruction(
     instruction: string,
     onMethodClick?: (reference: MethodReference) => void,
-    onClassClick?: (className: string) => void
+    onClassClick?: (className: string) => void,
+    onFieldClick?: (reference: FieldReference) => void
 ): DocumentFragment {
     const fragment = document.createDocumentFragment();
     
@@ -212,6 +260,47 @@ export function linkifySmaliInstruction(
         lastIndex = methodPattern.lastIndex;
     }
     
+    // Next, try to find field references in the remaining text (avoid re-emitting prefix)
+    const fieldPattern = FIELD_REFERENCE_REGEX;
+    let fieldMatch;
+
+    const searchTextForFields = instruction.substring(lastIndex);
+    let lastIndexField = 0;
+
+    while ((fieldMatch = fieldPattern.exec(searchTextForFields)) !== null) {
+        const [fullMatch, className, fieldName, fieldType] = fieldMatch;
+
+        // Add any text before the match
+        if (fieldMatch.index > lastIndexField) {
+            const textBefore = searchTextForFields.substring(lastIndexField, fieldMatch.index);
+            if (textBefore) {
+                fragment.appendChild(document.createTextNode(textBefore));
+            }
+        }
+
+        // Build and append field link
+        const fieldRef: FieldReference = {
+            className: className.replace(/\//g, '.'),
+            fieldName,
+            fieldType,
+            fullSignature: fullMatch,
+        };
+        const link = createFieldLink(fieldRef, (refClassName) => {
+            // If a specific field handler is provided, prefer it. Otherwise, fall back to class navigation
+            if (onFieldClick) {
+                onFieldClick(fieldRef);
+            } else if (onClassClick) {
+                onClassClick(refClassName);
+            }
+        });
+        fragment.appendChild(link);
+
+        lastIndexField = fieldPattern.lastIndex;
+    }
+
+    // Move lastIndex forward by the amount consumed in fields phase
+    lastIndex += lastIndexField;
+
     // Try to find class references in the format: Lpackage/name/ClassName;
     const classPattern = /L([a-zA-Z_$][a-zA-Z0-9_$/]*(?:\/[a-zA-Z_$][a-zA-Z0-9_$]*)*);/g;
     let classMatch;

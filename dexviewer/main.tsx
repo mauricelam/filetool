@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import React, { useState, useEffect, useRef } from 'react'
-import init, { dex_classes, dex_methods, dex_instructions, JClass, JMethod, JInstruction, init_logger, load_proguard_mapping } from './dexviewer/pkg'
-import { linkifySmaliInstruction, generateClassId } from './linkify'
+import init, { dex_classes, dex_methods, dex_instructions, dex_fields, JClass, JMethod, JInstruction, JField, init_logger, load_proguard_mapping } from './dexviewer/pkg'
+import { linkifySmaliInstruction, generateClassId, generateFieldId } from './linkify'
 
 // Extended interface to include the new fields we added to JMethod
 interface ExtendedJMethod extends JMethod {
@@ -283,37 +283,58 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
 function DexClass({ javaClass, dexfile, level }: { javaClass: JClass, dexfile: Uint8Array, level: number }) {
     const [expanded, setExpanded] = useState(false)
     const [methods, setMethods] = useState<JMethod[]>([])
+    const [fields, setFields] = useState<JField[]>([])
     const [loading, setLoading] = useState(false)
 
-    const loadMethods = async () => {
-        if (!expanded || methods.length > 0) return
+    const loadMembers = async () => {
+        if (!expanded || (methods.length > 0 && fields.length > 0)) return
 
         setLoading(true)
         try {
-            const methods = dex_methods(dexfile, javaClass.id)
-            setMethods(methods)
+            const [m, f] = await Promise.all([
+                Promise.resolve(dex_methods(dexfile, javaClass.id)),
+                Promise.resolve(dex_fields(dexfile, javaClass.id)),
+            ])
+            setMethods(m)
+            setFields(f)
         } catch (error) {
-            console.error('Error loading methods:', error)
+            console.error('Error loading class members:', error)
         } finally {
             setLoading(false)
         }
     }
 
-    useEffect(() => { loadMethods() }, [expanded])
+    useEffect(() => { loadMembers() }, [expanded])
 
     return (
         <div id={generateClassId(javaClass.original_name)} className={["dexclass", expanded ? "expanded" : ""].join(" ")}>
             <div className="class-header" onClick={() => setExpanded(current => !current)}>
                 <span className="membername">{javaClass.original_name}</span>
-                <span className="method-count">{methods.length > 0 && `(${methods.length} methods)`}</span>
+                <span className="method-count">{(methods.length > 0 || fields.length > 0) && `(${fields.length} fields, ${methods.length} methods)`}</span>
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
                 {loading ? (
-                    <div className="loading">Loading methods...</div>
+                    <div className="loading">Loading members...</div>
                 ) : (
-                    methods.map(method => (
-                        <DexMethod key={method.name} method={method as ExtendedJMethod} dexfile={dexfile} />
-                    ))
+                    <>
+                        {/* Fields */}
+                        {fields.length > 0 && (
+                            <div className="fields">
+                                {fields.map((field) => (
+                                    <div key={field.name} id={generateFieldId(javaClass.original_name, field.name)} className="field">
+                                        <div className="field-header">
+                                            {field.access_flags && (<code className="access-flags">{field.access_flags}</code>)}{' '}
+                                            <code className="field-name">{field.type_name} {field.name}</code>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* Methods */}
+                        {methods.map(method => (
+                            <DexMethod key={method.name} method={method as ExtendedJMethod} dexfile={dexfile} />
+                        ))}
+                    </>
                 )}
             </div>
         </div>
@@ -445,6 +466,37 @@ function InstructionLine({ instruction }: { instruction: string }) {
                         }
                         ;((header || el) as HTMLElement).scrollIntoView({ block: 'start' })
                     }
+                })()
+            },
+            // onFieldClick
+            (fieldRef) => {
+                ;(async () => {
+                    const dottedClass = fieldRef.className.replace(/\//g, '.')
+                    await expandPackagePathForClass(dottedClass)
+                    const classId = generateClassId(dottedClass)
+                    await waitFor(() => !!document.getElementById(classId), 2000, 50)
+                    const classEl = document.getElementById(classId)
+                    if (!classEl) return
+
+                    // Ensure class is expanded so fields render
+                    const classHeader = classEl.querySelector('.class-header') as HTMLElement | null
+                    const contentEl = classEl.children.item(1) as HTMLElement | null
+                    if (classHeader && contentEl && contentEl.style.display === 'none') {
+                        classHeader.click()
+                    }
+
+                    // Wait for fields to be present
+                    await waitFor(() => classEl.querySelectorAll('.field').length > 0, 2000, 100)
+
+                    const fieldId = generateFieldId(dottedClass, fieldRef.fieldName)
+                    const fieldEl = document.getElementById(fieldId)
+                    if (fieldEl) {
+                        fieldEl.scrollIntoView({ block: 'start' })
+                        return
+                    }
+
+                    // Fallback: scroll to class
+                    ;(classEl as HTMLElement).scrollIntoView({ block: 'start' })
                 })()
             }
         )

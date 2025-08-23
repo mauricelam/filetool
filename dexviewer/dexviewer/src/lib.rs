@@ -10,6 +10,58 @@ lazy_static! {
     static ref PROGUARD_MAPPER: Mutex<Option<ProguardMapper<'static>>> = Mutex::new(None);
 }
 
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Serialize, Deserialize)]
+pub struct JField {
+    pub name: String,
+    pub type_name: String,
+    pub access_flags: String,
+    pub is_static: bool,
+    pub class_descriptor: String,
+    pub class_id: u32,
+}
+
+#[wasm_bindgen]
+pub fn dex_fields(bytes: Vec<u8>, class_id: u32) -> Result<JsValue, wasm_bindgen::JsError> {
+    let v = dex_fields_impl(bytes, class_id).map_err(|e| JsError::new(&format!("{e}")))?;
+    Ok(serde_wasm_bindgen::to_value(&v)
+        .map_err(|e| JsError::new(&format!("{e}")))?
+        .into())
+}
+
+fn dex_fields_impl(bytes: Vec<u8>, class_id: u32) -> Result<Vec<JField>, anyhow::Error> {
+    let dex = dex::DexReader::from_vec(bytes)?;
+    let Some(Ok(class)) = dex.classes().nth(class_id as usize) else {
+        return Err(anyhow::anyhow!("Class not found"));
+    };
+
+    let class_desc = class.jtype().type_descriptor().to_string();
+
+    let mut out: Vec<JField> = Vec::new();
+
+    for f in class.fields() {
+        let mut flags = Vec::new();
+        if f.is_public() { flags.push("public"); }
+        if f.is_private() { flags.push("private"); }
+        if f.is_protected() { flags.push("protected"); }
+        if f.is_static() { flags.push("static"); }
+        if f.is_final() { flags.push("final"); }
+        if f.is_volatile() { flags.push("volatile"); }
+        if f.is_transient() { flags.push("transient"); }
+
+        out.push(JField {
+            name: f.name().to_string(),
+            type_name: f.jtype().to_java_type(),
+            access_flags: flags.join(" "),
+            is_static: f.is_static(),
+            class_descriptor: class_desc.clone(),
+            class_id,
+        });
+    }
+
+    Ok(out)
+}
+
 #[wasm_bindgen]
 pub fn load_proguard_mapping(mapping: String) {
     let mapping_static: &'static str = Box::leak(mapping.into_boxed_str());
