@@ -2,6 +2,8 @@
 
 Thank you for your interest in contributing to FileMagic! This project is a browser-based WASM file inspection tool that allows users to inspect various file types directly in the browser.
 
+When adding new features or making important changes, be sure to document them in the corresponding README.md file for the handler, or document here if it is a pattern that multiple handlers should follow.
+
 Note to humans: This file is written by LLMs, and mainly intended as a place for coding agents to write down important instructions I gave it over time, and other instructions when it is setting up a change so they can resume with that context.
 
 ## Table of Contents

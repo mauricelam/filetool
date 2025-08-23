@@ -1,12 +1,55 @@
 import { createRoot } from 'react-dom/client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import init, { dex_classes, dex_methods, dex_instructions, JClass, JMethod, JInstruction, init_logger, load_proguard_mapping } from './dexviewer/pkg'
+import { linkifySmaliInstruction, generateClassId } from './linkify'
 
 // Extended interface to include the new fields we added to JMethod
 interface ExtendedJMethod extends JMethod {
     parameters: string[];
     return_type: string;
     access_flags: string;
+}
+
+// Expand the package tree path so the target class node is rendered
+async function expandPackagePathForClass(fullClassName: string): Promise<void> {
+    const parts = fullClassName.split('.')
+    if (parts.length <= 1) return
+    const packageParts = parts.slice(0, -1)
+    const tree = document.querySelector('.package-tree') as HTMLElement | null
+    if (!tree) return
+
+    // Start at the currently rendered container (root tree)
+    let container: Element | null = tree
+    for (const part of packageParts) {
+        if (!container) break
+        // Find the package header with the given name within the current container
+        const headers = Array.from(container.querySelectorAll('.package-node > .package-header')) as HTMLElement[]
+        const header = headers.find(h => (h.querySelector('.package-name')?.textContent || '').trim() === part)
+        if (!header) break
+
+        const node = header.parentElement as HTMLElement
+        let content = node.querySelector(':scope > .package-content') as HTMLElement | null
+        if (!content) {
+            header.click()
+            // Wait until this node's content renders
+            await waitFor(() => !!node.querySelector(':scope > .package-content'), 2000, 50)
+            content = node.querySelector(':scope > .package-content') as HTMLElement | null
+        }
+        container = content
+    }
+}
+
+// Utility: wait until a condition is true, with timeout
+function waitFor(predicate: () => boolean, timeoutMs = 2000, intervalMs = 50): Promise<boolean> {
+    return new Promise((resolve) => {
+        const start = Date.now()
+        const tick = () => {
+            if (predicate()) return resolve(true)
+            if (Date.now() - start >= timeoutMs) return resolve(false)
+            setTimeout(tick, intervalMs)
+        }
+        tick()
+    })
 }
 
 interface PackageNode {
@@ -256,20 +299,13 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: JClass, dexfile: U
         }
     }
 
-    // Load methods when expanded changes to true
-    useEffect(() => {
-        loadMethods()
-    }, [expanded])
-
-    const className = javaClass.original_name.split('.').pop() || javaClass.original_name;
+    useEffect(() => { loadMethods() }, [expanded])
 
     return (
-        <div className={["dexclass", expanded ? "expanded" : ""].join(" ")}>
+        <div id={generateClassId(javaClass.original_name)} className={["dexclass", expanded ? "expanded" : ""].join(" ")}>
             <div className="class-header" onClick={() => setExpanded(current => !current)}>
                 <span className="membername">{javaClass.original_name}</span>
-                <span className="method-count">
-                    {methods.length > 0 && `(${methods.length} methods)`}
-                </span>
+                <span className="method-count">{methods.length > 0 && `(${methods.length} methods)`}</span>
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
                 {loading ? (
@@ -288,10 +324,10 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
     const [expanded, setExpanded] = useState(false)
     const [instructions, setInstructions] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
+    const containerRef = useRef<HTMLDivElement | null>(null)
 
     const loadInstructions = async () => {
         if (!expanded || instructions.length > 0) return
-
         setLoading(true)
         try {
             if (!window['godexviewer']) {
@@ -312,29 +348,202 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
     useEffect(() => { loadInstructions() }, [expanded])
 
     const formatMethodSignature = () => {
-        const params = method.parameters?.length > 0
-            ? method.parameters.join(', ')
-            : '';
-        return `${method.return_type} ${method.name}(${params})`;
+        const params = method.parameters?.length > 0 ? method.parameters.join(', ') : ''
+        return `${method.return_type} ${method.name}(${params})`
     }
 
     return (
         <div className={["method", expanded ? "expanded" : ""].join(" ")}>
             <div className="method-header" onClick={() => setExpanded(current => !current)}>
-                {method.access_flags && (
-                    <span className="access-flags">{method.access_flags} </span>
-                )}
+                {method.access_flags && (<span className="access-flags">{method.access_flags} </span>)}
                 <span className="method-name">{formatMethodSignature()}</span>
             </div>
-            <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
-                {loading ? (<div>Loading instructions...</div>) :
-                    instructions.length > 0 ? (
-                        instructions.map((instruction, i) => (
-                            <div className="instruction" key={i}>{instruction}</div>
-                        ))
-                    ) : (<div>No instructions found</div>)}
+            <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }} ref={containerRef} className="method-content">
+                {loading ? (
+                    <div>Loading instructions...</div>
+                ) : instructions.length > 0 ? (
+                    instructions.map((instruction, i) => (
+                        <div key={i} className="instruction-line">
+                            <InstructionLine instruction={instruction} />
+                        </div>
+                    ))
+                ) : (
+                    <div>No instructions found</div>
+                )}
             </div>
         </div>
     )
 }
 
+function InstructionLine({ instruction }: { instruction: string }) {
+    const lineRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        if (!lineRef.current) return
+
+        // Clear existing contents first
+        lineRef.current.textContent = ''
+
+        const fragment = linkifySmaliInstruction(
+            instruction,
+            // onMethodClick
+            (ref) => {
+                // Run async to allow DOM to update
+                ;(async () => {
+                    // Normalize class name and ensure the package path is expanded so the class exists in DOM
+                    const dottedClass = ref.className.replace(/\//g, '.')
+                    await expandPackagePathForClass(dottedClass)
+                    const classId = generateClassId(dottedClass)
+                    // Wait for class element to appear after expansion
+                    await waitFor(() => !!document.getElementById(classId), 2000, 50)
+                    const classEl = document.getElementById(classId)
+                    if (!classEl) return
+
+                    // Ensure class is expanded so methods can render
+                    const classHeader = classEl.querySelector('.class-header') as HTMLElement | null
+                    const methodsContainer = classEl.children.item(1) as HTMLElement | null
+                    if (classHeader && methodsContainer && methodsContainer.style.display === 'none') {
+                        classHeader.click()
+                    }
+
+                    // Wait for methods to be present (max ~2s)
+                    await waitFor(() => classEl.querySelectorAll('.method').length > 0, 2000, 100)
+
+                    // Find and expand target method
+                    const methodEls = classEl.querySelectorAll('.method')
+                    const target = findBestMethodMatch(methodEls, ref.methodName, ref.parameters)
+                    if (target) {
+                        const headerEl = target.querySelector('.method-header') as HTMLElement | null
+                        const contentEl = target.querySelector('.method-content') as HTMLElement | null
+                        if (headerEl && contentEl && contentEl.style.display === 'none') {
+                            headerEl.click()
+                            // wait one frame for layout after expansion
+                            await new Promise(r => requestAnimationFrame(() => r(null)))
+                        }
+                        ;(headerEl || target).scrollIntoView({ block: 'start' })
+                        return
+                    }
+
+                    // Fallback: scroll to class
+                    ;(classEl as HTMLElement).scrollIntoView({ block: 'start' })
+                })()
+            },
+            // onClassClick
+            (className) => {
+                ;(async () => {
+                    const dotted = className.replace(/\//g, '.')
+                    await expandPackagePathForClass(dotted)
+                    const classId = generateClassId(dotted)
+                    await waitFor(() => !!document.getElementById(classId), 2000, 50)
+                    const el = document.getElementById(classId)
+                    if (el) {
+                        const header = el.querySelector('.class-header') as HTMLElement | null
+                        const content = el.querySelector(':scope > div[style]') as HTMLElement | null
+                        if (header && content && content.style.display === 'none') {
+                            header.click()
+                            await new Promise(r => requestAnimationFrame(() => r(null)))
+                        }
+                        ;((header || el) as HTMLElement).scrollIntoView({ block: 'start' })
+                    }
+                })()
+            }
+        )
+
+        lineRef.current.appendChild(fragment)
+    }, [instruction])
+
+    return (
+        <div
+            ref={lineRef}
+            style={{
+                fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: '0.9em',
+                whiteSpace: 'pre-wrap',
+            }}
+        />
+    )
+}
+
+function findBestMethodMatch(methodEls: NodeListOf<Element>, methodName: string, paramDescriptor: string): HTMLElement | null {
+    const desiredCount = countDescriptorParams(paramDescriptor)
+    const candidates: { el: HTMLElement; name: string; count: number }[] = []
+
+    methodEls.forEach(el => {
+        const nameEl = el.querySelector('.method-header .method-name') as HTMLElement | null
+        if (!nameEl) return
+        const text = (nameEl.textContent || '').trim()
+
+        // Extract the token right before '(' as the method name, ignoring return type
+        // Examples:
+        //  - "void setParent(Type)"
+        //  - "protected static <T> map(List<T>)"
+        const parenIdx = text.indexOf('(')
+        if (parenIdx === -1) return
+        const beforeParen = text.slice(0, parenIdx).trim()
+        const displayedNameMatch = beforeParen.match(/(?:^|\s)(<init>|<clinit>|[a-zA-Z_$][a-zA-Z0-9_$<>]*)$/)
+        const displayedName = displayedNameMatch ? displayedNameMatch[1] : ''
+
+        // Get the parameter list between parentheses
+        const closeIdx = text.indexOf(')', parenIdx + 1)
+        const paramsText = closeIdx !== -1 ? text.slice(parenIdx + 1, closeIdx).trim() : ''
+        const count = paramsText ? paramsText.split(',').filter(s => s.trim().length > 0).length : 0
+
+        // Collect candidates that match by name, or where the text clearly contains `${methodName}(` as a fallback
+        const nameMatches = displayedName === methodName || text.includes(`${methodName}(`)
+        if (nameMatches) {
+            candidates.push({ el: el as HTMLElement, name: displayedName || methodName, count })
+        }
+    })
+
+    if (candidates.length === 0) return null
+
+    // Prefer exact count match
+    const exact = candidates.find(c => c.count === desiredCount)
+    if (exact) return exact.el
+
+    // If only one candidate by name, take it
+    if (candidates.length === 1) return candidates[0].el
+
+    // Fallback: return the first candidate
+    return candidates[0].el
+}
+
+function countDescriptorParams(descriptor: string): number {
+    // Accept inputs like: (II)V, (Lpkg/Name;[I)Z, ([]), or with spaces e.g. ([Lpkg/Name; Lpkg/Other; Z])
+    if (!descriptor) return 0
+    // Normalize: remove whitespace
+    const d = descriptor.replace(/\s+/g, '')
+    if (d === '()' || d === '([])') return 0
+    // Ensure we only parse inside parentheses
+    if (!d.startsWith('(') || d.indexOf(')') === -1) return 0
+    let i = 1 // start after '('
+    let count = 0
+    while (i < d.length) {
+        const ch = d[i]
+        if (ch === ')') break
+        if (ch === '[') {
+            // arrays: consume all '['
+            while (d[i] === '[') i++
+            if (d[i] === 'L') {
+                while (i < d.length && d[i] !== ';') i++
+                if (d[i] === ';') i++
+            } else {
+                // primitive array element
+                i++
+            }
+            count++
+            continue
+        }
+        if (ch === 'L') {
+            while (i < d.length && d[i] !== ';') i++
+            if (d[i] === ';') i++
+            count++
+            continue
+        }
+        // primitive type
+        i++
+        count++
+    }
+    return count
+}
