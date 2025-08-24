@@ -333,7 +333,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                 header.click()
                 await new Promise(r => requestAnimationFrame(() => r(null)))
             }
-            ;((header || el) as HTMLElement).scrollIntoView({ block: 'start' })
+            ;((header || el) as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
     }
 
@@ -523,12 +523,12 @@ function InstructionLine({ instruction }: { instruction: string }) {
                             // wait one frame for layout after expansion
                             await new Promise(r => requestAnimationFrame(() => r(null)))
                         }
-                        ;(headerEl || target).scrollIntoView({ block: 'start' })
+                        ;(headerEl || target).scrollIntoView({ behavior: 'smooth', block: 'start' })
                         return
                     }
 
                     // Fallback: scroll to class
-                    ;(classEl as HTMLElement).scrollIntoView({ block: 'start' })
+                    ;(classEl as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
                 })()
             },
             // onClassClick
@@ -546,7 +546,7 @@ function InstructionLine({ instruction }: { instruction: string }) {
                             header.click()
                             await new Promise(r => requestAnimationFrame(() => r(null)))
                         }
-                        ;((header || el) as HTMLElement).scrollIntoView({ block: 'start' })
+                        ;((header || el) as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }
                 })()
             },
@@ -573,12 +573,12 @@ function InstructionLine({ instruction }: { instruction: string }) {
                     const fieldId = generateFieldId(dottedClass, fieldRef.fieldName)
                     const fieldEl = document.getElementById(fieldId)
                     if (fieldEl) {
-                        fieldEl.scrollIntoView({ block: 'start' })
+                        fieldEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
                         return
                     }
 
                     // Fallback: scroll to class
-                    ;(classEl as HTMLElement).scrollIntoView({ block: 'start' })
+                    ;(classEl as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
                 })()
             }
         )
