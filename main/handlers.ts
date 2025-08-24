@@ -95,18 +95,8 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
-        "name": "Go DEX viewer",
-        "handler": "dexviewer",
-        "mimetypes": [
-            {
-                mime: "application/octet-stream",
-                filename: /.*\.dex/i,
-            },
-        ]
-    },
-    {
         "name": "DEX viewer",
-        "handler": "rustdexviewer",
+        "handler": "dexviewer",
         "mimetypes": [
             {
                 mime: "application/octet-stream",
