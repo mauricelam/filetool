@@ -1,0 +1,2 @@
+1. Read the README.md and CONTIRBUTING.md files in the top level, and the README.md for the relevant handlers that you are editing
+2. After adding a new feature or making a significant change, update the README file with the expectations for future maintainers
