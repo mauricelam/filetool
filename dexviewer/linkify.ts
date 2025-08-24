@@ -301,6 +301,34 @@ export function linkifySmaliInstruction(
     // Move lastIndex forward by the amount consumed in fields phase
     lastIndex += lastIndexField;
 
+    // Next, linkify explicit type tokens like: type=java/lang/IllegalArgumentException
+    // Only process in the remaining tail
+    const typePattern = /\btype=([a-zA-Z_$][a-zA-Z0-9_$/]*(?:\/[a-zA-Z_$][a-zA-Z0-9_$]*)*)/g;
+    const searchTextForTypes = instruction.substring(lastIndex);
+    let lastIndexType = 0;
+    let typeMatch: RegExpExecArray | null;
+
+    while ((typeMatch = typePattern.exec(searchTextForTypes)) !== null) {
+        const [fullMatch, classSlash] = typeMatch;
+
+        // Emit text before the match
+        if (typeMatch.index > lastIndexType) {
+            const textBefore = searchTextForTypes.substring(lastIndexType, typeMatch.index);
+            if (textBefore) fragment.appendChild(document.createTextNode(textBefore));
+        }
+
+        // Only the class fragment should be clickable, not the 'type=' prefix
+        const classOnly = classSlash; // in slash form e.g. java/lang/IllegalArgumentException
+        const link = createClassLink(classOnly, classOnly, onClassClick);
+        fragment.appendChild(document.createTextNode('type='));
+        fragment.appendChild(link);
+
+        lastIndexType = typePattern.lastIndex;
+    }
+
+    // Advance lastIndex by consumed in type phase
+    lastIndex += lastIndexType;
+
     // Try to find class references in the format: Lpackage/name/ClassName;
     const classPattern = /L([a-zA-Z_$][a-zA-Z0-9_$/]*(?:\/[a-zA-Z_$][a-zA-Z0-9_$]*)*);/g;
     let classMatch;

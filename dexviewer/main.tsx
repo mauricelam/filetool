@@ -351,7 +351,15 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
         })
 
         const ifaceNodes = ifaces.map((i, idx) => (
-            <code key={idx} className="iface" title={i}>{i}</code>
+            <span
+                key={idx}
+                className="class-link"
+                style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(i) }}
+                title={i}
+            >
+                {i}
+            </span>
         ))
 
         return (
@@ -402,14 +410,29 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                         {/* Fields */}
                         {fields.length > 0 && (
                             <div className="fields">
-                                {fields.map((field) => (
-                                    <div key={field.name} id={generateFieldId(javaClass.original_name, field.name)} className="field">
-                                        <div className="field-header">
-                                            {field.access_flags && (<code className="access-flags">{field.access_flags}</code>)}{' '}
-                                            <code className="field-name">{field.type_name} {field.name}</code>
+                                {fields.map((field) => {
+                                    const isPrimitive = /^(void|boolean|byte|short|char|int|long|float|double)(\[\])*$/.test(field.type_name)
+                                    const typeNode = isPrimitive ? (
+                                        <code className="type-name">{field.type_name}</code>
+                                    ) : (
+                                        <span
+                                            className="class-link"
+                                            style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(field.type_name) }}
+                                            title={field.type_name}
+                                        >
+                                            {field.type_name}
+                                        </span>
+                                    )
+                                    return (
+                                        <div key={field.name} id={generateFieldId(javaClass.original_name, field.name)} className="field">
+                                            <div className="field-header">
+                                                {field.access_flags && (<code className="access-flags">{field.access_flags}</code>)}{' '}
+                                                <span className="field-name">{typeNode} {field.name}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                         {/* Methods */}
