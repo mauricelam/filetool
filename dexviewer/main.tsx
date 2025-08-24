@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import React, { useState, useEffect, useRef } from 'react'
-import init, { dex_classes, dex_methods, dex_instructions, dex_fields, JClass, JMethod, JInstruction, JField, init_logger, load_proguard_mapping } from './dexviewer/pkg'
+import init, { dex_classes, dex_methods, dex_fields, JClass, JMethod, JField, init_logger, load_proguard_mapping } from './dexviewer/pkg'
 import { linkifySmaliInstruction, generateClassId, generateFieldId } from './linkify'
 
 // Extended interface to include the new fields we added to JMethod
@@ -9,6 +9,14 @@ interface ExtendedJMethod extends JMethod {
     return_type: string;
     access_flags: string;
 }
+
+// Extended shape for JClass to support newly added fields while staying compatible with current bindings
+type ExtendedJClass = JClass & Partial<{
+    access_flags: string;
+    super_name: string | null;
+    interfaces: string[];
+    annotations: string[];
+}>;
 
 // Expand the package tree path so the target class node is rendered
 async function expandPackagePathForClass(fullClassName: string): Promise<void> {
@@ -280,7 +288,7 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
 }
 
 
-function DexClass({ javaClass, dexfile, level }: { javaClass: JClass, dexfile: Uint8Array, level: number }) {
+function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, dexfile: Uint8Array, level: number }) {
     const [expanded, setExpanded] = useState(false)
     const [methods, setMethods] = useState<JMethod[]>([])
     const [fields, setFields] = useState<JField[]>([])
@@ -306,8 +314,75 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: JClass, dexfile: U
 
     useEffect(() => { loadMembers() }, [expanded])
 
+    const navigateToClass = async (className: string) => {
+        const dotted = className.replace(/\//g, '.')
+        await expandPackagePathForClass(dotted)
+        const classId = generateClassId(dotted)
+        await waitFor(() => !!document.getElementById(classId), 2000, 50)
+        const el = document.getElementById(classId)
+        if (el) {
+            const header = el.querySelector('.class-header') as HTMLElement | null
+            const content = el.querySelector(':scope > div[style]') as HTMLElement | null
+            if (header && content && content.style.display === 'none') {
+                header.click()
+                await new Promise(r => requestAnimationFrame(() => r(null)))
+            }
+            ;((header || el) as HTMLElement).scrollIntoView({ block: 'start' })
+        }
+    }
+
+    const renderClassMeta = () => {
+        const flags = javaClass.access_flags || ''
+        const superName = javaClass.super_name || null
+        const ifaces = javaClass.interfaces || []
+        const annos = javaClass.annotations || []
+
+        if (!flags && !superName && ifaces.length === 0 && annos.length === 0) return null
+
+        const annoChips = annos.map((a, i) => {
+            const simple = a.split('.').pop() || a
+            return <code key={i} title={a} className="annotation">@{simple}</code>
+        })
+
+        const ifaceNodes = ifaces.map((i, idx) => (
+            <code key={idx} className="iface" title={i}>{i}</code>
+        ))
+
+        return (
+            <div className="class-meta" style={{ fontSize: '0.9em', color: '#555', margin: '4px 0 8px' }}>
+                {flags && (
+                    <div><span style={{ opacity: 0.8 }}>flags:</span> <code className="access-flags">{flags}</code></div>
+                )}
+                {superName && (
+                    <div>
+                        <span style={{ opacity: 0.8 }}>extends:</span>{' '}
+                        <span
+                            className="class-link"
+                            style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(superName) }}
+                            title={superName}
+                        >
+                            {superName}
+                        </span>
+                    </div>
+                )}
+                {ifaceNodes.length > 0 && (
+                    <div><span style={{ opacity: 0.8 }}>implements:</span> <span style={{ display: 'inline-flex', gap: 6 }}>{ifaceNodes}</span></div>
+                )}
+                {annoChips.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ opacity: 0.8 }}>annotations:</span>
+                        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>{annoChips}</span>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
     return (
-        <div id={generateClassId(javaClass.original_name)} className={["dexclass", expanded ? "expanded" : ""].join(" ")}>
+        <div id={generateClassId(javaClass.original_name)} className={[
+            "dexclass", expanded ? "expanded" : ""
+        ].join(" ")}>
             <div className="class-header" onClick={() => setExpanded(current => !current)}>
                 <span className="membername">{javaClass.original_name}</span>
                 <span className="method-count">{(methods.length > 0 || fields.length > 0) && `(${fields.length} fields, ${methods.length} methods)`}</span>
@@ -317,6 +392,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: JClass, dexfile: U
                     <div className="loading">Loading members...</div>
                 ) : (
                     <>
+                        {renderClassMeta()}
                         {/* Fields */}
                         {fields.length > 0 && (
                             <div className="fields">

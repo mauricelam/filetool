@@ -8,6 +8,9 @@ A handler for Android DEX files that provides parsing and analysis using Rust an
 - Display class hierarchy and structure
 - View method information and bytecode
 - Show field definitions and types
+- Show class metadata: access flags, superclass, implemented interfaces, and annotations
+- Clickable navigation for superclass (from the “extends” line) and other class references
+- Optional Proguard mapping support to deobfuscate class names
 - Support for APK files (extracts and parses DEX)
 - Rust-based parsing implementation
 
@@ -84,6 +87,22 @@ rustdexviewer/
 
 The handler uses a Rust library compiled to WebAssembly to parse Android DEX files. The parsed class structure is displayed in a tree view showing methods, fields, and bytecode information.
 
+## Class metadata (extends, implements, annotations)
+
+- __Where__: Under each class header in the expanded view of `dexviewer/main.tsx`.
+- __Displays__:
+  - __flags:__ class access flags (e.g., `public final`)
+  - __extends:__ superclass name (clickable to navigate)
+  - __implements:__ list of interfaces
+  - __annotations:__ class annotations rendered as `@Anno` chips (tooltip shows fully qualified name)
+- __Bindings__: These are provided by the WASM type `JClass` in `dexviewer/src/lib.rs` via the fields `access_flags`, `super_name`, `interfaces`, `annotations`.
+- __Navigation__: Clicking the superclass expands the package path and scrolls to that class.
+
+### Proguard mapping (optional)
+
+- Upload a Proguard `mapping.txt` via the file input at the top of the viewer.
+- The mapping is applied to class names and the tree is refreshed with deobfuscated names.
+
 ## Rust Library Features
 
 The `dex-parser` directory contains the core Rust library for parsing Android DEX files:
@@ -109,6 +128,7 @@ Smali instruction lines rendered in the UI are linkified so you can click method
 
 - __Implementation file__: `dexviewer/linkify.ts`
 - __Entry function__: `linkifySmaliInstruction(instruction, onMethodClick, onClassClick, onFieldClick)`
+ - Also, the class metadata’s __extends__ entry is linkified within `dexviewer/main.tsx` for quick navigation.
 
 ### What gets linkified
 - __Method references__ in plain form, e.g.

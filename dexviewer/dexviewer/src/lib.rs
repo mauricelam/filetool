@@ -79,6 +79,14 @@ pub struct JClass {
     /// The class ID that the Go side uses, which is the index of the class in the iterator.
     /// Note: This is not the same as class.id()
     pub id: u32,
+    /// Space-separated access flags like "public final".
+    pub access_flags: String,
+    /// Java type name of the superclass, if present.
+    pub super_name: Option<String>,
+    /// Java type names of implemented interfaces.
+    pub interfaces: Vec<String>,
+    /// Annotation type names present on the class (e.g., "Lcom/example/Anno;" -> "com.example.Anno").
+    pub annotations: Vec<String>,
 }
 
 #[wasm_bindgen]
@@ -114,11 +122,51 @@ fn dex_classes_impl(bytes: Vec<u8>) -> Result<Vec<JClass>, anyhow::Error> {
                     obfuscated_name.clone()
                 };
 
+                // Class access flags
+                let access_flags = {
+                    let mut flags: Vec<&str> = Vec::new();
+                    if c.is_public() { flags.push("public"); }
+                    if c.is_private() { flags.push("private"); }
+                    if c.is_protected() { flags.push("protected"); }
+                    if c.is_static() { flags.push("static"); }
+                    if c.is_final() { flags.push("final"); }
+                    if c.is_interface() { flags.push("interface"); }
+                    if c.is_abstract() { flags.push("abstract"); }
+                    if c.is_synthetic() { flags.push("synthetic"); }
+                    if c.is_annotation() { flags.push("annotation"); }
+                    if c.is_enum() { flags.push("enum"); }
+                    flags.join(" ")
+                };
+
+                // Superclass name (java type) if present
+                let super_name = c
+                    .super_class()
+                    .and_then(|sid| dex.get_type(sid).ok())
+                    .map(|t| t.to_java_type());
+
+                // Implemented interfaces as java type names
+                let interfaces: Vec<String> = c
+                    .interfaces()
+                    .iter()
+                    .map(|t| t.to_java_type())
+                    .collect();
+
+                // Class-level annotations: list of annotation type names as java types
+                let annotations: Vec<String> = c
+                    .annotations()
+                    .iter()
+                    .map(|ann| ann.jtype().to_java_type())
+                    .collect();
+
                 JClass {
                     name: obfuscated_name,
                     original_name,
                     descriptor: c.jtype().type_descriptor().to_string(),
                     id: i as u32,
+                    access_flags,
+                    super_name,
+                    interfaces,
+                    annotations,
                 }
             })
         })
