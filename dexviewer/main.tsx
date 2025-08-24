@@ -82,6 +82,12 @@ window.onmessage = (e) => {
     }
 }
 
+// Generate a stable unique key for a method element
+function getMethodKey(method: ExtendedJMethod): string {
+    const params = (method.parameters || []).join(',')
+    return `m|${method.class_id}|${method.name}|${params}|${method.return_type}`
+}
+
 if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' })
 }
@@ -408,7 +414,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                         )}
                         {/* Methods */}
                         {methods.map(method => (
-                            <DexMethod key={method.name} method={method as ExtendedJMethod} dexfile={dexfile} />
+                            <DexMethod key={getMethodKey(method as ExtendedJMethod)} method={method as ExtendedJMethod} dexfile={dexfile} />
                         ))}
                     </>
                 )}

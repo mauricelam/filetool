@@ -235,7 +235,7 @@ export function linkifySmaliInstruction(
     
     while ((methodMatch = methodPattern.exec(instruction)) !== null) {
         const [fullMatch, className, methodName, parameters, returnType] = methodMatch;
-        console.log('[linkifySmaliInstruction] Found method reference:', { fullMatch, className, methodName, parameters, returnType });
+        // console.log('[linkifySmaliInstruction] Found method reference:', { fullMatch, className, methodName, parameters, returnType });
         
         // Add any text before the match
         if (methodMatch.index > lastIndex) {
