@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 
 declare global {
   interface Window {
-    derToAscii: (data: Uint8Array) => string;
+    derToAscii: (data: ArrayBuffer) => string;
     Go: any;
   }
 }

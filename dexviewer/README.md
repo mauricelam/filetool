@@ -1,4 +1,4 @@
-# Rust DEX Viewer
+# Android DEX Viewer
 
 A handler for Android DEX files that provides parsing and analysis using Rust and WebAssembly.
 
