@@ -82,15 +82,36 @@ func protoscopeFile(this js.Value, args []js.Value) interface{} {
 			return fmt.Sprintf("Error creating file descriptor: %v", err)
 		}
 
-		// Get the message descriptor directly
-		desc, err := files.FindDescriptorByName(protoreflect.FullName(goMessageName))
-		if err != nil {
-			return fmt.Sprintf("Error finding message '%s' (%s) in schema: %v", goMessageName, protoreflect.FullName(goMessageName), err)
-		}
+		// Try to find the message descriptor using a more robust search.
+		var md protoreflect.MessageDescriptor
+		files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+			// Define a recursive search function to check nested messages.
+			var find func(mds protoreflect.MessageDescriptors) protoreflect.MessageDescriptor
+			find = func(mds protoreflect.MessageDescriptors) protoreflect.MessageDescriptor {
+				for i := 0; i < mds.Len(); i++ {
+					msg := mds.Get(i)
+					// Check full name match (e.g., "package.Message") or simple name match.
+					if string(msg.FullName()) == goMessageName || string(msg.Name()) == goMessageName {
+						return msg
+					}
+					// Recurse into nested messages.
+					if found := find(msg.Messages()); found != nil {
+						return found
+					}
+				}
+				return nil
+			}
 
-		md, ok := desc.(protoreflect.MessageDescriptor)
-		if !ok {
-			return fmt.Sprintf("Error: Descriptor for '%s' is not a message descriptor", goMessageName)
+			if found := find(fd.Messages()); found != nil {
+				md = found
+				return false // Found, stop searching.
+			}
+
+			return true // Not found, continue to next file.
+		})
+
+		if md == nil {
+			return fmt.Sprintf("Error: Could not find message descriptor for '%s'", goMessageName)
 		}
 
 		opts.Schema = md
