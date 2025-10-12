@@ -23,7 +23,8 @@
         "der",
         "esbuild-plugins",
         "rstviewer",
-        "graphviz"
+        "graphviz",
+        "cborviewer"
     ],
     "scripts": {
         "start": "node serve.mjs",

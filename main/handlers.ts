@@ -63,6 +63,16 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
+        "name": "CBOR Viewer",
+        "handler": "cborviewer",
+        "mimetypes": [
+            "application/cbor",
+            {
+                filename: /\.cbor$/i,
+            }
+        ]
+    },
+    {
         "name": "Hex",
         "handler": "hex_viewer",
         "mimetypes": [
