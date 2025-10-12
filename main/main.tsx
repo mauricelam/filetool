@@ -7,6 +7,10 @@ import { FileItem } from "./fileitem";
 
 const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
+const pasteHint = document.getElementById('paste-hint')!!
+
+const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
 
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
@@ -55,6 +59,28 @@ document.ondragover = (e) => {
 }
 document.ondragend = (e) => e.preventDefault()
 document.ondrop = (e) => e.preventDefault()
+
+document.addEventListener('paste', async (e) => {
+    e.preventDefault();
+    const files = Array.from(e.clipboardData?.items || [])
+        .filter(item => item.kind === 'file')
+        .map(item => item.getAsFile())
+        .filter((file): file is File => file !== null);
+
+    if (files.length > 0) {
+        dispatchOpenFiles(files);
+        return;
+    }
+
+    const text = e.clipboardData?.getData('text/plain');
+    if (text) {
+        const file = new File([text], 'pasted.txt', { type: 'text/plain' });
+        dispatchOpenFiles([file]);
+        return;
+    }
+
+    alert('Cannot parse information from clipboard');
+});
 
 const MAGIC = WASMagic.create({
     flags: WASMagicFlags.NONE,
