@@ -61,9 +61,6 @@ document.ondragend = (e) => e.preventDefault()
 document.ondrop = (e) => e.preventDefault()
 
 document.addEventListener('paste', async (e) => {
-    if (e.target !== document.body) {
-        return;
-    }
     e.preventDefault();
     const files = Array.from(e.clipboardData?.items || [])
         .filter(item => item.kind === 'file')
@@ -79,7 +76,10 @@ document.addEventListener('paste', async (e) => {
     if (text) {
         const file = new File([text], 'pasted.txt', { type: 'text/plain' });
         dispatchOpenFiles([file]);
+        return;
     }
+
+    alert('Cannot parse information from clipboard');
 });
 
 const MAGIC = WASMagic.create({
