@@ -8,6 +8,7 @@ declare const Go: any;
 import * as protobuf from 'protobufjs'; // Using full version
 import 'protobufjs/ext/descriptor'; // Import the descriptor extension
 import { FileDescriptorSet } from 'protobufjs/ext/descriptor';
+import { normalizeMapEntryNames } from './normalizeMapEntryNames';
 
 // Declare protoscope on window
 declare global {
@@ -28,7 +29,7 @@ const App: React.FC = () => {
     const [messageTypes, setMessageTypes] = useState<string[]>([]);
     const [output, setOutput] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [loading, setLoading] = useState<string>("Initializing...");
+    const [loading, setLoading] = useState<string | null>("Initializing...");
     const [wasmLoaded, setWasmLoaded] = useState<boolean>(false);
 
     // Effect for requesting the main file from parent
@@ -64,8 +65,12 @@ const App: React.FC = () => {
 
             try {
                 const protoContents = await file.text();
-                const parsed = protobuf.parse(protoContents);
+                const parsed = protobuf.parse(protoContents, { keepCase: false });
                 const root = parsed.root;
+                // Ensure all type references are resolved before descriptor generation
+                // This avoids "illegal type" errors from protobuf.js when forward references
+                // or recursive type graphs are present in the schema.
+                root.resolveAll();
 
                 // Extract all message types from the root
                 const types: string[] = [];
@@ -178,9 +183,17 @@ const App: React.FC = () => {
                 setLoading("Parsing .proto schema and processing...");
                 const protoContents = await schemaFile.text();
                 try {
-                    const parsed = protobuf.parse(protoContents);
+                    const parsed = protobuf.parse(protoContents, { keepCase: false });
                     const root = parsed.root;
+                    // Ensure all references are resolved prior to descriptor conversion
+                    root.resolveAll();
                     const fds = (root as any).toDescriptor();
+                    // Normalize map entry naming to match Go's protodesc implicit map rules
+                    try {
+                        normalizeMapEntryNames(fds);
+                    } catch (normErr) {
+                        console.warn('Map entry normalization failed, proceeding without it:', normErr);
+                    }
                     console.log('parsed', fds)
 
                     const fdsBytes = FileDescriptorSet.encode(fds).finish();

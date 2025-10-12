@@ -31,6 +31,32 @@ A handler for Protocol Buffer files that displays the human-readable representat
 - Processes files entirely in the browser
 - No external dependencies or network requests
 
+### Schema parsing notes
+
+- When a `.proto` schema is supplied, we parse it with `protobuf.js` and generate a `FileDescriptorSet` for the WASM backend.
+- To robustly support forward references and recursive type graphs in user-provided schemas, the app now calls `root.resolveAll()` on the parsed `Root` before generating the descriptor. This prevents "illegal type" errors (e.g., when a message references another message defined later in the file) without requiring any modification to the original `.proto` file.
+
+#### Map entry normalization (`normalizeMapEntryNames`)
+
+Go's `protodesc` enforces a specific convention for implicit map entry types:
+
+- For a map field named `foo` on a message `Parent`, there must be a nested message named `FooEntry` inside `Parent` with `options.map_entry = true`.
+- The map field's descriptor (`FieldDescriptorProto`) must reference that nested entry by a fully-qualified `type_name` (e.g., `.package.Parent.FooEntry`).
+
+`protobuf.js` may emit a different name for the implicit entry (e.g., `Foo`) or leave `typeName` unqualified, which causes `protodesc` to reject the descriptor with errors like:
+
+```
+proto: message field "X.Y.Parent.foo" is an invalid map: incorrect implicit map entry name
+```
+
+To avoid requiring any changes to the original `.proto` file, we normalize the descriptor object prior to encoding and passing it to Go:
+
+- Rename any implicit map entry nested type to `<FieldName>Entry`.
+- Set the map field's `type_name`/`typeName` to the fully-qualified nested entry name (e.g., `.package.Parent.FooEntry`).
+- Fully-qualify other message references where possible to reduce ambiguity.
+
+Implementation: see `protoscope/normalizeMapEntryNames.tsx`. This module mutates the in-memory `FileDescriptorSet` produced by `protobuf.js` to match Go's expectations.
+
 ## Dependencies
 
 - **Go protobuf libraries** - Protocol Buffer parsing and validation
@@ -50,8 +76,20 @@ npm run watch
 
 ## Testing
 
+This package uses Vitest for unit tests.
+
 ```bash
+# Install dev dependencies (first time only)
+npm install
+
+# Run tests
 npm test
+```
+
+If you see module resolution errors (e.g., missing `acorn`), ensure dev dependencies are installed in this sub-package directory (`protoscope/`). You can also explicitly install Vitest and related deps:
+
+```bash
+npm i -D vitest
 ```
 
 ## File Structure
