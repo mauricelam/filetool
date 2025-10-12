@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { processData } from './cbor';
 
 // Request file from parent window
 if (window.parent) {
@@ -7,46 +8,11 @@ if (window.parent) {
 }
 
 const CBORViewer: React.FC = () => {
-    const [cborInput, setCborInput] = useState<string>('');
+    const [cborInput, setCborInput] = useState<Uint8Array | null>(null);
     const [output, setOutput] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const workerRef = useRef<Worker | null>(null);
-
-    // Initialize worker
-    useEffect(() => {
-        workerRef.current = new Worker(new URL('./cbor.worker.js', import.meta.url), { type: 'module' });
-
-        workerRef.current.onmessage = (e) => {
-            const { type, result, error, success } = e.data;
-
-            switch (type) {
-                case 'init':
-                    if (!success) {
-                        setError('Failed to initialize cbor-diag-rs: ' + error);
-                    }
-                    break;
-
-                case 'process':
-                    setIsProcessing(false);
-                    if (error) {
-                        setError(error);
-                        setOutput('');
-                    } else {
-                        setOutput(result);
-                        setError('');
-                    }
-                    break;
-            }
-        };
-
-        // Initialize worker
-        workerRef.current.postMessage({ type: 'init' });
-
-        return () => {
-            workerRef.current?.terminate();
-        };
-    }, []);
 
     useEffect(() => {
         const handleMessage = async (e: MessageEvent) => {
@@ -54,15 +20,12 @@ const CBORViewer: React.FC = () => {
                 try {
                     const file = e.data.file as File;
                     const arrayBuffer = await file.arrayBuffer();
-                    const hexString = Array.from(new Uint8Array(arrayBuffer))
-                        .map(b => b.toString(16).padStart(2, '0'))
-                        .join('');
-                    setCborInput(hexString);
+                    setCborInput(new Uint8Array(arrayBuffer));
                     setOutput(''); // Clear previous output
                     setError(''); // Clear previous error
                 } catch (err) {
                     setError(`Error reading file: ${err.message}`);
-                    setCborInput('');
+                    setCborInput(null);
                 }
             }
         };
@@ -75,17 +38,23 @@ const CBORViewer: React.FC = () => {
 
     useEffect(() => {
         const processCbor = async () => {
-            if (!cborInput.trim()) {
+            if (!cborInput) {
                 setOutput('');
                 setError('');
                 return;
             }
 
             setIsProcessing(true);
-            workerRef.current?.postMessage({
-                type: 'process',
-                data: cborInput
-            });
+            try {
+                const result = await processData(cborInput);
+                setOutput(result);
+                setError('');
+            } catch (e: any) {
+                setError(`Error processing CBOR: ${e?.message ?? String(e)}`);
+                setOutput('');
+            } finally {
+                setIsProcessing(false);
+            }
         };
 
         processCbor();

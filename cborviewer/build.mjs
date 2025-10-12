@@ -1,9 +1,7 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
-import pkg from 'esbuild-plugin-wasm';
 import process from 'process';
-
-const { default: wasmPlugin } = pkg;
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs'; // Import the new plugin
 
 const isDev = process.env.BUILD_MODE === 'dev';
 
@@ -14,6 +12,14 @@ await esbuild.build({
     outdir: '../dist/cborviewer',
     platform: 'browser',
     plugins: [
+        rustWasm({
+            projectDir: 'cbor-diag-wasm',
+            outName: 'cbor-diag-wasm', // wasm-pack will add _bg to the .wasm file, so this becomes abxml_wrapper_bg.wasm and abxml_wrapper.js
+            watchPaths: [ // Paths relative to projectDir (cbor-diag-wasm)
+                'src/**/*.rs',
+                'Cargo.toml',
+            ]
+        }),
         copy({
             assets: [
                 {
@@ -27,22 +33,6 @@ await esbuild.build({
     minify: !isDev,
     target: ['es2022'],
     format: 'esm',
-    define: {
-        'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
-    }
-});
-
-// Build the worker bundle
-await esbuild.build({
-    entryPoints: ['cbor.worker.ts'],
-    bundle: true,
-    outdir: '../dist/cborviewer',
-    platform: 'browser',
-    sourcemap: isDev,
-    minify: !isDev,
-    target: ['es2022'],
-    format: 'esm',
-    plugins: [wasmPlugin()],
     define: {
         'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
     }

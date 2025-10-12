@@ -8,10 +8,10 @@ if (window.parent) {
 }
 
 const JQViewer: React.FC = () => {
-    const [jsonInput, setJsonInput] = useState<string>('');
+    const [jsonInput, setJsonInput] = useState<string | null>('');
     const [jqFilter, setJqFilter] = useState<string>('.');
     const [output, setOutput] = useState<any>(null);
-    const [error, setError] = useState<string>('');
+    const [error, setError] = useState<string | null>('');
     const [jqVersion, setJqVersion] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -87,9 +87,9 @@ const JQViewer: React.FC = () => {
 
     useEffect(() => {
         const processJson = async () => {
-            if (!jsonInput.trim()) {
+            if (!jsonInput || !jsonInput.trim()) {
                 setOutput(null);
-                setError('');
+                setError(null);
                 return;
             }
 
