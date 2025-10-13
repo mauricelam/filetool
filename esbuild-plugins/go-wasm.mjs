@@ -30,7 +30,7 @@ export const goWasm = (options) => {
 
       goRoot = execSync('go env GOROOT', { encoding: 'utf-8' }).trim();
 
-      const wasmExecJsSrc = path.join(goRoot, 'lib', 'wasm', 'wasm_exec.js');
+      const wasmExecJsSrc = path.join(goRoot, 'misc', 'wasm', 'wasm_exec.js');
 
       const buildWasm = () => {
         if (isBuilding) {

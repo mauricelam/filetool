@@ -2,7 +2,7 @@ import finalhandler from 'finalhandler'
 import { createServer } from 'http'
 import serveStatic from 'serve-static'
 
-const serve = serveStatic('./dist/main', {
+const serve = serveStatic('./dist', {
   setHeaders: setHeaders
 })
 
