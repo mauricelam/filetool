@@ -236,6 +236,7 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             mimetype={mime}
             description={description}
             matchedHandlers={handlers}
+            allHandlers={HANDLERS}
             initialActiveHandler={defaultHandler}
             onOpenHandler={(handlerId, filename, mimetype) => {
                 openHandler(handlerId, file, mimetype);

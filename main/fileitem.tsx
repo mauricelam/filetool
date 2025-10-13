@@ -2,6 +2,7 @@ import React, { CSSProperties, ReactElement, useEffect, useState } from "react";
 import CustomTypes from "./mime-db/custom-types.json";
 import IanaTypes from "./mime-db/iana-types.json";
 import { setDefaultHandler, getDefaultHandler } from './defaultHandlers';
+import { HandlerDefinition } from "../handlers";
 
 function getIcon(name: string) {
     for (const ext in ICON_LOOKUP) {
@@ -12,23 +13,20 @@ function getIcon(name: string) {
     return `icons/default_file.svg`
 }
 
-interface HandlerConfig {
-    name: string;
-    handler: string;
-    mimetypes?: any[]; // Optional, as it's not used directly here but good for type consistency
-}
-
 interface FileItemProps {
     name: string;
     mimetype: string;
     description: string;
-    matchedHandlers: HandlerConfig[];
+    matchedHandlers: HandlerDefinition[];
+    allHandlers: HandlerDefinition[];
     onOpenHandler: (handlerId: string, filename: string, mimetype: string) => void;
     initialActiveHandler?: string;
 }
 
 export function FileItem(props: FileItemProps) {
-    const { name, mimetype, description, matchedHandlers, onOpenHandler, initialActiveHandler } = props;
+    const { name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler } = props;
+    const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
+    const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
@@ -163,10 +161,68 @@ export function FileItem(props: FileItemProps) {
                                             </div>
                                         );
                                     })}
+                                <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                                    <button
+                                        onClick={() => setOtherHandlersDialogOpen(true)}
+                                        style={{ ...buttonStyle }}
+                                        title="Show all handlers"
+                                    >
+                                        Other
+                                        <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" /></svg>
+                                    </button>
+                                </div>
                             </div>
                         </>
                     )}
                 </div>
+                {isOtherHandlersDialogOpen && (
+                    <div className="other-handlers-dialog-overlay">
+                        <div className="other-handlers-dialog">
+                            <button className="close-button" onClick={() => setOtherHandlersDialogOpen(false)}>×</button>
+                            <h2>All Handlers</h2>
+                            <input
+                                type="text"
+                                placeholder="Filter by name, mime, or extension"
+                                value={otherHandlersFilter}
+                                onChange={(e) => setOtherHandlersFilter(e.target.value)}
+                                className="filter-input"
+                            />
+                            <div className="handlers-grid">
+                                {allHandlers
+                                    .filter(handler => {
+                                        const filter = otherHandlersFilter.toLowerCase();
+                                        if (!filter) return true;
+
+                                        const nameMatch = handler.name.toLowerCase().includes(filter);
+                                        const mimeMatch = handler.mimetypes.some(m => {
+                                            if (typeof m === 'string') {
+                                                return m.toLowerCase().includes(filter);
+                                            } else if (m instanceof RegExp) {
+                                                return m.source.toLowerCase().includes(filter);
+                                            } else if (typeof m === 'object' && m.filename instanceof RegExp) {
+                                                return m.filename.source.toLowerCase().includes(filter)
+                                            }
+                                            return false;
+                                        });
+
+                                        return nameMatch || mimeMatch;
+                                    })
+                                    .map(handler => (
+                                        <button
+                                            key={handler.handler}
+                                            onClick={() => {
+                                                onOpenHandler(handler.handler, name, mimetype);
+                                                setOtherHandlersDialogOpen(false);
+                                            }}
+                                            className="handler-button"
+                                        >
+                                            {handler.name}
+                                        </button>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
             <style>
                 {`
@@ -176,6 +232,62 @@ export function FileItem(props: FileItemProps) {
                     }
                     .circle-container:hover {
                         opacity: 1;
+                    }
+                    .other-handlers-dialog-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background-color: rgba(0, 0, 0, 0.5);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 1000;
+                    }
+                    .other-handlers-dialog {
+                        background: white;
+                        padding: 20px;
+                        border-radius: 8px;
+                        width: 80%;
+                        max-width: 600px;
+                        max-height: 80vh;
+                        overflow-y: auto;
+                        position: relative;
+                    }
+                    .close-button {
+                        position: absolute;
+                        top: 10px;
+                        right: 10px;
+                        background: transparent;
+                        border: none;
+                        font-size: 24px;
+                        cursor: pointer;
+                    }
+                    .filter-input {
+                        width: 100%;
+                        box-sizing: border-box;
+                        padding: 8px;
+                        margin-bottom: 15px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                    }
+                    .handlers-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                        gap: 10px;
+                    }
+                    .handler-button {
+                        padding: 10px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        background-color: #f0f0f0;
+                        cursor: pointer;
+                        text-align: center;
+                        font-size: 14px;
+                    }
+                    .handler-button:hover {
+                        background-color: #e0e0e0;
                     }
                 `}
             </style>
