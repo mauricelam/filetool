@@ -161,15 +161,17 @@ export function FileItem(props: FileItemProps) {
                                             </div>
                                         );
                                     })}
+                                <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                                    <button
+                                        onClick={() => setOtherHandlersDialogOpen(true)}
+                                        style={{ ...buttonStyle }}
+                                        title="Show all handlers"
+                                    >
+                                        Other
+                                        <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" /></svg>
+                                    </button>
+                                </div>
                             </div>
-                            <button
-                                onClick={() => setOtherHandlersDialogOpen(true)}
-                                style={{ ...buttonStyle, padding: '6px' }}
-                                title="Show all handlers"
-                            >
-                                Other
-                                <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" /></svg>
-                            </button>
                         </>
                     )}
                 </div>
@@ -264,6 +266,7 @@ export function FileItem(props: FileItemProps) {
                     }
                     .filter-input {
                         width: 100%;
+                        box-sizing: border-box;
                         padding: 8px;
                         margin-bottom: 15px;
                         border: 1px solid #ccc;
