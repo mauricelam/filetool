@@ -328,7 +328,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "der",
         "mimetypes": [
             {
-                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"), // Using new RegExp()
+                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"),
             },
             "application/x-x509-ca-cert",
             "application/pkix-cert",
@@ -344,16 +344,14 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "protoscope",
         "mimetypes": [
             {
-                mime: "application/octet-stream",
+                mime: "application/x-protobuf",
+            },
+            {
                 filename: /\.pb$/i,
             },
             {
-                mime: "application/x-protobuf",
-                filename: /\.pb$/i,
+                filename: /\.binbp$/i,
             },
-            { // Fallback for just filename if mime type is generic
-                filename: /\.pb$/i,
-            }
         ]
     }
 ]
