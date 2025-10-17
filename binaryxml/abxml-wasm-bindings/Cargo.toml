@@ -25,3 +25,6 @@ anyhow = "1.0.87"
 log = "0.4"
 console_log = "1.0"
 console_error_panic_hook = "0.1"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(wasm_bindgen_unstable_test_coverage)'] }
