@@ -15,22 +15,26 @@ pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
 dropTarget.addEventListener('drop', (e) => {
-    dropTarget.classList.remove('dropover')
+    dropTarget.classList.remove('dropover');
     e.preventDefault();
-    let hasNonFile = false
+    let hasNonFile = false;
     const items = Array.from(e.dataTransfer!.items).filter(item => {
-        if (item.webkitGetAsEntry()?.isFile) {
-            return true
+        const entry = item.webkitGetAsEntry();
+        if (entry?.isFile) {
+            return true;
+        } else if (entry?.isDirectory) {
+            alert("Error: Dropping folders is not supported.");
+            return false;
         } else {
-            hasNonFile = true
-            return false
+            hasNonFile = true;
+            return false;
         }
-    })
+    });
     if (hasNonFile) {
-        alert("Warning: Drop of non-file items (directories or text) is not supported")
+        alert("Warning: Drop of non-file items (e.g., text) is not supported");
     }
     if (items.length > 0) {
-        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file) => file !== null));
+        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
     }
 }, false);
 
