@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import ReactJson from '@microlink/react-json-view';
+import JQCheatsheet from './cheatsheet';
 
 // Request file from parent window
 if (window.parent) {
@@ -14,6 +15,7 @@ const JQViewer: React.FC = () => {
     const [error, setError] = useState<string | null>('');
     const [jqVersion, setJqVersion] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showCheatsheet, setShowCheatsheet] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const workerRef = useRef<Worker | null>(null);
 
@@ -121,6 +123,7 @@ const JQViewer: React.FC = () => {
                     }}
                     placeholder="Enter your jq filter here..."
                 />
+                <button onClick={() => setShowCheatsheet(true)} style={{ marginLeft: '10px' }}>Help</button>
             </div>
             <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
                 <h3>Output</h3>
@@ -145,6 +148,32 @@ const JQViewer: React.FC = () => {
             {jqVersion && (
                 <div style={{ textAlign: 'right', color: '#666' }}>
                     jq version: {jqVersion}
+                </div>
+            )}
+
+            {showCheatsheet && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        padding: '20px',
+                        borderRadius: '5px',
+                        width: '80%',
+                        maxHeight: '80%',
+                        overflowY: 'auto'
+                    }}>
+                        <button onClick={() => setShowCheatsheet(false)} style={{ float: 'right' }}>Close</button>
+                        <JQCheatsheet />
+                    </div>
                 </div>
             )}
         </div>
