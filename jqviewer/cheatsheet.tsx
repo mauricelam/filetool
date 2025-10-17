@@ -1,11 +1,30 @@
 import React from 'react';
 
+interface Props {
+    onClose?: () => void;
+}
+
 const styles = {
     container: {
         padding: '20px',
         fontFamily: 'monospace',
         fontSize: '14px',
         lineHeight: '1.6',
+    },
+    wrapper: {
+        position: 'relative' as const,
+    },
+    closeButton: {
+        position: 'absolute' as const,
+        top: '10px',
+        right: '10px',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        padding: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     title: {
         marginTop: 0,
@@ -33,10 +52,24 @@ const styles = {
     }
 };
 
-const JQCheatsheet: React.FC = () => {
+const JQCheatsheet: React.FC<Props> = ({ onClose }) => {
     return (
         <div style={styles.container}>
-            <h2 style={styles.title}>JQ Cheatsheet</h2>
+            <div style={styles.wrapper}>
+                <button
+                    aria-label="Close cheatsheet"
+                    title="Close"
+                    style={styles.closeButton}
+                    onClick={onClose}
+                >
+                    {/* Simple X icon */}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                </button>
+                <h2 style={styles.title}>JQ Cheatsheet</h2>
+            </div>
             <div style={styles.grid}>
                 <div style={styles.section}>
                     <h3 style={styles.sectionTitle}>Basic Filters</h3>

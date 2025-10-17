@@ -87,6 +87,17 @@ const JQViewer: React.FC = () => {
         };
     }, []);
 
+    // Close cheatsheet on Escape key
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && showCheatsheet) {
+                setShowCheatsheet(false);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showCheatsheet]);
+
     useEffect(() => {
         const processJson = async () => {
             if (!jsonInput || !jsonInput.trim()) {
@@ -152,27 +163,34 @@ const JQViewer: React.FC = () => {
             )}
 
             {showCheatsheet && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                }}>
-                    <div style={{
-                        backgroundColor: 'white',
-                        padding: '20px',
-                        borderRadius: '5px',
-                        width: '80%',
-                        maxHeight: '80%',
-                        overflowY: 'auto'
-                    }}>
-                        <button onClick={() => setShowCheatsheet(false)} style={{ float: 'right' }}>Close</button>
-                        <JQCheatsheet />
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                    onClick={() => setShowCheatsheet(false)}
+                >
+                    <div
+                        style={{
+                            backgroundColor: 'white',
+                            padding: '20px',
+                            borderRadius: '5px',
+                            width: '80%',
+                            maxHeight: '80%',
+                            overflowY: 'auto'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <JQCheatsheet onClose={() => setShowCheatsheet(false)} />
                     </div>
                 </div>
             )}
