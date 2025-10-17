@@ -38,6 +38,22 @@ export function FileItem(props: FileItemProps) {
         }
     }, [activeHandlerId, initialActiveHandler]);
 
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setOtherHandlersDialogOpen(false);
+            }
+        };
+
+        if (isOtherHandlersDialogOpen) {
+            document.addEventListener('keydown', handleKeyDown);
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOtherHandlersDialogOpen]);
+
     const labelStyle: CSSProperties = {
         color: '#fff',
         padding: '1px 4px',
