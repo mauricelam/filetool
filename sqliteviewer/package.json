@@ -1,0 +1,23 @@
+{
+  "name": "sqliteviewer",
+  "version": "1.0.0",
+  "description": "SQLite file viewer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No test specified\"",
+    "build": "node build.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "^3.50.4-build1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-table": "^7.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18"
+  }
+}
