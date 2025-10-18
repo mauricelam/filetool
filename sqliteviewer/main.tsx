@@ -18,7 +18,7 @@ const SQLiteViewer: React.FC = () => {
 
     useEffect(() => {
         requestFile();
-        workerRef.current = new Worker(new URL('./sqlite.worker.ts', import.meta.url), { type: 'module' });
+        workerRef.current = new Worker(new URL('./sqlite.worker.js', import.meta.url), { type: 'module' });
 
         workerRef.current.onmessage = (e) => {
             const { type, success, tables, results, columns, error } = e.data;
