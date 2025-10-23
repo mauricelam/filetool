@@ -1,0 +1,283 @@
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+:root {
+    --sidebar-width: 240px;
+    --gap: 12px;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --surface: #f8fafc;
+    --border: #e5e7eb;
+    --col-max-width: 340px; /* max width for table columns (desktop) */
+}
+
+/* Root layout */
+.sqlite-root {
+    display: flex;
+    height: 100vh;
+    font-family: Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: #111827;
+    background: white;
+}
+
+/* Sidebar */
+.sqlite-sidebar {
+    /* Fixed-width sidebar: do not grow or shrink */
+    flex: 0 0 var(--sidebar-width);
+    width: var(--sidebar-width);
+    max-width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    border-right: 1px solid var(--border);
+    background: linear-gradient(180deg, #ffffff, #fbfdff);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-inner {
+    padding: 14px;
+    overflow: auto;
+}
+
+.sqlite-sidebar h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+}
+
+.table-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.table-item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background-color 120ms ease, color 120ms ease;
+    color: var(--muted);
+}
+
+.table-item:hover {
+    background: rgba(37, 99, 235, 0.06);
+    color: var(--accent);
+}
+
+.table-item.selected {
+    background: rgba(37, 99, 235, 0.12);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* Main area */
+.sqlite-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    gap: var(--gap);
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.query-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 96px;
+    max-height: 240px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;
+    font-size: 13px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: none;
+}
+
+.controls-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.run-button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 8px 28px 8px 12px; /* give room on right for resizer hit area */
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.run-button:hover {
+    filter: brightness(0.95);
+}
+
+.error {
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+.results {
+    flex: 1;
+    overflow: auto;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+/* Inner wrapper that expands to table content; triggers parent scrollbar */
+.results-inner {
+    display: block;
+    min-width: 0; /* allow shrinking inside flex container */
+    width: 100%;
+}
+
+.results-table {
+    /* Keep table constrained to container width and truncate overflowing cell content */
+    width: 100%;
+    table-layout: fixed; /* required to make truncation predictable */
+    border-collapse: collapse;
+    min-width: 0;
+}
+
+.results-table thead th {
+    position: sticky;
+    top: 0;
+    background: linear-gradient(180deg, #f1f5f9, #ffffff);
+    border-bottom: 2px solid #e2e8f0;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 13px;
+    max-width: var(--col-max-width);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* anchor for absolute resizer */
+    position: sticky;
+}
+
+.results-table thead th > div { /* header inner container */
+    position: relative;
+}
+
+/* Resizer bar for react-table column resizing */
+.results-table thead th .resizer {
+    /* place resizer at the right edge, but keep the visual line centered */
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    /* invisible larger hit area */
+    width: 18px;
+    margin-right: -6px; /* pull hit area slightly outside header */
+    cursor: col-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* the visible thin line inside the hit area */
+.results-table thead th .resizer::before {
+    content: '';
+    display: block;
+    width: 2px;
+    height: 60%;
+    background: rgba(15, 23, 42, 0.12);
+    border-radius: 2px;
+    transition: background 120ms ease, transform 120ms ease;
+}
+
+/* hover/active state: stronger color and slight scale */
+.results-table thead th .resizer:hover::before,
+.results-table thead th .resizer:active::before {
+    background: rgba(37, 99, 235, 0.9);
+    transform: scaleX(1.05);
+}
+
+/* While dragging, react-table adds 'isResizing' class to the header cell; give it a subtle outline */
+.results-table thead th.isResizing {
+    box-shadow: inset -3px 0 0 rgba(0,0,0,0.06);
+}
+
+.results-table tbody td {
+    padding: 10px 12px;
+    border-top: 1px solid #f1f5f9;
+    font-size: 13px;
+    vertical-align: top;
+    max-width: var(--col-max-width);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Utility to allow a specific cell to wrap instead of truncating */
+.results-table td.cell-wrap {
+    white-space: normal;
+    word-break: break-word;
+    text-overflow: clip;
+    background: #fffdfa;
+}
+
+/* Make cells clearly clickable when truncated */
+.results-table tbody td {
+    cursor: pointer;
+}
+
+.results-table tbody td:hover {
+    background: #fcfcff;
+}
+
+.results-table tr:nth-child(even) td {
+    background: #ffffff;
+}
+
+.results-table tr:hover td {
+    background: #fbfbff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 800px) {
+    .sqlite-root {
+        flex-direction: column;
+    }
+
+    .sqlite-sidebar {
+        /* On narrow screens, allow full width */
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .results-table {
+        min-width: 100%;
+        /* On small screens allow columns to wrap so content is readable */
+        width: 100% !important;
+        table-layout: auto;
+    }
+
+    .results-table thead th,
+    .results-table tbody td {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        max-width: none;
+    }
+}

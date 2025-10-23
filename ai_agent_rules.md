@@ -1,2 +1,3 @@
 1. Read the README.md and CONTIRBUTING.md files in the top level, and the README.md for the relevant handlers that you are editing
 2. After adding a new feature or making a significant change, update the README file with the expectations for future maintainers
+3. Keep the code as clean and simple as possible. Avoid excessively defensive programming like catching errors that can only be caused by programmer errors, and when continuing despite the error is inappropriate and there is no appropriate fallback
