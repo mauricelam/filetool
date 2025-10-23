@@ -49,14 +49,12 @@ export const goWasm = (options) => {
           
           // Run the build command from the project directory
           execSync(fullBuildCommand, { stdio: 'inherit', cwd: projectDir });
-          console.log(`[go-wasm-builder] Successfully built ${outWasmFile}`);
 
           // Copy wasm_exec.js
           if (fs.existsSync(wasmExecJsSrc)) {
             const absoluteWasmExecJsDest = path.join(outDir, wasmExecJsDest);
             fs.mkdirSync(path.dirname(absoluteWasmExecJsDest), { recursive: true });
             fs.copyFileSync(wasmExecJsSrc, absoluteWasmExecJsDest);
-            console.log(`[go-wasm-builder] Copied ${wasmExecJsSrc} to ${absoluteWasmExecJsDest}`);
           } else {
             console.warn(`[go-wasm-builder] wasm_exec.js not found at ${wasmExecJsSrc}. Skipping copy.`);
           }
@@ -86,15 +84,12 @@ export const goWasm = (options) => {
 
         watcher
           .on('add', filePath => {
-            console.log(`[go-wasm-builder] File added: ${filePath}, rebuilding...`);
             buildWasm();
           })
           .on('change', filePath => {
-            console.log(`[go-wasm-builder] File changed: ${filePath}, rebuilding...`);
             buildWasm();
           })
           .on('unlink', filePath => {
-            console.log(`[go-wasm-builder] File deleted: ${filePath}, rebuilding...`);
             buildWasm();
           })
           .on('error', error => console.error(`[go-wasm-builder] Watcher error: ${error}`));
