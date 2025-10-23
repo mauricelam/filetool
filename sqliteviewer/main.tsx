@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MantineProvider } from '@mantine/core';
+import '@mantine/core/styles.css';
 import './styles.css';
 import { useSqliteWorker } from './useSqliteWorker';
 import { Sidebar } from './Sidebar';
@@ -34,7 +36,11 @@ const SQLiteViewer: React.FC = () => {
 const container = document.getElementById('root');
 if (container) {
     const root = createRoot(container);
-    root.render(<SQLiteViewer />);
+    root.render(
+        <MantineProvider>
+            <SQLiteViewer />
+        </MantineProvider>
+    );
 } else {
     console.error("Could not find root element 'root'");
 }
