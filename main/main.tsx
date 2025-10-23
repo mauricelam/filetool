@@ -15,11 +15,14 @@ pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
 dropTarget.addEventListener('drop', (e) => {
-    dropTarget.classList.remove('dropover')
+    dropTarget.classList.remove('dropover');
     e.preventDefault();
     const nonFileItems: DataTransferItem[] = [];
     const items = Array.from(e.dataTransfer!.items).filter(item => {
-        if (item.kind === 'file') {
+        if (item.webkitGetAsEntry()?.isDirectory) {
+            alert("Error: Dropping folders is not supported.");
+            return false;
+        } else if (item.kind === 'file') {
             return true;
         } else {
             nonFileItems.push(item);
@@ -33,7 +36,7 @@ dropTarget.addEventListener('drop', (e) => {
         console.warn('Unsupported drop items:', nonFileItems);
     }
     if (items.length > 0) {
-        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file) => file !== null));
+        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
     }
 }, false);
 
