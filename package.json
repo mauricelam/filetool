@@ -30,8 +30,8 @@
     "scripts": {
         "start": "node serve.mjs",
         "build:workspaces": "npm run build -ws",
-        "watch:workspaces": "npm pkg get name -ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch -w {}",
-        "serve": "run-p \"watch:workspaces\" start",
+        "watch:workspaces": "npm pkg get name --ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch --silent -w {}",
+        "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
         "test": "npm run test -ws -if-present"
     },

@@ -30,8 +30,6 @@ if (isDev) {
     sourcemap: true,
   });
   await ctx.watch();
-  console.log("Watching for changes in graphviz...");
 } else {
   await esbuild.build({ ...SETTINGS, minify: true });
-  console.log("Built graphviz successfully!");
 }
