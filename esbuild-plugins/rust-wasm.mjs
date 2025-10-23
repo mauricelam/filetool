@@ -51,7 +51,7 @@ export const rustWasm = (options) => {
         isBuilding = true;
         console.log(`[rust-wasm-pack] Building ${outName} from ${projectDir}...`);
         try {
-          execSync(`wasm-pack build "${projectDir}" --target web --out-name "${outName}" --log-level warn`, {
+          execSync(`RUST_LOG=warn wasm-pack build "${projectDir}" --target web --out-name "${outName}"`, {
             stdio: 'inherit',
           });
 
