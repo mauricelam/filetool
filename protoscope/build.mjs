@@ -32,21 +32,14 @@ const SETTINGS = {
 };
 
 async function runBuild() {
-  try {
-    if (process.env['BUILD_MODE'] === 'dev') {
-      const ctx = await esbuild.context({
-        ...SETTINGS,
-        sourcemap: true,
-      });
-      await ctx.watch();
-      console.log('Watching for changes in protoscope build...');
-    } else {
-      await esbuild.build({ ...SETTINGS, minify: true });
-      console.log('Protoscope build completed successfully.');
-    }
-  } catch (err) {
-    console.error('Protoscope build failed:', err);
-    process.exit(1);
+  if (process.env['BUILD_MODE'] === 'dev') {
+    const ctx = await esbuild.context({
+      ...SETTINGS,
+      sourcemap: true,
+    });
+    await ctx.watch();
+  } else {
+    await esbuild.build({ ...SETTINGS, minify: true });
   }
 }
 

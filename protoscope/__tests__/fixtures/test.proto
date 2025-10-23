@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package pkg.example;
+
+// Minimal container type referenced by a map
+message SubmergeContainer {}
+
+// Map with message value type
+message SubmergeMap {
+  map<string, SubmergeContainer> elements = 1;
+}
+
+// Another map with scalar value type
+message VectorClock {
+  map<string, uint32> node_clock_values = 1;
+}

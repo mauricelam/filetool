@@ -49,9 +49,8 @@ export const rustWasm = (options) => {
           return;
         }
         isBuilding = true;
-        console.log(`[rust-wasm-pack] Building ${outName} from ${projectDir}...`);
         try {
-          execSync(`wasm-pack build "${projectDir}" --target web --out-name "${outName}"`, {
+          execSync(`wasm-pack --quiet build "${projectDir}" --target web --out-name "${outName}"`, {
             stdio: 'inherit',
           });
 
@@ -67,7 +66,6 @@ export const rustWasm = (options) => {
             const sourcePath = path.join(pkgDir, file);
             const destPath = path.join(outDir, file);
             fs.copyFileSync(sourcePath, destPath);
-            console.log(`[rust-wasm-pack] Copied ${file} to ${outDir}`);
           });
         } finally {
           isBuilding = false;
@@ -101,15 +99,12 @@ export const rustWasm = (options) => {
 
         watcher
           .on('add', filePath => {
-            console.log(`[rust-wasm-pack] File added: ${filePath}, scheduling rebuild...`);
             debouncedBuild();
           })
           .on('change', filePath => {
-            console.log(`[rust-wasm-pack] File changed: ${filePath}, scheduling rebuild...`);
             debouncedBuild();
           })
           .on('unlink', filePath => {
-            console.log(`[rust-wasm-pack] File deleted: ${filePath}, scheduling rebuild...`);
             debouncedBuild();
           })
           .on('error', error => console.error(`[rust-wasm-pack] Watcher error for ${outName}: ${error}`));

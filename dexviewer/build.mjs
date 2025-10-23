@@ -1,7 +1,9 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
-import { goWasm } from '../esbuild-plugins/go-wasm.mjs'; // Import the new plugin
+import path from 'path'; // Import path
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
+import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -11,9 +13,21 @@ const SETTINGS = {
   platform: "browser",
   external: ['require', 'fs', 'path'],
   plugins: [
+    rustWasm({
+      projectDir: 'dexviewer',
+      outName: 'dexviewer', // Results in dexviewer_bg.wasm and dexviewer.js
+      watchPaths: [ // Relative to rustDexViewerDir
+        'src/**/*.rs',
+        'Cargo.toml',
+        // Watch paths for the dependent local workspace dex-parser
+        path.join('..', 'dex-parser', 'src', '**', '*.rs'),
+        path.join('..', 'dex-parser', 'Cargo.toml'),
+      ]
+    }),
     goWasm({
       projectDir: 'godexviewer',
-      outWasmFile: 'dextk.wasm', // Output file name in the esbuild outdir
+      outWasmFile: 'dextk.wasm',
+      watchPaths: ['**/*.go', 'go.mod'] // Relative to goDexViewerDir
     }),
     copy({
       assets: [
@@ -21,7 +35,7 @@ const SETTINGS = {
           from: ["index.html"],
           to: ["index.html"],
           watch: process.env['BUILD_MODE'] === 'dev',
-        },
+        }
       ]
     }),
   ],

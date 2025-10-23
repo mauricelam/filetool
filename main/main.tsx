@@ -7,26 +7,36 @@ import { FileItem } from "./fileitem";
 
 const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
+const pasteHint = document.getElementById('paste-hint')!!
+
+const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
 
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
 dropTarget.addEventListener('drop', (e) => {
-    dropTarget.classList.remove('dropover')
+    dropTarget.classList.remove('dropover');
     e.preventDefault();
-    let hasNonFile = false
+    const nonFileItems: DataTransferItem[] = [];
     const items = Array.from(e.dataTransfer!.items).filter(item => {
-        if (item.webkitGetAsEntry()?.isFile) {
-            return true
+        if (item.webkitGetAsEntry()?.isDirectory) {
+            alert("Error: Dropping folders is not supported.");
+            return false;
+        } else if (item.kind === 'file') {
+            return true;
         } else {
-            hasNonFile = true
-            return false
+            nonFileItems.push(item);
+            return false;
         }
-    })
-    if (hasNonFile) {
-        alert("Warning: Drop of non-file items (directories or text) is not supported")
+    });
+
+    if (nonFileItems.length > 0) {
+        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
+        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
+        console.warn('Unsupported drop items:', nonFileItems);
     }
     if (items.length > 0) {
-        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file) => file !== null));
+        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
     }
 }, false);
 
@@ -55,6 +65,28 @@ document.ondragover = (e) => {
 }
 document.ondragend = (e) => e.preventDefault()
 document.ondrop = (e) => e.preventDefault()
+
+document.addEventListener('paste', async (e) => {
+    e.preventDefault();
+    const files = Array.from(e.clipboardData?.items || [])
+        .filter(item => item.kind === 'file')
+        .map(item => item.getAsFile())
+        .filter((file): file is File => file !== null);
+
+    if (files.length > 0) {
+        dispatchOpenFiles(files);
+        return;
+    }
+
+    const text = e.clipboardData?.getData('text/plain');
+    if (text) {
+        const file = new File([text], 'pasted.txt', { type: 'text/plain' });
+        dispatchOpenFiles([file]);
+        return;
+    }
+
+    alert('Cannot parse information from clipboard');
+});
 
 const MAGIC = WASMagic.create({
     flags: WASMagicFlags.NONE,
@@ -210,6 +242,7 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             mimetype={mime}
             description={description}
             matchedHandlers={handlers}
+            allHandlers={HANDLERS}
             initialActiveHandler={defaultHandler}
             onOpenHandler={(handlerId, filename, mimetype) => {
                 openHandler(handlerId, file, mimetype);

@@ -63,6 +63,16 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
+        "name": "CBOR Viewer",
+        "handler": "cborviewer",
+        "mimetypes": [
+            "application/cbor",
+            {
+                filename: /\.cbor$/i,
+            }
+        ]
+    },
+    {
         "name": "Hex",
         "handler": "hex_viewer",
         "mimetypes": [
@@ -95,18 +105,8 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
-        "name": "Go DEX viewer",
-        "handler": "dexviewer",
-        "mimetypes": [
-            {
-                mime: "application/octet-stream",
-                filename: /.*\.dex/i,
-            },
-        ]
-    },
-    {
         "name": "DEX viewer",
-        "handler": "rustdexviewer",
+        "handler": "dexviewer",
         "mimetypes": [
             {
                 mime: "application/octet-stream",
@@ -328,7 +328,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "der",
         "mimetypes": [
             {
-                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"), // Using new RegExp()
+                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"),
             },
             "application/x-x509-ca-cert",
             "application/pkix-cert",
@@ -344,16 +344,25 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "protoscope",
         "mimetypes": [
             {
-                mime: "application/octet-stream",
+                mime: "application/x-protobuf",
+            },
+            {
                 filename: /\.pb$/i,
             },
             {
-                mime: "application/x-protobuf",
-                filename: /\.pb$/i,
+                filename: /\.binbp$/i,
             },
-            { // Fallback for just filename if mime type is generic
-                filename: /\.pb$/i,
-            }
+        ]
+    },
+    {
+        "name": "SQLite Viewer",
+        "handler": "sqliteviewer",
+        "mimetypes": [
+            {
+                filename: /\.(sqlite|db)$/i,
+            },
+            "application/x-sqlite3",
+            "application/vnd.sqlite3"
         ]
     },
     {

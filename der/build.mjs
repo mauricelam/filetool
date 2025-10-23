@@ -37,9 +37,7 @@ if (isWatchMode) {
     ...SETTINGS,
     sourcemap: true,
   });
-  console.log('Watching for changes in der build...'); // More specific log
   await ctx.watch();
 } else {
   await esbuild.build({ ...SETTINGS, minify: true });
-  console.log('DER build completed successfully'); // More specific log
 }
