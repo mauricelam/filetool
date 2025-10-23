@@ -353,6 +353,17 @@ export const HANDLERS: HandlerDefinition[] = [
                 filename: /\.binbp$/i,
             },
         ]
+    },
+    {
+        "name": "SQLite Viewer",
+        "handler": "sqliteviewer",
+        "mimetypes": [
+            {
+                filename: /\.(sqlite|db)$/i,
+            },
+            "application/x-sqlite3",
+            "application/vnd.sqlite3"
+        ]
     }
 ]
 
