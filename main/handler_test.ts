@@ -145,4 +145,46 @@ describe('Handler Tests', () => {
             }
         }
     });
+
+    describe('reStructuredText Handler', () => {
+      it('correctly matches .rst files by extension', () => {
+        const matchedHandlers = HANDLERS.filter(h =>
+          h.mimetypes.some(m => matchMimetype(m, 'application/octet-stream', 'mydocument.rst'))
+        );
+        // Check that rstviewer is among the matched handlers
+        expect(matchedHandlers.some(h => h.handler === 'rstviewer')).toBe(true);
+        // Optionally, check that it's the specific named handler if you want to be more precise
+        expect(matchedHandlers.some(h => h.handler === 'rstviewer' && h.name === 'reStructuredText Viewer')).toBe(true);
+      });
+
+      it('correctly matches .rst files by text/x-rst mimetype', () => {
+        const matchedHandlers = HANDLERS.filter(h =>
+          h.mimetypes.some(m => matchMimetype(m, 'text/x-rst', 'mydocument.rst'))
+        );
+        expect(matchedHandlers.some(h => h.handler === 'rstviewer')).toBe(true);
+        expect(matchedHandlers.some(h => h.handler === 'rstviewer' && h.name === 'reStructuredText Viewer')).toBe(true);
+      });
+
+      it('gives rstviewer precedence over textviewer for .rst files', () => {
+        const filename = 'test.rst';
+        const mime = 'text/x-rst'; // or application/octet-stream if matching primarily by filename
+
+        // Find all handlers that could match
+        const matchedHandlers = HANDLERS.filter(h =>
+            h.mimetypes.some(m => matchMimetype(m, mime, filename))
+        );
+
+        // Find the index of rstviewer and textviewer
+        const rstViewerIndex = matchedHandlers.findIndex(h => h.handler === 'rstviewer');
+        const textViewerIndex = matchedHandlers.findIndex(h => h.handler === 'textviewer');
+
+        // Expect rstviewer to be found
+        expect(rstViewerIndex).not.toBe(-1);
+
+        // If textviewer is also found, rstviewer should come first
+        if (textViewerIndex !== -1) {
+            expect(rstViewerIndex).toBeLessThan(textViewerIndex);
+        }
+      });
+    });
 });

@@ -50,9 +50,9 @@ export function savePreferences(prefs: DefaultHandlerPreferences): void {
  * @param {string} filename The name of the file (currently unused, reserved for future enhancements).
  * @returns {string | null} The handler ID, or null if no default is set for the mimetype.
  */
-export function getDefaultHandler(mimetype: string, filename: string): string | null {
+export function getDefaultHandler(mimetype: string, filename: string): string | undefined {
   const prefs = getPreferences();
-  return prefs[mimetype] || null;
+  return prefs[mimetype] || undefined;
 }
 
 /**

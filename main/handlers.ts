@@ -44,7 +44,34 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
     }
 }
 
-export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }[] = [
+export interface HandlerDefinition {
+    name: string,
+    handler: string,
+    mimetypes: MimeMatch[]
+}
+
+export const HANDLERS: HandlerDefinition[] = [
+    {
+        "name": "reStructuredText Viewer",
+        "handler": "rstviewer",
+        "mimetypes": [
+            {
+                filename: /\.(rst)$/i,
+            },
+            "text/x-rst",
+            "text/prs.fallenstein.rst"
+        ]
+    },
+    {
+        "name": "CBOR Viewer",
+        "handler": "cborviewer",
+        "mimetypes": [
+            "application/cbor",
+            {
+                filename: /\.cbor$/i,
+            }
+        ]
+    },
     {
         "name": "Hex",
         "handler": "hex_viewer",
@@ -78,18 +105,8 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         ]
     },
     {
-        "name": "Go DEX viewer",
-        "handler": "dexviewer",
-        "mimetypes": [
-            {
-                mime: "application/octet-stream",
-                filename: /.*\.dex/i,
-            },
-        ]
-    },
-    {
         "name": "DEX viewer",
-        "handler": "rustdexviewer",
+        "handler": "dexviewer",
         "mimetypes": [
             {
                 mime: "application/octet-stream",
@@ -106,6 +123,17 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
             "image/svg+xml",
             "application/json",
             "application/javascript",
+        ]
+    },
+    {
+        "name": "Graphviz Viewer",
+        "handler": "graphviz",
+        "mimetypes": [
+            "text/vnd.graphviz",
+            "application/vnd.graphviz",
+            {
+                "filename": /\.(dot|gv)$/i // Match .dot or .gv extensions
+            }
         ]
     },
     {
@@ -300,7 +328,7 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         "handler": "der",
         "mimetypes": [
             {
-                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"), // Using new RegExp()
+                filename: new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i"),
             },
             "application/x-x509-ca-cert",
             "application/pkix-cert",
@@ -316,16 +344,25 @@ export const HANDLERS: { name: string, handler: string, mimetypes: MimeMatch[] }
         "handler": "protoscope",
         "mimetypes": [
             {
-                mime: "application/octet-stream",
+                mime: "application/x-protobuf",
+            },
+            {
                 filename: /\.pb$/i,
             },
             {
-                mime: "application/x-protobuf",
-                filename: /\.pb$/i,
+                filename: /\.binbp$/i,
             },
-            { // Fallback for just filename if mime type is generic
-                filename: /\.pb$/i,
-            }
+        ]
+    },
+    {
+        "name": "SQLite Viewer",
+        "handler": "sqliteviewer",
+        "mimetypes": [
+            {
+                filename: /\.(sqlite|db)$/i,
+            },
+            "application/x-sqlite3",
+            "application/vnd.sqlite3"
         ]
     }
 ]

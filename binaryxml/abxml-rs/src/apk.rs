@@ -12,7 +12,7 @@ use zip::read::ZipArchive;
 
 use crate::{
     decoder::BufferedDecoder,
-    model::{Library as LibraryTrait, owned::Entry},
+    model::Library as LibraryTrait,
 };
 
 #[derive(Debug)]
@@ -195,7 +195,7 @@ impl<Reader: Read + Seek> Apk<Reader> {
             let package_name = package.get_name().unwrap_or_else(|| format!("package_{}", package_id));
 
             // Iterate through all type specs
-            for (type_id, type_spec) in package.iter_specs() {
+            for (type_id, _type_spec) in package.iter_specs() {
                 // Get type name
                 let type_name = package.get_spec_string(*type_id)
                     .map(|s| s.to_string())

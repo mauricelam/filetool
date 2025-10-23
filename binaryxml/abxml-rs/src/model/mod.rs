@@ -84,7 +84,7 @@ pub trait Library {
             .map(|e| e.get_key())
             .and_then(|key| {
                 self.format_reference(resid, key, namespace)
-                    .map_err(|e| String::from("No reference"))
+                    .map_err(|_e| String::from("No reference"))
             })
             .unwrap_or_else(|e| format!("0x{resid:x} ({e})"))
     }

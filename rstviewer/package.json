@@ -1,0 +1,20 @@
+{
+  "name": "rstviewer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "source": "main.tsx",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "rst-compiler": "^0.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "esbuild": "^0.25.5"
+  }
+}
