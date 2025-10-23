@@ -17,17 +17,20 @@ dropTarget.onclick = (e) => fileInput.click();
 dropTarget.addEventListener('drop', (e) => {
     dropTarget.classList.remove('dropover')
     e.preventDefault();
-    let hasNonFile = false
+    const nonFileItems: DataTransferItem[] = [];
     const items = Array.from(e.dataTransfer!.items).filter(item => {
-        if (item.webkitGetAsEntry()?.isFile) {
-            return true
+        if (item.kind === 'file') {
+            return true;
         } else {
-            hasNonFile = true
-            return false
+            nonFileItems.push(item);
+            return false;
         }
-    })
-    if (hasNonFile) {
-        alert("Warning: Drop of non-file items (directories or text) is not supported")
+    });
+
+    if (nonFileItems.length > 0) {
+        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
+        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
+        console.warn('Unsupported drop items:', nonFileItems);
     }
     if (items.length > 0) {
         dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file) => file !== null));
