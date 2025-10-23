@@ -38,7 +38,6 @@ export const goWasm = (options) => {
           return;
         }
         isBuilding = true;
-        console.log(`[go-wasm-builder] Building Go Wasm module from ${projectDir}...`);
 
         const absoluteOutWasmPath = path.resolve(outDir, outWasmFile);
         const fullBuildCommand = `${goBuildCommand} "${absoluteOutWasmPath}"`;
@@ -46,7 +45,7 @@ export const goWasm = (options) => {
         try {
           // Ensure the output directory exists
           fs.mkdirSync(path.resolve(outDir), { recursive: true });
-          
+
           // Run the build command from the project directory
           execSync(fullBuildCommand, { stdio: 'inherit', cwd: projectDir });
 

@@ -49,9 +49,8 @@ export const rustWasm = (options) => {
           return;
         }
         isBuilding = true;
-        console.log(`[rust-wasm-pack] Building ${outName} from ${projectDir}...`);
         try {
-          execSync(`RUST_LOG=warn wasm-pack build "${projectDir}" --target web --out-name "${outName}"`, {
+          execSync(`wasm-pack --quiet build "${projectDir}" --target web --out-name "${outName}"`, {
             stdio: 'inherit',
           });
 
@@ -67,7 +66,6 @@ export const rustWasm = (options) => {
             const sourcePath = path.join(pkgDir, file);
             const destPath = path.join(outDir, file);
             fs.copyFileSync(sourcePath, destPath);
-            console.log(`[rust-wasm-pack] Copied ${file} to ${outDir}`);
           });
         } finally {
           isBuilding = false;

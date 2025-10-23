@@ -27,7 +27,6 @@ if (process.env['BUILD_MODE'] === 'dev') {
         ...SETTINGS,
         sourcemap: true,
     });
-    console.log('Watching for changes...');
     await ctx.watch();
 } else {
     const result = await esbuild.build({
@@ -43,5 +42,4 @@ if (process.env['BUILD_MODE'] === 'dev') {
     if (result.warnings.length > 0) {
         console.warn('Build completed with warnings:', result.warnings);
     }
-    console.log('Build successful!');
 }
