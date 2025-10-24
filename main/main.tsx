@@ -207,8 +207,8 @@ function FileList() {
 
     if (files.length) {
         const selectedFile = files[selected];
+        iframes.forEach(f => f.style.display = 'none');
         if (selectedFile && fileToIframe.has(selectedFile)) {
-            iframes.forEach(f => f.style.display = 'none');
             fileToIframe.get(selectedFile)!.style.display = 'block';
         }
 
@@ -236,9 +236,6 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             const [magic, mimeMagic] = await Promise.all([MAGIC, MIMEMAGIC])
             const fileBuf = new Uint8Array(await file.arrayBuffer())
             const mime = mimeMagic.detect(fileBuf)
-            if (mime !== file.type) {
-                file = new File([fileBuf], file.name, { type: mime })
-            }
             const fileDescription = magic.detect(fileBuf) // Store description
             const handlers: HandlerDefinition[] = [];
             for (const handler of HANDLERS) {
