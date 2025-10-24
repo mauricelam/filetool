@@ -5,11 +5,71 @@ import (
 	"syscall/js"
 
 	"github.com/protocolbuffers/protoscope"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
+
+func exportTextProto(this js.Value, args []js.Value) interface{} {
+	if len(args) != 1 {
+		return "Error: Invalid number of arguments. Expected 1 (message descriptor bytes)."
+	}
+	descBytesJS := args[0]
+	if descBytesJS.Type() != js.TypeObject || !descBytesJS.Truthy() || descBytesJS.Get("byteLength").IsUndefined() {
+		return "Error: Argument must be a Uint8Array."
+	}
+
+	descLength := descBytesJS.Get("byteLength").Int()
+	descGoBytes := make([]byte, descLength)
+	js.CopyBytesToGo(descGoBytes, descBytesJS)
+
+	fileProto := &descriptorpb.FileDescriptorSet{}
+	if err := proto.Unmarshal(descGoBytes, fileProto); err != nil {
+		return fmt.Sprintf("Error unmarshalling proto message descriptor: %v", err)
+	}
+
+	out, err := prototext.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+	}.Marshal(fileProto)
+	if err != nil {
+		return fmt.Sprintf("Error marshalling to textproto: %v", err)
+	}
+
+	return string(out)
+}
+
+func exportJSON(this js.Value, args []js.Value) interface{} {
+	if len(args) != 1 {
+		return "Error: Invalid number of arguments. Expected 1 (message descriptor bytes)."
+	}
+	descBytesJS := args[0]
+	if descBytesJS.Type() != js.TypeObject || !descBytesJS.Truthy() || descBytesJS.Get("byteLength").IsUndefined() {
+		return "Error: Argument must be a Uint8Array."
+	}
+
+	descLength := descBytesJS.Get("byteLength").Int()
+	descGoBytes := make([]byte, descLength)
+	js.CopyBytesToGo(descGoBytes, descBytesJS)
+
+	fileProto := &descriptorpb.FileDescriptorSet{}
+	if err := proto.Unmarshal(descGoBytes, fileProto); err != nil {
+		return fmt.Sprintf("Error unmarshalling proto message descriptor: %v", err)
+	}
+
+	out, err := protojson.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+	}.Marshal(fileProto)
+	if err != nil {
+		return fmt.Sprintf("Error marshalling to JSON: %v", err)
+	}
+
+	return string(out)
+}
 
 func protoscopeFile(this js.Value, args []js.Value) interface{} {
 	if len(args) != 1 && len(args) != 3 {
@@ -106,6 +166,8 @@ func main() {
 	c := make(chan struct{}, 0)
 	js.Global().Set("protoscope", js.ValueOf(map[string]interface{}{
 		"protoscopeFile": js.FuncOf(protoscopeFile),
+		"exportTextProto": js.FuncOf(exportTextProto),
+		"exportJSON":      js.FuncOf(exportJSON),
 	}))
 	<-c
 }
