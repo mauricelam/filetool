@@ -24,7 +24,7 @@ declare global {
 
 const ROOT = createRoot(document.getElementById('root')!);
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
     const [schemaFile, setSchemaFile] = useState<File | null>(null);
     const [messageName, setMessageName] = useState<string>('');
