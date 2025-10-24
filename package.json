@@ -25,7 +25,8 @@
         "rstviewer",
         "graphviz",
         "cborviewer",
-        "sqliteviewer"
+        "sqliteviewer",
+        "proguardviewer"
     ],
     "scripts": {
         "start": "node serve.mjs",
@@ -33,9 +34,13 @@
         "watch:workspaces": "npm pkg get name --ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch --silent -w {}",
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
-        "test": "npm run test -ws -if-present"
+        "test": "npm run test -ws -if-present",
+        "pretest:integration": "npm run build -w proguardviewer && npm run build -w main",
+        "test:integration": "playwright test",
+        "posttest:integration": "pkill -f serve-test.mjs"
     },
     "devDependencies": {
+        "@playwright/test": "^1.56.1",
         "@testing-library/jest-dom": "^6.6.3",
         "@testing-library/react": "^16.3.0",
         "@types/finalhandler": "^1.2.3",
