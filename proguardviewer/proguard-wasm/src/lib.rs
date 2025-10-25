@@ -11,6 +11,32 @@ extern "C" {
 }
 
 #[wasm_bindgen]
+pub fn get_rules(mapping_file_content: &str) -> Result<String, JsValue> {
+    Ok(mapping_file_content.to_string())
+}
+
+#[wasm_bindgen]
+pub fn deobfuscate_class(mapping_file_content: &str, class_name: &str) -> Result<String, JsValue> {
+    let mapper = ProguardMapper::from(mapping_file_content);
+    match mapper.remap_class(class_name) {
+        Some(remapped) => Ok(remapped.to_string()),
+        None => Ok(class_name.to_string()),
+    }
+}
+
+#[wasm_bindgen]
+pub fn deobfuscate_method(mapping_file_content: &str, class_name: &str, method_name: &str) -> Result<String, JsValue> {
+    let mapper = ProguardMapper::from(mapping_file_content);
+    let frame = StackFrame::new(class_name, method_name, 0);
+    let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
+    if !remapped_frames.is_empty() {
+        Ok(remapped_frames[0].method().to_string())
+    } else {
+        Ok(method_name.to_string())
+    }
+}
+
+#[wasm_bindgen]
 pub fn deobfuscate(mapping_file_content: &str, stack_trace_str: &str) -> Result<String, JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let mapper = ProguardMapper::from(mapping_file_content);
