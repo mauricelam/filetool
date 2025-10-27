@@ -11,11 +11,8 @@ const ProguardViewer: React.FC = () => {
     const [mappingFile, setMappingFile] = useState<string | null>(null);
     const [stackTrace, setStackTrace] = useState('');
     const [deobfuscatedTrace, setDeobfuscatedTrace] = useState('');
-    const [className, setClassName] = useState('');
-    const [deobfuscatedClassName, setDeobfuscatedClassName] = useState('');
-    const [methodClassName, setMethodClassName] = useState('');
-    const [methodName, setMethodName] = useState('');
-    const [deobfuscatedMethodName, setDeobfuscatedMethodName] = useState('');
+    const [singleName, setSingleName] = useState('');
+    const [deobfuscatedSingleName, setDeobfuscatedSingleName] = useState('');
     const [rules, setRules] = useState('');
     const [error, setError] = useState<string>('');
     const [isDeobfuscating, setIsDeobfuscating] = useState(false);
@@ -41,6 +38,42 @@ const ProguardViewer: React.FC = () => {
         };
     }, []);
 
+    useEffect(() => {
+        const deobfuscate = async () => {
+            if (!mappingFile || !singleName) {
+                setDeobfuscatedSingleName('');
+                return;
+            }
+
+            try {
+                if (singleName.includes('.')) {
+                    const parts = singleName.split('.');
+                    const className = parts.slice(0, -1).join('.');
+                    const methodName = parts.slice(-1)[0];
+                    if (className && methodName) {
+                        const result = await deobfuscateMethod(mappingFile, className, methodName);
+                        setDeobfuscatedSingleName(result);
+                    } else {
+                        setDeobfuscatedSingleName('');
+                    }
+                } else {
+                    const result = await deobfuscateClass(mappingFile, singleName);
+                    setDeobfuscatedSingleName(result);
+                }
+            } catch (e: any) {
+                setDeobfuscatedSingleName(`Error: ${e?.message ?? String(e)}`);
+            }
+        };
+
+        const handler = setTimeout(() => {
+            deobfuscate();
+        }, 300); // Shorter debounce time for better UX
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [singleName, mappingFile]);
+
     const handleDeobfuscate = async () => {
         if (!mappingFile) {
             setError('Mapping file not loaded');
@@ -61,71 +94,41 @@ const ProguardViewer: React.FC = () => {
         }
     };
 
-    const handleDeobfuscateClass = async () => {
-        if (!mappingFile) {
-            setError('Mapping file not loaded');
-            return;
-        }
-        const result = await deobfuscateClass(mappingFile, className);
-        setDeobfuscatedClassName(result);
-    };
-
-    const handleDeobfuscateMethod = async () => {
-        if (!mappingFile) {
-            setError('Mapping file not loaded');
-            return;
-        }
-        const result = await deobfuscateMethod(mappingFile, methodClassName, methodName);
-        setDeobfuscatedMethodName(result);
-    };
-
     return (
-        <div>
-            <h3>Proguard Deobfuscator</h3>
-            <div>
-                <h4>Deobfuscate Class</h4>
-                <input
-                    type="text"
-                    placeholder="Obfuscated class name"
-                    value={className}
-                    onChange={(e) => setClassName(e.target.value)}
-                />
-                <button onClick={handleDeobfuscateClass}>Deobfuscate</button>
-                <p>Deobfuscated: {deobfuscatedClassName}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'sans-serif' }}>
+            <h3 style={{ textAlign: 'center', margin: '1rem' }}>Proguard Deobfuscator</h3>
+            <div style={{ display: 'flex', flex: 1 }}>
+                <div style={{ flex: 1, padding: '1rem', borderRight: '1px solid #ccc' }}>
+                    <h4>Deobfuscate Class/Method</h4>
+                    <input
+                        type="text"
+                        placeholder="Obfuscated name"
+                        value={singleName}
+                        onChange={(e) => setSingleName(e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}
+                    />
+                    <p>Deobfuscated: {deobfuscatedSingleName}</p>
+                </div>
+                <div style={{ flex: 2, padding: '1rem' }}>
+                    <h4>Deobfuscate Stack Trace</h4>
+                    <textarea
+                        rows={10}
+                        placeholder="Paste stack trace here"
+                        value={stackTrace}
+                        onChange={(e) => setStackTrace(e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}
+                    />
+                    <button onClick={handleDeobfuscate} disabled={isDeobfuscating} style={{ padding: '0.5rem 1rem' }}>
+                        {isDeobfuscating ? 'Deobfuscating...' : 'Deobfuscate'}
+                    </button>
+                    {error && <div style={{ color: 'red', marginTop: '1rem' }}>{error}</div>}
+                    <pre style={{ background: '#f4f4f4', padding: '1rem', marginTop: '1rem' }}>{deobfuscatedTrace}</pre>
+                </div>
             </div>
-            <div>
-                <h4>Deobfuscate Method</h4>
-                <input
-                    type="text"
-                    placeholder="Obfuscated class name"
-                    value={methodClassName}
-                    onChange={(e) => setMethodClassName(e.target.value)}
-                />
-                <input
-                    type="text"
-                    placeholder="Obfuscated method name"
-                    value={methodName}
-                    onChange={(e) => setMethodName(e.target.value)}
-                />
-                <button onClick={handleDeobfuscateMethod}>Deobfuscate</button>
-                <p>Deobfuscated: {deobfuscatedMethodName}</p>
+            <div style={{ flex: 1, padding: '1rem', borderTop: '1px solid #ccc' }}>
+                <h3>Mapping Rules</h3>
+                <pre style={{ background: '#f4f4f4', padding: '1rem', height: '300px', overflowY: 'auto' }}>{rules}</pre>
             </div>
-            <h4>Deobfuscate Stack Trace</h4>
-            <textarea
-                rows={10}
-                cols={80}
-                placeholder="Paste stack trace here"
-                value={stackTrace}
-                onChange={(e) => setStackTrace(e.target.value)}
-            />
-            <br />
-            <button onClick={handleDeobfuscate} disabled={isDeobfuscating}>
-                {isDeobfuscating ? 'Deobfuscating...' : 'Deobfuscate'}
-            </button>
-            {error && <div style={{ color: 'red' }}>{error}</div>}
-            <pre>{deobfuscatedTrace}</pre>
-            <h3>Mapping Rules</h3>
-            <pre>{rules}</pre>
         </div>
     );
 };

@@ -370,7 +370,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "proguardviewer",
         "mimetypes": [
             {
-                filename: /\.(map|mapping)$/i,
+                filename: /\.(map|mapping|txt)$/i,
             }
         ]
     }

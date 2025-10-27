@@ -30,9 +30,10 @@ pub fn deobfuscate_method(mapping_file_content: &str, class_name: &str, method_n
     let frame = StackFrame::new(class_name, method_name, 0);
     let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
     if !remapped_frames.is_empty() {
-        Ok(remapped_frames[0].method().to_string())
+        let remapped_frame = &remapped_frames[0];
+        Ok(format!("{}.{}", remapped_frame.class(), remapped_frame.method()))
     } else {
-        Ok(method_name.to_string())
+        Ok(format!("{}.{}", class_name, method_name))
     }
 }
 
