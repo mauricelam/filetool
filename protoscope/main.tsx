@@ -16,13 +16,15 @@ declare global {
         protoscope?: {
             // Updated signature to accept main bytes, optional FDS bytes, and optional message name string
             protoscopeFile?: (mainFileBytes: Uint8Array, fdsBytes?: Uint8Array | null, messageName?: string | null) => string;
+            exportTextProto?: (pbBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
+            exportJSON?: (pbBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
         };
     }
 }
 
 const ROOT = createRoot(document.getElementById('root')!);
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
     const [schemaFile, setSchemaFile] = useState<File | null>(null);
     const [messageName, setMessageName] = useState<string>('');
@@ -236,6 +238,68 @@ const App: React.FC = () => {
         loadWasm();
     }, [loadWasm]);
 
+    const handleExport = useCallback(async (format: 'textproto' | 'json') => {
+        if (!mainFile || !schemaFile || !messageName) {
+            setError("Both a .pb file and a .proto schema must be provided, and a message type must be selected.");
+            return;
+        }
+
+        setLoading(`Exporting to ${format}...`);
+        setError(null);
+
+        const wasmReady = await loadWasm();
+        if (!wasmReady) return;
+
+        try {
+            const mainFileArrayBuffer = await mainFile.arrayBuffer();
+            const mainFileUint8Array = new Uint8Array(mainFileArrayBuffer);
+
+            const protoContents = await schemaFile.text();
+            const parsed = protobuf.parse(protoContents, { keepCase: false });
+            const root = parsed.root;
+            root.resolveAll();
+            const fds = (root as any).toDescriptor();
+            normalizeMapEntryNames(fds);
+            const fdsBytes = FileDescriptorSet.encode(fds).finish();
+
+            let exportedData: string | undefined;
+            if (format === 'textproto') {
+                if (typeof window.protoscope?.exportTextProto !== 'function') {
+                    throw new Error('exportTextProto function not available.');
+                }
+                exportedData = window.protoscope.exportTextProto(mainFileUint8Array, fdsBytes, messageName);
+            } else {
+                if (typeof window.protoscope?.exportJSON !== 'function') {
+                    throw new Error('exportJSON function not available.');
+                }
+                exportedData = window.protoscope.exportJSON(mainFileUint8Array, fdsBytes, messageName);
+            }
+
+            if (typeof exportedData === 'string') {
+                if (exportedData.startsWith("Error:")) {
+                    throw new Error(exportedData);
+                }
+                const blob = new Blob([exportedData], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${mainFile.name}.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                throw new Error(`Unexpected export result type: ${typeof exportedData}`);
+            }
+        } catch (err) {
+            console.error(`Error exporting to ${format}:`, err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            setError(`Error exporting to ${format}: ${errorMessage}`);
+        } finally {
+            setLoading(null);
+        }
+    }, [mainFile, schemaFile, messageName, loadWasm]);
+
     // Automatically process when mainFile is set and WASM is loaded
     useEffect(() => {
         if (mainFile && wasmLoaded) {
@@ -307,6 +371,22 @@ const App: React.FC = () => {
                                 No message types found in the schema file.
                             </p>
                         )}
+                    </div>
+                )}
+                {schemaFile && mainFile && (
+                    <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => handleExport('textproto')}
+                            disabled={!mainFile || !schemaFile || !messageName || !!loading}
+                        >
+                            Export as Textproto
+                        </button>
+                        <button
+                            onClick={() => handleExport('json')}
+                            disabled={!mainFile || !schemaFile || !messageName || !!loading}
+                        >
+                            Export as JSON
+                        </button>
                     </div>
                 )}
             </div>
