@@ -33,9 +33,11 @@
         "watch:workspaces": "npm pkg get name --ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch --silent -w {}",
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
-        "test": "npm run test -ws -if-present"
+        "test": "npm run test -ws -if-present",
+        "test:integration": "cp -r tests/* dist/tests/ && playwright test"
     },
     "devDependencies": {
+        "@playwright/test": "^1.56.1",
         "@testing-library/jest-dom": "^6.6.3",
         "@testing-library/react": "^16.3.0",
         "@types/finalhandler": "^1.2.3",
