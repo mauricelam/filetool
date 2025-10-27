@@ -138,10 +138,21 @@ const MAX_IFRAMES = 5;
 const iframes: HTMLIFrameElement[] = [];
 const fileToIframe = new Map<File, HTMLIFrameElement>();
 const iframeToMime = new Map<HTMLIFrameElement, string>();
+const iframeToHandler = new Map<HTMLIFrameElement, string>();
 
 async function openHandler(handler: string, file: File, mime: string) {
     if (fileToIframe.has(file)) {
         const iframe = fileToIframe.get(file)!;
+        if (iframeToHandler.get(iframe) !== handler) {
+            if (handler === '__text__') {
+                iframe.setAttribute('sandbox', '');
+                iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
+            } else {
+                iframe.removeAttribute('sandbox');
+                iframe.src = handler;
+            }
+            iframeToHandler.set(iframe, handler);
+        }
         iframes.forEach(f => f.style.display = 'none');
         iframe.style.display = 'block';
         return;
@@ -166,6 +177,7 @@ async function openHandler(handler: string, file: File, mime: string) {
 
     fileToIframe.set(file, iframe);
     iframeToMime.set(iframe, mime);
+    iframeToHandler.set(iframe, handler);
 
     iframes.forEach(f => f.style.display = 'none');
     iframe.style.display = 'block';
