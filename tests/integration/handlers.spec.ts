@@ -1,8 +1,17 @@
-const { test, expect } = require('@playwright/test');
+import { test, expect, Page } from '@playwright/test';
 
-const runHandlerTest = async (page, { handler, file }) => {
+interface HandlerTestOptions {
+    handler: string;
+    file: {
+        content: string | Uint8Array;
+        name: string;
+        type: string;
+    };
+}
+
+const runHandlerTest = async (page: Page, { handler, file }: HandlerTestOptions) => {
     // Navigate to the test harness page with the specified handler
-    await page.goto(`http://localhost:8080/tests/integration/driver.html?handler=${handler}`);
+    await page.goto(`/tests/integration/driver.html?handler=${handler}`);
 
     // Send the file to the driver harness
     await page.evaluate((file) => {
@@ -12,7 +21,11 @@ const runHandlerTest = async (page, { handler, file }) => {
         }, '*');
     }, file);
 
-    return await page.locator('#file-handler-iframe').contentFrame();
+    const iframe = await page.locator('#file-handler-iframe').contentFrame();
+    if (!iframe) {
+        throw new Error('Could not find the iframe');
+    }
+    return iframe;
 };
 
 test('should correctly process and display a text file in the textviewer', async ({ page }) => {
