@@ -13,19 +13,24 @@ import (
 )
 
 func exportTextProto(this js.Value, args []js.Value) interface{} {
-	if len(args) != 1 {
-		return "Error: Invalid number of arguments. Expected 1 (message descriptor bytes)."
+	if len(args) != 3 {
+		return "Error: Invalid number of arguments. Expected 3 (pbBytes, fdsBytes, messageName)."
 	}
-	descBytesJS := args[0]
-	if descBytesJS.Type() != js.TypeObject || !descBytesJS.Truthy() || descBytesJS.Get("byteLength").IsUndefined() {
-		return "Error: Argument must be a Uint8Array."
-	}
+	pbBytesJS := args[0]
+	fdsBytesJS := args[1]
+	messageNameJS := args[2]
 
-	descLength := descBytesJS.Get("byteLength").Int()
-	descGoBytes := make([]byte, descLength)
-	js.CopyBytesToGo(descGoBytes, descBytesJS)
+	pbLength := pbBytesJS.Get("byteLength").Int()
+	pbGoBytes := make([]byte, pbLength)
+	js.CopyBytesToGo(pbGoBytes, pbBytesJS)
 
-	out, err := textProtoFromFDS(descGoBytes)
+	fdsLength := fdsBytesJS.Get("byteLength").Int()
+	fdsGoBytes := make([]byte, fdsLength)
+	js.CopyBytesToGo(fdsGoBytes, fdsBytesJS)
+
+	messageName := messageNameJS.String()
+
+	out, err := textProtoFromPB(pbGoBytes, fdsGoBytes, messageName)
 	if err != nil {
 		return err.Error()
 	}
@@ -33,19 +38,24 @@ func exportTextProto(this js.Value, args []js.Value) interface{} {
 }
 
 func exportJSON(this js.Value, args []js.Value) interface{} {
-	if len(args) != 1 {
-		return "Error: Invalid number of arguments. Expected 1 (message descriptor bytes)."
+	if len(args) != 3 {
+		return "Error: Invalid number of arguments. Expected 3 (pbBytes, fdsBytes, messageName)."
 	}
-	descBytesJS := args[0]
-	if descBytesJS.Type() != js.TypeObject || !descBytesJS.Truthy() || descBytesJS.Get("byteLength").IsUndefined() {
-		return "Error: Argument must be a Uint8Array."
-	}
+	pbBytesJS := args[0]
+	fdsBytesJS := args[1]
+	messageNameJS := args[2]
 
-	descLength := descBytesJS.Get("byteLength").Int()
-	descGoBytes := make([]byte, descLength)
-	js.CopyBytesToGo(descGoBytes, descBytesJS)
+	pbLength := pbBytesJS.Get("byteLength").Int()
+	pbGoBytes := make([]byte, pbLength)
+	js.CopyBytesToGo(pbGoBytes, pbBytesJS)
 
-	out, err := jsonFromFDS(descGoBytes)
+	fdsLength := fdsBytesJS.Get("byteLength").Int()
+	fdsGoBytes := make([]byte, fdsLength)
+	js.CopyBytesToGo(fdsGoBytes, fdsBytesJS)
+
+	messageName := messageNameJS.String()
+
+	out, err := jsonFromPB(pbGoBytes, fdsGoBytes, messageName)
 	if err != nil {
 		return err.Error()
 	}

@@ -16,8 +16,8 @@ declare global {
         protoscope?: {
             // Updated signature to accept main bytes, optional FDS bytes, and optional message name string
             protoscopeFile?: (mainFileBytes: Uint8Array, fdsBytes?: Uint8Array | null, messageName?: string | null) => string;
-            exportTextProto?: (fdsBytes: Uint8Array) => string;
-            exportJSON?: (fdsBytes: Uint8Array) => string;
+            exportTextProto?: (pbBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
+            exportJSON?: (pbBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
         };
     }
 }
@@ -239,8 +239,8 @@ export const App: React.FC = () => {
     }, [loadWasm]);
 
     const handleExport = useCallback(async (format: 'textproto' | 'json') => {
-        if (!schemaFile) {
-            setError("Schema file not selected.");
+        if (!mainFile || !schemaFile || !messageName) {
+            setError("Both a .pb file and a .proto schema must be provided, and a message type must be selected.");
             return;
         }
 
@@ -251,6 +251,9 @@ export const App: React.FC = () => {
         if (!wasmReady) return;
 
         try {
+            const mainFileArrayBuffer = await mainFile.arrayBuffer();
+            const mainFileUint8Array = new Uint8Array(mainFileArrayBuffer);
+
             const protoContents = await schemaFile.text();
             const parsed = protobuf.parse(protoContents, { keepCase: false });
             const root = parsed.root;
@@ -264,20 +267,23 @@ export const App: React.FC = () => {
                 if (typeof window.protoscope?.exportTextProto !== 'function') {
                     throw new Error('exportTextProto function not available.');
                 }
-                exportedData = window.protoscope.exportTextProto(fdsBytes);
+                exportedData = window.protoscope.exportTextProto(mainFileUint8Array, fdsBytes, messageName);
             } else {
                 if (typeof window.protoscope?.exportJSON !== 'function') {
                     throw new Error('exportJSON function not available.');
                 }
-                exportedData = window.protoscope.exportJSON(fdsBytes);
+                exportedData = window.protoscope.exportJSON(mainFileUint8Array, fdsBytes, messageName);
             }
 
             if (typeof exportedData === 'string') {
+                if (exportedData.startsWith("Error:")) {
+                    throw new Error(exportedData);
+                }
                 const blob = new Blob([exportedData], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${schemaFile.name}.${format}`;
+                a.download = `${mainFile.name}.${format}`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -292,7 +298,7 @@ export const App: React.FC = () => {
         } finally {
             setLoading(null);
         }
-    }, [schemaFile, loadWasm]);
+    }, [mainFile, schemaFile, messageName, loadWasm]);
 
     // Automatically process when mainFile is set and WASM is loaded
     useEffect(() => {
@@ -367,17 +373,17 @@ export const App: React.FC = () => {
                         )}
                     </div>
                 )}
-                {schemaFile && (
+                {schemaFile && mainFile && (
                     <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
                         <button
                             onClick={() => handleExport('textproto')}
-                            disabled={!schemaFile || !!loading}
+                            disabled={!mainFile || !schemaFile || !messageName || !!loading}
                         >
                             Export as Textproto
                         </button>
                         <button
                             onClick={() => handleExport('json')}
-                            disabled={!schemaFile || !!loading}
+                            disabled={!mainFile || !schemaFile || !messageName || !!loading}
                         >
                             Export as JSON
                         </button>
