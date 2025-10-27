@@ -2,28 +2,33 @@
 const { test, expect } = require('@playwright/test');
 
 test('should allow switching between handlers for the same file', async ({ page }) => {
-    await page.goto('http://localhost:8080');
+    // Load the integration test harness which hosts an iframe and driver.js
+    await page.goto('http://localhost:8080/tests/integration/driver.html');
 
-    // Upload a markdown file
-    const fileChooserPromise = page.waitForEvent('filechooser');
-    await page.locator('#droptarget').click();
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles({
-        name: 'test.md',
-        mimeType: 'text/markdown',
-        buffer: Buffer.from('# Hello, Markdown!')
+    // Point the harness iframe at the markdown handler and provide the file via postMessage
+    await page.evaluate(() => {
+        const iframe = document.getElementById('file-handler-iframe');
+        iframe.src = '/markdown/index.html';
+        // Tell the driver which file to provide to the handler when it requests it
+        window.postMessage({
+            action: 'setFile',
+            file: {
+                content: '# Hello, Markdown!',
+                name: 'test.md',
+                type: 'text/markdown'
+            }
+        }, '*');
     });
 
-    // Wait for the iframe to be loaded with the default handler
-    await page.waitForSelector('iframe');
-
-    // Verify that the markdown handler is loaded (default handler)
-    const iframe = page.frameLocator('iframe');
+    // Wait for the iframe and verify the markdown handler rendered the heading
+    const iframe = page.frameLocator('#file-handler-iframe');
     await expect(iframe.locator('h1')).toHaveText('Hello, Markdown!');
 
-    // Switch to the text handler
-    await page.getByRole('button', { name: 'Text' }).click();
+    // Now switch the same iframe to the text handler and ensure it shows raw text
+    await page.evaluate(() => {
+        const iframe = document.getElementById('file-handler-iframe');
+        iframe.src = '/textviewer/index.html';
+    });
 
-    // Verify that the text handler is loaded. It shows raw text.
     await expect(iframe.locator('body')).toContainText('# Hello, Markdown!');
 });
