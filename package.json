@@ -25,7 +25,8 @@
         "rstviewer",
         "graphviz",
         "cborviewer",
-        "sqliteviewer"
+        "sqliteviewer",
+        "proguardviewer"
     ],
     "scripts": {
         "start": "node serve.mjs",
