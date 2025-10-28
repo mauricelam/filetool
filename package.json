@@ -30,11 +30,11 @@
     ],
     "scripts": {
         "start": "node serve.mjs",
-        "build:workspaces": "npm run build -ws",
+        "build:workspaces": "npm run build --workspaces",
         "watch:workspaces": "npm pkg get name --ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch --silent -w {}",
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
-        "test": "npm run test -ws -if-present",
+        "test": "npm run test --workspaces --if-present",
         "test:integration": "cp -r tests/* dist/tests/ && playwright test"
     },
     "devDependencies": {

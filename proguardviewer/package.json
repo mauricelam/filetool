@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs --watch",
-    "test": "vitest run"
+    "watch": "BUILD_MODE=dev node build.mjs",
+    "test": "npm-run-all test:*",
+    "test:vitest": "vitest run",
+    "test:cargo": "cd proguard-wasm && cargo test"
   },
   "keywords": [],
   "author": "",
