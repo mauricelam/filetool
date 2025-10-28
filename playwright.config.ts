@@ -1,26 +1,18 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/integration',
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
   use: {
-    baseURL: 'http://localhost:8081',
-    trace: 'on-first-retry',
+    headless: true,
+    viewport: { width: 1280, height: 720 },
+    ignoreHTTPSErrors: true,
+    baseURL: 'http://localhost:8080',
+    onConsole: (msg) => console.log(msg.text()),
   },
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-  ],
   webServer: {
-    command: 'node serve-test.mjs',
-    url: 'http://localhost:8081',
+    command: 'node serve.mjs',
+    port: 8080,
+    timeout: 120 * 1000,
     reuseExistingServer: !process.env.CI,
-    timeout: 300 * 1000,
   },
 });
