@@ -35,7 +35,7 @@
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
         "test": "npm run test --workspaces --if-present",
-        "test:integration": "cp -r tests/* dist/tests/ && playwright test"
+        "test:integration": "mkdir -p dist/tests/ && cp -r tests/* dist/tests/ && playwright test"
     },
     "devDependencies": {
         "@playwright/test": "^1.56.1",
