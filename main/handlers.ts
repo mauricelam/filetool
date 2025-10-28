@@ -364,6 +364,15 @@ export const HANDLERS: HandlerDefinition[] = [
             "application/x-sqlite3",
             "application/vnd.sqlite3"
         ]
+    },
+    {
+        "name": "Proguard Viewer",
+        "handler": "proguardviewer",
+        "mimetypes": [
+            {
+                filename: /\.(map|mapping|txt)$/i,
+            }
+        ]
     }
 ]
 
