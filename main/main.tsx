@@ -98,31 +98,21 @@ const MIMEMAGIC = WASMagic.create({
 })
 const resultDiv = createRoot(document.getElementById("result")!)
 resultDiv.render(<FileList />)
+setupMessageListener();
 
-function dispatchOpenFiles(files: File[]) {
-    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
-}
-
-const framecontainer = document.getElementById('framecontainer')!
-
-async function openHandler(handler: string, file: File, mime: string) {
-    // Clear existing iframes
-    framecontainer.innerHTML = '';
-
-    // Create new iframe
-    const iframe = document.createElement('iframe');
-    framecontainer.appendChild(iframe);
-
-    if (handler === '__text__') {
-        iframe.setAttribute('sandbox', '');
-        iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
-    } else {
-        iframe.removeAttribute('sandbox');
-        iframe.src = handler;
-    }
-
+function setupMessageListener() {
     window.onmessage = async (e) => {
-        if (e.source === iframe.contentWindow) {
+        let file: File | null = null;
+        for (const [f, i] of fileToIframe.entries()) {
+            if (i.contentWindow === e.source) {
+                file = f;
+                break;
+            }
+        }
+
+        if (file) {
+            const iframe = fileToIframe.get(file)!;
+            const mime = iframeToMime.get(iframe)!;
             if (e.data.action === 'requestFile') {
                 if (file.type !== mime) {
                     console.log("Mismatched mime types", file.type, mime);
@@ -137,6 +127,68 @@ async function openHandler(handler: string, file: File, mime: string) {
             }
         }
     };
+}
+
+function dispatchOpenFiles(files: File[]) {
+    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
+}
+
+const framecontainer = document.getElementById('framecontainer')!
+const MAX_IFRAMES = 5;
+const iframes: HTMLIFrameElement[] = [];
+const fileToIframe = new Map<File, HTMLIFrameElement>();
+const iframeToMime = new Map<HTMLIFrameElement, string>();
+const iframeToHandler = new Map<HTMLIFrameElement, string>();
+
+async function openHandler(handler: string, file: File, mime: string) {
+    if (fileToIframe.has(file)) {
+        const iframe = fileToIframe.get(file)!;
+        if (iframeToHandler.get(iframe) !== handler) {
+            if (handler === '__text__') {
+                iframe.setAttribute('sandbox', '');
+                iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
+            } else {
+                iframe.removeAttribute('sandbox');
+                iframe.src = handler;
+            }
+            iframeToHandler.set(iframe, handler);
+        }
+        iframes.forEach(f => f.style.display = 'none');
+        iframe.style.display = 'block';
+        return;
+    }
+
+    let iframe: HTMLIFrameElement;
+    if (iframes.length < MAX_IFRAMES) {
+        iframe = document.createElement('iframe');
+        iframes.push(iframe);
+        framecontainer.appendChild(iframe);
+    } else {
+        iframe = iframes.shift()!;
+        iframes.push(iframe);
+        // Find the file associated with this iframe and remove it from the map
+        for (const [file, frame] of fileToIframe.entries()) {
+            if (frame === iframe) {
+                fileToIframe.delete(file);
+                break;
+            }
+        }
+    }
+
+    fileToIframe.set(file, iframe);
+    iframeToMime.set(iframe, mime);
+    iframeToHandler.set(iframe, handler);
+
+    iframes.forEach(f => f.style.display = 'none');
+    iframe.style.display = 'block';
+
+    if (handler === '__text__') {
+        iframe.setAttribute('sandbox', '');
+        iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
+    } else {
+        iframe.removeAttribute('sandbox');
+        iframe.src = handler;
+    }
 }
 
 function FileList() {
@@ -166,6 +218,12 @@ function FileList() {
     }, [files, setSelected]);
 
     if (files.length) {
+        const selectedFile = files[selected];
+        iframes.forEach(f => f.style.display = 'none');
+        if (selectedFile && fileToIframe.has(selectedFile)) {
+            fileToIframe.get(selectedFile)!.style.display = 'block';
+        }
+
         return (
             <>
                 <div style={{ display: files.length <= 1 ? 'none' : 'block', position: 'absolute', top: 0, right: 0, userSelect: 'none' }}>
@@ -182,7 +240,6 @@ function FileList() {
 }
 
 function LoadFileItem({ file }: { file: File }): ReactNode {
-    framecontainer.innerHTML = ''
     const [handlers, setHandlers] = useState<any[]>([])
     const [mime, setMime] = useState("")
     const [description, setDescription] = useState("Loading...")
@@ -191,9 +248,6 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             const [magic, mimeMagic] = await Promise.all([MAGIC, MIMEMAGIC])
             const fileBuf = new Uint8Array(await file.arrayBuffer())
             const mime = mimeMagic.detect(fileBuf)
-            if (mime !== file.type) {
-                file = new File([fileBuf], file.name, { type: mime })
-            }
             const fileDescription = magic.detect(fileBuf) // Store description
             const handlers: HandlerDefinition[] = [];
             for (const handler of HANDLERS) {

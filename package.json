@@ -35,9 +35,7 @@
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
         "test": "npm run test -ws -if-present",
-        "pretest:integration": "npm run build -w proguardviewer && npm run build -w main && cp -r tests dist/",
-        "test:integration": "playwright test",
-        "posttest:integration": "rm -rf dist/tests"
+        "test:integration": "cp -r tests/* dist/tests/ && playwright test"
     },
     "devDependencies": {
         "@playwright/test": "^1.56.1",

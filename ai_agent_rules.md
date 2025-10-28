@@ -6,3 +6,4 @@
 	- Modals should close when clicking the backdrop (outside the dialog content) and when pressing Escape (Esc).
 	- Modals should use `role="dialog"` and `aria-modal="true"` and restore focus to the element that opened them when closed.
 	- Modal components should accept an `onClose: () => void` prop and call it for any close action.
+5. When commenting, make sure the comments explain the overall architecture structure of a method / class / module / package, and not just about the action you immediately performed. To explain that an action was done in response to the user prompt, put that in the commit message.

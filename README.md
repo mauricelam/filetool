@@ -98,3 +98,18 @@ When implementing modal dialogs in this repository, follow these UX and accessib
 
 Following these rules makes dialogs predictable and keyboard-friendly for all users. See `jqviewer/cheatsheet.tsx` and `jqviewer/main.tsx` for an example implementation in this project.
 
+
+## Integration tests
+
+This repository includes Playwright-based integration tests under `tests/integration/`. The tests use a small test harness page (`tests/integration/driver.html` and `tests/integration/driver.js`) that loads a handler iframe and posts a file to it.
+
+#### How to run
+
+From the project root run the integration test script used by this repo:
+
+```sh
+npm run test:integration
+```
+
+If you add or change handlers, update `tests/integration/driver.js` or the tests as needed.
+

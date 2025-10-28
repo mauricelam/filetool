@@ -30,7 +30,14 @@ export const goWasm = (options) => {
 
       goRoot = execSync('go env GOROOT', { encoding: 'utf-8' }).trim();
 
-      const wasmExecJsSrc = path.join(goRoot, 'misc', 'wasm', 'wasm_exec.js');
+      const candidates = [
+        // Go 1.23 or lower
+        path.join(goRoot, 'misc', 'wasm', 'wasm_exec.js'),
+
+        // Go 1.24 or above
+        path.join(goRoot, 'lib', 'wasm', 'wasm_exec.js')
+      ];
+      const wasmExecJsSrc = candidates.find(c => fs.existsSync(c)) || candidates[0];
 
       const buildWasm = () => {
         if (isBuilding) {
@@ -54,8 +61,9 @@ export const goWasm = (options) => {
             const absoluteWasmExecJsDest = path.join(outDir, wasmExecJsDest);
             fs.mkdirSync(path.dirname(absoluteWasmExecJsDest), { recursive: true });
             fs.copyFileSync(wasmExecJsSrc, absoluteWasmExecJsDest);
+            fs.chmodSync(absoluteWasmExecJsDest, 0o644);
           } else {
-            console.warn(`[go-wasm-builder] wasm_exec.js not found at ${wasmExecJsSrc}. Skipping copy.`);
+            throw new Error(`[go-wasm-builder] wasm_exec.js not found at ${wasmExecJsSrc}.`);
           }
         } finally {
           isBuilding = false;
