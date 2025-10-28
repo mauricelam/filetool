@@ -408,7 +408,7 @@ where
             .map(|s| s as TypeId))
     }
 
-    pub(crate) fn type_ids_section(&self) -> Section {
+    pub(crate) fn type_ids_section(&self) -> Section<'_> {
         let type_ids_offset = self.inner.type_ids_offset() as usize;
         let (start, end) = (
             type_ids_offset,
@@ -419,7 +419,7 @@ where
     }
 
     #[allow(unused)]
-    pub(crate) fn class_defs_section(&self) -> Section {
+    pub(crate) fn class_defs_section(&self) -> Section<'_> {
         let class_defs_offset = self.inner.class_defs_offset() as usize;
         let (start, end) = (
             class_defs_offset,

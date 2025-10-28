@@ -52,7 +52,7 @@ pub fn parse_method_signature(input: &str) -> Result<MethodSignature<'_>, nom::e
     map(
         tuple((
             parse_type_params,
-            delimited(char('('), many0(parse_java_type_signature), char(')')) ,
+            delimited(char('('), many0(parse_java_type_signature), char(')')),
             parse_method_return_type,
             many0(preceded(char('^'), parse_throws_signature)),
             eof,
@@ -71,10 +71,7 @@ pub fn parse_method_signature(input: &str) -> Result<MethodSignature<'_>, nom::e
 pub fn parse_throws_signature(input: &str) -> nom::IResult<&str, ThrowsSignature<'_>> {
     alt((
         map(parse_class_type_signature, ThrowsSignature::ClassType),
-        map(
-            parse_type_variable_signature,
-            ThrowsSignature::TypeVariable,
-        ),
+        map(parse_type_variable_signature, ThrowsSignature::TypeVariable),
     ))(input)
 }
 
@@ -132,16 +129,6 @@ fn test_method() {
                     }
                 ))),
                 JavaTypeSignature::Primitive('Z'),
-                JavaTypeSignature::Reference(Box::new(ReferenceTypeSignature::Array(
-                    ArrayTypeSignature {
-                        element_type: JavaTypeSignature::Reference(Box::new(
-                            ReferenceTypeSignature::Class(ClassTypeSignature {
-                                class: "java/lang/String",
-                                type_arguments: vec![]
-                            })
-                        ))
-                    }
-                ))),
                 JavaTypeSignature::Reference(Box::new(ReferenceTypeSignature::Class(
                     ClassTypeSignature {
                         class: "kotlin/jvm/functions/Function1",
@@ -183,13 +170,10 @@ pub fn parse_field_signature(
 /// TypeParameters:
 ///   < TypeParameter {TypeParameter} >
 fn parse_type_params(input: &str) -> nom::IResult<&str, Vec<TypeParameter<'_>>> {
-    map(
-        opt(delimited(
-            char('<'),
-            nom::multi::many1(parse_type_parameter),
-            char('>'),
-        )),
-        |opt| opt.unwrap_or_default(),
+    delimited(
+        char('<'),
+        nom::multi::many1(parse_type_parameter),
+        char('>'),
     )(input)
 }
 
@@ -258,12 +242,12 @@ fn parse_class_type_signature(input: &str) -> nom::IResult<&str, ClassTypeSignat
     map(
         delimited(
             char('L'),
-            tuple((parse_identifier, opt(parse_type_arguments))),
+            tuple((parse_identifier, parse_type_arguments)),
             char(';'),
         ),
         |(class, type_arguments)| ClassTypeSignature {
             class,
-            type_arguments: type_arguments.unwrap_or_default(),
+            type_arguments,
         },
     )(input)
 }
