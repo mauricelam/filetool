@@ -30,12 +30,14 @@ pub fn deobfuscate_class(mapping_file_content: &str, name: &str) -> Result<Strin
         let method_name = &method_name[1..]; // remove the dot
 
         if !class_name.is_empty() && !method_name.is_empty() {
-            let frame = StackFrame::new(class_name, method_name, 0);
-            let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
+            if let Some(remapped_class) = mapper.remap_class(class_name) {
+                let frame = StackFrame::new(class_name, method_name, 0);
+                let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
 
-            if !remapped_frames.is_empty() {
-                let remapped_frame = &remapped_frames[0];
-                return Ok(format!("{}.{}", remapped_frame.class(), remapped_frame.method()));
+                if !remapped_frames.is_empty() {
+                    let remapped_frame = &remapped_frames[0];
+                    return Ok(format!("{}.{}", remapped_class, remapped_frame.method()));
+                }
             }
         }
     }
@@ -67,7 +69,8 @@ pub fn deobfuscate_stack_trace(mapping_file_content: &str, stack_trace_str: &str
                 let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
                 if !remapped_frames.is_empty() {
                     let remapped_frame = &remapped_frames[0];
-                    let remapped_line = format!("\tat {}.{}({}:{})", remapped_frame.class(), remapped_frame.method(), file, remapped_frame.line());
+                    let remapped_class = mapper.remap_class(&class).unwrap_or(&class);
+                    let remapped_line = format!("\tat {}.{}({}:{})", remapped_class, remapped_frame.method(), file, remapped_frame.line());
                     remapped_trace.push_str(&remapped_line);
                     remapped_trace.push('\n');
                     continue;
@@ -79,4 +82,49 @@ pub fn deobfuscate_stack_trace(mapping_file_content: &str, stack_trace_str: &str
     }
 
     Ok(remapped_trace)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MAPPING_WITHOUT_LINES: &str = r#"
+com.example.MyClass -> a.b.c:
+    void myMethod(int) -> b
+com.example.AnotherClass -> d.e.f:
+    void anotherMethod(java.lang.String) -> d
+"#;
+
+    const MAPPING_WITH_LINES: &str = r#"
+com.example.MyClass -> a.b.c:
+    1:1:void myMethod(int):10:10 -> b
+com.example.AnotherClass -> d.e.f:
+    1:1:void anotherMethod(java.lang.String):20:20 -> d
+"#;
+
+    #[test]
+    fn test_remap_class() {
+        let remapped = deobfuscate_class(MAPPING_WITHOUT_LINES, "a.b.c").unwrap();
+        assert_eq!(remapped, "com.example.MyClass");
+    }
+
+    #[test]
+    fn test_remap_method() {
+        let remapped = deobfuscate_class(MAPPING_WITHOUT_LINES, "a.b.c.b").unwrap();
+        assert_eq!(remapped, "com.example.MyClass.myMethod");
+    }
+
+    #[test]
+    fn test_remap_stack_trace() {
+        let stack_trace = r#"
+at a.b.c.b(MyClass.java:1)
+at d.e.f.d(AnotherClass.java:1)
+"#;
+        let expected = r#"
+	at com.example.MyClass.myMethod(MyClass.java:10)
+	at com.example.AnotherClass.anotherMethod(AnotherClass.java:20)
+"#;
+        let remapped = deobfuscate_stack_trace(MAPPING_WITH_LINES, stack_trace).unwrap();
+        assert_eq!(remapped.trim(), expected.trim());
+    }
 }

@@ -30,12 +30,12 @@
     ],
     "scripts": {
         "start": "node serve.mjs",
-        "build:workspaces": "npm run build -ws",
+        "build:workspaces": "npm run build --workspaces",
         "watch:workspaces": "npm pkg get name --ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch --silent -w {}",
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
-        "test": "npm run test -ws -if-present",
-        "test:integration": "mkdir -p dist/tests/integration && cp tests/integration/driver.html dist/tests/integration/ && esbuild tests/integration/driver.ts --bundle --outfile=dist/tests/integration/driver.js && playwright test"
+        "test": "npm run test --workspaces --if-present",
+        "test:integration": "node tests/integration/build.mjs && playwright test"
     },
     "devDependencies": {
         "@playwright/test": "^1.56.1",

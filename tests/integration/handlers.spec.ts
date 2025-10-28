@@ -13,6 +13,9 @@ const runHandlerTest = async (page: Page, { handler, file }: HandlerTestOptions)
     // Navigate to the test harness page with the specified handler
     await page.goto(`/tests/integration/driver.html?handler=${handler}`);
 
+    // Ensure the iframe is attached before posting the file
+    await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
+
     // Send the file to the driver harness
     await page.evaluate((file) => {
         window.postMessage({
@@ -21,10 +24,13 @@ const runHandlerTest = async (page: Page, { handler, file }: HandlerTestOptions)
         }, '*');
     }, file);
 
-    const iframe = await page.locator('#file-handler-iframe').contentFrame();
+    // Wait for the frame content to be ready and return it
+    const iframeEl = await page.$('#file-handler-iframe');
+    const iframe = iframeEl ? await iframeEl.contentFrame() : null;
     if (!iframe) {
         throw new Error('Could not find the iframe');
     }
+    await iframe.waitForSelector('body', { state: 'visible', timeout: 10000 });
     return iframe;
 };
 
