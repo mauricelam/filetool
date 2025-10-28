@@ -16,7 +16,7 @@ pub struct ClassSignature<'a> {
     interfaces: Vec<ClassTypeSignature<'a>>,
 }
 
-pub fn parse_class_signature(input: &str) -> Result<ClassSignature, nom::error::Error<&str>> {
+pub fn parse_class_signature(input: &str) -> Result<ClassSignature<'_>, nom::error::Error<&str>> {
     map(
         tuple((
             parse_type_params,
@@ -48,7 +48,7 @@ pub enum ThrowsSignature<'a> {
     TypeVariable(TypeVariableSignature<'a>),
 }
 
-pub fn parse_method_signature(input: &str) -> Result<MethodSignature, nom::error::Error<&str>> {
+pub fn parse_method_signature(input: &str) -> Result<MethodSignature<'_>, nom::error::Error<&str>> {
     map(
         tuple((
             parse_type_params,
@@ -68,7 +68,7 @@ pub fn parse_method_signature(input: &str) -> Result<MethodSignature, nom::error
     .map(|(_, sig)| sig)
 }
 
-pub fn parse_throws_signature(input: &str) -> nom::IResult<&str, ThrowsSignature> {
+pub fn parse_throws_signature(input: &str) -> nom::IResult<&str, ThrowsSignature<'_>> {
     alt((
         map(parse_class_type_signature, ThrowsSignature::ClassType),
         map(parse_type_variable_signature, ThrowsSignature::TypeVariable),
@@ -81,7 +81,7 @@ pub enum MethodReturnType<'a> {
     Type(JavaTypeSignature<'a>),
 }
 
-pub fn parse_method_return_type(input: &str) -> nom::IResult<&str, MethodReturnType> {
+pub fn parse_method_return_type(input: &str) -> nom::IResult<&str, MethodReturnType<'_>> {
     alt((
         map(char('V'), |_| MethodReturnType::Void),
         map(parse_java_type_signature, MethodReturnType::Type),
@@ -161,7 +161,7 @@ fn test_method() {
 
 pub fn parse_field_signature(
     input: &str,
-) -> Result<ReferenceTypeSignature, nom::error::Error<&str>> {
+) -> Result<ReferenceTypeSignature<'_>, nom::error::Error<&str>> {
     terminated(parse_reference_type_signature, eof)(input)
         .finish()
         .map(|(_, sig)| sig)
@@ -169,7 +169,7 @@ pub fn parse_field_signature(
 
 /// TypeParameters:
 ///   < TypeParameter {TypeParameter} >
-fn parse_type_params(input: &str) -> nom::IResult<&str, Vec<TypeParameter>> {
+fn parse_type_params(input: &str) -> nom::IResult<&str, Vec<TypeParameter<'_>>> {
     delimited(
         char('<'),
         nom::multi::many1(parse_type_parameter),
@@ -186,7 +186,7 @@ struct TypeParameter<'a> {
 
 /// TypeParameter:
 ///   Identifier ClassBound {InterfaceBound}
-fn parse_type_parameter(input: &str) -> nom::IResult<&str, TypeParameter> {
+fn parse_type_parameter(input: &str) -> nom::IResult<&str, TypeParameter<'_>> {
     map(
         nom::sequence::tuple((parse_identifier, parse_class_bound, parse_interface_bounds)),
         |(ident, class_bound, interface_bounds)| TypeParameter {
@@ -197,14 +197,14 @@ fn parse_type_parameter(input: &str) -> nom::IResult<&str, TypeParameter> {
     )(input)
 }
 
-fn parse_interface_bounds(input: &str) -> nom::IResult<&str, Vec<ReferenceTypeSignature>> {
+fn parse_interface_bounds(input: &str) -> nom::IResult<&str, Vec<ReferenceTypeSignature<'_>>> {
     many0(nom::sequence::preceded(
         char(':'),
         parse_reference_type_signature,
     ))(input)
 }
 
-fn parse_class_bound(input: &str) -> nom::IResult<&str, Option<ReferenceTypeSignature>> {
+fn parse_class_bound(input: &str) -> nom::IResult<&str, Option<ReferenceTypeSignature<'_>>> {
     nom::sequence::preceded(char(':'), opt(parse_reference_type_signature))(input)
 }
 
@@ -219,7 +219,7 @@ pub enum ReferenceTypeSignature<'a> {
 ///   ClassTypeSignature
 ///   TypeVariableSignature
 ///   ArrayTypeSignature
-fn parse_reference_type_signature(input: &str) -> nom::IResult<&str, ReferenceTypeSignature> {
+fn parse_reference_type_signature(input: &str) -> nom::IResult<&str, ReferenceTypeSignature<'_>> {
     nom::branch::alt((
         map(parse_class_type_signature, ReferenceTypeSignature::Class),
         map(
@@ -238,7 +238,7 @@ pub struct ClassTypeSignature<'a> {
 
 /// ClassTypeSignature:
 ///   L [PackageSpecifier] SimpleClassTypeSignature {ClassTypeSignatureSuffix} ;
-fn parse_class_type_signature(input: &str) -> nom::IResult<&str, ClassTypeSignature> {
+fn parse_class_type_signature(input: &str) -> nom::IResult<&str, ClassTypeSignature<'_>> {
     map(
         delimited(
             char('L'),
@@ -257,7 +257,7 @@ pub struct TypeVariableSignature<'a> {
     ident: &'a str,
 }
 
-fn parse_type_variable_signature(input: &str) -> nom::IResult<&str, TypeVariableSignature> {
+fn parse_type_variable_signature(input: &str) -> nom::IResult<&str, TypeVariableSignature<'_>> {
     map(delimited(char('T'), parse_identifier, char(';')), |ident| {
         TypeVariableSignature { ident }
     })(input)
@@ -268,7 +268,7 @@ pub struct ArrayTypeSignature<'a> {
     element_type: JavaTypeSignature<'a>,
 }
 
-fn parse_array_type_signature(input: &str) -> nom::IResult<&str, ArrayTypeSignature> {
+fn parse_array_type_signature(input: &str) -> nom::IResult<&str, ArrayTypeSignature<'_>> {
     map(preceded(char('['), parse_java_type_signature), |ty| {
         ArrayTypeSignature { element_type: ty }
     })(input)
@@ -280,7 +280,7 @@ pub enum JavaTypeSignature<'a> {
     Reference(Box<ReferenceTypeSignature<'a>>),
 }
 
-fn parse_java_type_signature(input: &str) -> nom::IResult<&str, JavaTypeSignature> {
+fn parse_java_type_signature(input: &str) -> nom::IResult<&str, JavaTypeSignature<'_>> {
     alt((
         map(one_of("ZBCSIJFD"), JavaTypeSignature::Primitive),
         map(parse_reference_type_signature, |r| {
@@ -291,7 +291,7 @@ fn parse_java_type_signature(input: &str) -> nom::IResult<&str, JavaTypeSignatur
 
 /// TypeArguments:
 ///   < TypeArgument {TypeArgument} >
-fn parse_type_arguments(input: &str) -> nom::IResult<&str, Vec<TypeArgument>> {
+fn parse_type_arguments(input: &str) -> nom::IResult<&str, Vec<TypeArgument<'_>>> {
     delimited(char('<'), nom::multi::many1(parse_type_argument), char('>'))(input)
 }
 
@@ -309,7 +309,7 @@ pub enum TypeArgument<'a> {
 /// WildcardIndicator:
 ///   +
 ///   -
-fn parse_type_argument(input: &str) -> nom::IResult<&str, TypeArgument> {
+fn parse_type_argument(input: &str) -> nom::IResult<&str, TypeArgument<'_>> {
     nom::branch::alt((
         map(tag("*"), |_| TypeArgument::Wildcard),
         map(

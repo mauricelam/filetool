@@ -24,11 +24,11 @@ pub struct ModelVisitor<'a> {
 }
 
 impl<'a> ModelVisitor<'a> {
-    pub fn get_resources(&self) -> &'a Resources {
+    pub fn get_resources(&self) -> &'a Resources<'_> {
         &self.resources
     }
 
-    pub fn get_mut_resources(&mut self) -> &'a mut Resources {
+    pub fn get_mut_resources(&mut self) -> &'a mut Resources<'_> {
         &mut self.resources
     }
 }

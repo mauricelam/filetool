@@ -1,4 +1,4 @@
-use std::{mem, string::ToString};
+use std::string::ToString;
 
 use anyhow::{format_err, Error};
 
@@ -151,12 +151,11 @@ impl Value {
     }
 
     // TODO: maybe remove the unsafe code.
-    #[allow(unsafe_code)]
     fn complex(data: u32) -> f32 {
         // TODO: Clean this mess
         let mantissa = 0xffffff << 8;
         let u_value = data & mantissa;
-        let i_value: i32 = unsafe { mem::transmute(u_value) };
+        let i_value: i32 = u_value.cast_signed();
         let m = i_value as f32;
         let mm = 1.0 / ((1 << 8) as f32);
 

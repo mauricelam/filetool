@@ -55,7 +55,7 @@ impl<'a> XmlVisitor<'a> {
         &self.res
     }
 
-    pub fn arsc(&self) -> &Resources {
+    pub fn arsc(&self) -> &Resources<'_> {
         self.resources
     }
 

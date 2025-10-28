@@ -22,7 +22,7 @@ fn main() {
     if let Err(ref e) = run() {
         println!("error: {}", e);
 
-        for e in e.iter_causes() {
+        for e in e.chain() {
             println!("caused by: {}", e);
         }
 

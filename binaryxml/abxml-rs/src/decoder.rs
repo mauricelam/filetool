@@ -35,7 +35,7 @@ impl BufferedDecoder {
         })
     }
 
-    pub fn get_decoder(&self) -> Result<Decoder, Error> {
+    pub fn get_decoder(&self) -> Result<Decoder<'_>, Error> {
         Decoder::from_buffer(&self.buffer)
     }
 }
@@ -74,11 +74,11 @@ impl<'a> Decoder<'a> {
         Ok(visitor)
     }
 
-    pub fn get_resources(&self) -> &'a Resources {
+    pub fn get_resources(&self) -> &'a Resources<'_> {
         self.visitor.get_resources()
     }
 
-    pub fn xml_visitor<T: AsRef<[u8]>>(&self, content: &'a T) -> Result<XmlVisitor, Error> {
+    pub fn xml_visitor<T: AsRef<[u8]>>(&self, content: &'a T) -> Result<XmlVisitor<'_>, Error> {
         let cursor = Cursor::new(content.as_ref());
         let mut visitor = XmlVisitor::new(self.get_resources());
 
