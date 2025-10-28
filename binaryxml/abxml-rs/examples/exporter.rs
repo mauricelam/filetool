@@ -16,7 +16,7 @@ fn main() {
     if let Err(ref e) = run() {
         println!("error: {}", e);
 
-        for e in e.iter_causes() {
+        for e in e.chain() {
             println!("caused by: {}", e);
         }
 
@@ -41,7 +41,7 @@ fn run() -> Result<(), Error> {
         }
     };
 
-    let mut apk = Apk::from_path(&apk_path).context("error loading APK")?;
+    let mut apk = Apk::<std::fs::File>::from_path(&apk_path).context("error loading APK")?;
     apk.export(Path::new(&output), true)
         .context("APK could not be exported")?;
 
