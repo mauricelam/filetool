@@ -2,5 +2,3 @@ dist
 node_modules
 .DS_Store
 target/
-proguardviewer/proguard-wasm/target/
-proguardviewer/proguard-wasm/pkg/

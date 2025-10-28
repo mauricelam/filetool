@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { deobfuscateStackTrace, getRules, deobfuscateClass, deobfuscateMethod } from './proguard';
+import { deobfuscateStackTrace, getRules, deobfuscateClass } from './proguard';
+import { Button, Grid, Group, Paper, Stack, Textarea, Title } from '@mantine/core';
 
 // Request file from parent window
 if (window.parent) {
@@ -9,13 +10,11 @@ if (window.parent) {
 
 const ProguardViewer: React.FC = () => {
     const [mappingFile, setMappingFile] = useState<string | null>(null);
-    const [stackTrace, setStackTrace] = useState('');
-    const [deobfuscatedTrace, setDeobfuscatedTrace] = useState('');
-    const [singleName, setSingleName] = useState('');
-    const [deobfuscatedSingleName, setDeobfuscatedSingleName] = useState('');
+    const [userInput, setUserInput] = useState('');
+    const [deobfuscatedOutput, setDeobfuscatedOutput] = useState('');
     const [rules, setRules] = useState('');
     const [error, setError] = useState<string>('');
-    const [isDeobfuscating, setIsDeobfuscating] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         const handleMessage = async (e: MessageEvent) => {
@@ -38,98 +37,82 @@ const ProguardViewer: React.FC = () => {
         };
     }, []);
 
-    useEffect(() => {
-        const deobfuscate = async () => {
-            if (!mappingFile || !singleName) {
-                setDeobfuscatedSingleName('');
-                return;
-            }
-
-            try {
-                if (singleName.includes('.')) {
-                    const parts = singleName.split('.');
-                    const className = parts.slice(0, -1).join('.');
-                    const methodName = parts.slice(-1)[0];
-                    if (className && methodName) {
-                        const result = await deobfuscateMethod(mappingFile, className, methodName);
-                        setDeobfuscatedSingleName(result);
-                    } else {
-                        setDeobfuscatedSingleName('');
-                    }
-                } else {
-                    const result = await deobfuscateClass(mappingFile, singleName);
-                    setDeobfuscatedSingleName(result);
-                }
-            } catch (e: any) {
-                setDeobfuscatedSingleName(`Error: ${e?.message ?? String(e)}`);
-            }
-        };
-
-        const handler = setTimeout(() => {
-            deobfuscate();
-        }, 300); // Shorter debounce time for better UX
-
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [singleName, mappingFile]);
-
-    const handleDeobfuscate = async () => {
+    const handleDeobfuscateName = async () => {
         if (!mappingFile) {
             setError('Mapping file not loaded');
             return;
         }
-
-        setIsDeobfuscating(true);
+        setIsLoading(true);
         setError('');
-        setDeobfuscatedTrace('');
-
+        setDeobfuscatedOutput('');
         try {
-            const result = await deobfuscateStackTrace(mappingFile, stackTrace);
-            setDeobfuscatedTrace(result);
+            const result = await deobfuscateClass(mappingFile, userInput.trim());
+            setDeobfuscatedOutput(result);
         } catch (e: any) {
             setError(`Error deobfuscating: ${e?.message ?? String(e)}`);
         } finally {
-            setIsDeobfuscating(false);
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeobfuscateStackTrace = async () => {
+        if (!mappingFile) {
+            setError('Mapping file not loaded');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        setDeobfuscatedOutput('');
+        try {
+            const result = await deobfuscateStackTrace(mappingFile, userInput);
+            setDeobfuscatedOutput(result);
+        } catch (e: any) {
+            setError(`Error deobfuscating: ${e?.message ?? String(e)}`);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'sans-serif' }}>
-            <h3 style={{ textAlign: 'center', margin: '1rem' }}>Proguard Deobfuscator</h3>
-            <div style={{ display: 'flex', flex: 1 }}>
-                <div style={{ flex: 1, padding: '1rem', borderRight: '1px solid #ccc' }}>
-                    <h4>Deobfuscate Class/Method</h4>
-                    <input
-                        type="text"
-                        placeholder="Obfuscated name"
-                        value={singleName}
-                        onChange={(e) => setSingleName(e.target.value)}
-                        style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}
-                    />
-                    <p>Deobfuscated: {deobfuscatedSingleName}</p>
-                </div>
-                <div style={{ flex: 2, padding: '1rem' }}>
-                    <h4>Deobfuscate Stack Trace</h4>
-                    <textarea
-                        rows={10}
-                        placeholder="Paste stack trace here"
-                        value={stackTrace}
-                        onChange={(e) => setStackTrace(e.target.value)}
-                        style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}
-                    />
-                    <button onClick={handleDeobfuscate} disabled={isDeobfuscating} style={{ padding: '0.5rem 1rem' }}>
-                        {isDeobfuscating ? 'Deobfuscating...' : 'Deobfuscate'}
-                    </button>
-                    {error && <div style={{ color: 'red', marginTop: '1rem' }}>{error}</div>}
-                    <pre style={{ background: '#f4f4f4', padding: '1rem', marginTop: '1rem' }}>{deobfuscatedTrace}</pre>
-                </div>
-            </div>
-            <div style={{ flex: 1, padding: '1rem', borderTop: '1px solid #ccc' }}>
-                <h3>Mapping Rules</h3>
-                <pre style={{ background: '#f4f4f4', padding: '1rem', height: '300px', overflowY: 'auto' }}>{rules}</pre>
-            </div>
-        </div>
+        <Stack p="md">
+            <Title order={3} align="center">Proguard Deobfuscator</Title>
+            <Grid>
+                <Grid.Col span={6}>
+                    <Stack>
+                        <Textarea
+                            placeholder="Paste obfuscated class name or stack trace here"
+                            value={userInput}
+                            onChange={(e) => setUserInput(e.target.value)}
+                            autosize
+                            minRows={10}
+                        />
+                        <Group position="right">
+                            <Button onClick={handleDeobfuscateName} loading={isLoading}>
+                                Deobfuscate Name
+                            </Button>
+                            <Button onClick={handleDeobfuscateStackTrace} loading={isLoading}>
+                                Deobfuscate Stack Trace
+                            </Button>
+                        </Group>
+                    </Stack>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                    <Paper shadow="xs" p="md" withBorder>
+                        <Title order={5}>Deobfuscated Output</Title>
+                        {error && <div style={{ color: 'red' }}>{error}</div>}
+                        <pre style={{ background: '#f4f4f4', padding: '1rem', marginTop: '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                            {deobfuscatedOutput}
+                        </pre>
+                    </Paper>
+                </Grid.Col>
+            </Grid>
+            <Paper shadow="xs" p="md" mt="md" withBorder>
+                <Title order={4}>Mapping Rules</Title>
+                <pre style={{ background: '#f4f4f4', padding: '1rem', height: '300px', overflowY: 'auto' }}>
+                    {rules}
+                </pre>
+            </Paper>
+        </Stack>
     );
 };
 

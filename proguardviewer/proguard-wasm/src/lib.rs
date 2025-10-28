@@ -16,29 +16,36 @@ pub fn get_rules(mapping_file_content: &str) -> Result<String, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn deobfuscate_class(mapping_file_content: &str, class_name: &str) -> Result<String, JsValue> {
+pub fn deobfuscate_class(mapping_file_content: &str, name: &str) -> Result<String, JsValue> {
     let mapper = ProguardMapper::from(mapping_file_content);
-    match mapper.remap_class(class_name) {
-        Some(remapped) => Ok(remapped.to_string()),
-        None => Ok(class_name.to_string()),
+
+    // First, try to remap as a class name directly.
+    if let Some(remapped) = mapper.remap_class(name) {
+        return Ok(remapped.to_string());
     }
+
+    // If that fails, try to parse it as `class.method`.
+    if let Some(last_dot) = name.rfind('.') {
+        let (class_name, method_name) = name.split_at(last_dot);
+        let method_name = &method_name[1..]; // remove the dot
+
+        if !class_name.is_empty() && !method_name.is_empty() {
+            let frame = StackFrame::new(class_name, method_name, 0);
+            let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
+
+            if !remapped_frames.is_empty() {
+                let remapped_frame = &remapped_frames[0];
+                return Ok(format!("{}.{}", remapped_frame.class(), remapped_frame.method()));
+            }
+        }
+    }
+
+    // If nothing worked, return the original name.
+    Ok(name.to_string())
 }
 
 #[wasm_bindgen]
-pub fn deobfuscate_method(mapping_file_content: &str, class_name: &str, method_name: &str) -> Result<String, JsValue> {
-    let mapper = ProguardMapper::from(mapping_file_content);
-    let frame = StackFrame::new(class_name, method_name, 0);
-    let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
-    if !remapped_frames.is_empty() {
-        let remapped_frame = &remapped_frames[0];
-        Ok(format!("{}.{}", remapped_frame.class(), remapped_frame.method()))
-    } else {
-        Ok(format!("{}.{}", class_name, method_name))
-    }
-}
-
-#[wasm_bindgen]
-pub fn deobfuscate(mapping_file_content: &str, stack_trace_str: &str) -> Result<String, JsValue> {
+pub fn deobfuscate_stack_trace(mapping_file_content: &str, stack_trace_str: &str) -> Result<String, JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let mapper = ProguardMapper::from(mapping_file_content);
     let mut remapped_trace = String::new();
@@ -49,7 +56,7 @@ pub fn deobfuscate(mapping_file_content: &str, stack_trace_str: &str) -> Result<
         if let Some(caps) = re.captures(line) {
             let class_and_method = caps.get(1).map_or("", |m| m.as_str());
             let file = caps.get(2).map_or("", |m| m.as_str());
-            let line_num = caps.get(3).map_or(0, |m| m.as_str().parse().unwrap_or(0));
+            let line_num: usize = caps.get(3).map_or(0, |m| m.as_str().parse().unwrap_or(0));
 
             let parts: Vec<&str> = class_and_method.split('.').collect();
             if parts.len() >= 2 {
@@ -60,7 +67,7 @@ pub fn deobfuscate(mapping_file_content: &str, stack_trace_str: &str) -> Result<
                 let remapped_frames: Vec<_> = mapper.remap_frame(&frame).collect();
                 if !remapped_frames.is_empty() {
                     let remapped_frame = &remapped_frames[0];
-                    let remapped_line = format!("\tat {}.{}({}:{})", remapped_frame.class(), remapped_frame.method(), file, line_num);
+                    let remapped_line = format!("\tat {}.{}({}:{})", remapped_frame.class(), remapped_frame.method(), file, remapped_frame.line());
                     remapped_trace.push_str(&remapped_line);
                     remapped_trace.push('\n');
                     continue;
