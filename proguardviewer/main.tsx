@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { deobfuscateStackTrace, getRules, deobfuscateClass } from './proguard';
-import { Button, Grid, Group, Paper, Stack, Textarea, Title } from '@mantine/core';
+import { MantineProvider, Button, Grid, Group, Paper, Stack, Textarea, Title } from '@mantine/core';
+import '@mantine/core/styles.css';
 
 // Request file from parent window
 if (window.parent) {
@@ -119,5 +120,9 @@ const ProguardViewer: React.FC = () => {
 const container = document.getElementById('output');
 if (container) {
     const root = createRoot(container);
-    root.render(<ProguardViewer />);
+    root.render(
+        <MantineProvider withGlobalStyles withNormalizeCSS>
+            <ProguardViewer />
+        </MantineProvider>
+    );
 }

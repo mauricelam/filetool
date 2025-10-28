@@ -5,7 +5,7 @@ import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const isDev = process.env.BUILD_MODE === 'dev';
 
-await esbuild.build({
+const SETTINGS = {
     entryPoints: ['main.tsx'],
     bundle: true,
     outdir: '../dist/proguardviewer',
@@ -32,4 +32,14 @@ await esbuild.build({
     define: {
         'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
     }
-});
+};
+
+if (process.env['BUILD_MODE'] === 'dev') {
+    const ctx = await esbuild.context({
+        ...SETTINGS,
+        sourcemap: true,
+    });
+    await ctx.watch();
+} else {
+    await esbuild.build({ ...SETTINGS, minify: true });
+}
