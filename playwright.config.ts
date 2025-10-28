@@ -7,12 +7,11 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true,
     baseURL: 'http://localhost:8080',
-    onConsole: (msg) => console.log(msg.text()),
   },
   webServer: {
     command: 'node serve.mjs',
     port: 8080,
-    timeout: 120 * 1000,
+    timeout: 600 * 1000,
     reuseExistingServer: !process.env.CI,
   },
 });

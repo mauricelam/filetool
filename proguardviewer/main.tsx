@@ -4,12 +4,7 @@ import { deobfuscateStackTrace, getRules, deobfuscateClass } from './proguard';
 import { MantineProvider, Button, Grid, Group, Paper, Stack, Textarea, Title } from '@mantine/core';
 import '@mantine/core/styles.css';
 
-// Request file from parent window
-if (window.parent) {
-    window.parent.postMessage({ action: 'requestFile' });
-}
-
-const ProguardViewer: React.FC = () => {
+export const ProguardViewer: React.FC = () => {
     const [mappingFile, setMappingFile] = useState<string | null>(null);
     const [userInput, setUserInput] = useState('');
     const [deobfuscatedOutput, setDeobfuscatedOutput] = useState('');
@@ -18,6 +13,11 @@ const ProguardViewer: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
+        // Request file from parent window
+        if (window.parent) {
+            window.parent.postMessage({ action: 'requestFile' }, '*');
+        }
+
         const handleMessage = async (e: MessageEvent) => {
             if (e.data.action === 'respondFile') {
                 try {

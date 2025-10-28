@@ -4,7 +4,6 @@ test('should allow switching between handlers for the same file', async ({ page 
     // Load the integration test harness which hosts an iframe and driver.js
     await page.goto('/tests/integration/driver.html');
 
-    // Point the harness iframe at the markdown handler and provide the file via postMessage
     await page.evaluate(() => {
         const iframe = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
         iframe.src = '/markdown/index.html';
@@ -19,7 +18,12 @@ test('should allow switching between handlers for the same file', async ({ page 
         }, '*');
     });
 
-    // Wait for the iframe and verify the markdown handler rendered the heading
+    // Wait for the iframe element and its content to be visible
+    await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
+    const iframeEl = await page.$('#file-handler-iframe');
+    const frame = iframeEl ? await iframeEl.contentFrame() : null;
+    if (!frame) throw new Error('file-handler iframe contentFrame is null');
+    await frame.waitForSelector('h1', { state: 'visible', timeout: 10000 });
     const iframe = page.frameLocator('#file-handler-iframe');
     await expect(iframe.locator('h1')).toHaveText('Hello, Markdown!');
 
@@ -29,5 +33,11 @@ test('should allow switching between handlers for the same file', async ({ page 
         iframe.src = '/textviewer/index.html';
     });
 
-    await expect(iframe.locator('body')).toContainText('# Hello, Markdown!');
+    // Wait for the textviewer to load and render the raw text
+    await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
+    const iframeEl2 = await page.$('#file-handler-iframe');
+    const frame2 = iframeEl2 ? await iframeEl2.contentFrame() : null;
+    if (!frame2) throw new Error('file-handler iframe contentFrame is null after switch');
+    await frame2.waitForSelector('body', { state: 'visible', timeout: 10000 });
+    await expect(page.frameLocator('#file-handler-iframe').locator('body')).toContainText('# Hello, Markdown!');
 });

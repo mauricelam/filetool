@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs --watch",
-    "test": "echo \"No test specified\" && exit 0"
+    "watch": "BUILD_MODE=dev node build.mjs",
+    "test": "npm-run-all test:*",
+    "test:vitest": "vitest run",
+    "test:cargo": "cd proguard-wasm && cargo test"
   },
   "keywords": [],
   "author": "",
@@ -17,9 +19,13 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "esbuild": "^0.23.1",
-    "esbuild-plugin-copy": "^2.1.1"
+    "esbuild-plugin-copy": "^2.1.1",
+    "jsdom": "^24.1.1",
+    "vitest": "^1.6.0"
   }
 }

@@ -99,9 +99,32 @@ When implementing modal dialogs in this repository, follow these UX and accessib
 Following these rules makes dialogs predictable and keyboard-friendly for all users. See `jqviewer/cheatsheet.tsx` and `jqviewer/main.tsx` for an example implementation in this project.
 
 
-## Integration tests
+## Testing
+
+This project contains both unit tests and integration tests.
+
+### Unit Tests
+
+Unit tests are located within their respective workspaces and can be run individually.
+
+- **Rust/WASM Unit Tests**: For workspaces with Rust-based WebAssembly modules (e.g., `proguardviewer/proguard-wasm`), navigate to the module's directory and run `cargo test`.
+
+  ```sh
+  cd proguardviewer/proguard-wasm
+  cargo test
+  ```
+
+- **Frontend Unit Tests**: For workspaces with React components (e.g., `proguardviewer`), tests are run using `vitest`. Run the tests from the root directory using the `-w` flag to specify the workspace.
+
+  ```sh
+  npm test -w proguardviewer
+  ```
+
+### Integration tests
 
 This repository includes Playwright-based integration tests under `tests/integration/`. The tests use a small test harness page (`tests/integration/driver.html` and `tests/integration/driver.js`) that loads a handler iframe and posts a file to it.
+
+The development server (`serve.mjs`) is used to serve the application on port `8080` during testing.
 
 #### How to run
 
@@ -110,6 +133,8 @@ From the project root run the integration test script used by this repo:
 ```sh
 npm run test:integration
 ```
+
+This command will automatically start the development server and run the Playwright tests.
 
 If you add or change handlers, update `tests/integration/driver.js` or the tests as needed.
 
