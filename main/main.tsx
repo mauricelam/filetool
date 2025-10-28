@@ -124,29 +124,6 @@ function setupMessageListener() {
             } else if (e.data.action === 'openFile') {
                 console.log('onmessage', e.data);
                 window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: [e.data.file] }));
-            } else if (e.data.action === 'getHandler') {
-                const previewFile = e.data.file as File;
-                const [magic, mimeMagic] = await Promise.all([MAGIC, MIMEMAGIC]);
-                const fileBuf = new Uint8Array(await previewFile.arrayBuffer());
-                const mime = mimeMagic.detect(fileBuf);
-                const fileDescription = magic.detect(fileBuf);
-                let handlerUrl: string | null = null;
-                for (const handler of HANDLERS) {
-                    const match = handler.mimetypes.some(m => matchMimetype(m, mime, previewFile.name, fileDescription));
-                    if (match) {
-                        handlerUrl = handler.handler;
-                        break;
-                    }
-                }
-
-                if (handlerUrl && e.source) {
-                    const metadataFile = new File([], previewFile.name);
-                    (e.source as Window).postMessage({
-                        action: 'handlerDetails',
-                        file: metadataFile,
-                        handlerUrl: handlerUrl
-                    }, "/");
-                }
             }
         }
     };

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
 import { ColumnView } from '../components/ColumnView'
+import { PreviewComponent } from '../components/PreviewComponent'
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
@@ -155,57 +156,17 @@ function FileViewer({ files, onItemClick }: {
                 initialContent={files}
                 onItemClick={onItemClick}
                 renderFileActions={renderFileActions}
-                renderPreview={(file, path) => <PreviewComponent file={file} path={path} />}
+                renderPreview={(file, path) => {
+                    const filename = path[path.length - 1];
+                    const previewableFile = {
+                        _name: filename,
+                        extract: async () => new File([file], filename)
+                    };
+                    return <PreviewComponent file={previewableFile} />;
+                }}
             />
         </div>
     );
-}
-
-const PreviewComponent: React.FC<{ file: Uint8Array, path: string[] }> = ({ file, path }) => {
-    const [preview, setPreview] = useState<{ url: string, file: File, source?: MessageEventSource } | null>(null);
-    const filename = path[path.length - 1];
-
-    useEffect(() => {
-        const handler = (e: MessageEvent) => {
-            if (e.data.action === 'requestFile' && preview?.source && e.source === preview.source) {
-                const message = {
-                    action: 'respondFile',
-                    file: preview.file
-                };
-                preview.source.postMessage(message, "/", [message.file as any]);
-            }
-        }
-        window.addEventListener('message', handler)
-        return () => window.removeEventListener('message', handler);
-    }, [preview]);
-
-    useEffect(() => {
-        setPreview(null);
-        const getHandler = async () => {
-            const extractedFile = new File([file], filename);
-            const getHandlerMessage = {
-                action: 'getHandler',
-                file: extractedFile
-            };
-            const handlerListener = (e: MessageEvent) => {
-                if (e.data.action === 'handlerDetails' && e.data.file.name === extractedFile.name) {
-                    const handlerUrl = e.data.handlerUrl.startsWith('/') ? e.data.handlerUrl : `/${e.data.handlerUrl}`;
-                    setPreview({ url: handlerUrl, file: extractedFile, source: e.source as MessageEventSource });
-                    window.removeEventListener('message', handlerListener);
-                }
-            };
-            window.addEventListener('message', handlerListener);
-            window.parent.postMessage(getHandlerMessage, "/", [await extractedFile.arrayBuffer()]);
-        };
-
-        getHandler();
-    }, [file, filename]);
-
-    if (!preview || preview.file.name !== filename) {
-        return <div>Loading preview...</div>;
-    }
-
-    return <iframe src={preview.url} style={{ width: '100%', height: '100%', border: 0 }} />;
 }
 
 function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: () => void }) {

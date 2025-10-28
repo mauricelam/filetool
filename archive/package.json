@@ -4,13 +4,22 @@
   "author": "Maurice Lam",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs"
+    "watch": "BUILD_MODE=dev node build.mjs",
+    "test": "jest"
   },
   "dependencies": {
     "libarchive.js": "^2.0.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "wasmagic": "^1.0.6"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^14.2.1",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "ts-jest": "^29.1.2"
+  }
 }

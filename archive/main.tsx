@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { Archive, ArchiveCompression, ArchiveFormat, ArchiveFile, ArchiveEntryFile, ArchiveEntry } from 'libarchive.js';
 import React, { useEffect, useState } from 'react';
 import { ColumnView } from '../components/ColumnView';
+import { PreviewComponent } from '../components/PreviewComponent';
 
 Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
 
@@ -269,7 +270,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             <ColumnView
                 initialContent={files}
                 renderFileActions={renderFileActions}
-                renderPreview={(file) => <PreviewComponent file={file} />}
+                renderPreview={(file) => <PreviewComponent file={file as any} />}
             />
             <FormatDialog
                 isOpen={isFormatDialogOpen}
@@ -282,49 +283,3 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         </div>
     );
 };
-
-const PreviewComponent: React.FC<{ file: ArchiveFile }> = ({ file }) => {
-    const [preview, setPreview] = useState<{ url: string, file: File, source?: MessageEventSource } | null>(null);
-
-    useEffect(() => {
-        const handler = (e: MessageEvent) => {
-            if (e.data.action === 'requestFile' && preview?.source && e.source === preview.source) {
-                const message = {
-                    action: 'respondFile',
-                    file: preview.file
-                };
-                preview.source.postMessage(message, "/", [message.file as any]);
-            }
-        }
-        window.addEventListener('message', handler)
-        return () => window.removeEventListener('message', handler);
-    }, [preview]);
-
-    useEffect(() => {
-        setPreview(null);
-        const getHandler = async () => {
-            const extractedFile = await file.extract();
-            const getHandlerMessage = {
-                action: 'getHandler',
-                file: extractedFile
-            };
-            const handlerListener = (e: MessageEvent) => {
-                if (e.data.action === 'handlerDetails' && e.data.file.name === extractedFile.name) {
-                    const handlerUrl = e.data.handlerUrl.startsWith('/') ? e.data.handlerUrl : `/${e.data.handlerUrl}`;
-                    setPreview({ url: handlerUrl, file: extractedFile, source: e.source as MessageEventSource });
-                    window.removeEventListener('message', handlerListener);
-                }
-            };
-            window.addEventListener('message', handlerListener);
-            window.parent.postMessage(getHandlerMessage, "/", [await extractedFile.arrayBuffer()]);
-        };
-
-        getHandler();
-    }, [file]);
-
-    if (!preview || preview.file.name !== file._name) {
-        return <div>Loading preview...</div>;
-    }
-
-    return <iframe src={preview.url} style={{ width: '100%', height: '100%', border: 0 }} />;
-}
