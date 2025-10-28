@@ -4,11 +4,6 @@ test('should allow switching between handlers for the same file', async ({ page 
     // Load the integration test harness which hosts an iframe and driver.js
     await page.goto('/tests/integration/driver.html');
 
-    // Point the harness iframe at the markdown handler and provide the file via postMessage
-    page.on('console', (msg) => console.log('PAGE CONSOLE:', msg.text()));
-    page.on('pageerror', (err) => console.error('PAGE ERROR:', err));
-    page.on('requestfailed', (req) => console.error('REQUEST FAILED:', req.url(), req.failure()?.errorText));
-
     await page.evaluate(() => {
         const iframe = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
         iframe.src = '/markdown/index.html';

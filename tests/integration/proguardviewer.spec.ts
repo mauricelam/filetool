@@ -7,11 +7,6 @@ const runHandlerTest = async (
     // Navigate to the test harness page with the specified handler
     await page.goto(`/tests/integration/driver.html?handler=${handler}`);
 
-    // Add logging hooks to capture console/page errors in CI
-    page.on('console', (msg) => console.log('PAGE CONSOLE:', msg.text()));
-    page.on('pageerror', (err) => console.error('PAGE ERROR:', err));
-    page.on('requestfailed', (req) => console.error('REQUEST FAILED:', req.url(), req.failure()?.errorText));
-
     // Ensure the iframe element is attached before posting the file
     await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
 
