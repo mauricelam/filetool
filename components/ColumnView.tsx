@@ -11,6 +11,8 @@ interface ColumnViewProps {
     onItemClick?: (level: number, key: string, content: any) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
     renderFileActions?: (file: any, path: string[]) => React.ReactNode;
+    /** Optional function to render a preview of the selected file. Receives the file content and the full path to the file as arguments */
+    renderPreview?: (file: any, path: string[]) => React.ReactNode;
 }
 
 /**
@@ -128,9 +130,11 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
     initialContent,
     onItemClick,
     renderFileActions,
+    renderPreview,
 }) => {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
+    const [selectedFile, setSelectedFile] = useState<any>(null);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -141,14 +145,18 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
         const newPath = [...selectedPath.slice(0, level), key];
         setSelectedPath(newPath);
 
-        // Only add a new column if the clicked item is a directory
-        const isDirectory = typeof content === 'object' && 
-            !(content instanceof Uint8Array) && 
+        // A directory is an object that has other entries as properties
+        // A file is an object that has _name, _size, etc. properties
+        const isDirectory = typeof content === 'object' &&
+            !(content instanceof Uint8Array) &&
             Object.keys(content).some(k => !k.startsWith('_'));
 
         const newColumns = columns.slice(0, level + 1);
         if (isDirectory) {
             newColumns.push({ path: newPath, content });
+            setSelectedFile(null); // Clear file preview when a directory is selected
+        } else {
+            setSelectedFile(content);
         }
         setColumns(newColumns);
 
@@ -192,6 +200,11 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                     </div>
                 ))}
             </div>
+            {renderPreview && selectedFile && (
+                <div className="preview-container" style={{ flex: 3, overflow: 'auto' }}>
+                    {renderPreview(selectedFile, selectedPath)}
+                </div>
+            )}
             <style>
                 {`
                     *, *::before, *::after {
