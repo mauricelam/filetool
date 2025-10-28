@@ -46,6 +46,7 @@ jobs:
     - run: npm ci
     - run: npm run build
     - run: npm test
+    - run: npx playwright install --with-deps
     - run: npm run test:integration
     - name: Upload artifact
       if: github.ref == 'refs/heads/main'
