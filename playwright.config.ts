@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: 'http://localhost:8080',
     trace: 'on-first-retry',
   },
   projects: [
@@ -18,9 +18,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'node serve-test.mjs',
-    url: 'http://localhost:8081',
+    command: 'node serve.mjs',
+    url: 'http://localhost:8080',
     reuseExistingServer: !process.env.CI,
-    timeout: 300 * 1000,
+    timeout: 600 * 1000,
   },
 });
