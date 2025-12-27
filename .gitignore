@@ -2,5 +2,6 @@ dist
 node_modules
 .DS_Store
 server.log
+serve.log
 test-results/
 playwright-report/

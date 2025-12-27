@@ -6,3 +6,9 @@ pub fn to_diag(bytes: &[u8]) -> Result<String, String> {
     let item = parse_bytes(&bytes).map_err(|e| e.to_string())?;
     Ok(item.to_diag_pretty())
 }
+
+#[wasm_bindgen]
+pub fn to_verbose_diag(bytes: &[u8]) -> Result<String, String> {
+    let item = parse_bytes(&bytes).map_err(|e| e.to_string())?;
+    Ok(item.to_hex())
+}
