@@ -27,45 +27,84 @@ async function handleFile(file: File) {
 
 let currentWorker: Worker | null = null;
 
+const TOOLS = [
+    { name: 'objdump', flags: [] },
+    { name: 'nm', flags: [{ flag: '-D', label: 'Exported symbols' }] },
+    { name: 'strings', flags: [] },
+    { name: 'readelf', flags: [] },
+    { name: 'size', flags: [] },
+];
+
 function App({ file }: { file: File }) {
     const [output, setOutput] = useState<string>('')
     const [selectedTool, setSelectedTool] = useState<string>('objdump');
+    const [toolFlags, setToolFlags] = useState<{ [key: string]: string[] }>({});
 
-    useEffect(() => {
-        // Run objdump by default when file is loaded
-        binutil('objdump', file);
-    }, [file]);
-
-    const binutil = async (tool: string, file: File) => {
-        setSelectedTool(tool);
+    const binutil = async (tool: string, file: File, flags: string[] = []) => {
         currentWorker?.terminate();
-        setOutput('');
+        setOutput('Running...');
         currentWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
         const buffer = await file.arrayBuffer();
-        currentWorker.onmessage = (e) => setOutput(prev => prev + e.data + "\n");
-        currentWorker.postMessage({ action: tool, file }, [buffer]);
+        let currentOutput = ''
+        currentWorker.onmessage = (e) => {
+            if (currentOutput === 'Running...') {
+                currentOutput = ''
+            }
+            currentOutput += e.data + "\n"
+            setOutput(currentOutput)
+        }
+        currentWorker.postMessage({ action: tool, file, flags }, [buffer]);
     };
 
-    const tools = ['objdump', 'nm', 'strings', 'readelf', 'size'];
+    useEffect(() => {
+        if (file) {
+            binutil(selectedTool, file, toolFlags[selectedTool] || []);
+        }
+    }, [selectedTool, toolFlags, file]);
+
+
+    const handleFlagChange = (toolName: string, flag: string, checked: boolean) => {
+        setToolFlags(prev => {
+            const currentFlags = prev[toolName] || [];
+            const newFlags = checked
+                ? [...currentFlags, flag]
+                : currentFlags.filter(f => f !== flag);
+            return { ...prev, [toolName]: newFlags };
+        });
+    };
+
+    const toolNames = TOOLS.map(t => t.name)
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', gap: '20px' }}>
             <Tabs
-                selectedIndex={tools.indexOf(selectedTool)}
+                selectedIndex={toolNames.indexOf(selectedTool)}
                 onSelect={(index) => {
-                    const tool = tools[index];
-                    binutil(tool, file);
+                    setSelectedTool(toolNames[index]);
                 }}
                 style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
             >
                 <TabList>
-                    {tools.map(tool => (
-                        <Tab key={tool}>{tool}</Tab>
+                    {TOOLS.map(tool => (
+                        <Tab key={tool.name}>{tool.name}</Tab>
                     ))}
                 </TabList>
 
-                {tools.map(tool => (
-                    <TabPanel key={tool} style={{ height: '100%' }}>
-                        <div style={{ height: '100%', border: '1px solid #ccc', borderRadius: '0 4px 4px 4px' }}>
+                {TOOLS.map(tool => (
+                    <TabPanel key={tool.name} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div>
+                            {tool.flags.map(flagInfo => (
+                                <label key={flagInfo.flag} style={{ marginRight: '15px' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={(toolFlags[tool.name] || []).includes(flagInfo.flag)}
+                                        onChange={(e) => handleFlagChange(tool.name, flagInfo.flag, e.target.checked)}
+                                    />
+                                    {flagInfo.label}
+                                </label>
+                            ))}
+                        </div>
+                        <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '0 4px 4px 4px' }}>
                             <AceEditor
                                 value={output}
                                 mode="lisp"
