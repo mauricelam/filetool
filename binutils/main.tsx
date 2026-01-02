@@ -28,11 +28,34 @@ async function handleFile(file: File) {
 let currentWorker: Worker | null = null;
 
 const TOOLS = [
-    { name: 'objdump', flags: [] },
-    { name: 'nm', flags: [{ flag: '-D', label: 'Exported symbols' }] },
-    { name: 'strings', flags: [] },
-    { name: 'readelf', flags: [] },
-    { name: 'size', flags: [] },
+    { name: 'objdump', flags: [
+        { flag: '-d', label: '-d: Disassemble' },
+        { flag: '-D', label: '-D: Disassemble All' },
+        { flag: '-S', label: '-S: Source Code' },
+        { flag: '-h', label: '-h: Section Headers' },
+    ]},
+    { name: 'nm', flags: [
+        { flag: '-D', label: '-D: Exported symbols' },
+        { flag: '-a', label: '-a: All Symbols' },
+        { flag: '-C', label: '-C: Demangle' },
+        { flag: '-g', label: '-g: Extern Only' },
+    ]},
+    { name: 'strings', flags: [
+        { flag: '-a', label: '-a: Scan Entire File' },
+    ]},
+    { name: 'readelf', flags: [
+        { flag: '-h', label: '-h: File Header' },
+        { flag: '-l', label: '-l: Program Headers' },
+        { flag: '-S', label: '-S: Section Headers' },
+        { flag: '-s', label: '-s: Symbols' },
+        { flag: '-r', label: '-r: Relocations' },
+        { flag: '-d', label: '-d: Dynamic Section' },
+    ]},
+    { name: 'size', flags: [
+        { flag: '-A', label: '-A: System V Format' },
+        { flag: '-B', label: '-B: Berkeley Format' },
+        { flag: '-G', label: '-G: GNU Format' },
+    ]},
 ];
 
 function App({ file }: { file: File }) {
