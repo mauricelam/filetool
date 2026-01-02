@@ -25,6 +25,10 @@ const SETTINGS = {
           from: ["../node_modules/libarchive.js/dist/libarchive.wasm"],
           to: ["libarchive.wasm"],
         },
+        {
+            from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
+            to: ["libmagic-wrapper.wasm"],
+        }
       ]
     })
   ],
