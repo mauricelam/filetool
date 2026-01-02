@@ -12,7 +12,9 @@ async function ensureInitialized() {
     await initPromise;
 }
 
-export async function processData(data: Uint8Array): Promise<string> {
+export async function processData(data: Uint8Array): Promise<{ standard: string, verbose: string }> {
     await ensureInitialized();
-    return wasm.to_diag(data);
+    const standard = wasm.to_diag(data);
+    const verbose = wasm.to_verbose_diag(data);
+    return { standard, verbose };
 }

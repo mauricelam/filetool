@@ -9,10 +9,10 @@ if (window.parent) {
 
 const CBORViewer: React.FC = () => {
     const [cborInput, setCborInput] = useState<Uint8Array | null>(null);
-    const [output, setOutput] = useState<string>('');
+    const [output, setOutput] = useState<{ standard: string, verbose: string } | null>(null);
+    const [view, setView] = useState<'standard' | 'verbose'>('standard');
     const [error, setError] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
-    const workerRef = useRef<Worker | null>(null);
 
     useEffect(() => {
         const handleMessage = async (e: MessageEvent) => {
@@ -21,7 +21,7 @@ const CBORViewer: React.FC = () => {
                     const file = e.data.file as File;
                     const arrayBuffer = await file.arrayBuffer();
                     setCborInput(new Uint8Array(arrayBuffer));
-                    setOutput(''); // Clear previous output
+                    setOutput(null); // Clear previous output
                     setError(''); // Clear previous error
                 } catch (err) {
                     setError(`Error reading file: ${err.message}`);
@@ -39,7 +39,7 @@ const CBORViewer: React.FC = () => {
     useEffect(() => {
         const processCbor = async () => {
             if (!cborInput) {
-                setOutput('');
+                setOutput(null);
                 setError('');
                 return;
             }
@@ -51,7 +51,7 @@ const CBORViewer: React.FC = () => {
                 setError('');
             } catch (e: any) {
                 setError(`Error processing CBOR: ${e?.message ?? String(e)}`);
-                setOutput('');
+                setOutput(null);
             } finally {
                 setIsProcessing(false);
             }
@@ -60,16 +60,21 @@ const CBORViewer: React.FC = () => {
         processCbor();
     }, [cborInput]);
 
+    const activeStyle = { backgroundColor: '#ddd' };
+
     return (
         <div style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', padding: '20px' }}>
-            <h3>CBOR Diagnostic Notation</h3>
+            <div style={{ marginBottom: '10px' }}>
+                <button onClick={() => setView('standard')} style={view === 'standard' ? activeStyle : {}}>Diagnostic</button>
+                <button onClick={() => setView('verbose')} style={view === 'verbose' ? activeStyle : {}}>Verbose</button>
+            </div>
             <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', overflow: 'auto', padding: '10px', minHeight: '200px' }}>
                 {isProcessing ? (
                     <div style={{ color: '#666' }}>Processing...</div>
                 ) : error ? (
                     <div style={{ color: 'red' }}>{error}</div>
                 ) : output ? (
-                    <pre>{output}</pre>
+                    <pre>{view === 'standard' ? output.standard : output.verbose}</pre>
                 ) : null}
             </div>
         </div>
