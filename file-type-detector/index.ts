@@ -388,8 +388,6 @@ export const HANDLERS: HandlerDefinition[] = [
     }
 ]
 
-export default HANDLERS
-
 export async function getHandlerForFile(file: File): Promise<HandlerDefinition | null> {
     const [magic, mimeMagic] = await Promise.all([getMagic(), getMimeMagic()]);
     const buffer = new Uint8Array(await file.arrayBuffer());

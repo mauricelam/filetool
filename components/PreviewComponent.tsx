@@ -46,7 +46,7 @@ export const PreviewComponent: React.FC<PreviewComponentProps> = ({ file, path, 
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: previewFile,
-            }, '/', [previewFile.slice()]);
+            }, '*');
         }
     };
 
