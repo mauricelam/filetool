@@ -19,7 +19,7 @@ if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' })
 }
 
-const ROOT = createRoot(document.getElementById('root'))
+const ROOT = createRoot(document.getElementById('root')!)
 
 async function handleFile(file: File) {
     ROOT.render(<App file={file} />)
@@ -28,44 +28,68 @@ async function handleFile(file: File) {
 let currentWorker: Worker | null = null;
 
 const TOOLS = [
-    { name: 'objdump', flags: [
-        { flag: '-d', label: '-d: Disassemble' },
-        { flag: '-D', label: '-D: Disassemble All' },
-        { flag: '-S', label: '-S: Source Code' },
-        { flag: '-h', label: '-h: Section Headers' },
-    ]},
-    { name: 'nm', flags: [
-        { flag: '-D', label: '-D: Exported symbols' },
-        { flag: '-a', label: '-a: All Symbols' },
-        { flag: '-C', label: '-C: Demangle' },
-        { flag: '-g', label: '-g: Extern Only' },
-    ]},
-    { name: 'strings', flags: [
-        { flag: '-a', label: '-a: Scan Entire File' },
-    ]},
-    { name: 'readelf', flags: [
-        { flag: '-h', label: '-h: File Header' },
-        { flag: '-l', label: '-l: Program Headers' },
-        { flag: '-S', label: '-S: Section Headers' },
-        { flag: '-s', label: '-s: Symbols' },
-        { flag: '-r', label: '-r: Relocations' },
-        { flag: '-d', label: '-d: Dynamic Section' },
-    ]},
-    { name: 'size', flags: [
-        { flag: '-A', label: '-A: System V Format' },
-        { flag: '-B', label: '-B: Berkeley Format' },
-        { flag: '-G', label: '-G: GNU Format' },
-    ]},
+    {
+        name: 'objdump',
+        flags: [
+            { flag: '-f', label: 'File header' },
+            { flag: '-h', label: 'Section Headers' },
+            { flag: '-d', label: 'Disassemble' },
+            { flag: '-D', label: 'Disassemble All' },
+            { flag: '-S', label: 'Source Code' },
+        ],
+        defaultFlags: ['-f', '-h'],
+    },
+    {
+        name: 'nm',
+        flags: [
+            { flag: '-D', label: 'Exported symbols' },
+            { flag: '-a', label: 'All Symbols' },
+            { flag: '-C', label: 'Demangle' },
+            { flag: '-g', label: 'Extern Only' },
+        ],
+        defaultFlags: [],
+    },
+    {
+        name: 'strings',
+        flags: [
+            { flag: '-a', label: 'Scan Entire File' },
+        ],
+        defaultFlags: [],
+    },
+    {
+        name: 'readelf',
+        flags: [
+            { flag: '-a', label: 'All' },
+            { flag: '-h', label: 'File Header' },
+            { flag: '-l', label: 'Program Headers' },
+            { flag: '-S', label: 'Section Headers' },
+            { flag: '-s', label: 'Symbols' },
+            { flag: '-r', label: 'Relocations' },
+            { flag: '-d', label: 'Dynamic Section' },
+        ],
+        defaultFlags: ['-a'],
+    },
+    {
+        name: 'size',
+        flags: [
+            { flag: '-A', label: 'System V Format' },
+            { flag: '-B', label: 'Berkeley Format' },
+            { flag: '-G', label: 'GNU Format' },
+        ],
+        defaultFlags: ['-A'],
+    },
 ];
 
 function App({ file }: { file: File }) {
     const [output, setOutput] = useState<string>('')
     const [selectedTool, setSelectedTool] = useState<string>('objdump');
-    const [toolFlags, setToolFlags] = useState<{ [key: string]: string[] }>({});
+    const [toolFlags, setToolFlags] = useState<{ [key: string]: string[] }>(
+        Object.fromEntries(TOOLS.map((t) => [t.name, t.defaultFlags]))
+    );
 
     const binutil = async (tool: string, file: File, flags: string[] = []) => {
         currentWorker?.terminate();
-        setOutput('Running...');
+        setOutput(`Running ${tool} ${flags}...`);
         currentWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
         const buffer = await file.arrayBuffer();
         let currentOutput = ''
@@ -102,9 +126,7 @@ function App({ file }: { file: File }) {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', gap: '20px' }}>
             <Tabs
                 selectedIndex={toolNames.indexOf(selectedTool)}
-                onSelect={(index) => {
-                    setSelectedTool(toolNames[index]);
-                }}
+                onSelect={(index) => setSelectedTool(toolNames[index])}
                 style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
             >
                 <TabList>
@@ -114,35 +136,37 @@ function App({ file }: { file: File }) {
                 </TabList>
 
                 {TOOLS.map(tool => (
-                    <TabPanel key={tool.name} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div>
-                            {tool.flags.map(flagInfo => (
-                                <label key={flagInfo.flag} style={{ marginRight: '15px' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={(toolFlags[tool.name] || []).includes(flagInfo.flag)}
-                                        onChange={(e) => handleFlagChange(tool.name, flagInfo.flag, e.target.checked)}
-                                    />
-                                    {flagInfo.label}
-                                </label>
-                            ))}
-                        </div>
-                        <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '0 4px 4px 4px' }}>
-                            <AceEditor
-                                value={output}
-                                mode="lisp"
-                                theme="twilight"
-                                name="output-editor"
-                                editorProps={{ $blockScrolling: true }}
-                                setOptions={{
-                                    showLineNumbers: true,
-                                    showGutter: true,
-                                    readOnly: true,
-                                    highlightActiveLine: false,
-                                    showPrintMargin: false
-                                }}
-                                style={{ width: '100%', height: '100%' }}
-                            />
+                    <TabPanel key={tool.name} style={{ height: '100%' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            <div>
+                                {tool.flags.map(flagInfo => (
+                                    <label key={flagInfo.flag} style={{ marginRight: '15px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(toolFlags[tool.name] || []).includes(flagInfo.flag)}
+                                            onChange={(e) => handleFlagChange(tool.name, flagInfo.flag, e.target.checked)}
+                                        />
+                                        {flagInfo.flag}: {flagInfo.label}
+                                    </label>
+                                ))}
+                            </div>
+                            <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '0 4px 4px 4px' }}>
+                                <AceEditor
+                                    value={output}
+                                    mode="lisp"
+                                    theme="twilight"
+                                    name="output-editor"
+                                    editorProps={{ $blockScrolling: true }}
+                                    setOptions={{
+                                        showLineNumbers: true,
+                                        showGutter: true,
+                                        readOnly: true,
+                                        highlightActiveLine: false,
+                                        showPrintMargin: false
+                                    }}
+                                    style={{ width: '100%', height: '100%' }}
+                                />
+                            </div>
                         </div>
                     </TabPanel>
                 ))}
