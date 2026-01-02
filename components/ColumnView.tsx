@@ -45,7 +45,7 @@ const Column: React.FC<ColumnProps> = ({
     selectedPath,
     onItemClick,
     renderFileActions
-}: ColumnProps): React.ReactElement => {
+}) => {
     if (!content || typeof content !== 'object') {
         return (
             <div className="column-content">
@@ -64,7 +64,6 @@ const Column: React.FC<ColumnProps> = ({
                 // A file is an object that has _name, _size, etc. properties
                 const isDirectory = typeof value === 'object' &&
                     !(value instanceof Uint8Array) &&
-                    value !== null &&
                     Object.keys(value).some(k => !k.startsWith('_'));
                 const isSelected = selectedPath[level] === key;
 
@@ -132,7 +131,7 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
     onItemClick,
     renderFileActions,
     renderFilePreview,
-}: ColumnViewProps): React.ReactElement => {
+}) => {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
     const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);
@@ -205,18 +204,19 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                         />
                     </div>
                 ))}
-                {selectedFile && renderFilePreview && (
-                    <div className="preview-pane" style={{
-                        width: '600px',
-                        minWidth: '300px',
-                        height: '100%',
-                        borderLeft: '1px solid #ccc',
-                        overflow: 'auto'
-                    }}>
-                        {renderFilePreview(selectedFile.content, selectedFile.path)}
-                    </div>
-                )}
             </div>
+
+            {selectedFile && renderFilePreview && (
+                <div className="preview-pane" style={{
+                    width: '600px',
+                    minWidth: '300px',
+                    height: '100%',
+                    borderLeft: '1px solid #ccc',
+                    overflow: 'auto'
+                }}>
+                    {renderFilePreview(selectedFile.content, selectedFile.path)}
+                </div>
+            )}
 
             <style>
                 {`
