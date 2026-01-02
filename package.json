@@ -26,7 +26,8 @@
         "graphviz",
         "cborviewer",
         "sqliteviewer",
-        "proguardviewer"
+        "proguardviewer",
+        "file-type-detector"
     ],
     "scripts": {
         "start": "node serve.mjs",

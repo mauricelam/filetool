@@ -11,6 +11,8 @@ interface ColumnViewProps {
     onItemClick?: (level: number, key: string, content: any) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
     renderFileActions?: (file: any, path: string[]) => React.ReactNode;
+    /** Optional function to render a preview for a selected file. Receives the file content and its path */
+    renderFilePreview?: (file: any, path: string[]) => React.ReactNode;
 }
 
 /**
@@ -128,31 +130,44 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
     initialContent,
     onItemClick,
     renderFileActions,
+    renderFilePreview,
 }) => {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
+    const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setColumns([{ path: [], content: initialContent }]);
+        setSelectedPath([]);
+        setSelectedFile(null);
     }, [initialContent]);
 
     const handleItemClick = (level: number, key: string, content: any) => {
         const newPath = [...selectedPath.slice(0, level), key];
-        setSelectedPath(newPath);
-
-        // Only add a new column if the clicked item is a directory
-        const isDirectory = typeof content === 'object' && 
-            !(content instanceof Uint8Array) && 
+        const isDirectory = typeof content === 'object' &&
+            !(content instanceof Uint8Array) &&
             Object.keys(content).some(k => !k.startsWith('_'));
+
+        // If the same item is clicked again, deselect it
+        if (JSON.stringify(newPath) === JSON.stringify(selectedPath)) {
+            setSelectedPath(newPath.slice(0, -1)); // Go up one level
+            setSelectedFile(null);
+            setColumns(columns.slice(0, level + 1));
+            return;
+        }
+
+        setSelectedPath(newPath);
 
         const newColumns = columns.slice(0, level + 1);
         if (isDirectory) {
             newColumns.push({ path: newPath, content });
+            setSelectedFile(null); // Deselect file when a directory is clicked
+        } else {
+            setSelectedFile({ content, path: newPath });
         }
         setColumns(newColumns);
 
-        // Scroll to the right after the new column is added
         if (isDirectory) {
             setTimeout(() => {
                 if (columnsContainerRef.current) {
@@ -161,7 +176,6 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
             }, 0);
         }
 
-        // Call the parent's onItemClick if provided
         if (onItemClick) {
             onItemClick(level, key, content);
         }
@@ -176,7 +190,6 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                         style={{
                             width: '250px',
                             minWidth: '250px',
-                            maxWidth: '250px',
                             borderRight: '1px solid #ccc',
                             overflow: 'auto',
                             height: '100%'
@@ -192,6 +205,19 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                     </div>
                 ))}
             </div>
+
+            {selectedFile && renderFilePreview && (
+                <div className="preview-pane" style={{
+                    width: '600px',
+                    minWidth: '300px',
+                    height: '100%',
+                    borderLeft: '1px solid #ccc',
+                    overflow: 'auto'
+                }}>
+                    {renderFilePreview(selectedFile.content, selectedFile.path)}
+                </div>
+            )}
+
             <style>
                 {`
                     *, *::before, *::after {

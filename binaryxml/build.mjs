@@ -10,7 +10,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path'], // 'crypto' might not be needed here
+  external: ['require', 'fs', 'path', 'crypto'],
   plugins: [
     copy({
       assets: [
