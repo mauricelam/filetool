@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { getHandlersForFile, getDefaultHandler, setDefaultHandler, HandlerDefinition } from 'file-type-detector';
+import { getHandlersForFile, getDefaultHandler, HandlerDefinition } from 'file-type-detector';
 
 interface PreviewComponentProps {
     file: any;
@@ -44,7 +44,7 @@ export const PreviewComponent: React.FC<PreviewComponentProps> = ({ file, path, 
                     if (!handlerToUse) {
                         // Prefer handlers with specific mime/filename rules
                         handlerToUse = matchingHandlers.find(h =>
-                            h.mimetypes.some(m => typeof m === 'object' && (m.mime || m.filename))
+                            h.mimetypes.some(m => m)
                         );
                         console.log("Handler after specific check:", handlerToUse);
                     }
