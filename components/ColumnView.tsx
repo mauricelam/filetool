@@ -204,20 +204,18 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                         />
                     </div>
                 ))}
+                {selectedFile && renderFilePreview && (
+                    <div className="preview-pane" style={{
+                        width: '600px',
+                        minWidth: '300px',
+                        height: '100%',
+                        borderLeft: '1px solid #ccc',
+                        overflow: 'auto'
+                    }}>
+                        {renderFilePreview(selectedFile.content, selectedFile.path)}
+                    </div>
+                )}
             </div>
-
-            {selectedFile && renderFilePreview && (
-                <div className="preview-pane" style={{
-                    width: '600px',
-                    minWidth: '300px',
-                    height: '100%',
-                    borderLeft: '1px solid #ccc',
-                    overflow: 'auto'
-                }}>
-                    {renderFilePreview(selectedFile.content, selectedFile.path)}
-                </div>
-            )}
-
             <style>
                 {`
                     *, *::before, *::after {

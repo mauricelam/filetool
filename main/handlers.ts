@@ -1,7 +1,7 @@
 export {
     HANDLERS,
     matchMimetype,
-    getHandlersForFile,
+    getHandlerForFile,
 } from 'file-type-detector';
 
 export type {

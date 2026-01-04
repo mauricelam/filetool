@@ -173,6 +173,32 @@ export const HANDLERS: HandlerDefinition[] = [
     { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [ { "filename": /\.(map|mapping|txt)$/i } ] }
 ];
 
+export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {
+    const getScore = (handler: HandlerDefinition) => {
+        let maxScore = 0;
+        for (const mimeMatch of handler.mimetypes) {
+            let currentScore = 0;
+            if (typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)) {
+                if (mimeMatch.filename) currentScore += 10;
+                if (mimeMatch.mime) currentScore += 5;
+                if (mimeMatch.description) currentScore += 2;
+            } else if (typeof mimeMatch === 'string') {
+                if (mimeMatch.includes('*')) currentScore += 1; // Less specific
+                else currentScore += 5; // Full mime type string
+            } else if (mimeMatch instanceof RegExp) {
+                if (mimeMatch.source.includes('.*')) currentScore += 1;
+                else currentScore += 3;
+            }
+            if (currentScore > maxScore) {
+                maxScore = currentScore;
+            }
+        }
+        return maxScore;
+    };
+    return [...handlers].sort((a, b) => getScore(b) - getScore(a));
+}
+
+
 export async function getHandlersForFile(file: File): Promise<HandlerDefinition[]> {
     const [magic, mimeMagic] = await Promise.all([getMagic(), getMimeMagic()]);
     const buffer = new Uint8Array(await file.arrayBuffer());
@@ -188,5 +214,5 @@ export async function getHandlersForFile(file: File): Promise<HandlerDefinition[
             }
         }
     }
-    return matchingHandlers;
+    return sortHandlersBySpecificity(matchingHandlers, mime, file.name);
 }

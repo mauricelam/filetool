@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { getHandlersForFile, getDefaultHandler, HandlerDefinition } from 'file-type-detector';
+import { getHandlersForFile, getDefaultHandler, setDefaultHandler, HandlerDefinition, sortHandlersBySpecificity } from 'file-type-detector';
 
 interface PreviewComponentProps {
     file: any;
@@ -33,24 +33,18 @@ export const PreviewComponent: React.FC<PreviewComponentProps> = ({ file, path, 
 
                 const matchingHandlers = await getHandlersForFile(extractedFile);
                 console.log("Matching handlers:", matchingHandlers);
-                setHandlers(matchingHandlers);
+                const sortedHandlers = sortHandlersBySpecificity(matchingHandlers, extractedFile.type, extractedFile.name);
+                console.log("Sorted handlers:", sortedHandlers);
+                setHandlers(sortedHandlers);
 
-                if (matchingHandlers.length > 0) {
+                if (sortedHandlers.length > 0) {
                     const defaultHandlerId = getDefaultHandler(extractedFile.type, extractedFile.name);
                     console.log("Default handler ID:", defaultHandlerId);
-                    let handlerToUse = matchingHandlers.find(h => h.handler === defaultHandlerId);
+                    let handlerToUse = sortedHandlers.find(h => h.handler === defaultHandlerId);
                     console.log("Handler after default check:", handlerToUse);
 
                     if (!handlerToUse) {
-                        // Prefer handlers with specific mime/filename rules
-                        handlerToUse = matchingHandlers.find(h =>
-                            h.mimetypes.some(m => m)
-                        );
-                        console.log("Handler after specific check:", handlerToUse);
-                    }
-                    if (!handlerToUse) {
-                        // Fallback to the first handler
-                        handlerToUse = matchingHandlers[0];
+                        handlerToUse = sortedHandlers[0];
                         console.log("Handler after fallback:", handlerToUse);
                     }
                     setActiveHandler(handlerToUse);
@@ -68,12 +62,12 @@ export const PreviewComponent: React.FC<PreviewComponentProps> = ({ file, path, 
         getPreview();
     }, [file, path, extractFile]);
 
-    const handleIframeLoad = () => {
+    const handleIframeLoad = async () => {
         if (iframeRef.current && previewFile) {
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: previewFile,
-            }, '/', [previewFile.slice()]);
+            }, '/', [await previewFile.arrayBuffer()]);
         }
     };
 
