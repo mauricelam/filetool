@@ -168,13 +168,11 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
         }
         setColumns(newColumns);
 
-        if (isDirectory) {
-            setTimeout(() => {
-                if (columnsContainerRef.current) {
-                    columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
-                }
-            }, 0);
-        }
+        setTimeout(() => {
+            if (columnsContainerRef.current) {
+                columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
+            }
+        }, 0);
 
         if (onItemClick) {
             onItemClick(level, key, content);
@@ -206,10 +204,9 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                 ))}
                 {selectedFile && renderFilePreview && (
                     <div className="preview-pane" style={{
-                        width: '600px',
-                        minWidth: '300px',
+                        width: '700px',
+                        minWidth: '700px',
                         height: '100%',
-                        borderLeft: '1px solid #ccc',
                         overflow: 'auto'
                     }}>
                         {renderFilePreview(selectedFile.content, selectedFile.path)}

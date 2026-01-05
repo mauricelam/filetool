@@ -6,7 +6,7 @@ import { PreviewComponent } from '../components/PreviewComponent';
 
 Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
 
-const ROOT = createRoot(document.getElementById('root'))
+const ROOT = createRoot(document.getElementById('root')!)
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -24,15 +24,15 @@ async function handleFile(file: File) {
 
 const SUPPORTED_DOWNLOAD_FORMATS = [
     // Not supported due to https://github.com/nika-begiashvili/libarchivejs/issues/70
-    // { 
-    //     id: 'zip', 
-    //     name: 'ZIP', 
+    // {
+    //     id: 'zip',
+    //     name: 'ZIP',
     //     format: ArchiveFormat.ZIP,
     //     compression: null
     // },
-    // { 
-    //     id: '7z', 
-    //     name: '7Z', 
+    // {
+    //     id: '7z',
+    //     name: '7Z',
     //     format: ArchiveFormat.SEVEN_ZIP,
     //     compression: null
     // },
