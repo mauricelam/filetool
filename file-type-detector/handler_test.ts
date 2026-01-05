@@ -1,4 +1,4 @@
-import { HANDLERS, matchMimetype } from './handlers';
+import { HANDLERS, matchMimetype } from './index';
 
 // Local type definition
 interface LocalMimeMatchDetailed {
