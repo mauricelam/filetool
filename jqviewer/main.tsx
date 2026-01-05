@@ -50,7 +50,12 @@ const JQViewer: React.FC = () => {
                         setError(error);
                         setOutput(null);
                     } else {
-                        setOutput(result);
+                        try {
+                            setOutput(JSON.parse(result));
+                        } catch (e) {
+                            // If the result is not a valid JSON, it might be a raw string
+                            setOutput(result);
+                        }
                         setError('');
                     }
                     break;
@@ -144,15 +149,19 @@ const JQViewer: React.FC = () => {
                     ) : error ? (
                         <div style={{ color: 'red', padding: '10px' }}>{error}</div>
                     ) : output !== null ? (
-                        <ReactJson
-                            src={output}
-                            theme="rjv-default"
-                            name={false}
-                            collapsed={1}
-                            enableClipboard={true}
-                            displayDataTypes={false}
-                            style={{ backgroundColor: 'transparent' }}
-                        />
+                        (typeof output === 'object' && output !== null) ? (
+                            <ReactJson
+                                src={output}
+                                theme="rjv-default"
+                                name={false}
+                                collapsed={false}
+                                enableClipboard={true}
+                                displayDataTypes={false}
+                                style={{ backgroundColor: 'transparent' }}
+                            />
+                        ) : (
+                            <pre>{String(output)}</pre>
+                        )
                     ) : null}
                 </div>
             </div>
