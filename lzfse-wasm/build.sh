@@ -1,3 +1,7 @@
+#!/bin/bash
+
+cd "$(dirname "$0")"
+
 OUTDIR="./dist"
 mkdir -p "$OUTDIR"
 emcc lzfse/src/lzfse_decode.c lzfse/src/lzfse_decode_base.c lzfse/src/lzvn_decode_base.c lzfse/src/lzfse_fse.c \
