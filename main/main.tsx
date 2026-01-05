@@ -1,8 +1,7 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
-import HANDLERS, { HandlerDefinition, matchMimetype } from './handlers';
-import { getDefaultHandler } from './defaultHandlers';
+import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler } from 'file-type-detector';
 import { FileItem } from "./fileitem";
 import { IframeMessage } from "common/messages";
 

@@ -10,7 +10,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path'], // 'crypto' might not be needed here
+  external: ['require', 'fs', 'path', 'crypto'],
   plugins: [
     copy({
       assets: [
@@ -19,6 +19,10 @@ const SETTINGS = {
           to: ["index.html"],
           watch: process.env['BUILD_MODE'] === 'dev',
         },
+        {
+            from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
+            to: ["libmagic-wrapper.wasm"],
+        }
       ]
     }),
     rustWasm({

@@ -1,0 +1,11 @@
+{
+  "name": "file-type-detector",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "build": ":"
+  },
+  "dependencies": {
+    "wasmagic": "^1.0.6"
+  }
+}

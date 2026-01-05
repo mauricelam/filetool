@@ -11,6 +11,8 @@ interface ColumnViewProps {
     onItemClick?: (level: number, key: string, content: any) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
     renderFileActions?: (file: any, path: string[]) => React.ReactNode;
+    /** Optional function to render a preview for a selected file. Receives the file content and its path */
+    renderFilePreview?: (file: any, path: string[]) => React.ReactNode;
 }
 
 /**
@@ -32,7 +34,7 @@ interface ColumnProps {
 
 /**
  * A single column in the column view that displays a list of items.
- * 
+ *
  * @component
  * @param {ColumnProps} props - The component props
  * @returns {React.ReactElement} A column displaying a list of items
@@ -54,14 +56,14 @@ const Column: React.FC<ColumnProps> = ({
 
     // Filter out internal properties that start with underscore
     const items = Object.entries(content).filter(([key]) => !key.startsWith('_'));
-    
+
     return (
         <div className="column-content">
             {items.map(([key, value]) => {
                 // A directory is an object that has other entries as properties
                 // A file is an object that has _name, _size, etc. properties
-                const isDirectory = typeof value === 'object' && 
-                    !(value instanceof Uint8Array) && 
+                const isDirectory = typeof value === 'object' &&
+                    !(value instanceof Uint8Array) &&
                     Object.keys(value).some(k => !k.startsWith('_'));
                 const isSelected = selectedPath[level] === key;
 
@@ -95,11 +97,11 @@ const Column: React.FC<ColumnProps> = ({
 
 /**
  * A reusable column-based file/directory viewer component.
- * 
+ *
  * This component provides a column-based navigation interface similar to Finder or Explorer,
  * where each column represents a level in the directory hierarchy. Clicking on a directory
  * will open its contents in a new column to the right.
- * 
+ *
  * @example
  * ```tsx
  * // Basic usage
@@ -107,7 +109,7 @@ const Column: React.FC<ColumnProps> = ({
  *   initialContent={files}
  *   onItemClick={(level, key, content) => console.log(`Clicked ${key} at level ${level}`)}
  * />
- * 
+ *
  * // With custom file actions
  * <ColumnView
  *   initialContent={files}
@@ -119,7 +121,7 @@ const Column: React.FC<ColumnProps> = ({
  *   )}
  * />
  * ```
- * 
+ *
  * @component
  * @param {ColumnViewProps} props - The component props
  * @returns {React.ReactElement} A column-based file/directory viewer
@@ -128,40 +130,50 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
     initialContent,
     onItemClick,
     renderFileActions,
+    renderFilePreview,
 }) => {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
+    const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setColumns([{ path: [], content: initialContent }]);
+        setSelectedPath([]);
+        setSelectedFile(null);
     }, [initialContent]);
 
     const handleItemClick = (level: number, key: string, content: any) => {
         const newPath = [...selectedPath.slice(0, level), key];
-        setSelectedPath(newPath);
-
-        // Only add a new column if the clicked item is a directory
-        const isDirectory = typeof content === 'object' && 
-            !(content instanceof Uint8Array) && 
+        const isDirectory = typeof content === 'object' &&
+            !(content instanceof Uint8Array) &&
             Object.keys(content).some(k => !k.startsWith('_'));
+
+        // If the same item is clicked again, deselect it
+        if (JSON.stringify(newPath) === JSON.stringify(selectedPath)) {
+            setSelectedPath(newPath.slice(0, -1)); // Go up one level
+            setSelectedFile(null);
+            setColumns(columns.slice(0, level + 1));
+            return;
+        }
+
+        setSelectedPath(newPath);
 
         const newColumns = columns.slice(0, level + 1);
         if (isDirectory) {
             newColumns.push({ path: newPath, content });
+            setSelectedFile(null); // Deselect file when a directory is clicked
+        } else {
+            setSelectedFile({ content, path: newPath });
         }
         setColumns(newColumns);
 
-        // Scroll to the right after the new column is added
-        if (isDirectory) {
-            setTimeout(() => {
-                if (columnsContainerRef.current) {
-                    columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
-                }
-            }, 0);
-        }
+        setTimeout(() => {
+            if (columnsContainerRef.current) {
+                columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
+            }
+        }, 0);
 
-        // Call the parent's onItemClick if provided
         if (onItemClick) {
             onItemClick(level, key, content);
         }
@@ -176,7 +188,6 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                         style={{
                             width: '250px',
                             minWidth: '250px',
-                            maxWidth: '250px',
                             borderRight: '1px solid #ccc',
                             overflow: 'auto',
                             height: '100%'
@@ -191,6 +202,16 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
                         />
                     </div>
                 ))}
+                {selectedFile && renderFilePreview && (
+                    <div className="preview-pane" style={{
+                        width: '700px',
+                        minWidth: '700px',
+                        height: '100%',
+                        overflow: 'auto'
+                    }}>
+                        {renderFilePreview(selectedFile.content, selectedFile.path)}
+                    </div>
+                )}
             </div>
             <style>
                 {`
@@ -239,4 +260,4 @@ export const ColumnView: React.FC<ColumnViewProps> = ({
             </style>
         </div>
     );
-}; 
+};

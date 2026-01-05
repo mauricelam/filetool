@@ -1,8 +1,7 @@
 import React, { CSSProperties, ReactElement, useEffect, useState } from "react";
 import CustomTypes from "./mime-db/custom-types.json";
 import IanaTypes from "./mime-db/iana-types.json";
-import { setDefaultHandler, getDefaultHandler } from './defaultHandlers';
-import { HandlerDefinition } from "../handlers";
+import { setDefaultHandler, getDefaultHandler, HandlerDefinition } from 'file-type-detector';
 
 function getIcon(name: string) {
     for (const ext in ICON_LOOKUP) {
