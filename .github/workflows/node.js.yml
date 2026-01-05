@@ -50,6 +50,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
 
+      - name: Show submodule and files
+        run: |
+          git submodule status --recursive || true
+          ls -la . || true
+          ls -la lzfse || true
+          ls -la lzfse/src || true
+
       - run: npm ci
       - run: npm run build
       - run: npm test
