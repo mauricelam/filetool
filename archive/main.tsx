@@ -2,10 +2,11 @@ import { createRoot } from 'react-dom/client'
 import { Archive, ArchiveCompression, ArchiveFormat, ArchiveFile, ArchiveEntryFile, ArchiveEntry } from 'libarchive.js';
 import React, { useEffect, useState } from 'react';
 import { ColumnView } from '../components/ColumnView';
+import { PreviewComponent } from '../components/PreviewComponent';
 
 Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
 
-const ROOT = createRoot(document.getElementById('root'))
+const ROOT = createRoot(document.getElementById('root')!)
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -23,15 +24,15 @@ async function handleFile(file: File) {
 
 const SUPPORTED_DOWNLOAD_FORMATS = [
     // Not supported due to https://github.com/nika-begiashvili/libarchivejs/issues/70
-    // { 
-    //     id: 'zip', 
-    //     name: 'ZIP', 
+    // {
+    //     id: 'zip',
+    //     name: 'ZIP',
     //     format: ArchiveFormat.ZIP,
     //     compression: null
     // },
-    // { 
-    //     id: '7z', 
-    //     name: '7Z', 
+    // {
+    //     id: '7z',
+    //     name: '7Z',
     //     format: ArchiveFormat.SEVEN_ZIP,
     //     compression: null
     // },
@@ -203,20 +204,29 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     };
 
     const handleOpenFile = async (file: ArchiveFile) => {
-        const extractedFile = await file.extract();
-        window.parent?.postMessage({
-            action: 'openFile',
-            file: extractedFile
-        }, "/", [await extractedFile.arrayBuffer()]);
+        try {
+            const extractedFile = await file.extract();
+            window.parent?.postMessage({
+                action: 'openFile',
+                file: extractedFile
+            }, "/", [await extractedFile.arrayBuffer()]);
+        } catch (e) {
+            console.error('Error opening file:', e);
+        }
     };
 
     const handleDownloadFile = async (file: ArchiveFile) => {
-        const extractedFile = await file.extract();
-        const url = URL.createObjectURL(extractedFile);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = extractedFile.name;
-        anchor.click();
+        try {
+            const extractedFile = await file.extract();
+            const url = URL.createObjectURL(extractedFile);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = extractedFile.name;
+            anchor.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Error downloading file:', e);
+        }
     };
 
     const renderFileActions = (file: ArchiveFile, path: string[]) => {
@@ -236,6 +246,10 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                 </button>
             </div>
         );
+    };
+
+    const renderFilePreview = (file: ArchiveFile, path: string[]) => {
+        return <PreviewComponent file={file} path={path} extractFile={(file: ArchiveFile) => file.extract()} />;
     };
 
     return (
@@ -269,6 +283,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             <ColumnView
                 initialContent={files}
                 renderFileActions={renderFileActions}
+                renderFilePreview={renderFilePreview}
             />
             <FormatDialog
                 isOpen={isFormatDialogOpen}
