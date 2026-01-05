@@ -10,7 +10,7 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["@playwright/test"]
+    "types": ["node", "@playwright/test"]
   },
   "include": ["./**/*.ts"]
 }

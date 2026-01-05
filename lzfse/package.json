@@ -1,0 +1,21 @@
+{
+  "name": "lzfse",
+  "version": "1.0.0",
+  "description": "LZFSE decompressor",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "lzfse-wasm": "*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.1",
+    "esbuild-plugin-copy": "^2.1.1"
+  }
+}
