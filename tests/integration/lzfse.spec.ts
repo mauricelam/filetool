@@ -1,5 +1,7 @@
 
 import { test, expect, FrameLocator, Page } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
 
 const runHandlerTest = async (
     page: Page,
@@ -34,12 +36,14 @@ const runHandlerTest = async (
 
 test.describe('LZFSE Handler', () => {
     test('should decompress an LZFSE file and display the content', async ({ page }) => {
+        const filePath = path.join(__dirname, '../fixtures', 'test.lzfse');
+        const fileBuffer = fs.readFileSync(filePath);
         await runHandlerTest(page, {
             handler: 'lzfse',
             file: {
-                content: Uint8Array.fromHex('6276782d2d00000054686973206973206120746573742066696c6520666f72204c5a465345206465636f6d7072657373696f6e2e0a62767824'),
+                content: Uint8Array.from(fileBuffer),
                 name: 'test.lzfse',
-                type: 'text/plain'
+                type: 'application/octet-stream'
             },
         });
 
@@ -51,8 +55,8 @@ test.describe('LZFSE Handler', () => {
         // Check for the decompressed content within the iframe
         // The original content is "This is a test file for LZFSE decompression."
         // We will check for the hex representation of the first few characters.
-        const expectedHex = '54 68 69 73 20 69 73 20 61 20 74 65 73 74 20 66'; // "This is a test f"
         const content = await frame!.locator('pre').textContent();
-        expect(content).toContain(expectedHex);
+        expect(content).toContain('hello world this');
+        expect(content).toContain('is a message');
     });
 });
