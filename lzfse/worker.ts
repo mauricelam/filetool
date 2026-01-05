@@ -26,10 +26,8 @@ let lzfse_decode_buffer: (
     scratch_buffer: number
 ) => number;
 
-
-// Asynchronously instantiate the WebAssembly module.
-createLzfseModule().then(Module => {
-    lzfseModule = Module as LzfseModule;
+async function init() {
+    lzfseModule = await createLzfseModule() as LzfseModule;
 
     // Create a JavaScript wrapper for the C function.
     lzfse_decode_buffer = lzfseModule.cwrap(
@@ -38,7 +36,9 @@ createLzfseModule().then(Module => {
 
     // Inform the main thread that the worker is ready.
     self.postMessage({ type: 'ready' });
-});
+}
+
+init()
 
 // Listen for messages from the main thread.
 self.onmessage = async (event) => {
@@ -58,44 +58,42 @@ self.onmessage = async (event) => {
         const compressedArray = new Uint8Array(compressedBuffer);
         const compressedSize = compressedArray.length;
 
-        // Allocate memory in the WASM heap for the compressed data.
+        // 1. Allocate Source
         const srcPtr = lzfseModule._malloc(compressedSize);
-        if (srcPtr === 0) {
-            throw new Error('Failed to allocate memory for compressed buffer.');
-        }
         lzfseModule.HEAPU8.set(compressedArray, srcPtr);
 
-        // First, call with a 0-sized output buffer to determine the required decompressed size.
-        // The function returns the required size even on failure.
-        const decompressedSize = lzfse_decode_buffer(0, 0, srcPtr, compressedSize, 0);
-        if (decompressedSize === 0) {
-            throw new Error('Failed to determine decompressed size. Input may not be a valid LZFSE stream.');
+        // 2. Heuristic for Destination Size
+        // Since we don't know the size, let's start with a large multiplier (e.g., 5x)
+        // or use a fixed large limit if you know the max file size.
+        let estimatedSize = compressedSize * 4;
+        let dstPtr = lzfseModule._malloc(estimatedSize);
+
+        // 3. Decompress
+        let resultSize = lzfse_decode_buffer(dstPtr, estimatedSize, srcPtr, compressedSize, 0);
+
+        // 4. If result is 0, the buffer was too small. Try one more time with a much larger buffer.
+        if (resultSize === 0) {
+            lzfseModule._free(dstPtr);
+            estimatedSize = compressedSize * 12; // Aggressive expansion
+            dstPtr = lzfseModule._malloc(estimatedSize);
+            resultSize = lzfse_decode_buffer(dstPtr, estimatedSize, srcPtr, compressedSize, 0);
         }
 
-        // Allocate memory for the decompressed data.
-        const dstPtr = lzfseModule._malloc(decompressedSize);
-        if (dstPtr === 0) {
-            throw new Error('Failed to allocate memory for decompressed buffer.');
+        if (resultSize === 0) {
+            throw new Error('Decompression failed. Buffer too small or invalid LZFSE data.');
         }
 
-        // Now, perform the actual decompression.
-        const resultSize = lzfse_decode_buffer(dstPtr, decompressedSize, srcPtr, compressedSize, 0);
-        if (resultSize !== decompressedSize) {
-            throw new Error(`Decompression failed. Expected ${decompressedSize} bytes, but got ${resultSize}.`);
-        }
+        // Create the result from the actual resultSize, not the estimatedSize
+        const decompressedArray = new Uint8Array(lzfseModule.HEAPU8.buffer, dstPtr, resultSize).slice();
 
-        // Create a copy of the decompressed data from the WASM heap.
-        const decompressedArray = new Uint8Array(lzfseModule.HEAPU8.buffer, dstPtr, decompressedSize).slice();
-
-        // Free the allocated memory.
         lzfseModule._free(srcPtr);
         lzfseModule._free(dstPtr);
 
         // Send the decompressed data back to the main thread.
         // The ArrayBuffer is transferred, not copied, for performance.
         self.postMessage({ type: 'done', data: decompressedArray.buffer }, [decompressedArray.buffer]);
-
     } catch (error) {
+        console.error('Error processing input', error)
         const errorMessage = (error instanceof Error) ? error.message : String(error);
         self.postMessage({ type: 'error', message: errorMessage });
     }

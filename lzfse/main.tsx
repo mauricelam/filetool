@@ -27,8 +27,7 @@ const LzfseViewer: React.FC = () => {
 
     useEffect(() => {
         setStatus('Initializing worker...');
-        // Initialize the web worker.
-        const newWorker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+        const newWorker = new Worker(new URL('worker.js', import.meta.url), { type: 'module' });
         setWorker(newWorker);
 
         const handleWorkerMessage = (event: MessageEvent) => {

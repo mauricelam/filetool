@@ -15,5 +15,5 @@ The WebAssembly module is not checked into the repository. To build it, you need
 To build the WebAssembly module, run the following command from the root of the repository:
 
 ```bash
-emcc lzfse/lzfse-src/src/lzfse_decode.c lzfse/lzfse-src/src/lzfse_decode_base.c lzfse/lzfse-src/src/lzvn_decode_base.c lzfse/lzfse-src/src/lzfse_fse.c -I lzfse/lzfse-src/src -o lzfse/lzfse.js -s FORCE_FILESYSTEM=1 -s ENVIRONMENT=web -s EXPORTED_FUNCTIONS='["_lzfse_decode_buffer", "_malloc", "_free"]' -s EXPORTED_RUNTIME_METHODS='["cwrap"]' -s MODULARIZE=1 -s EXPORT_NAME='createLzfseModule' -s ALLOW_MEMORY_GROWTH=1 -s WASM=1
+emcc lzfse/lzfse/src/lzfse_decode.c lzfse/lzfse/src/lzfse_decode_base.c lzfse/lzfse/src/lzvn_decode_base.c lzfse/lzfse/src/lzfse_fse.c -I lzfse/lzfse/src -o lzfse/lzfse.js -s FORCE_FILESYSTEM=1 -s ENVIRONMENT=web -s EXPORTED_FUNCTIONS='["_lzfse_decode_buffer", "_malloc", "_free"]' -s EXPORTED_RUNTIME_METHODS='["HEAPU8", "cwrap"]' -s MODULARIZE=1 -s EXPORT_NAME='createLzfseModule' -s ALLOW_MEMORY_GROWTH=1 -s WASM=1
 ```

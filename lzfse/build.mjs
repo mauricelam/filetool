@@ -1,42 +1,48 @@
 
 import esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
+import process from 'process';
 
-esbuild.build({
-    entryPoints: ['main.tsx'],
+const SETTINGS = {
+    entryPoints: ['main.tsx', 'worker.ts'],
+    outdir: "../dist/lzfse",
     bundle: true,
-    outfile: '../../dist/lzfse/main.js',
-    platform: 'browser',
-    format: 'esm',
+    format: "esm",
+    platform: "browser",
     plugins: [
         copy({
             assets: [
                 {
-                    from: ['./index.html'],
-                    to: ['../../dist/lzfse/'],
+                    from: './index.html',
+                    to: 'index.html',
+                    watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: ['./lzfse.wasm'],
-                    to: ['../../dist/lzfse/'],
+                    from: './lzfse.wasm',
+                    to: 'lzfse.wasm',
+                    watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: ['./lzfse.js'],
-                    to: ['../../dist/lzfse/'],
+                    from: './lzfse.js',
+                    to: 'lzfse.js',
+                    watch: process.env['BUILD_MODE'] === 'dev',
                 },
             ],
         }),
     ],
     loader: {
         '.tsx': 'tsx',
-    },
-    logLevel: 'info',
-}).catch(() => process.exit(1));
+        '.css': 'css',
+    }
+}
 
-esbuild.build({
-    entryPoints: ['worker.ts'],
-    bundle: true,
-    outfile: '../../dist/lzfse/worker.js',
-    platform: 'browser',
-    format: 'esm',
-    logLevel: 'info',
-}).catch(() => process.exit(1));
+if (process.env['BUILD_MODE'] === 'dev') {
+    const ctx = await esbuild.context({
+        ...SETTINGS,
+        sourcemap: true,
+    });
+    await ctx.watch();
+} else {
+    await esbuild.build({ ...SETTINGS, minify: true });
+}
+
