@@ -1,3 +1,0 @@
-[submodule "lzfse/lzfse"]
-	path = lzfse/lzfse
-	url = https://github.com/lzfse/lzfse.git

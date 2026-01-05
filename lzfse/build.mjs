@@ -2,6 +2,9 @@
 import esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
+import { execSync } from 'child_process';
+
+execSync('npm run build --prefix ../lzfse-wasm', { stdio: 'inherit' });
 
 const SETTINGS = {
     entryPoints: ['main.tsx', 'worker.ts'],
@@ -18,12 +21,12 @@ const SETTINGS = {
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: './lzfse.wasm',
+                    from: '../node_modules/lzfse-wasm/dist/lzfse.wasm',
                     to: 'lzfse.wasm',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: './lzfse.js',
+                    from: '../node_modules/lzfse-wasm/dist/lzfse.js',
                     to: 'lzfse.js',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
