@@ -382,6 +382,15 @@ export const HANDLERS: HandlerDefinition[] = [
                 filename: /\.lzfse$/i,
             }
         ]
+    },
+    {
+        "name": "LZFSE Decompressor",
+        "handler": "lzfse",
+        "mimetypes": [
+            {
+                filename: /\.lzfse$/i,
+            }
+        ]
     }
 ]
 

@@ -29,9 +29,6 @@ esbuild.build({
     loader: {
         '.tsx': 'tsx',
     },
-    alias: {
-        'fs': './dummy-fs.js',
-    },
     logLevel: 'info',
 }).catch(() => process.exit(1));
 
