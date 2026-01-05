@@ -1,4 +1,5 @@
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
+import { SqliteWorkerMessage } from './messages';
 
 let sqlite3: any;
 let db: any;
@@ -23,9 +24,9 @@ sqlite3InitModule({
     self.postMessage({ type: 'init', success: false, error: err instanceof Error ? err.message : String(err) });
 });
 
-self.onmessage = async (e: MessageEvent) => {
+self.onmessage = async (e: MessageEvent<SqliteWorkerMessage>) => {
     // handle incoming messages from main thread
-    const { type, file, sql } = e.data;
+    const { type } = e.data;
 
     switch (type) {
         case 'open':
@@ -35,7 +36,7 @@ self.onmessage = async (e: MessageEvent) => {
                 return;
             }
             try {
-                const buffer = await file.arrayBuffer();
+                const buffer = await e.data.file.arrayBuffer();
                 const u8 = new Uint8Array(buffer);
 
                 // Prefer the new posix-style helper per sqlite-wasm release notes
@@ -119,7 +120,7 @@ self.onmessage = async (e: MessageEvent) => {
             try {
                 // executing SQL (query text suppressed to avoid noisy logs)
                 const result = db.exec({
-                    sql: sql,
+                    sql: e.data.sql,
                     returnValue: "resultRows",
                     rowMode: 'object'
                 });

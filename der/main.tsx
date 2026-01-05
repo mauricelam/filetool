@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { createRoot } from 'react-dom/client';
+import { RequestFileMessage, RespondFileMessage } from 'common/messages';
 
 declare global {
   interface Window {
@@ -51,7 +52,7 @@ export function DerAsciiViewer() {
     }
 
     // Listen for file response
-    const messageHandler = (e: MessageEvent) => {
+    const messageHandler = (e: MessageEvent<RespondFileMessage>) => {
       if (e.data.action === 'respondFile') {
         handleFile(e.data.file);
       }

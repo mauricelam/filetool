@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
 import { ColumnView } from '../components/ColumnView'
+import { PreviewComponent } from '../components/PreviewComponent';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
@@ -146,6 +147,13 @@ function FileViewer({ files, onItemClick }: {
         );
     };
 
+    const renderFilePreview = (file: Uint8Array, path: string[]) => {
+        const extractFile = async (file: Uint8Array) => {
+            return new File([file], path[path.length - 1]);
+        };
+        return <PreviewComponent file={file} path={path} extractFile={extractFile} />;
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
@@ -155,6 +163,7 @@ function FileViewer({ files, onItemClick }: {
                 initialContent={files}
                 onItemClick={onItemClick}
                 renderFileActions={renderFileActions}
+                renderFilePreview={renderFilePreview}
             />
         </div>
     );

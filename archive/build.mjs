@@ -8,7 +8,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path'],
+  external: ['require', 'fs', 'path', 'crypto'],
   plugins: [
     copy({
       assets: [
@@ -25,6 +25,10 @@ const SETTINGS = {
           from: ["../node_modules/libarchive.js/dist/libarchive.wasm"],
           to: ["libarchive.wasm"],
         },
+        {
+            from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
+            to: ["libmagic-wrapper.wasm"],
+        }
       ]
     })
   ],

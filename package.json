@@ -27,7 +27,9 @@
         "cborviewer",
         "sqliteviewer",
         "proguardviewer",
-        "lzfse"
+        "lzfse",
+        "common",
+        "file-type-detector"
     ],
     "scripts": {
         "start": "node serve.mjs",
