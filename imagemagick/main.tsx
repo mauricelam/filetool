@@ -2,15 +2,16 @@ import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImag
 import React from "react"
 import { createRoot } from "react-dom/client"
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
+import { RequestFileMessage, RespondFileMessage } from "common/messages";
 
-window.onmessage = (e) => {
+window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
     if (e.data.action === 'respondFile') {
         handleFile(e.data.file)
     }
 }
 
 if (window.parent) {
-    window.parent.postMessage({ 'action': 'requestFile' })
+    window.parent.postMessage({ 'action': 'requestFile' });
 }
 
 const CANVAS = document.getElementById('canvas') as HTMLCanvasElement

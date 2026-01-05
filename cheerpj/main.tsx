@@ -1,3 +1,5 @@
+import { RequestFileMessage, RespondFileMessage } from 'common/messages';
+
 const CheerpJ = window as any;
 
 async function handleFile(file: File) {
@@ -11,14 +13,14 @@ async function init() {
     await CheerpJ.cheerpjInit();
     CheerpJ.cheerpjCreateDisplay(-1, -1, document.body);
 
-    window.onmessage = (e) => {
+    window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
         if (e.data.action === 'respondFile') {
             handleFile(e.data.file)
         }
     }
 
     if (window.parent) {
-        window.parent.postMessage({ 'action': 'requestFile' })
+        window.parent.postMessage({ 'action': 'requestFile' });
     }
 }
 init()

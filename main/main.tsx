@@ -4,6 +4,7 @@ import React, { ReactNode, useEffect, useState } from 'react';
 import HANDLERS, { HandlerDefinition, matchMimetype } from './handlers';
 import { getDefaultHandler } from './defaultHandlers';
 import { FileItem } from "./fileitem";
+import { IframeMessage } from "common/messages";
 
 const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
@@ -101,7 +102,7 @@ resultDiv.render(<FileList />)
 setupMessageListener();
 
 function setupMessageListener() {
-    window.onmessage = async (e) => {
+    window.onmessage = async (e: MessageEvent<IframeMessage>) => {
         let file: File | null = null;
         for (const [f, i] of fileToIframe.entries()) {
             if (i.contentWindow === e.source) {
@@ -119,7 +120,7 @@ function setupMessageListener() {
                 }
                 const fileCopy = new File([file], file.name, { type: mime });
                 iframe.contentWindow!.postMessage(
-                    { 'action': 'respondFile', file: fileCopy, 'originalType': file.type },
+                    { action: 'respondFile', file: fileCopy, originalType: file.type },
                     "/", [await file.arrayBuffer()]);
             } else if (e.data.action === 'openFile') {
                 console.log('onmessage', e.data);

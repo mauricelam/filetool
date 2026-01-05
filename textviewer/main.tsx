@@ -2,12 +2,13 @@ import { createRoot } from 'react-dom/client'
 import React, { ReactNode, useEffect, useState } from 'react'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { monokaiSublime } from 'react-syntax-highlighter/dist/esm/styles/hljs'
+import { RequestFileMessage, RespondFileMessage } from 'common/messages';
 
 if (window.parent) {
-    window.parent.postMessage({ 'action': 'requestFile' })
+    window.parent.postMessage({ 'action': 'requestFile' });
 }
 
-window.onmessage = (e) => {
+window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
     if (e.data.action === 'respondFile') {
         handleFile(e.data.file)
     }

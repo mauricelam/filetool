@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { IframeMessage, RequestFileMessage } from 'common/messages';
+import { SqliteWorkerResponseMessage } from './messages';
 
 type ExecResult = {
     results: any[];
@@ -25,13 +27,13 @@ export function useSqliteWorker() {
 
         workerRef.current = new Worker(new URL('./sqlite.worker.js', import.meta.url), { type: 'module' });
 
-        workerRef.current.onmessage = (e) => {
-            const { type, success, tables, results, columns, error } = e.data;
+        workerRef.current.onmessage = (e: MessageEvent<SqliteWorkerResponseMessage>) => {
+            const { type } = e.data;
 
             switch (type) {
                 case 'init':
-                    if (!success) {
-                        setExecResult({ results: [], columns: [], error: 'Failed to initialize SQLite worker: ' + error });
+                    if (!e.data.success) {
+                        setExecResult({ results: [], columns: [], error: 'Failed to initialize SQLite worker: ' + e.data.error });
                     } else {
                         workerInitializedRef.current = true;
                         if (pendingFileRef.current) {
@@ -41,20 +43,20 @@ export function useSqliteWorker() {
                     }
                     break;
                 case 'open':
-                    if (success) {
+                    if (e.data.success) {
                         workerRef.current?.postMessage({ type: 'getTables' });
                     } else {
-                        setExecResult({ results: [], columns: [], error: 'Failed to open database: ' + error });
+                        setExecResult({ results: [], columns: [], error: 'Failed to open database: ' + e.data.error });
                     }
                     break;
                 case 'getTables':
-                    setTables((tables as any[]).map(t => t[0]));
+                    setTables((e.data.tables as any[]).map(t => t[0]));
                     break;
                 case 'exec':
-                    if (error) {
-                        setExecResult({ results: [], columns: [], error });
+                    if (e.data.error) {
+                        setExecResult({ results: [], columns: [], error: e.data.error });
                     } else {
-                        setExecResult({ results: results ?? [], columns: columns ?? [], error: null });
+                        setExecResult({ results: e.data.results ?? [], columns: e.data.columns ?? [], error: null });
                     }
                     break;
             }
@@ -68,7 +70,7 @@ export function useSqliteWorker() {
     }, []);
 
     useEffect(() => {
-        const handleMessage = async (e: MessageEvent) => {
+        const handleMessage = async (e: MessageEvent<IframeMessage>) => {
             if (e.data.action === 'respondFile') {
                 const file: File = e.data.file;
                 if (workerInitializedRef.current) {
