@@ -27,6 +27,7 @@
         "cborviewer",
         "sqliteviewer",
         "proguardviewer",
+        "common",
         "file-type-detector"
     ],
     "scripts": {

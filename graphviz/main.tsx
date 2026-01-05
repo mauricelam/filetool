@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Graphviz } from 'graphviz-react';
+import { RequestFileMessage, RespondFileMessage } from 'common/messages';
 
 const App = () => {
   const [dot, setDot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = (event: MessageEvent<RespondFileMessage>) => {
       if (event.data.action === 'respondFile') {
         const file = event.data.file;
         if (file instanceof File) {

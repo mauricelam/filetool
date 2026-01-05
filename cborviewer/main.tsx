@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { processData } from './cbor';
+import { RequestFileMessage, RespondFileMessage } from 'common/messages';
 
 // Request file from parent window
 if (window.parent) {
@@ -15,7 +16,7 @@ const CBORViewer: React.FC = () => {
     const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
-        const handleMessage = async (e: MessageEvent) => {
+        const handleMessage = async (e: MessageEvent<RespondFileMessage>) => {
             if (e.data.action === 'respondFile') {
                 try {
                     const file = e.data.file as File;
