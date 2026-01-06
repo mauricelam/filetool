@@ -176,7 +176,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "lzfse",
         "mimetypes": [
             {
-                description: /lzfse encoded/i,
+                description: /lzfse (encoded|compressed)/i,
             }
         ]
     },

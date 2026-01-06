@@ -1,0 +1,14 @@
+{
+  "name": "filemagic-common",
+  "version": "1.0.0",
+  "description": "Common definitions for filemagic",
+  "main": "index.js",
+  "scripts": {
+    "build": ":"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {}
+}
