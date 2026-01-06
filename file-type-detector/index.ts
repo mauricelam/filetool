@@ -173,10 +173,10 @@ export const HANDLERS: HandlerDefinition[] = [
     { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /\.(map|mapping|txt)$/i }] },
     {
         "name": "LZFSE Decompressor",
-        "handler": "lzfse/index.html",
+        "handler": "lzfse",
         "mimetypes": [
             {
-                description: /lzfse encoded/i,
+                description: /lzfse (encoded|compressed)/i,
             }
         ]
     },

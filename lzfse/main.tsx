@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
+import { OpenFileMessage } from 'filemagic-common/messages';
 
 // A simple hex viewer component to display the decompressed data.
 const HexViewer: React.FC<{ data: ArrayBuffer }> = ({ data }) => {
@@ -52,17 +53,17 @@ const LzfseViewer: React.FC = () => {
         }
     };
 
-    const handleCopyBinary = () => {
-        if (decompressedData) {
-            navigator.clipboard.write([
-                new ClipboardItem({
-                    'application/octet-stream': new Blob([decompressedData], { type: 'application/octet-stream' })
-                })
-            ]).then(() => {
-                setStatus('Binary data copied to clipboard.');
-            }).catch(err => {
-                setStatus(`Error copying binary data: ${err}`);
-            });
+    const handleOpenInParent = () => {
+        if (decompressedData && window.parent) {
+            try {
+                window.parent.postMessage({
+                    action: 'openFile',
+                    file: new File([decompressedData], file?.name ? `${file.name}.decoded` : 'decompressed.bin'),
+                } as OpenFileMessage, '*', [decompressedData]);
+                setStatus('Posted decompressed data to parent.');
+            } catch (err) {
+                setStatus(`Error posting decompressed data: ${err}`);
+            }
         }
     };
 
@@ -135,7 +136,7 @@ const LzfseViewer: React.FC = () => {
                 <div>
                     <div style={{ marginBottom: '1rem' }}>
                         <button onClick={handleDownload} style={{ marginRight: '0.5rem' }}>Download</button>
-                        <button onClick={handleCopyBinary} style={{ marginRight: '0.5rem' }}>Copy Binary</button>
+                        <button onClick={handleOpenInParent} style={{ marginRight: '0.5rem' }}>Open in Parent</button>
                         <button onClick={handleCopyHexdump}>Copy Hexdump</button>
                     </div>
                     <h2>Decompressed Data (Hex View)</h2>
