@@ -50,7 +50,12 @@ const JQViewer: React.FC = () => {
                         setError(error);
                         setOutput(null);
                     } else {
-                        setOutput(result);
+                        try {
+                            setOutput(JSON.parse(result));
+                        } catch (e) {
+                            // If the result is not a valid JSON, it might be a raw string
+                            setOutput(result);
+                        }
                         setError('');
                     }
                     break;
@@ -86,6 +91,8 @@ const JQViewer: React.FC = () => {
             window.removeEventListener('message', handleMessage);
         };
     }, []);
+
+    useEffect(() => { console.log('output', output) }, [output])
 
     // Close cheatsheet on Escape key
     useEffect(() => {
@@ -143,17 +150,19 @@ const JQViewer: React.FC = () => {
                         <div style={{ padding: '10px', color: '#666' }}>Processing...</div>
                     ) : error ? (
                         <div style={{ color: 'red', padding: '10px' }}>{error}</div>
-                    ) : output !== null ? (
+                    ) : (typeof output === 'object' && output !== null) ? (
                         <ReactJson
                             src={output}
                             theme="rjv-default"
                             name={false}
-                            collapsed={1}
+                            collapsed={false}
                             enableClipboard={true}
                             displayDataTypes={false}
                             style={{ backgroundColor: 'transparent' }}
                         />
-                    ) : null}
+                    ) : (
+                        <pre>{String(output)}</pre>
+                    )}
                 </div>
             </div>
             {jqVersion && (
