@@ -1,59 +1,72 @@
-import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, Magick, MagickFormat, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm"
-import React from "react"
-import { createRoot } from "react-dom/client"
+
+import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm";
+import React, { useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
-import { RequestFileMessage, RespondFileMessage } from "common/messages";
+import { RespondFileMessage } from "common/messages";
 
-window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
-    if (e.data.action === 'respondFile') {
-        handleFile(e.data.file)
+// Export the component for testing
+export const ImageMagickApp = ({ file }: { file: File }) => {
+    const [imageInfo, setImageInfo] = useState<MagickImageInfo | null>(null);
+    const [buf, setBuf] = useState<Uint8Array | null>(null);
+    const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
+
+    useEffect(() => {
+        const canvasEl = document.getElementById('canvas') as HTMLCanvasElement;
+
+        const processFile = async () => {
+            await initializeImageMagick(new URL(wasm, import.meta.url));
+            const buffer = new Uint8Array(await file.arrayBuffer());
+            const inputFormat = mimeTypeToFormat(file.type, file.name);
+            const settings = new MagickReadSettings({ format: inputFormat });
+
+            if (canvasEl) {
+                ImageMagick.read(buffer, settings, (image) => { image.writeToCanvas(canvasEl) });
+            }
+            const info = MagickImageInfo.create(buffer, settings);
+
+            setBuf(buffer);
+            setReadSettings(settings);
+            setImageInfo(info);
+        };
+
+        processFile();
+    }, [file]);
+
+    if (!imageInfo || !buf || !readSettings) {
+        return <div>Loading...</div>;
     }
-}
 
-if (window.parent) {
-    window.parent.postMessage({ 'action': 'requestFile' });
-}
-
-const CANVAS = document.getElementById('canvas') as HTMLCanvasElement
-const OUTPUT = createRoot(document.getElementById('output'))
-
-async function handleFile(file: File) {
-    await initializeImageMagick(new URL(wasm, import.meta.url))
-    const buf = new Uint8Array(await file.arrayBuffer())
-    const inputFormat = mimeTypeToFormat(file.type, file.name)
-    const readSettings = new MagickReadSettings({ format: inputFormat })
-    ImageMagick.read(buf, readSettings, (image) => { image.writeToCanvas(CANVAS) })
-    const imageInfo = MagickImageInfo.create(buf, readSettings)
-    const doConvert = async (format: MagickFormat, cb: (file: File) => void) => {
+    const doConvert = (format: MagickFormat, cb: (file: File) => void) => {
         const data = ImageMagick.read(buf, readSettings, (image) => {
-            return image.write(format, (data) => data)
-        })
-        const outputFile = new File([data], `${getFileStem(file.name)}.${format.toLowerCase()}`)
-        cb(outputFile)
-    }
+            return image.write(format, (data) => data);
+        });
+        const outputFile = new File([data], `${getFileStem(file.name)}.${format.toLowerCase()}`);
+        cb(outputFile);
+    };
 
-    const downloadAs = async (format: MagickFormat) => {
+    const downloadAs = (format: MagickFormat) => {
         doConvert(format, (outputFile) => {
-            const url = URL.createObjectURL(outputFile)
-            const anchor = document.createElement('a')
-            anchor.href = url
-            anchor.download = outputFile.name
-            anchor.click()
-        })
-    }
+            const url = URL.createObjectURL(outputFile);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = outputFile.name;
+            anchor.click();
+        });
+    };
 
-    const openInParent = async (format: MagickFormat) => {
+    const openInParent = (format: MagickFormat) => {
         doConvert(format, (outputFile) => {
-            window.parent.postMessage({ 'action': 'openFile', 'file': outputFile });
-        })
-    }
+            window.parent.postMessage({ 'action': 'openFile', 'file': outputFile }, '*');
+        });
+    };
 
-    OUTPUT.render(
+    return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid grey', padding: '8px' }}>
                 <div>Color Space: {ColorSpace[imageInfo.colorSpace]}</div>
                 <div>Compression: {CompressionMethod[imageInfo.compression]}</div>
-                <div>Density: {imageInfo.density.x}{imageInfo.density.x != imageInfo.density.y ? ` x ${imageInfo.density.y}` : ''} {DensityUnit[imageInfo.density.units]}</div>
+                <div>Density: {imageInfo.density.x}{imageInfo.density.x !== imageInfo.density.y ? ` x ${imageInfo.density.y}` : ''} {DensityUnit[imageInfo.density.units]}</div>
                 <div>Format: {imageInfo.format}</div>
                 <div>Size: {imageInfo.width} x {imageInfo.height}px</div>
                 <div>Interlace: {Interlace[imageInfo.interlace]}</div>
@@ -79,10 +92,28 @@ async function handleFile(file: File) {
                 </button>
             </div>
         </div>
-    )
+    );
+};
+
+
+// Main execution logic for the browser environment
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
+        if (e.data.action === 'respondFile') {
+            const outputEl = document.getElementById('output');
+            if (outputEl) {
+                const root = createRoot(outputEl);
+                root.render(<ImageMagickApp file={e.data.file} />);
+            }
+        }
+    };
+
+    if (window.parent) {
+        window.parent.postMessage({ 'action': 'requestFile' }, '*');
+    }
 }
 
-const MIME_FORMAT_MAP = {
+export const MIME_FORMAT_MAP = {
     "image/vnd.microsoft.icon": MagickFormat.Ico,
     "image/x-portable-pixmap": MagickFormat.Pnm,
     "image/tiff": MagickFormat.Tiff,
@@ -93,27 +124,27 @@ const MIME_FORMAT_MAP = {
     "image/png": MagickFormat.Png,
     "image/jpeg": MagickFormat.Jpeg,
     "image/gif": MagickFormat.Gif,
-}
+};
 
-function mimeTypeToFormat(mime: string, filename: string): MagickFormat | undefined {
+export function mimeTypeToFormat(mime: string, filename: string): MagickFormat | undefined {
     if (mime in MIME_FORMAT_MAP) {
-        return MIME_FORMAT_MAP[mime]
+        return MIME_FORMAT_MAP[mime];
     } else if (/.*\.raw/i.test(filename)) {
-        return MagickFormat.Raw
+        return MagickFormat.Raw;
     }
-    return undefined
+    return undefined;
 }
 
-function getFileStem(filename: string): string {
-    const dotIndex = filename.lastIndexOf('.')
+export function getFileStem(filename: string): string {
+    const dotIndex = filename.lastIndexOf('.');
     if (dotIndex === -1) {
-        return filename
+        return filename;
     }
-    return filename.slice(0, dotIndex)
+    return filename.slice(0, dotIndex);
 }
 
 // Copied from magick-wasm/OrientationType$1
-enum OrientationType {
+export enum OrientationType {
     Undefined = 0,
     TopLeft = 1,
     TopRight = 2,
@@ -123,20 +154,4 @@ enum OrientationType {
     RightTop = 6,
     RightBottom = 7,
     LeftBottom = 8
-}
-
-async function describeMagick(file: File) {
-    const formatElems = Magick.supportedFormats.map(f => (
-        <div key={f.format}>
-            <div>Supported format: {f.format} ({f.supportsReading ? 'R' : ''}{f.supportsWriting ? 'W' : ''}) -- {f.description}</div>
-        </div>
-    ))
-    OUTPUT.render(
-        <div>
-            <div>{Magick.delegates}</div>
-            <div>{Magick.features}</div>
-            <div>{Magick.imageMagickVersion}</div>
-            {formatElems}
-        </div>
-    )
 }
