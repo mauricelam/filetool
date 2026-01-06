@@ -13,5 +13,4 @@ emcc lzfse/src/lzfse_decode.c lzfse/src/lzfse_decode_base.c lzfse/src/lzvn_decod
     -s MODULARIZE=1 \
     -s EXPORT_NAME='createLzfseModule' \
     -s ALLOW_MEMORY_GROWTH=1 \
-    -s WASM=1 \
-    --emit-tsd lzfse.d.ts
+    -s WASM=1

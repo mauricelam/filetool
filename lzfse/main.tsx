@@ -25,6 +25,58 @@ const LzfseViewer: React.FC = () => {
     const [status, setStatus] = useState<string>('Initializing...');
     const [worker, setWorker] = useState<Worker | null>(null);
 
+    const getHexdump = () => {
+        if (!decompressedData) return '';
+        const bytes = new Uint8Array(decompressedData);
+        let result = '';
+        for (let i = 0; i < bytes.length; i += 16) {
+            const slice = bytes.slice(i, i + 16);
+            const hex = Array.from(slice).map(b => b.toString(16).padStart(2, '0')).join(' ');
+            const ascii = Array.from(slice).map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.').join('');
+            result += `${i.toString(16).padStart(8, '0')}  ${hex.padEnd(47)}  |${ascii}|\n`;
+        }
+        return result;
+    }
+
+    const handleDownload = () => {
+        if (decompressedData) {
+            const blob = new Blob([decompressedData], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file?.name ? `${file.name}.decoded` : 'decoded_file';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    };
+
+    const handleCopyBinary = () => {
+        if (decompressedData) {
+            navigator.clipboard.write([
+                new ClipboardItem({
+                    'application/octet-stream': new Blob([decompressedData], { type: 'application/octet-stream' })
+                })
+            ]).then(() => {
+                setStatus('Binary data copied to clipboard.');
+            }).catch(err => {
+                setStatus(`Error copying binary data: ${err}`);
+            });
+        }
+    };
+
+    const handleCopyHexdump = () => {
+        if (decompressedData) {
+            const hexdump = getHexdump();
+            navigator.clipboard.writeText(hexdump).then(() => {
+                setStatus('Hexdump copied to clipboard.');
+            }).catch(err => {
+                setStatus(`Error copying hexdump: ${err}`);
+            });
+        }
+    };
+
     useEffect(() => {
         setStatus('Initializing worker...');
         const newWorker = new Worker(new URL('worker.js', import.meta.url), { type: 'module' });
@@ -81,6 +133,11 @@ const LzfseViewer: React.FC = () => {
             <p><strong>Status:</strong> {status}</p>
             {decompressedData && (
                 <div>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <button onClick={handleDownload} style={{ marginRight: '0.5rem' }}>Download</button>
+                        <button onClick={handleCopyBinary} style={{ marginRight: '0.5rem' }}>Copy Binary</button>
+                        <button onClick={handleCopyHexdump}>Copy Hexdump</button>
+                    </div>
                     <h2>Decompressed Data (Hex View)</h2>
                     <HexViewer data={decompressedData} />
                 </div>
