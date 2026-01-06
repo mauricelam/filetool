@@ -24,32 +24,60 @@ async function handleFile(file: File) {
     const readSettings = new MagickReadSettings({ format: inputFormat })
     ImageMagick.read(buf, readSettings, (image) => { image.writeToCanvas(CANVAS) })
     const imageInfo = MagickImageInfo.create(buf, readSettings)
-    const downloadAs = async (format: MagickFormat) => {
+    const doConvert = async (format: MagickFormat, cb: (file: File) => void) => {
         const data = ImageMagick.read(buf, readSettings, (image) => {
             return image.write(format, (data) => data)
         })
         const outputFile = new File([data], `${getFileStem(file.name)}.${format.toLowerCase()}`)
-        const url = URL.createObjectURL(outputFile)
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = outputFile.name
-        anchor.click()
+        cb(outputFile)
     }
+
+    const downloadAs = async (format: MagickFormat) => {
+        doConvert(format, (outputFile) => {
+            const url = URL.createObjectURL(outputFile)
+            const anchor = document.createElement('a')
+            anchor.href = url
+            anchor.download = outputFile.name
+            anchor.click()
+        })
+    }
+
+    const openInParent = async (format: MagickFormat) => {
+        doConvert(format, (outputFile) => {
+            window.parent.postMessage({ 'action': 'openFile', 'file': outputFile });
+        })
+    }
+
     OUTPUT.render(
-        <div>
-            <div>Color Space: {ColorSpace[imageInfo.colorSpace]}</div>
-            <div>Compression: {CompressionMethod[imageInfo.compression]}</div>
-            <div>Density: {imageInfo.density.x}{imageInfo.density.x != imageInfo.density.y ? ` x ${imageInfo.density.y}` : ''} {DensityUnit[imageInfo.density.units]}</div>
-            <div>Format: {imageInfo.format}</div>
-            <div>Size: {imageInfo.width} x {imageInfo.height}px</div>
-            <div>Interlace: {Interlace[imageInfo.interlace]}</div>
-            <div>Orientation: {OrientationType[imageInfo.orientation]}</div>
-            <div>Quality: {imageInfo.quality}</div>
-            <label>Convert to:</label>
-            <select id="outputFormat" defaultValue={MagickFormat.Png}>
-                {Object.values(MagickFormat).filter(v => v !== MagickFormat.Unknown).map(v => (<option key={v}>{v}</option>))}
-            </select>
-            <button onClick={() => downloadAs((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>Download</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid grey', padding: '8px' }}>
+                <div>Color Space: {ColorSpace[imageInfo.colorSpace]}</div>
+                <div>Compression: {CompressionMethod[imageInfo.compression]}</div>
+                <div>Density: {imageInfo.density.x}{imageInfo.density.x != imageInfo.density.y ? ` x ${imageInfo.density.y}` : ''} {DensityUnit[imageInfo.density.units]}</div>
+                <div>Format: {imageInfo.format}</div>
+                <div>Size: {imageInfo.width} x {imageInfo.height}px</div>
+                <div>Interlace: {Interlace[imageInfo.interlace]}</div>
+                <div>Orientation: {OrientationType[imageInfo.orientation]}</div>
+                <div>Quality: {imageInfo.quality}</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'center' }}>
+                <label>Convert to:</label>
+                <select id="outputFormat" defaultValue={MagickFormat.Png} style={{ flexGrow: 1 }}>
+                    {Object.values(MagickFormat).filter(v => v !== MagickFormat.Unknown).map(v => (<option key={v}>{v}</option>))}
+                </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: '8px' }}>
+                <button
+                    style={{ flexGrow: 1 }}
+                    onClick={() => downloadAs((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>
+                    Download
+                </button>
+                <button
+                    style={{ flexGrow: 1 }}
+                    onClick={() => openInParent((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>
+                    Open in Parent
+                </button>
+            </div>
         </div>
     )
 }
