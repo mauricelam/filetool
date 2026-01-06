@@ -292,6 +292,7 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
     return (
         <FileItem
             key={file.name}
+            file={file}
             name={file.name}
             mimetype={mime}
             description={description}

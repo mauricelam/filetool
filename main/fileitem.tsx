@@ -13,6 +13,7 @@ function getIcon(name: string) {
 }
 
 interface FileItemProps {
+    file: File;
     name: string;
     mimetype: string;
     description: string;
@@ -23,7 +24,7 @@ interface FileItemProps {
 }
 
 export function FileItem(props: FileItemProps) {
-    const { name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler } = props;
+    const { file, name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler } = props;
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
@@ -130,6 +131,24 @@ export function FileItem(props: FileItemProps) {
                 <div style={{ display: 'flex', alignItems: 'start' }}>
                     <label style={labelStyle}>description</label>
                     <span className="filedescription" style={{ fontSize: '14px' }}>{description}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
+                    <label style={labelStyle}>Download</label>
+                    <button
+                        onClick={() => {
+                            const url = URL.createObjectURL(file);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = file.name;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        }}
+                        style={buttonStyle}
+                    >
+                        Download File
+                    </button>
                 </div>
                 <div className="buttonBar" style={{ display: 'flex', alignItems: 'center' }}>
                     {matchedHandlers.length === 0 && <span style={{ fontSize: '12px', color: '#777' }}>No handlers available.</span>}
