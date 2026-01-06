@@ -92,6 +92,8 @@ const JQViewer: React.FC = () => {
         };
     }, []);
 
+    useEffect(() => { console.log('output', output) }, [output])
+
     // Close cheatsheet on Escape key
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -148,21 +150,19 @@ const JQViewer: React.FC = () => {
                         <div style={{ padding: '10px', color: '#666' }}>Processing...</div>
                     ) : error ? (
                         <div style={{ color: 'red', padding: '10px' }}>{error}</div>
-                    ) : output !== null ? (
-                        (typeof output === 'object' && output !== null) ? (
-                            <ReactJson
-                                src={output}
-                                theme="rjv-default"
-                                name={false}
-                                collapsed={false}
-                                enableClipboard={true}
-                                displayDataTypes={false}
-                                style={{ backgroundColor: 'transparent' }}
-                            />
-                        ) : (
-                            <pre>{String(output)}</pre>
-                        )
-                    ) : null}
+                    ) : (typeof output === 'object' && output !== null) ? (
+                        <ReactJson
+                            src={output}
+                            theme="rjv-default"
+                            name={false}
+                            collapsed={false}
+                            enableClipboard={true}
+                            displayDataTypes={false}
+                            style={{ backgroundColor: 'transparent' }}
+                        />
+                    ) : (
+                        <pre>{String(output)}</pre>
+                    )}
                 </div>
             </div>
             {jqVersion && (
