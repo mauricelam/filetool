@@ -5,37 +5,37 @@ import { WASMagic, WASMagicFlags } from 'wasmagic';
 export const DEFAULT_FILE_HANDLERS_KEY = "DEFAULT_FILE_HANDLERS";
 
 export interface DefaultHandlerPreferences {
-  [key: string]: string;
+    [key: string]: string;
 }
 
 export function getPreferences(): DefaultHandlerPreferences {
-  try {
-    const storedPrefs = localStorage.getItem(DEFAULT_FILE_HANDLERS_KEY);
-    return storedPrefs ? JSON.parse(storedPrefs) : {};
-  } catch (e) {
-    console.error("Failed to parse default handler preferences:", e);
-    return {};
-  }
+    try {
+        const storedPrefs = localStorage.getItem(DEFAULT_FILE_HANDLERS_KEY);
+        return storedPrefs ? JSON.parse(storedPrefs) : {};
+    } catch (e) {
+        console.error("Failed to parse default handler preferences:", e);
+        return {};
+    }
 }
 
 export function savePreferences(prefs: DefaultHandlerPreferences): void {
-  try {
-    localStorage.setItem(DEFAULT_FILE_HANDLERS_KEY, JSON.stringify(prefs));
-  } catch (e) {
-    console.error("Failed to save default handler preferences:", e);
-  }
+    try {
+        localStorage.setItem(DEFAULT_FILE_HANDLERS_KEY, JSON.stringify(prefs));
+    } catch (e) {
+        console.error("Failed to save default handler preferences:", e);
+    }
 }
 
 export function getDefaultHandler(mimetype: string, filename: string): string | undefined {
-  const prefs = getPreferences();
-  // Future enhancement: could check for filename patterns here
-  return prefs[mimetype] || undefined;
+    const prefs = getPreferences();
+    // Future enhancement: could check for filename patterns here
+    return prefs[mimetype] || undefined;
 }
 
 export function setDefaultHandler(mimetype: string, filename: string, handlerId: string): void {
-  const prefs = getPreferences();
-  prefs[mimetype] = handlerId;
-  savePreferences(prefs);
+    const prefs = getPreferences();
+    prefs[mimetype] = handlerId;
+    savePreferences(prefs);
 }
 
 
@@ -73,8 +73,8 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
 
     if (typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)) {
         return matchStringOrRegex(mimeMatch.mime, mime) &&
-               matchStringOrRegex(mimeMatch.filename, filename) &&
-               (mimeMatch.description === undefined || matchStringOrRegex(mimeMatch.description, description));
+            matchStringOrRegex(mimeMatch.filename, filename) &&
+            (mimeMatch.description === undefined || matchStringOrRegex(mimeMatch.description, description));
     } else {
         return matchStringOrRegex(mimeMatch, mime);
     }
@@ -91,15 +91,15 @@ export const HANDLERS: HandlerDefinition[] = [
     {
         "name": "reStructuredText Viewer",
         "handler": "rstviewer",
-        "mimetypes": [ { "filename": /\.(rst)$/i }, "text/x-rst", "text/prs.fallenstein.rst" ]
+        "mimetypes": [{ "filename": /\.(rst)$/i }, "text/x-rst", "text/prs.fallenstein.rst"]
     },
     {
         "name": "CBOR Viewer",
         "handler": "cborviewer",
-        "mimetypes": [ "application/cbor", { "filename": /\.cbor$/i } ]
+        "mimetypes": ["application/cbor", { "filename": /\.cbor$/i }]
     },
-    { "name": "Hex", "handler": "hex_viewer", "mimetypes": [ /.*/ ] },
-    { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": [ "message/rfc822" ] },
+    { "name": "Hex", "handler": "hex_viewer", "mimetypes": [/.*/] },
+    { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {
         "name": "Browser",
         "handler": "browser",
@@ -108,10 +108,10 @@ export const HANDLERS: HandlerDefinition[] = [
             "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/vnd.microsoft.icon"
         ]
     },
-    { "name": "DEX viewer", "handler": "dexviewer", "mimetypes": [ { "mime": "application/octet-stream", "filename": /.*\.dex/i } ] },
-    { "name": "Text Viewer", "handler": "textviewer", "mimetypes": [ /text\/.*/, "message/rfc822", "image/svg+xml", "application/json", "application/javascript" ] },
-    { "name": "Graphviz Viewer", "handler": "graphviz", "mimetypes": [ "text/vnd.graphviz", "application/vnd.graphviz", { "filename": /\.(dot|gv)$/i } ] },
-    { "name": "JQ Viewer", "handler": "jqviewer", "mimetypes": [ "application/json", { "filename": /\.(json|jsonl)$/i } ] },
+    { "name": "DEX viewer", "handler": "dexviewer", "mimetypes": [{ "mime": "application/octet-stream", "filename": /.*\.dex/i }] },
+    { "name": "Text Viewer", "handler": "textviewer", "mimetypes": [/text\/.*/, "message/rfc822", "image/svg+xml", "application/json", "application/javascript"] },
+    { "name": "Graphviz Viewer", "handler": "graphviz", "mimetypes": ["text/vnd.graphviz", "application/vnd.graphviz", { "filename": /\.(dot|gv)$/i }] },
+    { "name": "JQ Viewer", "handler": "jqviewer", "mimetypes": ["application/json", { "filename": /\.(json|jsonl)$/i }] },
     {
         "name": "3D model viewer",
         "handler": "webgl_previewer",
@@ -126,7 +126,7 @@ export const HANDLERS: HandlerDefinition[] = [
             { "filename": /\.glb$/i }, { "filename": /\.fbx$/i }, { "filename": /\.ply$/i }
         ]
     },
-    { "name": "Webassembly text viewer", "handler": "wat_viewer", "mimetypes": [ "application/wasm" ] },
+    { "name": "Webassembly text viewer", "handler": "wat_viewer", "mimetypes": ["application/wasm"] },
     {
         "name": "Open archive",
         "handler": "archive",
@@ -136,9 +136,9 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     { "name": "ClassyShark", "handler": "classyshark", "mimetypes": [] },
-    { "name": "Android APK viewer", "handler": "binaryxml", "mimetypes": [ "application/vnd.android.package-archive", { "mime": "application/zip", "filename": /.*\.apk$/i } ] },
-    { "name": "JVM Classfile", "handler": "classfile", "mimetypes": [ "application/x-java-applet" ] },
-    { "name": "Binutils", "handler": "binutils", "mimetypes": [ "application/x-mach-binary", "application/x-executable", "application/x-sharedlib" ] },
+    { "name": "Android APK viewer", "handler": "binaryxml", "mimetypes": ["application/vnd.android.package-archive", { "mime": "application/zip", "filename": /.*\.apk$/i }] },
+    { "name": "JVM Classfile", "handler": "classfile", "mimetypes": ["application/x-java-applet"] },
+    { "name": "Binutils", "handler": "binutils", "mimetypes": ["application/x-mach-binary", "application/x-executable", "application/x-sharedlib"] },
     {
         "name": "ImageMagick",
         "handler": "imagemagick",
@@ -148,7 +148,7 @@ export const HANDLERS: HandlerDefinition[] = [
             { "mime": "application/octet-stream", "filename": /.*\.raw/i }, "font/sfnt", "image/apng", "image/avif"
         ]
     },
-    { "name": "CheerpJ (JVM in browser, loads external code)", "handler": "cheerpj", "mimetypes": [ { "mime": "application/zip", "filename": /.*\.jar/ } ] },
+    { "name": "CheerpJ (JVM in browser, loads external code)", "handler": "cheerpj", "mimetypes": [] },
     {
         "name": "ffmpeg",
         "handler": "ffmpeg",
@@ -158,7 +158,7 @@ export const HANDLERS: HandlerDefinition[] = [
             "audio/ogg", "video/ogg", "application/x-shockwave-flash", "audio/x-wav", "video/x-msvideo", "video/quicktime"
         ]
     },
-    { "name": "markdown", "handler": "markdown", "mimetypes": [ { "filename": /\.md/i } ] },
+    { "name": "markdown", "handler": "markdown", "mimetypes": [{ "filename": /\.md/i }] },
     {
         "name": "DER",
         "handler": "der",
@@ -168,9 +168,18 @@ export const HANDLERS: HandlerDefinition[] = [
             { "mime": "application/octet-stream", "description": /DER Encoded PKCS#7 Signed Data/i }
         ]
     },
-    { "name": "Protoscope", "handler": "protoscope", "mimetypes": [ { "mime": "application/x-protobuf" }, { "filename": /\.pb$/i }, { "filename": /\.binbp$/i } ] },
-    { "name": "SQLite Viewer", "handler": "sqliteviewer", "mimetypes": [ { "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3" ] },
-    { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [ { "filename": /\.(map|mapping|txt)$/i } ] }
+    { "name": "Protoscope", "handler": "protoscope", "mimetypes": [{ "mime": "application/x-protobuf" }, { "filename": /\.pb$/i }, { "filename": /\.binbp$/i }] },
+    { "name": "SQLite Viewer", "handler": "sqliteviewer", "mimetypes": [{ "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3"] },
+    { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /\.(map|mapping|txt)$/i }] },
+    {
+        "name": "LZFSE Decompressor",
+        "handler": "lzfse",
+        "mimetypes": [
+            {
+                description: /lzfse encoded/i,
+            }
+        ]
+    },
 ];
 
 export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {

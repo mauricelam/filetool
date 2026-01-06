@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, copyFileSync, existsSync } from 'fs';
+import { mkdirSync, copyFileSync, existsSync, cpSync } from 'fs';
 import esbuild from 'esbuild';
 
 async function buildDriver() {
@@ -19,11 +19,20 @@ async function copyDriverHtml() {
     copyFileSync(srcDriverHtml, destDriverHtml);
 }
 
+async function copyFixtures() {
+    const srcFixtures = 'tests/fixtures';
+    const destFixtures = 'dist/tests/fixtures';
+    if (!existsSync(srcFixtures)) {
+        return;
+    }
+    cpSync(srcFixtures, destFixtures, { recursive: true });
+}
+
 async function buildIntegrationTests() {
     const dest = 'dist/tests/integration';
     mkdirSync(dest, { recursive: true });
 
-    await Promise.all([buildDriver(), copyDriverHtml()]);
+    await Promise.all([buildDriver(), copyDriverHtml(), copyFixtures()]);
 }
 
 buildIntegrationTests();

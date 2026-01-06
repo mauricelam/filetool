@@ -1,0 +1,17 @@
+{
+  "name": "lzfse-wasm",
+  "version": "1.0.0",
+  "description": "LZFSE decompressor",
+  "main": "./dist/lzfse.js",
+  "types": "./dist/lzfse.d.ts",
+  "scripts": {
+    "build": "bash build.sh"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.23.1",
+    "esbuild-plugin-copy": "^2.1.1"
+  }
+}

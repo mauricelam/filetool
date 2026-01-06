@@ -27,6 +27,8 @@
         "cborviewer",
         "sqliteviewer",
         "proguardviewer",
+        "lzfse",
+        "lzfse-wasm",
         "common",
         "file-type-detector"
     ],
