@@ -2,50 +2,44 @@ import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * Props for the ColumnView component
- * @interface ColumnViewProps
  */
-interface ColumnViewProps {
+interface ColumnViewProps<T> {
     /** The initial content to display in the column view. Should be an object where keys are item names and values are either nested objects (for directories) or any other type (for files) */
-    initialContent: { [key: string]: any };
+    initialContent: { [key: string]: T };
     /** Optional callback function that is called when an item is clicked. Receives the level (column index), key (item name), and content of the clicked item */
-    onItemClick?: (level: number, key: string, content: any) => void;
+    onItemClick?: (level: number, key: string, content: T) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
-    renderFileActions?: (file: any, path: string[]) => React.ReactNode;
+    renderFileActions?: (file: T, path: string[]) => React.ReactNode;
     /** Optional function to render a preview for a selected file. Receives the file content and its path */
-    renderFilePreview?: (file: any, path: string[]) => React.ReactNode;
+    renderFilePreview?: (file: T, path: string[]) => React.ReactNode;
 }
 
 /**
  * Props for the Column component
- * @interface ColumnProps
  */
-interface ColumnProps {
+interface ColumnProps<T> {
     /** The content to display in this column */
-    content: any;
+    content: T;
     /** The level (index) of this column */
     level: number;
     /** The currently selected path */
     selectedPath: string[];
     /** Callback function when an item is clicked */
-    onItemClick: (level: number, key: string, content: any) => void;
+    onItemClick: (level: number, key: string, content: T) => void;
     /** Optional function to render custom actions for file items */
-    renderFileActions?: (file: any, path: string[]) => React.ReactNode;
+    renderFileActions?: (file: T, path: string[]) => React.ReactNode;
 }
 
 /**
  * A single column in the column view that displays a list of items.
- *
- * @component
- * @param {ColumnProps} props - The component props
- * @returns {React.ReactElement} A column displaying a list of items
  */
-const Column: React.FC<ColumnProps> = ({
+function Column<T>({
     content,
     level,
     selectedPath,
     onItemClick,
     renderFileActions
-}) => {
+}: ColumnProps<T>): React.ReactElement {
     if (!content || typeof content !== 'object') {
         return (
             <div className="column-content">
@@ -123,15 +117,13 @@ const Column: React.FC<ColumnProps> = ({
  * ```
  *
  * @component
- * @param {ColumnViewProps} props - The component props
- * @returns {React.ReactElement} A column-based file/directory viewer
  */
-export const ColumnView: React.FC<ColumnViewProps> = ({
+export function ColumnView<T>({
     initialContent,
     onItemClick,
     renderFileActions,
     renderFilePreview,
-}) => {
+}: ColumnViewProps<T>): React.ReactElement {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
     const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);

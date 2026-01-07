@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { getHandlersForFile, getDefaultHandler, setDefaultHandler, HandlerDefinition, sortHandlersBySpecificity } from 'file-type-detector';
+import { getHandlersForFile, getDefaultHandler, HandlerDefinition, sortHandlersBySpecificity } from 'file-type-detector';
 
-interface PreviewComponentProps {
-    file: any;
+interface PreviewComponentProps<T> {
+    file: T;
     path: string[];
-    extractFile: (file: any) => Promise<File>;
+    extractFile: (file: T) => Promise<File>;
 }
 
-export const PreviewComponent: React.FC<PreviewComponentProps> = ({ file, path, extractFile }) => {
+export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponentProps<T>) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewFile, setPreviewFile] = useState<File | null>(null);
