@@ -25,7 +25,9 @@ window.addEventListener('message', (event: MessageEvent) => {
     console.log('Message received from parent', event.data);
     if (event.source === window.parent && event.data.action === 'setFile') {
         const { content, name, type } = event.data.file;
-        fileToProvide = new File([content], name, { type });
+        const fileContent = content;
+
+        fileToProvide = new File([fileContent], name, { type });
         sendFileIfReady();
     }
 });

@@ -100,7 +100,7 @@ function App({ file }: { file: File }) {
             currentOutput += e.data + "\n"
             setOutput(currentOutput)
         }
-        currentWorker.postMessage({ action: tool, file, flags }, [buffer]);
+        currentWorker.postMessage({ action: tool, buffer, flags, fileName: file.name }, [buffer]);
     };
 
     useEffect(() => {
