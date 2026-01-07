@@ -1,7 +1,7 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
-import { goWasm } from '../esbuild-plugins/go-wasm.mjs'; // Import the new plugin
+import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
 
 
 const SETTINGS = {

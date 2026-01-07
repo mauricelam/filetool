@@ -9,7 +9,12 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-syntax-highlighter": "^15.6.1"
+    "react-syntax-highlighter": "^16.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.2",
+    "vite": "7.3.1",
+    "vitest": "4.0.16"
   },
   "license": "MIT",
   "description": ""
