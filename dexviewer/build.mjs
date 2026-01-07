@@ -1,7 +1,7 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
-import path from 'path'; // Import path
+import path from 'path';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
 

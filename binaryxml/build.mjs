@@ -1,8 +1,8 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
-import path from 'path'; // Import path
-import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs'; // Import the new plugin
+import path from 'path';
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
