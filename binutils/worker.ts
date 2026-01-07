@@ -10,20 +10,19 @@ import loader from "@binutils-wasm/binutils";
 
 self.onmessage = (e: MessageEvent) => {
     console.log('Running util', e.data.action, e.data.flags)
-    run_binutil(e.data.action, e.data.flags, e.data.file, (line) => {
+    run_binutil(e.data.action, e.data.flags, e.data.buffer, e.data.fileName, (line) => {
         self.postMessage(line)
     })
 }
 
-async function run_binutil(util: string, flags: string[], file: File, callback: (line: string) => void) {
+async function run_binutil(util: string, flags: string[], buffer: ArrayBuffer, fileName: string, callback: (line: string) => void) {
     const wasm_fn = await loader(util as any);
-    const fileBytes = await file.arrayBuffer();
     await wasm_fn({
         print: callback,
         printErr: (line) => callback(`ERROR: ${line}`),
-        arguments: [...flags, file.name],
+        arguments: [...flags, fileName],
         preRun: [(m) => {
-            m.FS.writeFile(file.name, new Uint8Array(fileBytes));
+            m.FS.writeFile(fileName, new Uint8Array(buffer));
         }],
     })
 }
