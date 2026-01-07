@@ -1,35 +1,5 @@
-import { test, expect, Page, FrameLocator } from '@playwright/test';
-
-const runHandlerTest = async (
-    page: Page,
-    { handler, file }: { handler: string; file: { content: string; name: string; type: string } }
-): Promise<FrameLocator> => {
-    // Navigate to the test harness page with the specified handler
-    await page.goto(`/tests/integration/driver.html?handler=${handler}`);
-
-    // Ensure the iframe element is attached before posting the file
-    await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
-
-    // Send the file to the driver harness
-    await page.evaluate((file) => {
-        window.postMessage({
-            action: 'setFile',
-            file: file
-        }, '*');
-    }, file);
-
-    // Wait for iframe content to be available
-    const iframeEl = await page.$('#file-handler-iframe');
-    const contentFrame = iframeEl ? await iframeEl.contentFrame() : null;
-    if (!contentFrame) {
-        throw new Error('file-handler iframe contentFrame is null');
-    }
-
-    // Wait for the handler's document body to be ready
-    await contentFrame.waitForSelector('body', { state: 'visible', timeout: 10000 });
-
-    return page.frameLocator('#file-handler-iframe');
-};
+import { test, expect, Page } from '@playwright/test';
+import { runHandlerTest } from './test-utils';
 
 test('should correctly deobfuscate a class name', async ({ page }: { page: Page }) => {
     await runHandlerTest(page, {

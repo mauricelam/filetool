@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './tests/integration',
   use: {
     headless: true,
-    viewport: { width: 1280, height: 720 },
+    viewport: { width: 1920, height: 1200 },
     ignoreHTTPSErrors: true,
     baseURL: 'http://localhost:8080',
   },
