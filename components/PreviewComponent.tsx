@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { getHandlersForFile, getDefaultHandler, HandlerDefinition, sortHandlersBySpecificity } from 'file-type-detector';
 
-interface PreviewComponentProps<T> {
-    file: T;
+interface PreviewComponentProps {
     path: string[];
-    extractFile: (file: T) => Promise<File>;
+    filePromise: () => Promise<File>;
 }
 
-export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponentProps<T>) {
+export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewFile, setPreviewFile] = useState<File | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [handlers, setHandlers] = useState<HandlerDefinition[]>([]);
@@ -18,27 +16,21 @@ export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponen
     useEffect(() => {
         const getPreview = async () => {
             setError(null);
-            setPreviewUrl(null);
             setPreviewFile(null);
             setActiveHandler(null);
             setHandlers([]);
 
             try {
-                let extractedFile: File;
-                if (file instanceof File) {
-                    extractedFile = file;
-                } else {
-                    extractedFile = await extractFile(file);
-                }
+                const file = await filePromise();
 
-                const matchingHandlers = await getHandlersForFile(extractedFile);
+                const matchingHandlers = await getHandlersForFile(file);
                 console.log("Matching handlers:", matchingHandlers);
-                const sortedHandlers = sortHandlersBySpecificity(matchingHandlers, extractedFile.type, extractedFile.name);
+                const sortedHandlers = sortHandlersBySpecificity(matchingHandlers, file.type, file.name);
                 console.log("Sorted handlers:", sortedHandlers);
                 setHandlers(sortedHandlers);
 
                 if (sortedHandlers.length > 0) {
-                    const defaultHandlerId = getDefaultHandler(extractedFile.type, extractedFile.name);
+                    const defaultHandlerId = getDefaultHandler(file.type, file.name);
                     console.log("Default handler ID:", defaultHandlerId);
                     let handlerToUse = sortedHandlers.find(h => h.handler === defaultHandlerId);
                     console.log("Handler after default check:", handlerToUse);
@@ -48,11 +40,10 @@ export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponen
                         console.log("Handler after fallback:", handlerToUse);
                     }
                     setActiveHandler(handlerToUse);
-                    setPreviewUrl(`/${handlerToUse.handler}/`);
                 } else {
                     setError('No preview available');
                 }
-                setPreviewFile(extractedFile);
+                setPreviewFile(file);
 
             } catch (e) {
                 console.error('Error rendering file preview:', e);
@@ -60,7 +51,7 @@ export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponen
             }
         };
         getPreview();
-    }, [file, path, extractFile]);
+    }, [path, filePromise]);
 
     const handleIframeLoad = async () => {
         if (iframeRef.current && previewFile) {
@@ -75,7 +66,6 @@ export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponen
         const newHandler = handlers.find(h => h.handler === handlerId);
         if (newHandler) {
             setActiveHandler(newHandler);
-            setPreviewUrl(`/${newHandler.handler}/`);
         }
     };
 
@@ -87,6 +77,7 @@ export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponen
         return <div style={{ padding: '10px' }}>Loading preview...</div>;
     }
 
+    const previewUrl = `/${activeHandler.handler}/`;
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ padding: '8px', borderBottom: '1px solid #ccc', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -103,7 +94,7 @@ export function PreviewComponent<T>({ file, path, extractFile }: PreviewComponen
             <div style={{ flex: 1, position: 'relative' }}>
                 <iframe
                     ref={iframeRef}
-                    src={previewUrl || ''}
+                    src={previewUrl}
                     style={{ width: '100%', height: '100%', border: 'none' }}
                     onLoad={handleIframeLoad}
                     key={previewUrl}
