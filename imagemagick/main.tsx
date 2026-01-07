@@ -3,7 +3,7 @@ import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImag
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
-import { RespondFileMessage } from "common/messages";
+import { RespondFileMessage } from "filemagic-common/messages";
 
 // Export the component for testing
 export const ImageMagickApp = ({ file }: { file: File }) => {
