@@ -57,7 +57,7 @@ function App() {
                     await handleFile(e.data.file);
                 } catch (error) {
                     console.error('Error handling file:', error);
-                    setError(error.message);
+                    setError((error as Error).message);
                 }
             }
         };
@@ -111,7 +111,7 @@ function FileViewer({ files, onItemClick }: {
     onItemClick: (level: number, key: string, content: any) => void,
 }) {
     const handleOpenFile = async (file: Uint8Array, filename: string) => {
-        const extractedFile = new File([file], filename);
+        const extractedFile = new File([file.buffer as ArrayBuffer], filename);
         window.parent?.postMessage({
             action: 'openFile',
             file: extractedFile
@@ -119,7 +119,7 @@ function FileViewer({ files, onItemClick }: {
     };
 
     const handleDownloadFile = async (file: Uint8Array, filename: string) => {
-        const extractedFile = new File([file], filename);
+        const extractedFile = new File([file.buffer as ArrayBuffer], filename);
         const url = URL.createObjectURL(extractedFile);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -148,10 +148,10 @@ function FileViewer({ files, onItemClick }: {
     };
 
     const renderFilePreview = (file: Uint8Array, path: string[]) => {
-        const extractFile = async (file: Uint8Array) => {
-            return new File([file], path[path.length - 1]);
+        const extractFile = async () => {
+            return new File([file.buffer as ArrayBuffer], path[path.length - 1]);
         };
-        return <PreviewComponent file={file} path={path} extractFile={extractFile} />;
+        return <PreviewComponent path={path} filePromise={extractFile} />;
     };
 
     return (
