@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -31,7 +31,7 @@ test.describe('binutils handler', () => {
             file,
         });
         await iframe.click('text=nm');
-        await expect(iframe.locator('body')).toContainText('hello');
+        await expect(iframe.locator('body')).toContainText('_init');
     });
 
     test('should use flags to change output', async ({ page }) => {
@@ -47,6 +47,6 @@ test.describe('binutils handler', () => {
         await iframe.click('text="-d: Disassemble"');
 
         // Check that the output has changed to include disassembly
-        await expect(iframe.locator('body')).toContainText('Disassembly of section .text:');
+        await expect(iframe.locator('body')).toContainText('Disassembly of section .init:');
     });
 });

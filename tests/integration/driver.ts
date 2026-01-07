@@ -24,20 +24,8 @@ function sendFileIfReady() {
 window.addEventListener('message', (event: MessageEvent) => {
     console.log('Message received from parent', event.data);
     if (event.source === window.parent && event.data.action === 'setFile') {
-        const { content, name, type, encoding } = event.data.file;
-        let fileContent: BlobPart;
-
-        if (encoding === 'base64') {
-            const binaryString = window.atob(content);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            fileContent = bytes;
-        } else {
-            fileContent = content;
-        }
+        const { content, name, type } = event.data.file;
+        const fileContent = content;
 
         fileToProvide = new File([fileContent], name, { type });
         sendFileIfReady();

@@ -3,7 +3,7 @@ import { Page } from '@playwright/test';
 export interface HandlerTestOptions {
     handler: string;
     file: {
-        content: Buffer;
+        content: string | Buffer | Uint8Array;
         name: string;
         type: string;
     };
@@ -13,17 +13,16 @@ export const runHandlerTest = async (page: Page, { handler, file }: HandlerTestO
     await page.goto(`/tests/integration/driver.html?handler=${handler}`);
     await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
 
+    if (file.content instanceof Buffer) {
+        file.content = new Uint8Array(file.content.buffer)
+    }
+
     await page.evaluate((file) => {
         window.postMessage({
             action: 'setFile',
             file: file
         }, '*');
-    }, {
-        name: file.name,
-        type: file.type,
-        content: file.content.toString('base64'),
-        encoding: 'base64'
-    });
+    }, file);
 
     const iframeEl = await page.$('#file-handler-iframe');
     const iframe = iframeEl ? await iframeEl.contentFrame() : null;
