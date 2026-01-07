@@ -49,7 +49,7 @@ vi.mock('@imagemagick/magick-wasm/magick.wasm', () => ({
 
 
 describe('ImageMagickApp', () => {
-    let file;
+    let file: File;
 
     beforeEach(() => {
         document.body.innerHTML = `<canvas id="canvas"></canvas>`;

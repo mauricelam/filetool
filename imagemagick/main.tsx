@@ -1,5 +1,5 @@
 
-import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm";
+import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, IMagickImageInfo, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
@@ -7,7 +7,7 @@ import { RespondFileMessage } from "common/messages";
 
 // Export the component for testing
 export const ImageMagickApp = ({ file }: { file: File }) => {
-    const [imageInfo, setImageInfo] = useState<MagickImageInfo | null>(null);
+    const [imageInfo, setImageInfo] = useState<IMagickImageInfo | null>(null);
     const [buf, setBuf] = useState<Uint8Array | null>(null);
     const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
 
@@ -38,10 +38,10 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
     }
 
     const doConvert = (format: MagickFormat, cb: (file: File) => void) => {
-        const data = ImageMagick.read(buf, readSettings, (image) => {
-            return image.write(format, (data) => data);
+        const data: Uint8Array = ImageMagick.read(buf, readSettings, (image) => {
+            return image.write(format, (data: Uint8Array) => data);
         });
-        const outputFile = new File([data], `${getFileStem(file.name)}.${format.toLowerCase()}`);
+        const outputFile = new File([data.buffer as ArrayBuffer], `${getFileStem(file.name)}.${format.toLowerCase()}`);
         cb(outputFile);
     };
 
@@ -113,7 +113,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     }
 }
 
-export const MIME_FORMAT_MAP = {
+export const MIME_FORMAT_MAP: { [key: string]: MagickFormat } = {
     "image/vnd.microsoft.icon": MagickFormat.Ico,
     "image/x-portable-pixmap": MagickFormat.Pnm,
     "image/tiff": MagickFormat.Tiff,
