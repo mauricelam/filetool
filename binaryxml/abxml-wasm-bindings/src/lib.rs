@@ -5,6 +5,7 @@ use abxml::{
 use log::{debug, error, info};
 use serde_bytes::ByteBuf;
 use std::{collections::HashMap, fs::File};
+use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
 // Initialize panic hook and logger
@@ -20,7 +21,8 @@ pub fn start() {
     info!("ARSC parser initialized");
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 struct ArscResource {
     package_id: u8,
     type_name: String,
