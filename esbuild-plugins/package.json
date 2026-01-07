@@ -12,10 +12,10 @@
         "build": ":",
         "watch": ":"
     },
-    "dependencies": {
+    "devDependencies": {
         "chokidar": "^3.5.3",
-        "esbuild": "^0.23.1",
+        "esbuild": "^0.27.2",
         "glob": "^10.3.10"
     },
     "license": "MIT"
-} 
+}

@@ -1,4 +1,4 @@
-import init, { deobfuscate_stack_trace, get_rules, deobfuscate_class } from './proguard-wasm.js';
+import init, { deobfuscate_stack_trace, get_rules, deobfuscate_class } from './proguard-wasm/pkg';
 
 let wasmInitialized = false;
 
