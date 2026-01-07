@@ -1,0 +1,15 @@
+{
+  "name": "cyberchef",
+  "version": "1.0.0",
+  "description": "CyberChef file viewer",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "common": "file:../common"
+  }
+}
