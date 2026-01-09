@@ -1,5 +1,5 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { useEffect, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getFFmpegCoreURL, getFFmpegWasmURL, getFFmpegWorkerURL } from './ffmpegUtils';
 import { transcode as transcodeWithWebCodecs } from './webcodecs';
@@ -61,7 +61,7 @@ enum VideoCodec {
     AV1 = 'libaom-av1',
 }
 
-const FORMAT_MIME = {
+const FORMAT_MIME: Record<string, string> = {
     'mp4': 'video/mp4',
     'mkv': 'video/matroska',
     'webm': 'video/webm',
@@ -150,29 +150,38 @@ export function parseFFmpegOutput(output: string) {
         info.format.format_name = formatMatch[1];
     }
 
-    const videoMatch = output.match(/Stream #0:(\d+).*: Video: ([^\s(]+)(?:\s*\([^)]*\))?(?:\s*\([^)]*\))?,\s*([^,(]+)(?:\([^)]*\))?,\s*(\d+x\d+)[^,]*,\s*(\d+(?:\.\d+)?)\s*kb\/s,\s*(\d+(?:\.\d+)?)\s*fps/);
-    if (videoMatch) {
-        const videoStream = {
-            codec_type: 'video',
-            codec_name: videoMatch[2],
-            pix_fmt: videoMatch[3],
-            width: parseInt(videoMatch[4].split('x')[0]),
-            height: parseInt(videoMatch[4].split('x')[1]),
-            bit_rate: parseInt(videoMatch[5]) * 1000,
-            r_frame_rate: videoMatch[6] || '0'
-        };
-        info.streams.push(videoStream);
-    }
+    const lines = output.split('\n');
+    for (const line of lines) {
+        if (line.includes('Stream #0') && line.includes('Video:')) {
+            const codecMatch = line.match(/Video: ([^ ,(]+)/);
+            const resMatch = line.match(/, (\d{2,5}x\d{2,5})/);
+            const fpsMatch = line.match(/, (\d+(?:\.\d+)?)\s*fps/);
+            const brMatch = line.match(/, (\d+(?:\.\d+)?)\s*kb\/s/);
+            const pixMatch = line.match(/Video: [^,]+, ([^,]+)/);
 
-    const audioMatch = output.match(/Stream #0:(\d+).*: Audio: ([^,]+)[^,]*,\s*(\d+) Hz[^,]*(?:,\s*([^,]+))?.*?(\d+) kb\/s/);
-    if (audioMatch) {
-        const audioStream = {
-            codec_type: 'audio',
-            codec_name: audioMatch[2],
-            sample_rate: audioMatch[3],
-            bit_rate: parseInt(audioMatch[5]) * 1000
-        };
-        info.streams.push(audioStream);
+            const videoStream = {
+                codec_type: 'video',
+                codec_name: codecMatch ? codecMatch[1] : undefined,
+                pix_fmt: pixMatch ? pixMatch[1].trim() : undefined,
+                width: resMatch ? parseInt(resMatch[1].split('x')[0]) : undefined,
+                height: resMatch ? parseInt(resMatch[1].split('x')[1]) : undefined,
+                bit_rate: brMatch ? parseInt(brMatch[1]) * 1000 : undefined,
+                r_frame_rate: fpsMatch ? fpsMatch[1] : '0'
+            };
+            info.streams.push(videoStream);
+        } else if (line.includes('Stream #0') && line.includes('Audio:')) {
+            const codecMatch = line.match(/Audio: ([^ ,(]+)/);
+            const brMatch = line.match(/, (\d+(?:\.\d+)?)\s*kb\/s/);
+            const srMatch = line.match(/, (\d+)\s*Hz/);
+
+            const audioStream = {
+                codec_type: 'audio',
+                codec_name: codecMatch ? codecMatch[1] : undefined,
+                sample_rate: srMatch ? srMatch[1] : undefined,
+                bit_rate: brMatch ? parseInt(brMatch[1]) * 1000 : undefined
+            };
+            info.streams.push(audioStream);
+        }
     }
 
     return info;
@@ -201,7 +210,7 @@ interface VideoPreviewProps {
     file: File;
     error: string | null;
     videoInfo: VideoInfo;
-    setVideoInfo: (info: VideoInfo) => void;
+    setVideoInfo: Dispatch<SetStateAction<VideoInfo>>;
 }
 
 function VideoPreview({ file, error, videoInfo, setVideoInfo }: VideoPreviewProps) {
@@ -226,7 +235,7 @@ function VideoPreview({ file, error, videoInfo, setVideoInfo }: VideoPreviewProp
                 const seconds = Math.floor(video.duration % 60);
                 const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
-                setVideoInfo(prev => ({
+                setVideoInfo((prev: VideoInfo) => ({
                     ...prev,
                     duration: durationStr,
                     width: video.videoWidth,
@@ -400,6 +409,8 @@ interface TranscodeControlsProps {
     onStop: () => void;
     onDownload: (file: File) => void;
     onCustomCommand: (command: string) => void;
+    useWebCodecs: boolean;
+    setUseWebCodecs: (value: boolean) => void;
 }
 
 function TranscodeControls({
@@ -729,12 +740,29 @@ function WebCodecsControls({
     onDownload,
     progress,
     status,
+}: {
+    file: File;
+    onTranscode: (config: any) => void;
+    running: boolean;
+    results: TranscodeResults;
+    onDownload: (file: File) => void;
+    progress: number;
+    status: string;
 }) {
-    const [videoCodec, setVideoCodec] = useState('vp8');
+    const [videoCodec, setVideoCodec] = useState('vp09.00.51.08');
     const [bitrate, setBitrate] = useState(2_000_000);
     const [keepAudio, setKeepAudio] = useState(true);
+    const [container, setContainer] = useState('mp4');
     const [transcodedFile, setTranscodedFile] = useState<File | null>(null);
     const [transcodedUrl, setTranscodedUrl] = useState<string>('');
+
+    useEffect(() => {
+        if (videoCodec.startsWith('avc1')) {
+            setContainer('mp4');
+        } else if (videoCodec.startsWith('vp')) {
+            setContainer('webm');
+        }
+    }, [videoCodec]);
 
     useEffect(() => {
         if (results) {
@@ -757,6 +785,7 @@ function WebCodecsControls({
             codec: videoCodec,
             bitrate: bitrate,
             keepAudio: keepAudio,
+            container: container,
         };
         onTranscode(config);
     };
@@ -792,8 +821,33 @@ function WebCodecsControls({
                     }}
                 >
                     <option value="vp8">VP8</option>
-                    <option value="vp09.00.10.08">VP9</option>
-                    <option value="avc1.42E01E">H.264</option>
+                    <option value="vp09.00.51.08">VP9</option>
+                    <option value="avc1.42E033">H.264</option>
+                </select>
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+                <label htmlFor="container-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Container Format:</label>
+                <select id="container-select" value={container} onChange={e => setContainer(e.target.value)}
+                    style={{
+                        width: '100%',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #ced4da',
+                        fontSize: '14px'
+                    }}
+                >
+                    {videoCodec.startsWith('avc1') ? (
+                        <>
+                            <option value="mp4">MP4</option>
+                            <option value="mov">MOV (QuickTime)</option>
+                            <option value="mkv">MKV (Matroska)</option>
+                        </>
+                    ) : (
+                        <>
+                            <option value="webm">WebM</option>
+                            <option value="mkv">MKV (Matroska)</option>
+                        </>
+                    )}
                 </select>
             </div>
             <div style={{ marginBottom: '20px' }}>
@@ -893,6 +947,7 @@ function TranscodeVideo({ file }: { file: File }) {
     const [commandString, setCommandString] = useState<string>("")
     const [error, setError] = useState<string | null>(null)
     const ffmpegRef = useRef<FFmpeg | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
     const [useWebCodecs, setUseWebCodecs] = useState<boolean>(false)
     const [webCodecsProgress, setWebCodecsProgress] = useState(0);
     const [status, setStatus] = useState('');
@@ -901,6 +956,19 @@ function TranscodeVideo({ file }: { file: File }) {
         size: file.size,
         type: file.type
     });
+
+    const parseDurationToSeconds = (duration: string | undefined): number => {
+        if (!duration) return 0;
+        const parts = duration.split(':').map(val => parseFloat(val));
+        if (parts.length === 2) return parts[0] * 60 + parts[1];
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        return parts[0] || 0;
+    };
+
+    const parseFramerate = (framerate: string | undefined): number => {
+        if (!framerate) return 0;
+        return parseFloat(framerate) || 0;
+    };
 
     const handleWebCodecsTranscode = async (config: any) => {
         setRunning(true);
@@ -916,55 +984,90 @@ function TranscodeVideo({ file }: { file: File }) {
         try {
             await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()));
 
-            const durationInSeconds = videoInfo.duration ? parseFloat(videoInfo.duration) : 0;
-            const framerate = videoInfo.framerate ? parseFloat(videoInfo.framerate) : 0;
-            const totalFrames = durationInSeconds * framerate;
+            const durationInSeconds = parseDurationToSeconds(videoInfo.duration);
+            const framerate = parseFramerate(videoInfo.framerate);
+            const totalFrames = Math.ceil(durationInSeconds * framerate);
 
-            let audioArgs: string[] = ['-an'];
-            const audioFileName = `audio.${file.name.split('.').pop() || 'mp4'}`;
+            let audioExtracted = false;
+            const audioFileName = 'audio-temp.mka';
             if (config.keepAudio) {
                 setStatus('Extracting audio...');
                 try {
-                    await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'copy', audioFileName]);
-                    audioArgs = ['-i', audioFileName, '-c:a', 'copy'];
+                    const audioExtractResult = await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'copy', audioFileName]);
+                    if (audioExtractResult === 0) {
+                        audioExtracted = true;
+                    } else {
+                        console.warn("Audio extraction exited with code", audioExtractResult);
+                    }
                 } catch (e) {
                     console.warn("Could not extract audio track, proceeding without it.", e);
                 }
             }
 
             setStatus('Encoding video...');
+            abortControllerRef.current = new AbortController();
             const encodedBlob = await transcodeWithWebCodecs(
                 file,
                 {
                     ...config,
-                    format: getFormatForCodec(config.codec),
+                    format: getContainerForCodec(config.codec),
                 },
                 totalFrames,
-                (p) => setWebCodecsProgress(p)
+                (p) => setWebCodecsProgress(p),
+                abortControllerRef.current.signal
             );
 
-            const videoInputFile = `video.${getExtensionForCodec(config.codec)}`;
+            const videoInputFile = `video-temp.${getExtensionForCodec(config.codec)}`;
             await ffmpeg.writeFile(videoInputFile, new Uint8Array(await encodedBlob.arrayBuffer()));
 
-            const outputFileName = `output-webcodecs.${getExtensionForCodec(config.codec)}`;
+            const outputFileName = `output-webcodecs.${config.container || getContainerForCodec(config.codec)}`;
+            const inputFormat = config.codec.startsWith('avc1') ? 'h264' : 'ivf';
+            const inputFramerate = parseFramerate(videoInfo.framerate) || 30;
+
             const muxerArgs = [
-                '-f', getFormatForCodec(config.codec),
+                '-r', inputFramerate.toString(), // Set input framerate for raw stream
+                '-f', inputFormat,
                 '-i', videoInputFile,
-                ...audioArgs,
-                '-c:v', 'copy',
+                ...(audioExtracted ? ['-i', audioFileName] : []),
+                '-map', '0:v:0',
+                ...(audioExtracted ? ['-map', '1:a:0'] : []),
+                '-c', 'copy',
+                '-strict', '-2', // Allow non-standard combinations if requested
+                '-y',
                 outputFileName
             ];
 
-            await ffmpeg.exec(muxerArgs);
+            const result = await ffmpeg.exec(muxerArgs);
+            if (result !== 0) {
+                let hint = "";
+                if (config.codec.startsWith('vp') && config.container === 'mp4') {
+                    hint = " Note: VP8/VP9 are not natively supported in MP4 containers. Try using WebM or MKV instead.";
+                } else if (config.codec.startsWith('avc1') && config.container === 'webm') {
+                    hint = " Note: H.264 is not natively supported in WebM containers. Try using MP4 or MOV instead.";
+                }
+                throw new Error(`FFmpeg muxing failed (code ${result}).${hint}`);
+            }
 
-            setStatus('Muxing video and audio...');
+            setStatus('Reading output...');
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
-            const resultFile = new File([data.buffer], outputFileName, { type: `video/${getExtensionForCodec(config.codec)}` });
+            const finalExtension = config.container || getContainerForCodec(config.codec);
+            const resultFile = new File([data as any], outputFileName, { type: `video/${finalExtension}` });
             setResults(f => ({ ...f, [`webcodecs-${Date.now()}`]: resultFile }));
 
-        } catch (e) {
-            console.error(e);
-            setError(e.message);
+            // Cleanup
+            try {
+                await ffmpeg.deleteFile(videoInputFile);
+                if (audioExtracted) await ffmpeg.deleteFile(audioFileName);
+                await ffmpeg.deleteFile(outputFileName);
+            } catch (cleanupError) {
+                console.warn('Cleanup failed:', cleanupError);
+            }
+
+        } catch (e: any) {
+            console.error('WebCodecs Error:', e);
+            const message = e instanceof Error ? e.message : String(e);
+            setError(message);
+            setStatus(`Error: ${message}`);
         } finally {
             setRunning(false);
             setWebCodecsProgress(0);
@@ -972,27 +1075,21 @@ function TranscodeVideo({ file }: { file: File }) {
         }
     };
 
-    const getFormatForCodec = (codec: string) => {
+    const getExtensionForCodec = (codec: string) => {
         if (codec.startsWith('avc1')) {
             return 'h264';
         }
-        if (codec.startsWith('vp09')) {
-            return 'vp9';
-        }
-        if (codec.startsWith('vp8')) {
-            return 'vp8';
+        if (codec.startsWith('vp09') || codec.startsWith('vp8')) {
+            return 'ivf';
         }
         throw new Error(`Unsupported codec: ${codec}`);
     }
 
-    const getExtensionForCodec = (codec: string) => {
+    const getContainerForCodec = (codec: string) => {
         if (codec.startsWith('avc1')) {
             return 'mp4';
         }
-        if (codec.startsWith('vp09') || codec.startsWith('vp8')) {
-            return 'webm';
-        }
-        throw new Error(`Unsupported codec: ${codec}`);
+        return 'webm';
     }
 
     const generateFfmpegCommand = (format: Format, audioCodec: AudioCodec, fileName: string, outputFileName: string) => {
@@ -1070,13 +1167,17 @@ function TranscodeVideo({ file }: { file: File }) {
     }
 
     const stopTranscoding = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
         if (ffmpegRef.current) {
             ffmpegRef.current.terminate();
             ffmpegRef.current = null;
-            setResults(f => ({ ...f, [current]: undefined }));
-            setIsFFmpegLoading(false);
-            setRunning(false);
         }
+        setResults(f => ({ ...f, [current]: undefined }));
+        setIsFFmpegLoading(false);
+        setRunning(false);
     }
 
     const transcode = async (format: Format) => {
@@ -1084,7 +1185,7 @@ function TranscodeVideo({ file }: { file: File }) {
             setCurrent(_ => format)
             setRunning(true)
             const ffmpeg = await loadFFmpegInstance()
-            const onprogress = ({ progress, time }) => {
+            const onprogress = ({ progress, time }: { progress: number; time: number }) => {
                 console.log(`Progress: ${progress}, Time: ${time}`);
                 setResults(f => ({ ...f, [format]: progress }))
             }
@@ -1148,11 +1249,11 @@ function TranscodeVideo({ file }: { file: File }) {
             await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()))
             await ffmpeg.exec(ffmpegCommand)
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array
-            setResults(f => ({ ...f, [format]: new File([data.buffer], outputFileName, { type: FORMAT_MIME[format] }) }))
+            setResults(f => ({ ...f, [format]: new File([data as any], outputFileName, { type: FORMAT_MIME[format] }) }))
             ffmpeg.off('progress', onprogress)
             setRunning(false)
-        } catch (e) {
-            setError(e.message)
+        } catch (e: any) {
+            setError(e instanceof Error ? e.message : String(e))
         }
     }
 
@@ -1174,7 +1275,7 @@ function TranscodeVideo({ file }: { file: File }) {
         try {
             setRunning(true)
             const ffmpeg = await loadFFmpegInstance()
-            const onprogress = ({ progress, time }) => {
+            const onprogress = ({ progress, time }: { progress: number; time: number }) => {
                 console.log(`Progress: ${progress}, Time: ${time}`)
                 setResults(f => ({ ...f, [current]: progress }))
             }
@@ -1191,13 +1292,13 @@ function TranscodeVideo({ file }: { file: File }) {
                 const data = await ffmpeg.readFile(outputFile.name) as Uint8Array
                 const outputFormat = outputFile.name.split('.').pop() || 'output'
                 const mimeType = FORMAT_MIME[outputFormat] || 'application/octet-stream'
-                setResults(f => ({ ...f, [current]: new File([data.buffer], outputFile.name, { type: mimeType }) }))
+                setResults(f => ({ ...f, [current]: new File([data as any], outputFile.name, { type: mimeType }) }))
             }
 
             ffmpeg.off('progress', onprogress)
             setRunning(false)
-        } catch (e) {
-            setError(e.message)
+        } catch (e: any) {
+            setError(e instanceof Error ? e.message : String(e))
             setRunning(false)
         }
     }
