@@ -1,16 +1,17 @@
-
-import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, IMagickImageInfo, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm";
+import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, IMagickImageInfo, MagickImageInfo, MagickReadSettings, IMagickImage, OrientationType } from "@imagemagick/magick-wasm";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
 import { RespondFileMessage } from "filemagic-common/messages";
+import { extractMotionPhotoInfo, MotionPhotoInfo } from "./motion-photo";
 
 // Export the component for testing
 export const ImageMagickApp = ({ file }: { file: File }) => {
     const [imageInfo, setImageInfo] = useState<IMagickImageInfo | null>(null);
     const [buf, setBuf] = useState<Uint8Array | null>(null);
     const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
-    const [exifData, setExifData] = useState<Record<string, string>>({});
+    const [metadata, setMetadata] = useState<Record<string, string>>({});
+    const [motionPhotoInfo, setMotionPhotoInfo] = useState<MotionPhotoInfo | null>(null);
 
     useEffect(() => {
         const canvasEl = document.getElementById('canvas') as HTMLCanvasElement;
@@ -21,31 +22,25 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
             const inputFormat = mimeTypeToFormat(file.type, file.name);
             const settings = new MagickReadSettings({ format: inputFormat });
 
-            if (canvasEl) {
-                ImageMagick.read(buffer, settings, (image) => {
+            const onImageRead = (image: IMagickImage) => {
+                if (canvasEl) {
                     image.writeToCanvas(canvasEl);
+                }
 
-                    const exif: Record<string, string> = {};
-                    for (const name of image.attributeNames) {
-                        const value = image.getAttribute(name);
-                        if (value) {
-                            exif[name.substring(5)] = value;
-                        }
+                const meta: Record<string, string> = {};
+                for (const name of image.attributeNames) {
+                    const value = image.getAttribute(name);
+                    if (value) {
+                        meta[name] = value;
                     }
-                    setExifData(exif);
-                });
-            } else {
-                ImageMagick.read(buffer, settings, (image) => {
-                    const exif: Record<string, string> = {};
-                    for (const name of image.attributeNames) {
-                        const value = image.getAttribute(name);
-                        if (value) {
-                            exif[name.substring(5)] = value;
-                        }
-                    }
-                    setExifData(exif);
-                });
-            }
+                }
+                setMetadata(meta);
+
+                const info = extractMotionPhotoInfo(image);
+                setMotionPhotoInfo(info);
+            };
+
+            ImageMagick.read(buffer, settings, onImageRead);
             const info = MagickImageInfo.create(buffer, settings);
 
             setBuf(buffer);
@@ -109,19 +104,62 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Orientation:</span> <span style={{ color: '#fff' }}>{OrientationType[imageInfo.orientation]}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Quality:</span> <span style={{ color: '#fff' }}>{imageInfo.quality}</span></div>
 
-                {Object.keys(exifData).length > 0 && (
+                {motionPhotoInfo?.isMotionPhoto && (
+                    <div style={{
+                        marginTop: '12px',
+                        padding: '10px',
+                        background: 'rgba(0, 122, 255, 0.15)',
+                        borderLeft: '4px solid #007aff',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0, 122, 255, 0.3)',
+                        borderLeftWidth: '4px'
+                    }}>
+                        <div style={{ color: '#007aff', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                            Android Motion Photo
+                        </div>
+                        <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px', color: '#eee' }}>
+                            {motionPhotoInfo.version && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Version:</span> {motionPhotoInfo.version}</div>}
+                            {motionPhotoInfo.presentationTimestampUs && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Timestamp:</span> {motionPhotoInfo.presentationTimestampUs} µs</div>}
+                            {motionPhotoInfo.microVideoOffset && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Video Offset:</span> {motionPhotoInfo.microVideoOffset} bytes</div>}
+                            <div style={{ marginTop: '4px', fontStyle: 'italic', fontSize: '11px', color: '#007aff', borderTop: '1px solid rgba(0, 122, 255, 0.2)', paddingTop: '4px' }}>
+                                This file contains an embedded video component.
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {Object.keys(metadata).length > 0 && (
                     <details style={{ marginTop: '12px' }}>
-                        <summary style={{ cursor: 'pointer', padding: '4px 0', color: '#007aff', fontWeight: 'bold' }}>Metadata ({Object.keys(exifData).length})</summary>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
-                            <tbody>
-                                {Object.entries(exifData).map(([key, value]) => (
-                                    <tr key={key} style={{ borderBottom: '1px solid #333' }}>
-                                        <td style={{ padding: '6px 0', color: '#aaa', fontWeight: 'normal', fontSize: '12px' }}>{key}</td>
-                                        <td style={{ padding: '6px 0', color: '#fff', fontSize: '12px', textAlign: 'right', wordBreak: 'break-all' }}>{value}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <summary style={{ cursor: 'pointer', padding: '4px 0', color: '#007aff', fontWeight: 'bold' }}>
+                            Metadata ({Object.keys(metadata).length})
+                        </summary>
+                        <div style={{ marginTop: '8px' }}>
+                            {Object.entries(
+                                Object.entries(metadata).reduce((acc, [key, value]) => {
+                                    const colonIndex = key.indexOf(':');
+                                    const group = colonIndex !== -1 ? key.substring(0, colonIndex).toUpperCase() : 'OTHER';
+                                    const tag = colonIndex !== -1 ? key.substring(colonIndex + 1) : key;
+                                    if (!acc[group]) acc[group] = {};
+                                    acc[group][tag] = value;
+                                    return acc;
+                                }, {} as Record<string, Record<string, string>>)
+                            ).sort(([a], [b]) => a.localeCompare(b)).map(([group, tags]) => (
+                                <div key={group} style={{ marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', marginBottom: '4px', borderBottom: '1px solid #333' }}>{group}</div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <tbody>
+                                            {Object.entries(tags).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => (
+                                                <tr key={key} style={{ borderBottom: '1px solid #222' }}>
+                                                    <td style={{ padding: '4px 0', color: '#aaa', fontSize: '11px', width: '40%' }}>{key}</td>
+                                                    <td style={{ padding: '4px 0', color: '#fff', fontSize: '11px', textAlign: 'right', wordBreak: 'break-all' }}>{value}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ))}
+                        </div>
                     </details>
                 )}
             </div>
@@ -222,17 +260,4 @@ export function getFileStem(filename: string): string {
         return filename;
     }
     return filename.slice(0, dotIndex);
-}
-
-// Copied from magick-wasm/OrientationType$1
-export enum OrientationType {
-    Undefined = 0,
-    TopLeft = 1,
-    TopRight = 2,
-    BottomRight = 3,
-    BottomLeft = 4,
-    LeftTop = 5,
-    RightTop = 6,
-    RightBottom = 7,
-    LeftBottom = 8
 }

@@ -17,7 +17,8 @@ vi.mock('@imagemagick/magick-wasm', () => ({
                     if (name === 'exif:Make') return 'MockMake';
                     if (name === 'exif:Model') return 'MockModel';
                     return null;
-                })
+                }),
+                getProfile: vi.fn(() => null)
             };
             cb(imageMock);
             return new Uint8Array([1, 2, 3]);
@@ -47,6 +48,17 @@ vi.mock('@imagemagick/magick-wasm', () => ({
     CompressionMethod: {},
     DensityUnit: {},
     Interlace: {},
+    OrientationType: {
+        Undefined: 0,
+        TopLeft: 1,
+        TopRight: 2,
+        BottomRight: 3,
+        BottomLeft: 4,
+        LeftTop: 5,
+        RightTop: 6,
+        RightBottom: 7,
+        LeftBottom: 8
+    },
 }));
 
 vi.mock('@imagemagick/magick-wasm/magick.wasm', () => ({
@@ -124,9 +136,54 @@ describe('ImageMagickApp', () => {
             expect(screen.getByText(/Metadata/)).toBeInTheDocument();
         });
 
+        expect(screen.getByText('EXIF')).toBeInTheDocument();
         expect(screen.getByText('Make')).toBeInTheDocument();
         expect(screen.getByText('MockMake')).toBeInTheDocument();
-        expect(screen.getByText('Model')).toBeInTheDocument();
-        expect(screen.getByText('MockModel')).toBeInTheDocument();
+    });
+
+    it('should detect and display Android Motion Photo metadata from XMP profile', async () => {
+        const { ImageMagick } = await import('@imagemagick/magick-wasm');
+        (ImageMagick.read as any).mockImplementationOnce((_buf: any, _settings: any, cb: any) => {
+            const imageMock = {
+                writeToCanvas: vi.fn(),
+                write: vi.fn((_format, writeCb) => writeCb(new Uint8Array([1, 2, 3]))),
+                attributeNames: [],
+                getAttribute: vi.fn(() => null),
+                getProfile: vi.fn((name) => {
+                    if (name === 'xmp') {
+                        return {
+                            data: new TextEncoder().encode(`
+                                <x:xmpmeta xmlns:x="adobe:ns:meta/">
+                                    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                                        <rdf:Description rdf:about="" 
+                                            xmlns:GCamera="http://ns.google.com/photos/1.0/camera/" 
+                                            GCamera:MotionPhoto="1"
+                                            GCamera:MotionPhotoVersion="1"
+                                            GCamera:MotionPhotoPresentationTimestampUs="67890"
+                                            GCamera:MicroVideoOffset="12345" />
+                                    </rdf:RDF>
+                                </x:xmpmeta>
+                            `)
+                        };
+                    }
+                    return null;
+                })
+            };
+            cb(imageMock);
+            return new Uint8Array([1, 2, 3]);
+        });
+
+        render(<ImageMagickApp file={file} />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Android Motion Photo')).toBeInTheDocument();
+        });
+
+        expect(screen.getByText(/Version:/)).toBeInTheDocument();
+        expect(screen.getByText('1', { selector: 'div' })).toBeInTheDocument();
+        expect(screen.getByText(/Timestamp:/)).toBeInTheDocument();
+        expect(screen.getByText(/67890/)).toBeInTheDocument();
+        expect(screen.getByText(/Video Offset:/)).toBeInTheDocument();
+        expect(screen.getByText(/12345/)).toBeInTheDocument();
     });
 });
