@@ -23,7 +23,7 @@ pub fn start() {
 
 #[derive(serde::Serialize, serde::Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-struct ArscResource {
+pub struct ArscResource {
     package_id: u8,
     type_name: String,
     entry_id: u32,
@@ -57,7 +57,7 @@ pub fn decode_apk(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
 }
 
 #[wasm_bindgen]
-pub fn extract_arsc(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
+pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::JsError> {
     info!("Extracting ARSC of size {} bytes", bytes.len());
     let decoder = abxml::decoder::Decoder::from_arsc(&bytes).map_err(|e| {
         error!("Failed to decode ARSC: {}", e);
@@ -120,10 +120,7 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
     }
 
     info!("Successfully extracted {} resources", result.len());
-    serde_wasm_bindgen::to_value(&result).map_err(|e| {
-        error!("Failed to serialize result: {}", e);
-        JsError::new(&format!("{e}"))
-    })
+    Ok(result)
 }
 
 #[cfg(test)]
