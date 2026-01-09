@@ -1,12 +1,16 @@
-// This file will contain the logic for transcoding video using the WebCodecs API.
-
-export async function transcode(file: File, encoderConfig: VideoEncoderConfig): Promise<Blob> {
+export async function transcode(
+    file: File,
+    encoderConfig: VideoEncoderConfig,
+    totalFrames: number,
+    onProgress: (progress: number) => void
+): Promise<Blob> {
     const video = document.createElement('video');
     const videoUrl = URL.createObjectURL(file);
     video.src = videoUrl;
     video.muted = true;
 
     const chunks: ArrayBuffer[] = [];
+    let processedFrames = 0;
 
     return new Promise((resolve, reject) => {
         video.onerror = (e) => reject(video.error);
@@ -46,9 +50,15 @@ export async function transcode(file: File, encoderConfig: VideoEncoderConfig): 
                         encoder.encode(frame);
                     }
                     frame.close();
+
+                    processedFrames++;
+                    if (totalFrames > 0) {
+                        onProgress(processedFrames / totalFrames);
+                    }
                 }
 
                 await encoder.flush();
+                onProgress(1);
 
                 resolve(new Blob(chunks));
 
