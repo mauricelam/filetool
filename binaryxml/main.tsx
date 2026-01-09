@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { decode_apk, extract_arsc } from './abxml-wasm-bindings/pkg'
+import init, { ArscResource, decode_apk, extract_arsc } from './abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
@@ -41,7 +41,7 @@ function pathToTree(paths: [string, string][]): { [key: string]: any } {
 function App() {
     const [view, setView] = useState<'file' | 'resource'>('file');
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
-    const [resources, setResources] = useState<any[]>([]);
+    const [resources, setResources] = useState<ArscResource[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -169,7 +169,7 @@ function FileViewer({ files, onItemClick }: {
     );
 }
 
-function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: () => void }) {
+function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[], onBack: () => void }) {
     // Group resources by type name
     const resourcesByType = resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
@@ -193,7 +193,7 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
         }));
     };
 
-    const getSortedResources = () => {
+    function getSortedResources(): ArscResource[] {
         const resources = resourcesByType[selectedType] || [];
         return [...resources].sort((a, b) => {
             let comparison = 0;
@@ -206,7 +206,7 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
             }
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         });
-    };
+    }
 
     const SortIndicator = ({ column }: { column: 'entry_id' | 'name' | 'value' }) => (
         <span style={{ marginLeft: '4px' }}>
@@ -346,7 +346,7 @@ function ResourceTableViewer({ resources, onBack }: { resources: any[], onBack: 
                                                     </div>}
                                                     {resource.entries && (
                                                         <div style={{ marginTop: '8px' }}>
-                                                            {Array.from(resource.entries).map(([key, value], i) => (
+                                                            {Object.entries(resource).map(([key, value], i) => (
                                                                 <div key={i} style={{
                                                                     padding: '4px 0',
                                                                     borderTop: i > 0 ? '1px solid #eee' : 'none'
