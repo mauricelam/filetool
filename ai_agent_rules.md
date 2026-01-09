@@ -7,3 +7,13 @@
 	- Modals should use `role="dialog"` and `aria-modal="true"` and restore focus to the element that opened them when closed.
 	- Modal components should accept an `onClose: () => void` prop and call it for any close action.
 5. When commenting, make sure the comments explain the overall architecture structure of a method / class / module / package, and not just about the action you immediately performed. To explain that an action was done in response to the user prompt, put that in the commit message.
+
+## VideoModal Behavior
+The `VideoModal` in the ImageMagick handler allows playing the embedded video track of Android Motion Photos. It implements the following expected behaviors:
+- **Play Button**: Only appears when a valid `microVideoOffset` is detected in the image XMP metadata.
+- **Buffer Extraction**: Extracts the video component by slicing the file buffer from `length - microVideoOffset` to the end.
+- **Accessibility**:
+  - Uses `role="dialog"` and `aria-modal="true"`.
+  - Includes a visible close icon with `aria-label="Close"`.
+  - Closes on backdrop click, Escape key press, and close button click.
+  - Revokes the object URL upon closing to prevent memory leaks.

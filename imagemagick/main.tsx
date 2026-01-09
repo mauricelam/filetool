@@ -5,13 +5,14 @@ import wasm from "@imagemagick/magick-wasm/magick.wasm";
 import { RespondFileMessage } from "filemagic-common/messages";
 import { extractMotionPhotoInfo, MotionPhotoInfo } from "./motion-photo";
 
-// Export the component for testing
 export const ImageMagickApp = ({ file }: { file: File }) => {
     const [imageInfo, setImageInfo] = useState<IMagickImageInfo | null>(null);
     const [buf, setBuf] = useState<Uint8Array | null>(null);
     const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
     const [metadata, setMetadata] = useState<Record<string, string>>({});
     const [motionPhotoInfo, setMotionPhotoInfo] = useState<MotionPhotoInfo | null>(null);
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+    const [showModal, setShowModal] = useState(false);
 
     useEffect(() => {
         const canvasEl = document.getElementById('canvas') as HTMLCanvasElement;
@@ -79,6 +80,27 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
         });
     };
 
+    const playMotionVideo = () => {
+        if (!buf || !motionPhotoInfo?.microVideoOffset) return;
+
+        const offset = parseInt(motionPhotoInfo.microVideoOffset);
+        if (isNaN(offset)) return;
+
+        const videoData = buf.slice(buf.length - offset);
+        const blob = new Blob([videoData], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+        setVideoUrl(url);
+        setShowModal(true);
+    };
+
+    const closeVideoModal = () => {
+        setShowModal(false);
+        if (videoUrl) {
+            URL.revokeObjectURL(videoUrl);
+            setVideoUrl(null);
+        }
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flexGrow: 1, minHeight: '100%', paddingBottom: '20px' }}>
             <div style={{
@@ -122,8 +144,29 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                             {motionPhotoInfo.version && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Version:</span> {motionPhotoInfo.version}</div>}
                             {motionPhotoInfo.presentationTimestampUs && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Timestamp:</span> {motionPhotoInfo.presentationTimestampUs} µs</div>}
                             {motionPhotoInfo.microVideoOffset && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Video Offset:</span> {motionPhotoInfo.microVideoOffset} bytes</div>}
-                            <div style={{ marginTop: '4px', fontStyle: 'italic', fontSize: '11px', color: '#007aff', borderTop: '1px solid rgba(0, 122, 255, 0.2)', paddingTop: '4px' }}>
-                                This file contains an embedded video component.
+                            <div style={{ marginTop: '4px', fontStyle: 'italic', fontSize: '11px', color: '#007aff', borderTop: '1px solid rgba(0, 122, 255, 0.2)', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>This file contains an embedded video component.</span>
+                                {motionPhotoInfo.microVideoOffset && (
+                                    <button
+                                        onClick={playMotionVideo}
+                                        style={{
+                                            background: '#007aff',
+                                            color: 'white',
+                                            border: 'none',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                        Play Video
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -208,6 +251,104 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                         onClick={() => openInParent((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>
                         Open in Parent
                     </button>
+                </div>
+            </div>
+            {showModal && videoUrl && (
+                <VideoModal url={videoUrl} onClose={closeVideoModal} />
+            )}
+        </div>
+    );
+};
+
+const VideoModal = ({ url, onClose }: { url: string, onClose: () => void }) => {
+    const previousFocus = React.useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        previousFocus.current = document.activeElement as HTMLElement;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            if (previousFocus.current) {
+                previousFocus.current.focus();
+            }
+        };
+    }, [onClose]);
+
+    return (
+        <div
+            onClick={onClose}
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000,
+                backdropFilter: 'blur(4px)'
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                style={{
+                    position: 'relative',
+                    width: '90%',
+                    maxWidth: '800px',
+                    maxHeight: '90%',
+                    background: '#000',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: '#1a1a1a',
+                    borderBottom: '1px solid #333'
+                }}>
+                    <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>Motion Photo Video</span>
+                    <button
+                        onClick={onClose}
+                        aria-label="Close"
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#aaa',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '4px',
+                            transition: 'background 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                    <video
+                        src={url}
+                        controls
+                        autoPlay
+                        loop
+                        style={{ maxWidth: '100%', maxHeight: '70vh' }}
+                    />
                 </div>
             </div>
         </div>

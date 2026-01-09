@@ -10,7 +10,7 @@ A handler for image files that processes and displays various image formats.
 - Support for vector graphics
 - Font file preview
 - Animated image support (APNG, GIF)
-- Android Motion Photo metadata detection (XMP parsing for video offset)
+- Android Motion Photo metadata detection and video playback (XMP parsing for video offset)
 
 ## Supported File Types
 

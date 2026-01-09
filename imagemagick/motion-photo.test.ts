@@ -71,4 +71,34 @@ describe('extractMotionPhotoInfo', () => {
         expect(result?.isMotionPhoto).toBe(true);
         expect(result?.microVideoOffset).toBe('100');
     });
+
+    it('should detect motion photo from new Container:Directory format', () => {
+        const xml = `
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+                <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                    <rdf:Description 
+                        xmlns:Container="http://ns.google.com/photos/1.0/container/"
+                        xmlns:Item="http://ns.google.com/photos/1.0/container/item/"
+                        xmlns:GCamera="http://ns.google.com/photos/1.0/camera/"
+                        GCamera:MotionPhoto="1">
+                        <Container:Directory>
+                            <rdf:Seq>
+                                <rdf:li rdf:parseType="Resource">
+                                    <Container:Item Item:Semantic="Primary" Item:Mime="image/jpeg" />
+                                </rdf:li>
+                                <rdf:li rdf:parseType="Resource">
+                                    <Container:Item Item:Length="1107297" Item:Mime="video/mp4" Item:Semantic="MotionPhoto" />
+                                </rdf:li>
+                            </rdf:Seq>
+                        </Container:Directory>
+                    </rdf:Description>
+                </rdf:RDF>
+            </x:xmpmeta>
+        `;
+        const image = createMockImage(xml);
+        const result = extractMotionPhotoInfo(image);
+        expect(result).not.toBeNull();
+        expect(result?.isMotionPhoto).toBe(true);
+        expect(result?.microVideoOffset).toBe('1107297');
+    });
 });
