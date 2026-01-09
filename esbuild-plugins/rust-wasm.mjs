@@ -60,8 +60,8 @@ export const rustWasm = (options) => {
           // Copy artifacts from pkg/ to outDir
           const pkgDir = path.join(projectDir, 'pkg');
 
-          // Copy all .wasm and .js files
-          const files = glob.sync('*.{wasm,js}', { cwd: pkgDir });
+          // Copy all .wasm, .js and .d.ts files
+          const files = glob.sync('*.{wasm,js,d.ts}', { cwd: pkgDir });
           files.forEach(file => {
             const sourcePath = path.join(pkgDir, file);
             const destPath = path.join(outDir, file);
