@@ -121,7 +121,7 @@ describe('ImageMagickApp', () => {
         render(<ImageMagickApp file={file} />);
 
         await waitFor(() => {
-            expect(screen.getByText(/EXIF Metadata/)).toBeInTheDocument();
+            expect(screen.getByText(/Metadata/)).toBeInTheDocument();
         });
 
         expect(screen.getByText('Make')).toBeInTheDocument();

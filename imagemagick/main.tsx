@@ -85,25 +85,39 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid grey', padding: '8px' }}>
-                <div>Color Space: {ColorSpace[imageInfo.colorSpace]}</div>
-                <div>Compression: {CompressionMethod[imageInfo.compression]}</div>
-                <div>Density: {imageInfo.density.x}{imageInfo.density.x !== imageInfo.density.y ? ` x ${imageInfo.density.y}` : ''} {DensityUnit[imageInfo.density.units]}</div>
-                <div>Format: {imageInfo.format}</div>
-                <div>Size: {imageInfo.width} x {imageInfo.height}px</div>
-                <div>Interlace: {Interlace[imageInfo.interlace]}</div>
-                <div>Orientation: {OrientationType[imageInfo.orientation]}</div>
-                <div>Quality: {imageInfo.quality}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flexGrow: 1, minHeight: '100%', paddingBottom: '20px' }}>
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                border: '1px solid #444',
+                padding: '12px',
+                borderRadius: '0px',
+                background: '#1a1a1a',
+                color: '#fff',
+                fontSize: '13px',
+                fontFamily: 'SF Mono, Monaco, Menlo, Consolas, "Liberation Mono", "Courier New", monospace',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+            }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#fff', fontSize: '14px', borderBottom: '1px solid #444', paddingBottom: '4px' }}>Image Properties</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Color Space:</span> <span style={{ color: '#fff' }}>{ColorSpace[imageInfo.colorSpace]}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Compression:</span> <span style={{ color: '#fff' }}>{CompressionMethod[imageInfo.compression]}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Density:</span> <span style={{ color: '#fff' }}>{imageInfo.density.x}{imageInfo.density.x !== imageInfo.density.y ? ` x ${imageInfo.density.y}` : ''} {DensityUnit[imageInfo.density.units]}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Format:</span> <span style={{ color: '#fff' }}>{imageInfo.format}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Size:</span> <span style={{ color: '#fff' }}>{imageInfo.width} x {imageInfo.height}px</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Interlace:</span> <span style={{ color: '#fff' }}>{Interlace[imageInfo.interlace]}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Orientation:</span> <span style={{ color: '#fff' }}>{OrientationType[imageInfo.orientation]}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Quality:</span> <span style={{ color: '#fff' }}>{imageInfo.quality}</span></div>
+
                 {Object.keys(exifData).length > 0 && (
-                    <details>
-                        <summary>Metadata ({Object.keys(exifData).length})</summary>
+                    <details style={{ marginTop: '12px' }}>
+                        <summary style={{ cursor: 'pointer', padding: '4px 0', color: '#007aff', fontWeight: 'bold' }}>Metadata ({Object.keys(exifData).length})</summary>
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
                             <tbody>
                                 {Object.entries(exifData).map(([key, value]) => (
-                                    <tr key={key} style={{ borderBottom: '1px solid #eee' }}>
-                                        <td style={{ padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>{key}</td>
-                                        <td style={{ padding: '4px', fontSize: '12px', wordBreak: 'break-all' }}>{value}</td>
+                                    <tr key={key} style={{ borderBottom: '1px solid #333' }}>
+                                        <td style={{ padding: '6px 0', color: '#aaa', fontWeight: 'normal', fontSize: '12px' }}>{key}</td>
+                                        <td style={{ padding: '6px 0', color: '#fff', fontSize: '12px', textAlign: 'right', wordBreak: 'break-all' }}>{value}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -111,23 +125,52 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                     </details>
                 )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'center' }}>
-                <label>Convert to:</label>
-                <select id="outputFormat" defaultValue={MagickFormat.Png} style={{ flexGrow: 1 }}>
-                    {Object.values(MagickFormat).filter(v => v !== MagickFormat.Unknown).map(v => (<option key={v}>{v}</option>))}
-                </select>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'row', gap: '8px' }}>
-                <button
-                    style={{ flexGrow: 1 }}
-                    onClick={() => downloadAs((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>
-                    Download
-                </button>
-                <button
-                    style={{ flexGrow: 1 }}
-                    onClick={() => openInParent((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>
-                    Open in Parent
-                </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'center' }}>
+                    <label style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>Convert to:</label>
+                    <select id="outputFormat" defaultValue={MagickFormat.Png} style={{
+                        flexGrow: 1,
+                        background: '#fff',
+                        color: '#333',
+                        border: '1px solid #ccc',
+                        padding: '6px',
+                        borderRadius: '4px'
+                    }}>
+                        {Object.values(MagickFormat).filter(v => v !== MagickFormat.Unknown).map(v => (<option key={v}>{v}</option>))}
+                    </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'row', gap: '8px' }}>
+                    <button
+                        style={{
+                            flexGrow: 1,
+                            background: '#007aff',
+                            color: 'white',
+                            border: 'none',
+                            padding: '10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '13px'
+                        }}
+                        onClick={() => downloadAs((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>
+                        Download
+                    </button>
+                    <button
+                        style={{
+                            flexGrow: 1,
+                            background: '#333',
+                            color: 'white',
+                            border: '1px solid #444',
+                            padding: '10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            fontSize: '13px'
+                        }}
+                        onClick={() => openInParent((document.getElementById('outputFormat') as HTMLSelectElement).value as MagickFormat)}>
+                        Open in Parent
+                    </button>
+                </div>
             </div>
         </div>
     );
