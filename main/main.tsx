@@ -12,6 +12,17 @@ const pasteHint = document.getElementById('paste-hint')!!
 const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
 
+const infoToggle = document.getElementById('info-toggle')!!
+const iconDown = document.getElementById('toggle-icon-down')!!
+const iconUp = document.getElementById('toggle-icon-up')!!
+
+infoToggle.onclick = () => {
+    document.body.classList.toggle('collapsed');
+    const isCollapsed = document.body.classList.contains('collapsed');
+    iconDown.style.display = isCollapsed ? 'none' : 'block';
+    iconUp.style.display = isCollapsed ? 'block' : 'none';
+};
+
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
 dropTarget.addEventListener('drop', (e) => {
@@ -203,6 +214,17 @@ function FileList() {
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
         return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
     }, [setFiles, files])
+
+    useEffect(() => {
+        if (files.length > 0) {
+            infoToggle.style.display = 'flex';
+        } else {
+            infoToggle.style.display = 'none';
+            document.body.classList.remove('collapsed');
+            iconDown.style.display = 'block';
+            iconUp.style.display = 'none';
+        }
+    }, [files]);
 
     useEffect(() => {
         const handlePopState = (event: PopStateEvent) => {
