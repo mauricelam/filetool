@@ -18,5 +18,10 @@
     "react-dom": "^18.3.1"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "jest-environment-jsdom": "^30.2.0",
+    "ts-jest": "^29.4.6"
+  }
 }

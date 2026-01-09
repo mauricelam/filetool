@@ -1,6 +1,7 @@
 
-import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, IMagickImageInfo, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm";
+import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, IMagickImageInfo, MagickImageInfo, MagickReadSettings, IMagickProfile } from "@imagemagick/magick-wasm";
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
 import { RespondFileMessage } from "filemagic-common/messages";
@@ -10,6 +11,7 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
     const [imageInfo, setImageInfo] = useState<IMagickImageInfo | null>(null);
     const [buf, setBuf] = useState<Uint8Array | null>(null);
     const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
+    const [profiles, setProfiles] = useState<Map<string, IMagickProfile> | null>(null);
 
     useEffect(() => {
         const canvasEl = document.getElementById('canvas') as HTMLCanvasElement;
@@ -28,6 +30,7 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
             setBuf(buffer);
             setReadSettings(settings);
             setImageInfo(info);
+            setProfiles(info.profiles ?? null);
         };
 
         processFile();
@@ -72,6 +75,16 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                 <div>Interlace: {Interlace[imageInfo.interlace]}</div>
                 <div>Orientation: {OrientationType[imageInfo.orientation]}</div>
                 <div>Quality: {imageInfo.quality}</div>
+                {profiles && (
+                    <details>
+                        <summary>Profiles ({profiles.size})</summary>
+                        <ul>
+                            {Array.from(profiles.entries()).map(([name, profile]) => (
+                                <li key={name}>{name}: {profile.data.length} bytes</li>
+                            ))}
+                        </ul>
+                    </details>
+                )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'center' }}>
                 <label>Convert to:</label>

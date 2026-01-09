@@ -1,5 +1,6 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { getFFmpegCoreURL, getFFmpegWasmURL, getFFmpegWorkerURL } from './ffmpegUtils';
 
@@ -128,7 +129,8 @@ export async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; r
                 framerate: videoStream?.r_frame_rate ? `${parseFloat(videoStream.r_frame_rate).toFixed(2)} fps` : undefined,
                 colorSpace: videoStream?.pix_fmt,
                 container: info.format?.format_name,
-                streams: info.streams?.length
+                streams: info.streams?.length,
+                metadata: info.metadata,
             },
             rawOutput: logOutput
         };
@@ -141,7 +143,7 @@ export async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; r
 }
 
 export function parseFFmpegOutput(output: string) {
-    const info: any = { streams: [], format: {} };
+    const info: any = { streams: [], format: {}, metadata: {} };
 
     // Extract duration
     const durationMatch = output.match(/Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})/);
@@ -156,6 +158,43 @@ export function parseFFmpegOutput(output: string) {
     const formatMatch = output.match(/Input #0, ([^,]+)/);
     if (formatMatch) {
         info.format.format_name = formatMatch[1];
+    }
+
+    // Extract metadata
+    const lines = output.split('\n');
+    let inMetadataBlock = false;
+    // Find the 'Input' line to start searching for the global metadata
+    const inputLineIndex = lines.findIndex(line => line.startsWith('Input #0'));
+
+    if (inputLineIndex !== -1) {
+        for (let i = inputLineIndex; i < lines.length; i++) {
+            const line = lines[i];
+            if (/Stream #\d+:\d+/.test(line)) {
+                // Stop if we hit a stream before finding metadata
+                break;
+            }
+
+            if (line.trim() === 'Metadata:') {
+                inMetadataBlock = true;
+                continue;
+            }
+
+            if (inMetadataBlock) {
+                if (/^\s+/.test(line)) {
+                    const match = line.match(/^\s*([^:]+?)\s*:\s*(.*)$/);
+                    if (match) {
+                        const key = match[1].trim();
+                        const value = match[2].trim();
+                        if (key && value) {
+                            info.metadata[key] = value;
+                        }
+                    }
+                } else {
+                    // Non-indented line, metadata block is over
+                    break;
+                }
+            }
+        }
     }
 
     // Extract video stream info
@@ -210,9 +249,10 @@ interface VideoInfo {
 interface VideoPreviewProps {
     file: File;
     error: string | null;
+    onSaveMetadata: (newMetadata: { [key: string]: string }) => void;
 }
 
-function VideoPreview({ file, error }: VideoPreviewProps) {
+function VideoPreview({ file, error, onSaveMetadata }: VideoPreviewProps) {
     const [videoInfo, setVideoInfo] = useState<VideoInfo>({
         name: file.name,
         size: file.size,
@@ -222,6 +262,8 @@ function VideoPreview({ file, error }: VideoPreviewProps) {
     const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [rawFFmpegOutput, setRawFFmpegOutput] = useState<string>('');
     const [showRawOutput, setShowRawOutput] = useState<boolean>(false);
+    const [showMetadata, setShowMetadata] = useState<boolean>(false);
+    const [isEditingMetadata, setIsEditingMetadata] = useState<boolean>(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -336,14 +378,58 @@ function VideoPreview({ file, error }: VideoPreviewProps) {
                     {videoInfo.framerate && <div><strong>Frame Rate:</strong> {videoInfo.framerate}</div>}
                     {videoInfo.audioCodec && <div><strong>Audio Codec:</strong> {videoInfo.audioCodec}</div>}
                     {videoInfo.audioBitrate && <div><strong>Audio Bitrate:</strong> {videoInfo.audioBitrate}</div>}
-                    {videoInfo.metadata && Object.keys(videoInfo.metadata).length > 0 && (
-                        <div style={{ marginTop: '10px' }}>
-                            <strong>Metadata:</strong>
-                            <div style={{ marginLeft: '10px', fontSize: '12px' }}>
-                                {Object.entries(videoInfo.metadata).map(([key, value]) => (
-                                    <div key={key}><em>{key}:</em> {value}</div>
-                                ))}
+                    {videoInfo.metadata && (
+                        <div style={{ marginTop: '15px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button
+                                    onClick={() => setShowMetadata(!showMetadata)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#007bff',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        textDecoration: 'underline',
+                                        padding: 0,
+                                        fontWeight: 'bold'
+                                    }}
+                                >
+                                    {showMetadata ? '▼' : '▶'} Metadata
+                                </button>
+                                <button
+                                    onClick={() => setIsEditingMetadata(true)}
+                                    style={{
+                                        background: '#6c757d',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Edit
+                                </button>
                             </div>
+                            {showMetadata && Object.keys(videoInfo.metadata).length > 0 && (
+                                <div style={{
+                                    marginTop: '10px',
+                                    padding: '10px',
+                                    background: '#f1f1f1',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    fontFamily: 'monospace',
+                                    whiteSpace: 'pre-wrap',
+                                    maxHeight: '200px',
+                                    overflowY: 'auto',
+                                    wordBreak: 'break-all'
+                                }}>
+                                    {Object.entries(videoInfo.metadata).map(([key, value]) => (
+                                        <div key={key}><strong>{key}:</strong> {value}</div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                     {rawFFmpegOutput && (
@@ -397,7 +483,96 @@ function VideoPreview({ file, error }: VideoPreviewProps) {
                     <strong>Error:</strong> {error}
                 </div>
             )}
+            {isEditingMetadata && (
+                <MetadataEditorModal
+                    metadata={videoInfo.metadata || {}}
+                    onClose={() => setIsEditingMetadata(false)}
+                    onSave={(newMetadata) => {
+                        onSaveMetadata(newMetadata);
+                        setIsEditingMetadata(false);
+                    }}
+                />
+            )}
         </div>
+    );
+}
+
+function MetadataEditorModal({ metadata, onClose, onSave }) {
+    const [editedMetadata, setEditedMetadata] = useState(metadata ? { ...metadata } : {});
+
+    const handleInputChange = (key, value) => {
+        setEditedMetadata(prev => ({ ...prev, [key]: value }));
+    };
+
+    const handleAddRow = () => {
+        const newKey = `new_key_${Object.keys(editedMetadata).length}`;
+        setEditedMetadata(prev => ({ ...prev, [newKey]: '' }));
+    };
+
+    const handleRemoveRow = (key) => {
+        const newMetadata = { ...editedMetadata };
+        delete newMetadata[key];
+        setEditedMetadata(newMetadata);
+    };
+
+    return createPortal(
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+        }}>
+            <div style={{
+                background: 'white',
+                padding: '20px',
+                borderRadius: '8px',
+                width: '500px',
+                maxHeight: '80vh',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column'
+            }}>
+                <h3 style={{ marginTop: 0 }}>Edit Metadata</h3>
+                <div style={{ flex: '1 1 auto', overflowY: 'auto' }}>
+                    {Object.entries(editedMetadata).map(([key, value]) => (
+                        <div key={key} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                            <input
+                                type="text"
+                                value={key}
+                                readOnly // For simplicity, keys are not editable. New keys can be added.
+                                style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '4px', background: '#f0f0f0' }}
+                            />
+                            <input
+                                type="text"
+                                value={value}
+                                onChange={(e) => handleInputChange(key, e.target.value)}
+                                style={{ flex: 2, padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                            />
+                            <button onClick={() => handleRemoveRow(key)} style={{ padding: '8px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px' }}>
+                                &times;
+                            </button>
+                        </div>
+                    ))}
+                </div>
+                <button onClick={handleAddRow} style={{ marginBottom: '20px', padding: '8px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}>
+                    Add Row
+                </button>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: 'auto' }}>
+                    <button onClick={onClose} style={{ padding: '10px 20px', border: '1px solid #ccc', borderRadius: '4px' }}>
+                        Cancel
+                    </button>
+                    <button onClick={() => onSave(editedMetadata)} style={{ padding: '10px 20px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px' }}>
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.getElementById('modal-root')
     );
 }
 
@@ -741,11 +916,12 @@ function TranscodeControls({
     );
 }
 
-function TranscodeVideo({ file }: { file: File }) {
+function TranscodeVideo({ file: initialFile }: { file: File }) {
+    const [file, setFile] = useState(initialFile);
     const [current, setCurrent] = useState<Format>(Format.Original)
     const [audioCodec, setAudioCodec] = useState<AudioCodec>(AudioCodec.Original)
     const [videoCodec, setVideoCodec] = useState<VideoCodec>(VideoCodec.Original)
-    const [results, setResults] = useState<TranscodeResults>({ [Format.Original]: file })
+    const [results, setResults] = useState<TranscodeResults>({ [Format.Original]: initialFile })
     const [isFFmpegLoading, setIsFFmpegLoading] = useState<boolean>(false)
     const [running, setRunning] = useState<boolean>(false)
     const [commandString, setCommandString] = useState<string>("")
@@ -961,6 +1137,34 @@ function TranscodeVideo({ file }: { file: File }) {
         }
     }
 
+    const handleSaveMetadata = async (newMetadata) => {
+        try {
+            const ffmpeg = await loadFFmpegInstance();
+            const outputFileName = `output.${file.name.split('.').pop()}`;
+
+            const metadataArgs = Object.entries(newMetadata)
+                .flatMap(([key, value]) => ['-metadata', `${key}=${value}`]);
+
+            const command = [
+                '-i', file.name,
+                '-c', 'copy',
+                ...metadataArgs,
+                outputFileName
+            ];
+
+            await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()));
+            await ffmpeg.exec(command);
+
+            const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
+            const newFile = new File([data.buffer], file.name, { type: file.type });
+
+            setFile(newFile); // Update the file state
+            setResults(prev => ({ ...prev, [Format.Original]: newFile })); // Update results
+        } catch (e) {
+            setError(e.message);
+        }
+    };
+
     return (
         <div style={{
             display: 'flex',
@@ -973,6 +1177,7 @@ function TranscodeVideo({ file }: { file: File }) {
             <VideoPreview
                 file={file}
                 error={error}
+                onSaveMetadata={handleSaveMetadata}
             />
             <TranscodeControls
                 file={file}
