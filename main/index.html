@@ -105,6 +105,50 @@
             width: 100%;
             height: 100%;
         }
+
+        #info-toggle {
+            cursor: pointer;
+            padding: 8px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        #info-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .collapsed #basicinfo {
+            display: none;
+        }
+
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: padding 0.2s;
+        }
+
+        .collapsed nav {
+            padding: 4px 8px;
+        }
+
+        .collapsed #logo {
+            padding: 0;
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .collapsed #title {
+            font-size: 20px;
+        }
+
+        .collapsed #subtitle {
+            font-size: 14px;
+        }
     </style>
 </head>
 
@@ -113,6 +157,13 @@
         <div id="logo">
             <div id="title">FileTool</div>
             <div id="subtitle">Analyze files in your browser</div>
+        </div>
+        <div id="info-toggle" title="Toggle File Info">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#fff">
+                <path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" id="toggle-icon-down" />
+                <path d="M480-615 720-375l-56 56-184-184-184 184-56-56 240-240Z" id="toggle-icon-up"
+                    style="display: none;" />
+            </svg>
         </div>
     </nav>
     <div id="basicinfo">
