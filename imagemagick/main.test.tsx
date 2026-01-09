@@ -11,7 +11,13 @@ vi.mock('@imagemagick/magick-wasm', () => ({
         read: vi.fn((_buf, _settings, cb) => {
             const imageMock = {
                 writeToCanvas: vi.fn(),
-                write: vi.fn((_format, writeCb) => writeCb(new Uint8Array([1, 2, 3])))
+                write: vi.fn((_format, writeCb) => writeCb(new Uint8Array([1, 2, 3]))),
+                attributeNames: ['exif:Make', 'exif:Model', 'other:attribute'],
+                getAttribute: vi.fn((name) => {
+                    if (name === 'exif:Make') return 'MockMake';
+                    if (name === 'exif:Model') return 'MockModel';
+                    return null;
+                })
             };
             cb(imageMock);
             return new Uint8Array([1, 2, 3]);
@@ -59,7 +65,7 @@ describe('ImageMagickApp', () => {
         // JSDOM's File object doesn't have arrayBuffer, so we need to add it.
         // This needs to be done before creating the File object.
         if (!Blob.prototype.arrayBuffer) {
-            Blob.prototype.arrayBuffer = async function() {
+            Blob.prototype.arrayBuffer = async function () {
                 return new Promise(resolve => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result as ArrayBuffer);
@@ -109,5 +115,18 @@ describe('ImageMagickApp', () => {
             }),
             '*'
         );
+    });
+
+    it('should render EXIF metadata if present', async () => {
+        render(<ImageMagickApp file={file} />);
+
+        await waitFor(() => {
+            expect(screen.getByText(/EXIF Metadata/)).toBeInTheDocument();
+        });
+
+        expect(screen.getByText('Make')).toBeInTheDocument();
+        expect(screen.getByText('MockMake')).toBeInTheDocument();
+        expect(screen.getByText('Model')).toBeInTheDocument();
+        expect(screen.getByText('MockModel')).toBeInTheDocument();
     });
 });

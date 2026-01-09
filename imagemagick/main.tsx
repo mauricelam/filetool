@@ -1,7 +1,6 @@
 
-import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, IMagickImageInfo, MagickImageInfo, MagickReadSettings, IMagickProfile } from "@imagemagick/magick-wasm";
+import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImageMagick, Interlace, MagickFormat, IMagickImageInfo, MagickImageInfo, MagickReadSettings } from "@imagemagick/magick-wasm";
 import React, { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
 import { RespondFileMessage } from "filemagic-common/messages";
@@ -11,7 +10,7 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
     const [imageInfo, setImageInfo] = useState<IMagickImageInfo | null>(null);
     const [buf, setBuf] = useState<Uint8Array | null>(null);
     const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
-    const [profiles, setProfiles] = useState<Map<string, IMagickProfile> | null>(null);
+    const [exifData, setExifData] = useState<Record<string, string>>({});
 
     useEffect(() => {
         const canvasEl = document.getElementById('canvas') as HTMLCanvasElement;
@@ -23,14 +22,35 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
             const settings = new MagickReadSettings({ format: inputFormat });
 
             if (canvasEl) {
-                ImageMagick.read(buffer, settings, (image) => { image.writeToCanvas(canvasEl) });
+                ImageMagick.read(buffer, settings, (image) => {
+                    image.writeToCanvas(canvasEl);
+
+                    const exif: Record<string, string> = {};
+                    for (const name of image.attributeNames) {
+                        const value = image.getAttribute(name);
+                        if (value) {
+                            exif[name.substring(5)] = value;
+                        }
+                    }
+                    setExifData(exif);
+                });
+            } else {
+                ImageMagick.read(buffer, settings, (image) => {
+                    const exif: Record<string, string> = {};
+                    for (const name of image.attributeNames) {
+                        const value = image.getAttribute(name);
+                        if (value) {
+                            exif[name.substring(5)] = value;
+                        }
+                    }
+                    setExifData(exif);
+                });
             }
             const info = MagickImageInfo.create(buffer, settings);
 
             setBuf(buffer);
             setReadSettings(settings);
             setImageInfo(info);
-            setProfiles(info.profiles ?? null);
         };
 
         processFile();
@@ -75,14 +95,19 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                 <div>Interlace: {Interlace[imageInfo.interlace]}</div>
                 <div>Orientation: {OrientationType[imageInfo.orientation]}</div>
                 <div>Quality: {imageInfo.quality}</div>
-                {profiles && (
+                {Object.keys(exifData).length > 0 && (
                     <details>
-                        <summary>Profiles ({profiles.size})</summary>
-                        <ul>
-                            {Array.from(profiles.entries()).map(([name, profile]) => (
-                                <li key={name}>{name}: {profile.data.length} bytes</li>
-                            ))}
-                        </ul>
+                        <summary>Metadata ({Object.keys(exifData).length})</summary>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
+                            <tbody>
+                                {Object.entries(exifData).map(([key, value]) => (
+                                    <tr key={key} style={{ borderBottom: '1px solid #eee' }}>
+                                        <td style={{ padding: '4px', fontWeight: 'bold', fontSize: '12px' }}>{key}</td>
+                                        <td style={{ padding: '4px', fontSize: '12px', wordBreak: 'break-all' }}>{value}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </details>
                 )}
             </div>

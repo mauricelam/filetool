@@ -5,7 +5,7 @@ A handler for image files that processes and displays various image formats.
 ## Features
 
 - View and process multiple image formats
-- Image metadata display
+- Image metadata display (including EXIF tags)
 - Basic image transformations
 - Support for vector graphics
 - Font file preview
