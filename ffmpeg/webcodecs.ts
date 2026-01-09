@@ -1,5 +1,4 @@
 // This file will contain the logic for transcoding video using the WebCodecs API.
-import MP4Box from 'mp4box';
 
 export async function transcode(file: File, encoderConfig: VideoEncoderConfig): Promise<Blob> {
     const video = document.createElement('video');
@@ -7,8 +6,7 @@ export async function transcode(file: File, encoderConfig: VideoEncoderConfig): 
     video.src = videoUrl;
     video.muted = true;
 
-    const mp4boxfile = MP4Box.createFile();
-    let videoTrack: number;
+    const chunks: ArrayBuffer[] = [];
 
     return new Promise((resolve, reject) => {
         video.onerror = (e) => reject(video.error);
@@ -23,25 +21,10 @@ export async function transcode(file: File, encoderConfig: VideoEncoderConfig): 
                 const frameStream = processor.readable;
 
                 const encoder = new VideoEncoder({
-                    output: (chunk, metadata) => {
-                        if (metadata.decoderConfig && metadata.decoderConfig.description) {
-                            const trackOptions = {
-                                timescale: 1_000_000, // Timestamps are in microseconds
-                                width: video.videoWidth,
-                                height: video.videoHeight,
-                                codec: encoderConfig.codec,
-                                description: metadata.decoderConfig.description,
-                            };
-                            videoTrack = mp4boxfile.addTrack(trackOptions);
-                        }
-                        const buffer = new ArrayBuffer(chunk.byteLength);
-                        chunk.copyTo(buffer);
-                        mp4boxfile.addSample(videoTrack, buffer, {
-                            duration: chunk.duration,
-                            dts: chunk.timestamp,
-                            cts: chunk.timestamp,
-                            is_sync: chunk.type === 'key',
-                        });
+                    output: (chunk) => {
+                        const chunkData = new ArrayBuffer(chunk.byteLength);
+                        chunk.copyTo(chunkData);
+                        chunks.push(chunkData);
                     },
                     error: (e) => {
                         reject(e);
@@ -67,13 +50,12 @@ export async function transcode(file: File, encoderConfig: VideoEncoderConfig): 
 
                 await encoder.flush();
 
-                const buffer = mp4boxfile.getBuffer();
-                resolve(new Blob([buffer], { type: 'video/mp4' }));
-
-                URL.revokeObjectURL(videoUrl);
+                resolve(new Blob(chunks));
 
             } catch (e) {
                 reject(e);
+            } finally {
+                URL.revokeObjectURL(videoUrl);
             }
         };
 

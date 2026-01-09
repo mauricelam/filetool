@@ -768,7 +768,6 @@ function WebCodecsControls({
         }
     }, [results]);
 
-
     const handleTranscode = () => {
         const config = {
             codec: videoCodec,
@@ -886,11 +885,28 @@ function TranscodeVideo({ file }: { file: File }) {
     const ffmpegRef = useRef<FFmpeg | null>(null);
     const [useWebCodecs, setUseWebCodecs] = useState<boolean>(false)
 
-    const handleWebCodecsTranscode = async (config: any) => {
+    const handleWebCodecsTranscode = async (config: VideoEncoderConfig) => {
         try {
             setRunning(true);
+
+            if (config.codec.startsWith('avc1')) {
+                config.avc = { format: 'annexb' };
+            }
+
             const blob = await transcodeWithWebCodecs(file, config);
-            const transcodedFile = new File([blob], `output.${config.codec}`, { type: 'video/mp4' });
+
+            const ffmpeg = await loadFFmpegInstance();
+            const inputFileName = `input.raw`;
+            await ffmpeg.writeFile(inputFileName, new Uint8Array(await blob.arrayBuffer()));
+
+            const outputFileName = `output.mp4`;
+            const format = getFormatForCodec(config.codec);
+            const ffmpegCommand = ['-f', format, '-i', inputFileName, '-c:v', 'copy', outputFileName];
+            await ffmpeg.exec(ffmpegCommand);
+
+            const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
+            const transcodedFile = new File([data.buffer], outputFileName, { type: 'video/mp4' });
+
             setResults(f => ({ ...f, [`webcodecs-${config.codec}`]: transcodedFile }));
             setRunning(false);
         } catch (e) {
@@ -898,6 +914,19 @@ function TranscodeVideo({ file }: { file: File }) {
             setRunning(false);
         }
     };
+
+    const getFormatForCodec = (codec: string) => {
+        if (codec.startsWith('avc1')) {
+            return 'h264';
+        }
+        if (codec.startsWith('vp09')) {
+            return 'vp9';
+        }
+        if (codec.startsWith('vp8')) {
+            return 'vp8';
+        }
+        throw new Error(`Unsupported codec: ${codec}`);
+    }
 
     const generateFfmpegCommand = (format: Format, audioCodec: AudioCodec, fileName: string, outputFileName: string) => {
         let ffmpegCommand: string[] = [
