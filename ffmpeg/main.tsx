@@ -1234,7 +1234,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             setStatus('Reading output...');
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
             const finalExtension = config.container || getContainerForCodec(config.codec);
-            const resultFile = new File([data as any], outputFileName, { type: `video/${finalExtension}` });
+            const resultFile = new File([data.buffer as ArrayBuffer], outputFileName, { type: `video/${finalExtension}` });
             setResults(f => ({ ...f, [`webcodecs-${Date.now()}`]: resultFile }));
 
             // Cleanup
@@ -1432,7 +1432,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()))
             await ffmpeg.exec(ffmpegCommand)
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array
-            setResults(f => ({ ...f, [format]: new File([data as any], outputFileName, { type: FORMAT_MIME[format] }) }))
+            setResults(f => ({ ...f, [format]: new File([data.buffer as ArrayBuffer], outputFileName, { type: FORMAT_MIME[format] }) }))
             ffmpeg.off('progress', onprogress)
             setRunning(false)
         } catch (e: any) {
@@ -1475,7 +1475,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
                 const data = await ffmpeg.readFile(outputFile.name) as Uint8Array
                 const outputFormat = outputFile.name.split('.').pop() || 'output'
                 const mimeType = FORMAT_MIME[outputFormat] || 'application/octet-stream'
-                setResults(f => ({ ...f, [current]: new File([data as any], outputFile.name, { type: mimeType }) }))
+                setResults(f => ({ ...f, [current]: new File([data.buffer as ArrayBuffer], outputFile.name, { type: mimeType }) }))
             }
 
             ffmpeg.off('progress', onprogress)
