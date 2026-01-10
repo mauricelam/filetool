@@ -104,7 +104,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "name": "Browser",
         "handler": "browser",
         "mimetypes": [
-            "video/3gpp", "video/mp4", "audio/x-m4a", "text/html", "audio/mpeg", "application/pdf",
+            "video/3gpp", "audio/x-m4a", "text/html", "audio/mpeg", "application/pdf",
             "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/vnd.microsoft.icon"
         ]
     },
