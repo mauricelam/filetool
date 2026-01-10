@@ -17,7 +17,7 @@ const mainOptions = {
                     to: 'index.html'
                 },
                 {
-                    from: './node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm',
+                    from: '../node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm',
                     to: 'sqlite3.wasm'
                 }
             ]
