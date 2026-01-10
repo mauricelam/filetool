@@ -1,4 +1,4 @@
-import { RespondFileMessage } from "common/messages";
+import { RespondFileMessage } from "filemagic-common/messages";
 
 if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' }, '/');
@@ -21,7 +21,7 @@ async function handleFile(file: File) {
 
         const iframe = document.createElement('iframe');
         iframe.id = 'cyberchef';
-        iframe.src = `https://gchq.github.io/CyberChef/#input=${encodeURIComponent(base64)}`;
+        iframe.src = `/cyberchef/CyberChef/CyberChef_v10.19.4.html#input=${encodeURIComponent(base64)}`;
         OUTPUT?.appendChild(iframe);
     };
     reader.readAsDataURL(file);

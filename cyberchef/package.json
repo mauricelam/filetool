@@ -5,11 +5,14 @@
   "main": "index.js",
   "scripts": {
     "build": "node build.mjs",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "watch": "BUILD_MODE=dev node build.mjs"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "common": "file:../common"
+  },
+  "devDependencies": {
+    "yauzl": "^2.10.0"
   }
 }
