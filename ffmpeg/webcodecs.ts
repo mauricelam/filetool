@@ -64,9 +64,9 @@ async function demuxAudioTrack(file: File): Promise<{ chunks: EncodedAudioChunk[
 
     return new Promise((resolve, reject) => {
         demuxer.onReady = (info: any) => {
-            const audioTrack = info.tracks.find((t: any) => t.codec.startsWith('mp4a'));
+            const audioTrack = info.tracks.find((t: any) => ['mp4a', 'opus', 'mp3'].some(codec => t.codec.startsWith(codec)));
             if (!audioTrack) {
-                return reject(new Error("No AAC audio track found in the file."));
+                return reject(new Error("No supported audio track (AAC, Opus, MP3) found in the file."));
             }
 
             const track = demuxer.getTrackById(audioTrack.id);
@@ -75,7 +75,6 @@ async function demuxAudioTrack(file: File): Promise<{ chunks: EncodedAudioChunk[
                 codec: audioTrack.codec,
                 sampleRate: audioTrack.audio.sample_rate,
                 numberOfChannels: audioTrack.audio.channel_count,
-                // description: track.description,
             };
 
             demuxer.setExtractionOptions(audioTrack.id, null, { nbSamples: 100 });
@@ -140,11 +139,12 @@ export async function transcode(
 
     let audioPromise: Promise<Blob | null> = Promise.resolve(null);
     if (config.audio.action === 'transcode') {
+        const { config: decoderConfig } = await demuxAudioTrack(file);
         audioPromise = transcodeAudio(file, {
             codec: config.audio.codec,
             bitrate: config.audio.bitrate,
-            sampleRate: 48000,
-            numberOfChannels: 2,
+            sampleRate: decoderConfig.sampleRate,
+            numberOfChannels: decoderConfig.numberOfChannels,
         }, (p) => onProgress(videoProgressMax + p * audioProgressMax, 'Encoding audio...'), signal);
     }
 

@@ -1,0 +1,25 @@
+
+> test:integration
+> node tests/integration/build.mjs && playwright test
+
+
+Running 16 tests using 2 workers
+
+  ✓   2 tests/integration/cborviewer.spec.ts:27:9 › cborviewer handler › should display default diagnostic view (450ms)
+  ✓   3 tests/integration/cborviewer.spec.ts:35:9 › cborviewer handler › should switch to verbose view (436ms)
+  ✓   4 tests/integration/cborviewer.spec.ts:44:9 › cborviewer handler › should display an error for an invalid file (430ms)
+  ✓   5 tests/integration/handlers.spec.ts:37:5 › should correctly process and display a text file in the textviewer (860ms)
+  ✓   1 tests/integration/binutils.spec.ts:20:9 › binutils handler › should display default objdump output (2.6s)
+  ✓   6 tests/integration/handlers.spec.ts:49:5 › should correctly process and display a markdown file in the markdown viewer (413ms)
+  ✓   8 tests/integration/handlers.spec.ts:61:5 › should correctly process and display a small binary file in the hex viewer (310ms)
+  ✓   9 tests/integration/jqviewer.spec.ts:21:5 › should correctly display the initial JSON content (521ms)
+  ✓   7 tests/integration/binutils.spec.ts:28:9 › binutils handler › should switch to nm and display symbols (1.0s)
+  ✓  10 tests/integration/jqviewer.spec.ts:30:5 › should filter with a basic jq query (584ms)
+  ✓  12 tests/integration/jqviewer.spec.ts:40:5 › should filter with a more complex jq query (529ms)
+  ✓  13 tests/integration/jqviewer.spec.ts:50:5 › should display an error for an invalid jq query (505ms)
+  ✓  14 tests/integration/lzfse.spec.ts:8:9 › LZFSE Handler › should decompress an LZFSE file and display the content (303ms)
+  ✓  15 tests/integration/proguardviewer.spec.ts:4:5 › should correctly deobfuscate a class name (491ms)
+  ✓  11 tests/integration/binutils.spec.ts:37:9 › binutils handler › should use flags to change output (3.4s)
+  ✓  16 tests/integration/regression.spec.ts:3:5 › should allow switching between handlers for the same file (980ms)
+
+  16 passed (8.4s)
