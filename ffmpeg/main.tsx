@@ -246,15 +246,12 @@ interface VideoInfo {
 interface VideoPreviewProps {
     file: File;
     error: string | null;
+    videoInfo: VideoInfo;
+    setVideoInfo: Dispatch<SetStateAction<VideoInfo>>;
     onSaveMetadata: (newMetadata: { [key: string]: string }) => void;
 }
 
-function VideoPreview({ file, error, onSaveMetadata }: VideoPreviewProps) {
-    const [videoInfo, setVideoInfo] = useState<VideoInfo>({
-        name: file.name,
-        size: file.size,
-        type: file.type
-    });
+function VideoPreview({ file, error, videoInfo, setVideoInfo, onSaveMetadata }: VideoPreviewProps) {
     const [videoUrl, setVideoUrl] = useState<string>('');
     const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [rawFFmpegOutput, setRawFFmpegOutput] = useState<string>('');
@@ -1510,6 +1507,9 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
 
             setFile(newFile); // Update the file state
             setResults(prev => ({ ...prev, [Format.Original]: newFile })); // Update results
+            
+            // Update videoInfo metadata
+            setVideoInfo(prev => ({ ...prev, metadata: newMetadata }));
         } catch (e: any) {
             setError(e instanceof Error ? e.message : String(e));
         }
@@ -1529,6 +1529,8 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             <VideoPreview
                 file={file}
                 error={error}
+                videoInfo={videoInfo}
+                setVideoInfo={setVideoInfo}
                 onSaveMetadata={handleSaveMetadata}
             />
             <div style={{ flex: 1, padding: '20px' }}>
