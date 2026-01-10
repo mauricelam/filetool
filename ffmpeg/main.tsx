@@ -196,7 +196,6 @@ export function parseFFmpegOutput(output: string) {
             const fpsMatch = line.match(/, (\d+(?:\.\d+)?)\s*fps/);
             const brMatch = line.match(/, (\d+(?:\.\d+)?)\s*kb\/s/);
             const pixMatch = line.match(/Video: [^,]+, ([^,]+)/);
-
             const videoStream = {
                 codec_type: 'video',
                 codec_name: codecMatch ? codecMatch[1] : undefined,
