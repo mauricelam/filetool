@@ -5,11 +5,12 @@ A handler for image files that processes and displays various image formats.
 ## Features
 
 - View and process multiple image formats
-- Image metadata display
+- Image metadata display (including EXIF tags)
 - Basic image transformations
 - Support for vector graphics
 - Font file preview
 - Animated image support (APNG, GIF)
+- Android Motion Photo metadata detection and video playback (XMP parsing for video offset)
 
 ## Supported File Types
 
@@ -82,6 +83,7 @@ imagemagick/
 ├── build.mjs          # Build configuration
 ├── index.html         # Entry point
 ├── main.tsx           # Main React component
+├── motion-photo.ts    # Android Motion Photo metadata extraction logic
 ├── package.json       # Dependencies and scripts
 └── README.md          # This file
 ```
