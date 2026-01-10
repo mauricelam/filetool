@@ -87,6 +87,7 @@ export interface HandlerDefinition {
 }
 
 export const HANDLERS: HandlerDefinition[] = [
+    { "name": "CyberChef", "handler": "cyberchef", "mimetypes": [/.*/] },
     // ... (Handlers remain the same as before)
     {
         "name": "reStructuredText Viewer",
