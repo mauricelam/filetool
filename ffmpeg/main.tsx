@@ -2,7 +2,7 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getFFmpegCoreURL, getFFmpegWasmURL, getFFmpegWorkerURL } from './ffmpegUtils';
-import { transcode as transcodeWithWebCodecs } from './webcodecs';
+import { transcode } from './webcodecs';
 
 if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' })
@@ -751,7 +751,9 @@ function WebCodecsControls({
 }) {
     const [videoCodec, setVideoCodec] = useState('vp09.00.51.08');
     const [bitrate, setBitrate] = useState(2_000_000);
-    const [keepAudio, setKeepAudio] = useState(true);
+    const [audioAction, setAudioAction] = useState('transcode'); // 'keep', 'transcode', 'remove'
+    const [audioCodec, setAudioCodec] = useState('opus');
+    const [audioBitrate, setAudioBitrate] = useState(128_000);
     const [container, setContainer] = useState('mp4');
     const [transcodedFile, setTranscodedFile] = useState<File | null>(null);
     const [transcodedUrl, setTranscodedUrl] = useState<string>('');
@@ -782,9 +784,15 @@ function WebCodecsControls({
 
     const handleTranscode = () => {
         const config = {
-            codec: videoCodec,
-            bitrate: bitrate,
-            keepAudio: keepAudio,
+            video: {
+                codec: videoCodec,
+                bitrate: bitrate,
+            },
+            audio: {
+                action: audioAction,
+                codec: audioCodec,
+                bitrate: audioBitrate,
+            },
             container: container,
         };
         onTranscode(config);
@@ -863,16 +871,53 @@ function WebCodecsControls({
                 />
             </div>
             <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                    <input
-                        type="checkbox"
-                        checked={keepAudio}
-                        onChange={(e) => setKeepAudio(e.target.checked)}
-                        style={{ marginRight: '10px' }}
-                    />
-                    Keep audio track
-                </label>
+                <label htmlFor="audio-action-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio:</label>
+                <select id="audio-action-select" value={audioAction} onChange={e => setAudioAction(e.target.value)}
+                    style={{
+                        width: '100%',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #ced4da',
+                        fontSize: '14px'
+                    }}
+                >
+                    <option value="keep">Keep original audio track</option>
+                    <option value="transcode">Transcode audio track</option>
+                    <option value="remove">Remove audio track</option>
+                </select>
             </div>
+
+            {audioAction === 'transcode' && (
+                <>
+                    <div style={{ marginBottom: '20px' }}>
+                        <label htmlFor="audio-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio Codec:</label>
+                        <select id="audio-codec-select" value={audioCodec} onChange={e => setAudioCodec(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                border: '1px solid #ced4da',
+                                fontSize: '14px'
+                            }}
+                        >
+                            <option value="opus">Opus</option>
+                            <option value="aac">AAC</option>
+                        </select>
+                    </div>
+                    <div style={{ marginBottom: '20px' }}>
+                        <label htmlFor="audio-bitrate-input" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio Bitrate:</label>
+                        <input id="audio-bitrate-input" type="number" value={audioBitrate} onChange={e => setAudioBitrate(parseInt(e.target.value, 10))}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                border: '1px solid #ced4da',
+                                fontSize: '14px'
+                            }}
+                        />
+                    </div>
+                </>
+            )}
             {running && (
                 <div style={{
                     background: '#e7f3ff',
@@ -990,7 +1035,7 @@ function TranscodeVideo({ file }: { file: File }) {
 
             let audioExtracted = false;
             const audioFileName = 'audio-temp.mka';
-            if (config.keepAudio) {
+            if (config.audio.action === 'keep') {
                 setStatus('Extracting audio...');
                 try {
                     const audioExtractResult = await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'copy', audioFileName]);
@@ -1004,45 +1049,52 @@ function TranscodeVideo({ file }: { file: File }) {
                 }
             }
 
-            setStatus('Encoding video...');
+            setStatus('Encoding...');
             abortControllerRef.current = new AbortController();
-            const encodedBlob = await transcodeWithWebCodecs(
+            const { video: encodedVideo, audio: encodedAudio } = await transcode(
                 file,
-                {
-                    ...config,
-                    format: getContainerForCodec(config.codec),
-                },
+                config,
                 totalFrames,
-                (p) => setWebCodecsProgress(p),
+                (p, s) => {
+                    setWebCodecsProgress(p);
+                    setStatus(s);
+                },
                 abortControllerRef.current.signal
             );
 
-            const videoInputFile = `video-temp.${getExtensionForCodec(config.codec)}`;
-            await ffmpeg.writeFile(videoInputFile, new Uint8Array(await encodedBlob.arrayBuffer()));
+            const videoInputFile = `video-temp.${getExtensionForCodec(config.video.codec)}`;
+            await ffmpeg.writeFile(videoInputFile, new Uint8Array(await encodedVideo.arrayBuffer()));
 
-            const outputFileName = `output-webcodecs.${config.container || getContainerForCodec(config.codec)}`;
-            const inputFormat = config.codec.startsWith('avc1') ? 'h264' : 'ivf';
+            const audioInputFile = 'audio-temp.aac';
+            if (encodedAudio) {
+                await ffmpeg.writeFile(audioInputFile, new Uint8Array(await encodedAudio.arrayBuffer()));
+            }
+
+            const outputFileName = `output-webcodecs.${config.container || getContainerForCodec(config.video.codec)}`;
+            const inputFormat = config.video.codec.startsWith('avc1') ? 'h264' : 'ivf';
             const inputFramerate = parseFramerate(videoInfo.framerate) || 30;
 
-            const muxerArgs = [
-                '-r', inputFramerate.toString(), // Set input framerate for raw stream
-                '-f', inputFormat,
-                '-i', videoInputFile,
-                ...(audioExtracted ? ['-i', audioFileName] : []),
-                '-map', '0:v:0',
-                ...(audioExtracted ? ['-map', '1:a:0'] : []),
-                '-c', 'copy',
-                '-strict', '-2', // Allow non-standard combinations if requested
-                '-y',
-                outputFileName
-            ];
+            const muxerArgs = ['-r', inputFramerate.toString(), '-f', inputFormat, '-i', videoInputFile];
+            const audioInputs = [];
+            if (audioExtracted) {
+                audioInputs.push('-i', audioFileName);
+            }
+            if (encodedAudio) {
+                audioInputs.push('-i', audioInputFile);
+            }
+            muxerArgs.push(...audioInputs);
+            muxerArgs.push('-map', '0:v:0');
+            if (audioExtracted || encodedAudio) {
+                muxerArgs.push('-map', '1:a:0');
+            }
+            muxerArgs.push('-c', 'copy', '-strict', '-2', '-y', outputFileName);
 
             const result = await ffmpeg.exec(muxerArgs);
             if (result !== 0) {
                 let hint = "";
-                if (config.codec.startsWith('vp') && config.container === 'mp4') {
+                if (config.video.codec.startsWith('vp') && config.container === 'mp4') {
                     hint = " Note: VP8/VP9 are not natively supported in MP4 containers. Try using WebM or MKV instead.";
-                } else if (config.codec.startsWith('avc1') && config.container === 'webm') {
+                } else if (config.video.codec.startsWith('avc1') && config.container === 'webm') {
                     hint = " Note: H.264 is not natively supported in WebM containers. Try using MP4 or MOV instead.";
                 }
                 throw new Error(`FFmpeg muxing failed (code ${result}).${hint}`);
@@ -1058,6 +1110,7 @@ function TranscodeVideo({ file }: { file: File }) {
             try {
                 await ffmpeg.deleteFile(videoInputFile);
                 if (audioExtracted) await ffmpeg.deleteFile(audioFileName);
+                if (encodedAudio) await ffmpeg.deleteFile(audioInputFile);
                 await ffmpeg.deleteFile(outputFileName);
             } catch (cleanupError) {
                 console.warn('Cleanup failed:', cleanupError);
