@@ -160,7 +160,7 @@ async function openHandler(handler: string, file: File, mime: string) {
                 iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
             } else {
                 iframe.removeAttribute('sandbox');
-                iframe.src = handler;
+                iframe.src = new URL(handler, window.location.href).href;
             }
             iframeToHandler.set(iframe, handler);
         }
@@ -198,7 +198,7 @@ async function openHandler(handler: string, file: File, mime: string) {
         iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
     } else {
         iframe.removeAttribute('sandbox');
-        iframe.src = handler;
+        iframe.src = new URL(handler, window.location.href).href;
     }
 }
 
