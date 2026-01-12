@@ -1,28 +1,9 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
-import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler, getHandlersForFile, getHandlersForFileNameAndType } from 'file-type-detector';
+import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndType } from 'file-type-detector';
 import { FileItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
-
-interface FileSystemEntry {
-    isFile: boolean;
-    isDirectory: boolean;
-    name: string;
-    fullPath: string;
-}
-
-interface FileSystemFileEntry extends FileSystemEntry {
-    file(callback: (file: File) => void): void;
-}
-
-interface FileSystemDirectoryReader {
-    readEntries(callback: (entries: FileSystemEntry[]) => void): void;
-}
-
-interface FileSystemDirectoryEntry extends FileSystemEntry {
-    createReader(): FileSystemDirectoryReader;
-}
 
 const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
@@ -63,48 +44,34 @@ dropTarget.addEventListener('drop', async (e) => {
         });
     };
 
-    const traverse = async (entry: FileSystemEntry | null) => {
-        if (!entry) {
-            return;
-        }
+    async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
         if (entry.isFile) {
-            const file = await getFile(entry as FileSystemFileEntry);
-            files.push(file);
+            yield await getFile(entry as FileSystemFileEntry);
         } else if (entry.isDirectory) {
             const reader = (entry as FileSystemDirectoryEntry).createReader();
-            let entries: FileSystemEntry[];
-            do {
-                entries = await readEntries(reader);
-                for (const entry of entries) {
-                    await traverse(entry);
-                }
-            } while (entries.length > 0);
+            for (const entry of await readEntries(reader)) {
+                yield* traverse(entry)
+            }
         }
     };
 
     const filePromises = [];
-    const nonFileItems = [];
 
     for (const item of items) {
         const entry = item.webkitGetAsEntry();
         if (entry) {
-            filePromises.push(traverse(entry));
+            for await (const file of traverse(entry)) {
+                files.push(file);
+            }
         } else if (item.kind === 'file') {
             const file = item.getAsFile();
             if (file) {
                 files.push(file);
             }
         } else {
-            nonFileItems.push(item);
+            alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
+            console.warn('Unsupported drop item:', item);
         }
-    }
-
-    await Promise.all(filePromises);
-
-    if (nonFileItems.length > 0) {
-        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
-        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
-        console.warn('Unsupported drop items:', nonFileItems);
     }
 
     if (files.length > 0) {
