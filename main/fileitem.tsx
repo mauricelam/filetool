@@ -353,25 +353,45 @@ export function FileItem(
 }
 
 export function FileListItem(
-    { file, selected, onClick }: { file: File, selected: boolean, onClick: () => void }
+    { file, selected, onClick, onRemove }: { file: File, selected: boolean, onClick: () => void, onRemove: () => void }
 ) {
+    const [isHovered, setHovered] = useState(false);
     const icon = getIcon(file.name);
     return (
-        <div onClick={onClick} style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '4px',
-            cursor: 'pointer',
-            backgroundColor: selected ? '#e6f3ff' : 'transparent',
-            border: selected ? '1px solid #0066cc' : '1px solid transparent',
-            borderRadius: '4px',
-        }}>
-            <img src={icon} style={{ width: 24, height: 24, marginRight: 8 }} />
-            <span style={{
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-            }}>{file.name}</span>
+        <div
+            onClick={onClick}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '4px',
+                cursor: 'pointer',
+                backgroundColor: selected ? '#e6f3ff' : (isHovered ? '#f0f0f0' : 'transparent'),
+                border: selected ? '1px solid #0066cc' : '1px solid transparent',
+                borderRadius: '4px',
+                justifyContent: 'space-between'
+            }}>
+            <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                <img src={icon} style={{ width: 24, height: 24, marginRight: 8, flexShrink: 0 }} />
+                <span style={{
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                }}>{file.name}</span>
+            </div>
+            <div
+                onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                style={{
+                    visibility: isHovered || selected ? 'visible' : 'hidden',
+                    marginLeft: '8px',
+                    padding: '2px',
+                    lineHeight: '1',
+                    borderRadius: '50%',
+                }}
+            >
+                ×
+            </div>
         </div>
     );
 }
