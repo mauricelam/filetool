@@ -1,7 +1,7 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
-import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler, getHandlersForFile, getHandlersForFileNameAndType } from 'file-type-detector';
+import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndType } from 'file-type-detector';
 import { FileItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
 
@@ -25,29 +25,50 @@ infoToggle.onclick = () => {
 
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
-dropTarget.addEventListener('drop', (e) => {
+dropTarget.addEventListener('drop', async (e) => {
     dropTarget.classList.remove('dropover');
     e.preventDefault();
-    const nonFileItems: DataTransferItem[] = [];
-    const items = Array.from(e.dataTransfer!.items).filter(item => {
-        if (item.webkitGetAsEntry()?.isDirectory) {
-            alert("Error: Dropping folders is not supported.");
-            return false;
-        } else if (item.kind === 'file') {
-            return true;
-        } else {
-            nonFileItems.push(item);
-            return false;
-        }
-    });
 
-    if (nonFileItems.length > 0) {
-        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
-        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
-        console.warn('Unsupported drop items:', nonFileItems);
+    const files: File[] = [];
+    const items = Array.from(e.dataTransfer!.items);
+
+    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+        return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
+    };
+    const getFile = (entry: FileSystemFileEntry): Promise<File> => {
+        return new Promise((resolve, reject) => entry.file(resolve, reject))
+    };
+
+    async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
+        if (entry.isFile) {
+            yield await getFile(entry as FileSystemFileEntry);
+        } else if (entry.isDirectory) {
+            const reader = (entry as FileSystemDirectoryEntry).createReader();
+            for (const entry of await readEntries(reader)) {
+                yield* traverse(entry)
+            }
+        }
+    };
+
+    for (const item of items) {
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+            for await (const file of traverse(entry)) {
+                files.push(file);
+            }
+        } else if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+                files.push(file);
+            }
+        } else {
+            alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
+            console.warn('Unsupported drop item:', item);
+        }
     }
-    if (items.length > 0) {
-        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
+
+    if (files.length > 0) {
+        dispatchOpenFiles(files);
     }
 }, false);
 
@@ -198,12 +219,15 @@ function FileList() {
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
-            setFiles(cur => [...cur, ...e.detail])
-            setSelected(_ => files.length)
+            setFiles(cur => {
+                const newFiles = [...cur, ...e.detail];
+                setSelected(newFiles.length > 0 ? newFiles.length - 1 : 0);
+                return newFiles;
+            });
         }
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
         return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
-    }, [setFiles, files])
+    }, [setFiles, setSelected])
 
     useEffect(() => {
         if (files.length > 0) {
