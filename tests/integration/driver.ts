@@ -3,7 +3,7 @@ const params = new URLSearchParams(window.location.search);
 const handler = params.get('handler');
 const iframeEl = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
 if (handler) {
-    iframeEl.src = `/${handler}/index.html`;
+    iframeEl.src = `/filetool/${handler}/index.html`;
 }
 
 let fileToProvide: File | null = null;

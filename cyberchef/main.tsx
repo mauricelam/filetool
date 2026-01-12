@@ -15,7 +15,7 @@ const OUTPUT = document.getElementById('output')
 async function handleFile(file: File) {
     const iframe = document.createElement('iframe');
     iframe.id = 'cyberchef';
-    iframe.src = `/cyberchef/CyberChef/CyberChef_v10.19.4.html`;
+    iframe.src = `CyberChef/CyberChef_v10.19.4.html`;
 
     iframe.onload = async () => {
         try {

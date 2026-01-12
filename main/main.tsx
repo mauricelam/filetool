@@ -155,13 +155,8 @@ async function openHandler(handler: string, file: File, mime: string) {
     if (fileToIframe.has(file)) {
         const iframe = fileToIframe.get(file)!;
         if (iframeToHandler.get(iframe) !== handler) {
-            if (handler === '__text__') {
-                iframe.setAttribute('sandbox', '');
-                iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
-            } else {
-                iframe.removeAttribute('sandbox');
-                iframe.src = handler;
-            }
+            iframe.removeAttribute('sandbox');
+            iframe.src = handler;
             iframeToHandler.set(iframe, handler);
         }
         iframes.forEach(f => f.style.display = 'none');
@@ -193,13 +188,8 @@ async function openHandler(handler: string, file: File, mime: string) {
     iframes.forEach(f => f.style.display = 'none');
     iframe.style.display = 'block';
 
-    if (handler === '__text__') {
-        iframe.setAttribute('sandbox', '');
-        iframe.src = URL.createObjectURL(new File([await file.arrayBuffer()], file.name, { type: 'text/plain' }));
-    } else {
-        iframe.removeAttribute('sandbox');
-        iframe.src = handler;
-    }
+    iframe.removeAttribute('sandbox');
+    iframe.src = handler;
 }
 
 function FileList() {

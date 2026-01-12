@@ -171,7 +171,7 @@ export const HANDLERS: HandlerDefinition[] = [
     },
     { "name": "Protoscope", "handler": "protoscope", "mimetypes": [{ "mime": "application/x-protobuf" }, { "filename": /\.pb$/i }, { "filename": /\.binbp$/i }] },
     { "name": "SQLite Viewer", "handler": "sqliteviewer", "mimetypes": [{ "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3"] },
-    { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /\.(map|mapping|txt)$/i }] },
+    { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /(\.(map|mapping)|proguard\.txt)$/i }] },
     {
         "name": "LZFSE Decompressor",
         "handler": "lzfse",

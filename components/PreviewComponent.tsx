@@ -77,7 +77,7 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
         return <div style={{ padding: '10px' }}>Loading preview...</div>;
     }
 
-    const previewUrl = `/${activeHandler.handler}/`;
+    const previewUrl = `../${activeHandler.handler}`;
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ padding: '8px', borderBottom: '1px solid #ccc', display: 'flex', alignItems: 'center', gap: '8px' }}>
