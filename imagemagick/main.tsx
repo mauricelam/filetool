@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
 import { RespondFileMessage } from "filemagic-common/messages";
 import { extractMotionPhotoInfo, MotionPhotoInfo } from "./motion-photo";
+import { extractLivePhotoInfo, LivePhotoInfo } from "./live-photo";
 
 export const ImageMagickApp = ({ file }: { file: File }) => {
     const [imageInfo, setImageInfo] = useState<IMagickImageInfo | null>(null);
@@ -11,6 +12,7 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
     const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
     const [metadata, setMetadata] = useState<Record<string, string>>({});
     const [motionPhotoInfo, setMotionPhotoInfo] = useState<MotionPhotoInfo | null>(null);
+    const [livePhotoInfo, setLivePhotoInfo] = useState<LivePhotoInfo | null>(null);
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
 
@@ -37,8 +39,8 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                 }
                 setMetadata(meta);
 
-                const info = extractMotionPhotoInfo(image);
-                setMotionPhotoInfo(info);
+                setMotionPhotoInfo(extractMotionPhotoInfo(image));
+                setLivePhotoInfo(extractLivePhotoInfo(image));
             };
 
             ImageMagick.read(buffer, settings, onImageRead);
@@ -167,6 +169,29 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                                         Play Video
                                     </button>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {livePhotoInfo?.isLivePhoto && (
+                    <div style={{
+                        marginTop: '12px',
+                        padding: '10px',
+                        background: 'rgba(0, 122, 255, 0.15)',
+                        borderLeft: '4px solid #007aff',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0, 122, 255, 0.3)',
+                        borderLeftWidth: '4px'
+                    }}>
+                        <div style={{ color: '#007aff', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v1l-1.5 1.5M12 15h.01"></path></svg>
+                            Apple Live Photo
+                        </div>
+                        <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px', color: '#eee' }}>
+                            {livePhotoInfo.assetIdentifier && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Asset ID:</span> {livePhotoInfo.assetIdentifier}</div>}
+                            <div style={{ marginTop: '4px', fontStyle: 'italic', fontSize: '11px', color: '#007aff', borderTop: '1px solid rgba(0, 122, 255, 0.2)', paddingTop: '4px' }}>
+                                This is the still photo from an Apple Live Photo sequence.
                             </div>
                         </div>
                     </div>

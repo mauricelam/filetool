@@ -5,8 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs --watch",
-    "test": "echo \"No test specified\" && exit 0"
+    "watch": "BUILD_MODE=dev node build.mjs --watch"
   },
   "keywords": [],
   "author": "",
