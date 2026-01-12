@@ -1,9 +1,28 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
-import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler } from 'file-type-detector';
+import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler, getHandlersForFile, getHandlersForFileNameAndType } from 'file-type-detector';
 import { FileItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
+
+interface FileSystemEntry {
+    isFile: boolean;
+    isDirectory: boolean;
+    name: string;
+    fullPath: string;
+}
+
+interface FileSystemFileEntry extends FileSystemEntry {
+    file(callback: (file: File) => void): void;
+}
+
+interface FileSystemDirectoryReader {
+    readEntries(callback: (entries: FileSystemEntry[]) => void): void;
+}
+
+interface FileSystemDirectoryEntry extends FileSystemEntry {
+    createReader(): FileSystemDirectoryReader;
+}
 
 const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
@@ -29,39 +48,63 @@ dropTarget.addEventListener('drop', async (e) => {
     dropTarget.classList.remove('dropover');
     e.preventDefault();
 
-    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => new Promise((resolve, reject) => reader.readEntries(resolve, reject));
-    const getFile = (entry: FileSystemFileEntry): Promise<File> => new Promise((resolve, reject) => entry.file(resolve, reject));
+    const files: File[] = [];
+    const items = Array.from(e.dataTransfer!.items);
 
-    async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
+    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+        return new Promise((resolve, reject) => {
+            reader.readEntries(resolve, reject);
+        });
+    };
+
+    const getFile = (entry: FileSystemFileEntry): Promise<File> => {
+        return new Promise((resolve, reject) => {
+            entry.file(resolve, reject);
+        });
+    };
+
+    const traverse = async (entry: FileSystemEntry | null) => {
+        if (!entry) {
+            return;
+        }
         if (entry.isFile) {
-            yield await getFile(entry as FileSystemFileEntry);
+            const file = await getFile(entry as FileSystemFileEntry);
+            files.push(file);
         } else if (entry.isDirectory) {
             const reader = (entry as FileSystemDirectoryEntry).createReader();
-            for (const entry of await readEntries(reader)) {
-                yield* traverse(entry);
-            }
+            let entries: FileSystemEntry[];
+            do {
+                entries = await readEntries(reader);
+                for (const entry of entries) {
+                    await traverse(entry);
+                }
+            } while (entries.length > 0);
         }
-    }
+    };
 
-    const items = Array.from(e.dataTransfer!.items);
-    const files: File[] = [];
+    const filePromises = [];
+    const nonFileItems = [];
 
     for (const item of items) {
         const entry = item.webkitGetAsEntry();
         if (entry) {
-            for await (const file of traverse(entry)) {
-                files.push(file);
-            }
+            filePromises.push(traverse(entry));
         } else if (item.kind === 'file') {
-            // If webkitGetAsEntry is not available
             const file = item.getAsFile();
             if (file) {
                 files.push(file);
             }
         } else {
-            alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
-            console.warn('Unsupported drop items:', item);
+            nonFileItems.push(item);
         }
+    }
+
+    await Promise.all(filePromises);
+
+    if (nonFileItems.length > 0) {
+        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
+        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
+        console.warn('Unsupported drop items:', nonFileItems);
     }
 
     if (files.length > 0) {
@@ -282,14 +325,7 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             const fileBuf = new Uint8Array(await file.arrayBuffer())
             const mime = mimeMagic.detect(fileBuf)
             const fileDescription = magic.detect(fileBuf) // Store description
-            const handlers: HandlerDefinition[] = [];
-            for (const handler of HANDLERS) {
-                // Pass fileDescription to matchMimetype
-                const match = handler.mimetypes.some(m => matchMimetype(m, mime, file.name, fileDescription))
-                if (match) {
-                    handlers.push(handler)
-                }
-            }
+            const handlers = getHandlersForFileNameAndType(file.name, mime, fileDescription);
             setMime(_ => mime)
             setHandlers(_ => handlers)
             setDescription(_ => fileDescription)
