@@ -239,3 +239,4 @@ export function getHandlersForFileNameAndType(fileName: string, mimeType: string
     }
     return sortHandlersBySpecificity(matchingHandlers, mimeType, fileName);
 }
+
