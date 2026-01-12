@@ -33,15 +33,10 @@ dropTarget.addEventListener('drop', async (e) => {
     const items = Array.from(e.dataTransfer!.items);
 
     const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
-        return new Promise((resolve, reject) => {
-            reader.readEntries(resolve, reject);
-        });
+        return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
     };
-
     const getFile = (entry: FileSystemFileEntry): Promise<File> => {
-        return new Promise((resolve, reject) => {
-            entry.file(resolve, reject);
-        });
+        return new Promise((resolve, reject) => entry.file(resolve, reject))
     };
 
     async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
@@ -54,8 +49,6 @@ dropTarget.addEventListener('drop', async (e) => {
             }
         }
     };
-
-    const filePromises = [];
 
     for (const item of items) {
         const entry = item.webkitGetAsEntry();
