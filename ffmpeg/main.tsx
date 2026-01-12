@@ -740,6 +740,7 @@ function WebCodecsControls({
     onDownload,
     progress,
     status,
+    hasVideo,
 }: {
     file: File;
     onTranscode: (config: any) => void;
@@ -748,6 +749,7 @@ function WebCodecsControls({
     onDownload: (file: File) => void;
     progress: number;
     status: string;
+    hasVideo: boolean;
 }) {
     const [videoCodec, setVideoCodec] = useState('vp09.00.51.08');
     const [bitrate, setBitrate] = useState(2_000_000);
@@ -827,6 +829,7 @@ function WebCodecsControls({
                         border: '1px solid #ced4da',
                         fontSize: '14px'
                     }}
+                    disabled={!hasVideo}
                 >
                     <option value="vp8">VP8</option>
                     <option value="vp09.00.51.08">VP9</option>
@@ -843,6 +846,7 @@ function WebCodecsControls({
                         border: '1px solid #ced4da',
                         fontSize: '14px'
                     }}
+                    disabled={!hasVideo}
                 >
                     {videoCodec.startsWith('avc1') ? (
                         <>
@@ -868,6 +872,7 @@ function WebCodecsControls({
                         border: '1px solid #ced4da',
                         fontSize: '14px'
                     }}
+                    disabled={!hasVideo}
                 />
             </div>
             <div style={{ marginBottom: '20px' }}>
@@ -1029,50 +1034,35 @@ function TranscodeVideo({ file }: { file: File }) {
         try {
             await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()));
 
-            const durationInSeconds = parseDurationToSeconds(videoInfo.duration);
-            const framerate = parseFramerate(videoInfo.framerate);
-            const totalFrames = Math.ceil(durationInSeconds * framerate);
+            if (videoInfo.videoCodec) {
+                const durationInSeconds = parseDurationToSeconds(videoInfo.duration);
+                const framerate = parseFramerate(videoInfo.framerate);
+                const totalFrames = Math.ceil(durationInSeconds * framerate);
 
-            let audioExtracted = false;
-            const audioFileName = 'audio-temp.mka';
-            if (config.audio.action === 'keep') {
-                setStatus('Extracting audio...');
-                try {
-                    const audioExtractResult = await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'copy', audioFileName]);
-                    if (audioExtractResult === 0) {
-                        audioExtracted = true;
-                    } else {
-                        console.warn("Audio extraction exited with code", audioExtractResult);
-                    }
-                } catch (e) {
-                    console.warn("Could not extract audio track, proceeding without it.", e);
-                }
-            }
-
-            setStatus('Encoding...');
+                setStatus('Encoding video...');
             abortControllerRef.current = new AbortController();
-            const { video: encodedVideo, audio: encodedAudio } = await transcode(
+            const encodedVideo = await transcode(
                 file,
-                config,
-                totalFrames,
-                (p, s) => {
-                    setWebCodecsProgress(p);
-                    setStatus(s);
+                {
+                    codec: config.video.codec,
+                    bitrate: config.video.bitrate,
+                    avc: { format: 'annexb' },
                 },
+                totalFrames,
+                (p) => setWebCodecsProgress(p),
                 abortControllerRef.current.signal
             );
-
-            if (!encodedVideo) {
-                setError("Transcoding failed");
-                return;
-            }
 
             const videoInputFile = `video-temp.${getExtensionForCodec(config.video.codec)}`;
             await ffmpeg.writeFile(videoInputFile, new Uint8Array(await encodedVideo.arrayBuffer()));
 
             const audioInputFile = `audio-temp.${config.audio.codec}`;
-            if (encodedAudio) {
-                await ffmpeg.writeFile(audioInputFile, new Uint8Array(await encodedAudio.arrayBuffer()));
+            if (config.audio.action === 'transcode') {
+                setStatus('Transcoding audio...');
+                await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', config.audio.codec, '-b:a', config.audio.bitrate, audioInputFile]);
+            } else if (config.audio.action === 'keep') {
+                setStatus('Extracting audio...');
+                await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'copy', audioInputFile]);
             }
 
             const outputFileName = `output-webcodecs.${config.container || getContainerForCodec(config.video.codec)}`;
@@ -1080,17 +1070,11 @@ function TranscodeVideo({ file }: { file: File }) {
             const inputFramerate = parseFramerate(videoInfo.framerate) || 30;
 
             const muxerArgs = ['-r', inputFramerate.toString(), '-f', inputFormat, '-i', videoInputFile];
-            const audioInputs = [];
-            if (audioExtracted) {
-                audioInputs.push('-i', audioFileName);
-            }
-            if (encodedAudio) {
-                audioInputs.push('-i', audioInputFile);
-            }
-            muxerArgs.push(...audioInputs);
-            muxerArgs.push('-map', '0:v:0');
-            if (audioExtracted || encodedAudio) {
-                muxerArgs.push('-map', '1:a:0');
+            if (config.audio.action !== 'remove') {
+                muxerArgs.push('-i', audioInputFile);
+                muxerArgs.push('-map', '0:v:0', '-map', '1:a:0');
+            } else {
+                muxerArgs.push('-map', '0:v:0');
             }
             muxerArgs.push('-c', 'copy', '-strict', '-2', '-y', outputFileName);
 
@@ -1107,19 +1091,51 @@ function TranscodeVideo({ file }: { file: File }) {
 
             setStatus('Reading output...');
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
-            const finalExtension = config.container || getContainerForCodec(config.codec);
+            const finalExtension = config.container || getContainerForCodec(config.video.codec);
             const resultFile = new File([data as any], outputFileName, { type: `video/${finalExtension}` });
             setResults(f => ({ ...f, [`webcodecs-${Date.now()}`]: resultFile }));
 
             // Cleanup
             try {
                 await ffmpeg.deleteFile(videoInputFile);
-                if (audioExtracted) await ffmpeg.deleteFile(audioFileName);
-                if (encodedAudio) await ffmpeg.deleteFile(audioInputFile);
+                if (config.audio.action !== 'remove') {
+                    await ffmpeg.deleteFile(audioInputFile);
+                }
                 await ffmpeg.deleteFile(outputFileName);
             } catch (cleanupError) {
                 console.warn('Cleanup failed:', cleanupError);
             }
+        } else if (videoInfo.audioCodec) {
+            if (config.audio.action === 'remove') {
+                setError("Cannot remove audio from an audio-only file.");
+                return;
+            }
+            // Audio-only file
+            const audioInputFile = `audio-temp.${config.audio.codec}`;
+            if (config.audio.action === 'transcode') {
+                setStatus('Transcoding audio...');
+                await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', config.audio.codec, '-b:a', config.audio.bitrate, audioInputFile]);
+            } else if (config.audio.action === 'keep') {
+                setStatus('Extracting audio...');
+                await ffmpeg.exec(['-i', file.name, '-vn', '-c:a', 'copy', audioInputFile]);
+            }
+
+            const outputFileName = `output-webcodecs.${config.audio.codec}`;
+            await ffmpeg.rename(audioInputFile, outputFileName);
+
+            setStatus('Reading output...');
+            const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
+            const finalExtension = config.audio.codec;
+            const resultFile = new File([data as any], outputFileName, { type: `audio/${finalExtension}` });
+            setResults(f => ({ ...f, [`webcodecs-${Date.now()}`]: resultFile }));
+
+            // Cleanup
+            try {
+                await ffmpeg.deleteFile(outputFileName);
+            } catch (cleanupError) {
+                console.warn('Cleanup failed:', cleanupError);
+            }
+        }
 
         } catch (e: any) {
             console.error('WebCodecs Error:', e);
@@ -1401,6 +1417,7 @@ function TranscodeVideo({ file }: { file: File }) {
                         onDownload={download}
                         progress={webCodecsProgress}
                         status={status}
+                        hasVideo={!!videoInfo.videoCodec}
                     />
                 ) : (
                     <TranscodeControls
