@@ -10,7 +10,7 @@ export interface HandlerTestOptions {
 }
 
 export const runHandlerTest = async (page: Page, { handler, file }: HandlerTestOptions) => {
-    await page.goto(`/tests/integration/driver.html?handler=${handler}`);
+    await page.goto(`/filetool/tests/integration/driver.html?handler=${handler}`);
     await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
 
     if (file.content instanceof Buffer) {
