@@ -2,15 +2,12 @@ import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
 import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler, getHandlersForFile, getHandlersForFileNameAndType } from 'file-type-detector';
-import { FileItem } from "./fileitem";
+import { FileItem, FileListItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
 
-const dropTarget = document.getElementById('droptarget')!!
-const fileInput = document.getElementById('fileinput') as HTMLInputElement
-const pasteHint = document.getElementById('paste-hint')!!
-
-const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.multiple = true;
 
 const infoToggle = document.getElementById('info-toggle')!!
 const iconDown = document.getElementById('toggle-icon-down')!!
@@ -24,50 +21,6 @@ infoToggle.onclick = () => {
 };
 
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
-dropTarget.onclick = (e) => fileInput.click();
-dropTarget.addEventListener('drop', (e) => {
-    dropTarget.classList.remove('dropover');
-    e.preventDefault();
-    const nonFileItems: DataTransferItem[] = [];
-    const items = Array.from(e.dataTransfer!.items).filter(item => {
-        if (item.webkitGetAsEntry()?.isDirectory) {
-            alert("Error: Dropping folders is not supported.");
-            return false;
-        } else if (item.kind === 'file') {
-            return true;
-        } else {
-            nonFileItems.push(item);
-            return false;
-        }
-    });
-
-    if (nonFileItems.length > 0) {
-        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
-        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
-        console.warn('Unsupported drop items:', nonFileItems);
-    }
-    if (items.length > 0) {
-        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
-    }
-}, false);
-
-dropTarget.addEventListener('dragend', (e) => {
-    dropTarget.classList.remove('dropover')
-    e.preventDefault();
-}, false);
-dropTarget.addEventListener('dragover', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer!.dropEffect = 'copy'
-}, false);
-dropTarget.addEventListener('dragenter', (e) => {
-    dropTarget.classList.add('dropover')
-    e.preventDefault()
-}, false);
-dropTarget.addEventListener('dragleave', (e) => {
-    dropTarget.classList.remove('dropover')
-    e.preventDefault()
-}, false);
 
 document.ondragover = (e) => {
     e.dataTransfer!.dropEffect = 'none'
@@ -195,15 +148,28 @@ async function openHandler(handler: string, file: File, mime: string) {
 function FileList() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
+    const [isDragging, setIsDragging] = useState(false); // For visual feedback
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
-            setFiles(cur => [...cur, ...e.detail])
-            setSelected(_ => files.length)
+            setFiles(cur => {
+                const newFiles = e.detail.filter(file => !cur.find(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified));
+                if (newFiles.length === 0) {
+                    const existingFileIndex = cur.findIndex(f => e.detail.some(d => d.name === f.name && d.size === f.size && d.lastModified === f.lastModified));
+                    if (existingFileIndex !== -1) {
+                        setSelected(existingFileIndex);
+                    }
+                    return cur;
+                }
+
+                const updatedFiles = [...cur, ...newFiles];
+                setSelected(updatedFiles.length - 1);
+                return updatedFiles;
+            });
         }
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
         return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
-    }, [setFiles, files])
+    }, [])
 
     useEffect(() => {
         if (files.length > 0) {
@@ -229,7 +195,7 @@ function FileList() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [files, setSelected]);
 
-    if (files.length) {
+    if (files.length > 0) {
         const selectedFile = files[selected];
         iframes.forEach(f => f.style.display = 'none');
         if (selectedFile && fileToIframe.has(selectedFile)) {
@@ -237,17 +203,130 @@ function FileList() {
         }
 
         return (
-            <>
-                <div style={{ display: files.length <= 1 ? 'none' : 'block', position: 'absolute', top: 0, right: 0, userSelect: 'none' }}>
-                    <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.max(0, i - 1))}>◀</a>
-                    <span>{selected + 1} / {files.length}</span>
-                    <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.min(files.length - 1, i + 1))}>▶</a>
+            <div style={{ display: 'flex', height: '100%' }}>
+                <div style={{
+                    width: '200px',
+                    borderRight: '1px solid #ccc',
+                    padding: '8px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
+                }}
+                    onDrop={(e) => {
+                        setIsDragging(false);
+                        e.preventDefault();
+                        const nonFileItems: DataTransferItem[] = [];
+                        const items = Array.from(e.dataTransfer!.items).filter(item => {
+                            if (item.webkitGetAsEntry()?.isDirectory) {
+                                alert("Error: Dropping folders is not supported.");
+                                return false;
+                            } else if (item.kind === 'file') {
+                                return true;
+                            } else {
+                                nonFileItems.push(item);
+                                return false;
+                            }
+                        });
+
+                        if (nonFileItems.length > 0) {
+                            const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
+                            alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
+                            console.warn('Unsupported drop items:', nonFileItems);
+                        }
+
+                        if (items.length > 0) {
+                            dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
+                        }
+                    }}
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'copy';
+                    }}
+                    onDragEnter={(e) => {
+                        e.preventDefault();
+                        setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                        e.preventDefault();
+                        setIsDragging(false);
+                    }}
+                >
+                    <div style={{ flexGrow: 1 }}>
+                        {files.map((file, index) => (
+                            <FileListItem
+                                key={`${file.name}-${file.lastModified}-${index}`}
+                                file={file}
+                                selected={index === selected}
+                                onClick={() => setSelected(index)}
+                            />
+                        ))}
+                    </div>
+                    <div
+                        onClick={() => fileInput.click()}
+                        style={{
+                            marginTop: '8px',
+                            padding: '8px',
+                            textAlign: 'center',
+                            border: '1px dashed #ccc',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Add file
+                    </div>
                 </div>
-                {files.length ? <LoadFileItem key={selected} file={files[selected]} /> : undefined}
-            </>
+                <div style={{ flexGrow: 1, padding: '8px', position: 'relative' }}>
+                    {selectedFile ? <LoadFileItem key={selected} file={selectedFile} /> : undefined}
+                </div>
+            </div>
         )
     } else {
-        return <></>
+        return (
+            <div id="droptarget"
+                onClick={() => fileInput.click()}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    const nonFileItems: DataTransferItem[] = [];
+                    const items = Array.from(e.dataTransfer!.items).filter(item => {
+                        if (item.webkitGetAsEntry()?.isDirectory) {
+                            alert("Error: Dropping folders is not supported.");
+                            return false;
+                        } else if (item.kind === 'file') {
+                            return true;
+                        } else {
+                            nonFileItems.push(item);
+                            return false;
+                        }
+                    });
+
+                    if (nonFileItems.length > 0) {
+                        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
+                        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
+                        console.warn('Unsupported drop items:', nonFileItems);
+                    }
+
+                    if (items.length > 0) {
+                        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
+                    }
+                }}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'copy';
+                }}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#434343">
+                    <path
+                        d="M186.67-120q-27.5 0-47.09-19.58Q120-159.17 120-186.67v-426.66q0-27.5 19.58-47.09Q159.17-680 186.67-680H380v66.67H186.67v426.66h586.66v-426.66H580V-680h193.33q27.5 0 47.09 19.58Q840-640.83 840-613.33v426.66q0 27.5-19.58 47.09Q800.83-120 773.33-120H186.67ZM480-322 318.67-483.33 366-530.67l80.67 80.34V-960h66.66v509.67L594-530.67l47.33 47.34L480-322Z" />
+                </svg>
+                <div>Drop file here</div>
+                <div style={{ color: '#666', fontSize: 'smaller' }}>
+                    or {navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? 'Cmd-V' : 'Ctrl-V'} to paste
+                </div>
+            </div>
+        )
     }
 }
 
