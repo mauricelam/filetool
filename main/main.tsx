@@ -1,7 +1,7 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
-import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler, getHandlersForFile, getHandlersForFileNameAndType } from 'file-type-detector';
+import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndType } from 'file-type-detector';
 import { FileItem, FileListItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
 
@@ -213,30 +213,50 @@ function FileList() {
                     flexDirection: 'column',
                     backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
                 }}
-                    onDrop={(e) => {
+                    onDrop={async (e) => {
                         setIsDragging(false);
                         e.preventDefault();
-                        const nonFileItems: DataTransferItem[] = [];
-                        const items = Array.from(e.dataTransfer!.items).filter(item => {
-                            if (item.webkitGetAsEntry()?.isDirectory) {
-                                alert("Error: Dropping folders is not supported.");
-                                return false;
-                            } else if (item.kind === 'file') {
-                                return true;
-                            } else {
-                                nonFileItems.push(item);
-                                return false;
-                            }
-                        });
 
-                        if (nonFileItems.length > 0) {
-                            const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
-                            alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
-                            console.warn('Unsupported drop items:', nonFileItems);
+                        const files: File[] = [];
+                        const items = Array.from(e.dataTransfer!.items);
+
+                        const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+                            return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
+                        };
+                        const getFile = (entry: FileSystemFileEntry): Promise<File> => {
+                            return new Promise((resolve, reject) => entry.file(resolve, reject))
+                        };
+
+                        async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
+                            if (entry.isFile) {
+                                yield await getFile(entry as FileSystemFileEntry);
+                            } else if (entry.isDirectory) {
+                                const reader = (entry as FileSystemDirectoryEntry).createReader();
+                                for (const entry of await readEntries(reader)) {
+                                    yield* traverse(entry)
+                                }
+                            }
+                        };
+
+                        for (const item of items) {
+                            const entry = item.webkitGetAsEntry();
+                            if (entry) {
+                                for await (const file of traverse(entry)) {
+                                    files.push(file);
+                                }
+                            } else if (item.kind === 'file') {
+                                const file = item.getAsFile();
+                                if (file) {
+                                    files.push(file);
+                                }
+                            } else {
+                                alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
+                                console.warn('Unsupported drop item:', item);
+                            }
                         }
 
-                        if (items.length > 0) {
-                            dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
+                        if (files.length > 0) {
+                            dispatchOpenFiles(files);
                         }
                     }}
                     onDragOver={(e) => {
@@ -286,29 +306,49 @@ function FileList() {
         return (
             <div id="droptarget"
                 onClick={() => fileInput.click()}
-                onDrop={(e) => {
+                onDrop={async (e) => {
                     e.preventDefault();
-                    const nonFileItems: DataTransferItem[] = [];
-                    const items = Array.from(e.dataTransfer!.items).filter(item => {
-                        if (item.webkitGetAsEntry()?.isDirectory) {
-                            alert("Error: Dropping folders is not supported.");
-                            return false;
-                        } else if (item.kind === 'file') {
-                            return true;
-                        } else {
-                            nonFileItems.push(item);
-                            return false;
-                        }
-                    });
 
-                    if (nonFileItems.length > 0) {
-                        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
-                        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
-                        console.warn('Unsupported drop items:', nonFileItems);
+                    const files: File[] = [];
+                    const items = Array.from(e.dataTransfer!.items);
+
+                    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+                        return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
+                    };
+                    const getFile = (entry: FileSystemFileEntry): Promise<File> => {
+                        return new Promise((resolve, reject) => entry.file(resolve, reject))
+                    };
+
+                    async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
+                        if (entry.isFile) {
+                            yield await getFile(entry as FileSystemFileEntry);
+                        } else if (entry.isDirectory) {
+                            const reader = (entry as FileSystemDirectoryEntry).createReader();
+                            for (const entry of await readEntries(reader)) {
+                                yield* traverse(entry)
+                            }
+                        }
+                    };
+
+                    for (const item of items) {
+                        const entry = item.webkitGetAsEntry();
+                        if (entry) {
+                            for await (const file of traverse(entry)) {
+                                files.push(file);
+                            }
+                        } else if (item.kind === 'file') {
+                            const file = item.getAsFile();
+                            if (file) {
+                                files.push(file);
+                            }
+                        } else {
+                            alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
+                            console.warn('Unsupported drop item:', item);
+                        }
                     }
 
-                    if (items.length > 0) {
-                        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
+                    if (files.length > 0) {
+                        dispatchOpenFiles(files);
                     }
                 }}
                 onDragOver={(e) => {
