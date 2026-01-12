@@ -14,7 +14,7 @@ const port: number = 8080;
 function setHeaders(res: Response, filePath: string): void {
   // filePath is the absolute path on the disk
   console.log(`Serving: ${filePath}`);
-
+  
   // Note: serve-static provides the absolute OS path here
   // Using case-insensitive check and normalized separators
   if (filePath.toLowerCase().includes('ffmpeg')) {
