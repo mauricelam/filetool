@@ -5,6 +5,25 @@ import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler } from 'f
 import { FileItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
 
+interface FileSystemEntry {
+    isFile: boolean;
+    isDirectory: boolean;
+    name: string;
+    fullPath: string;
+}
+
+interface FileSystemFileEntry extends FileSystemEntry {
+    file(callback: (file: File) => void): void;
+}
+
+interface FileSystemDirectoryReader {
+    readEntries(callback: (entries: FileSystemEntry[]) => void): void;
+}
+
+interface FileSystemDirectoryEntry extends FileSystemEntry {
+    createReader(): FileSystemDirectoryReader;
+}
+
 const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
 const pasteHint = document.getElementById('paste-hint')!!
@@ -32,28 +51,28 @@ dropTarget.addEventListener('drop', async (e) => {
     const files: File[] = [];
     const items = Array.from(e.dataTransfer!.items);
 
-    const readEntries = (reader: any): Promise<any[]> => {
+    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
         return new Promise((resolve, reject) => {
             reader.readEntries(resolve, reject);
         });
     };
 
-    const getFile = (entry: any): Promise<File> => {
+    const getFile = (entry: FileSystemFileEntry): Promise<File> => {
         return new Promise((resolve, reject) => {
             entry.file(resolve, reject);
         });
     };
 
-    const traverse = async (entry: any | null) => {
+    const traverse = async (entry: FileSystemEntry | null) => {
         if (!entry) {
             return;
         }
         if (entry.isFile) {
-            const file = await getFile(entry);
+            const file = await getFile(entry as FileSystemFileEntry);
             files.push(file);
         } else if (entry.isDirectory) {
-            const reader = entry.createReader();
-            let entries: any[];
+            const reader = (entry as FileSystemDirectoryEntry).createReader();
+            let entries: FileSystemEntry[];
             do {
                 entries = await readEntries(reader);
                 for (const entry of entries) {
