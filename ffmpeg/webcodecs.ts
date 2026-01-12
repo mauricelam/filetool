@@ -57,6 +57,18 @@ export function generateIVFHeader(config: { codec: string, width: number, height
     return ivfHeader;
 }
 
+interface TranscodeConfig {
+    video: {
+        codec: string;
+        bitrate: number;
+    };
+    audio: {
+        action: 'keep' | 'transcode' | 'remove';
+        codec: 'opus' | 'aac';
+        bitrate: number;
+    };
+}
+
 async function demuxAudioTrack(file: File): Promise<{ chunks: EncodedAudioChunk[], config: AudioDecoderConfig }> {
     const demuxer = mp4box.createFile();
     const chunks: EncodedAudioChunk[] = [];
@@ -123,34 +135,39 @@ async function demuxAudioTrack(file: File): Promise<{ chunks: EncodedAudioChunk[
 
 export async function transcode(
     file: File,
-    config: any,
+    config: TranscodeConfig,
     totalFrames: number,
     onProgress: (progress: number, status: string) => void,
     signal?: AbortSignal
-): Promise<{ video: Blob, audio: Blob | null }> {
-    const videoProgressMax = config.audio.action === 'transcode' ? 0.5 : 1;
-    const audioProgressMax = 1 - videoProgressMax;
+): Promise<{ video: Blob | null, audio: Blob | null }> {
+    try {
+        const videoProgressMax = config.audio.action === 'transcode' ? 0.5 : 1;
+        const audioProgressMax = 1 - videoProgressMax;
 
-    const videoPromise = transcodeVideo(file, {
-        codec: config.video.codec,
-        bitrate: config.video.bitrate,
-        avc: { format: 'annexb' },
-    }, totalFrames, (p) => onProgress(p * videoProgressMax, 'Encoding video...'), signal);
+        const videoPromise = transcodeVideo(file, {
+            codec: config.video.codec,
+            bitrate: config.video.bitrate,
+            avc: { format: 'annexb' },
+        }, totalFrames, (p) => onProgress(p * videoProgressMax, 'Encoding video...'), signal);
 
-    let audioPromise: Promise<Blob | null> = Promise.resolve(null);
-    if (config.audio.action === 'transcode') {
-        const { config: decoderConfig } = await demuxAudioTrack(file);
-        audioPromise = transcodeAudio(file, {
-            codec: config.audio.codec,
-            bitrate: config.audio.bitrate,
-            sampleRate: decoderConfig.sampleRate,
-            numberOfChannels: decoderConfig.numberOfChannels,
-        }, (p) => onProgress(videoProgressMax + p * audioProgressMax, 'Encoding audio...'), signal);
+        let audioPromise: Promise<Blob | null> = Promise.resolve(null);
+        if (config.audio.action === 'transcode') {
+            const { config: decoderConfig } = await demuxAudioTrack(file);
+            audioPromise = transcodeAudio(file, {
+                codec: config.audio.codec,
+                bitrate: config.audio.bitrate,
+                sampleRate: decoderConfig.sampleRate,
+                numberOfChannels: decoderConfig.numberOfChannels,
+            }, (p) => onProgress(videoProgressMax + p * audioProgressMax, 'Encoding audio...'), signal);
+        }
+
+        const [video, audio] = await Promise.all([videoPromise, audioPromise]);
+
+        return { video, audio };
+    } catch (e: any) {
+        console.error('Transcoding failed:', e);
+        return { video: null, audio: null };
     }
-
-    const [video, audio] = await Promise.all([videoPromise, audioPromise]);
-
-    return { video, audio };
 }
 
 export async function transcodeAudio(

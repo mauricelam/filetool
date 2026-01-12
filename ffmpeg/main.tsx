@@ -1060,20 +1060,17 @@ function TranscodeVideo({ file }: { file: File }) {
                     setStatus(s);
                 },
                 abortControllerRef.current.signal
-            ).catch((e) => {
-                console.error('Transcoding failed:', e);
-                setError(e.message);
-                return { video: null, audio: null };
-            });
+            );
 
             if (!encodedVideo) {
+                setError("Transcoding failed");
                 return;
             }
 
             const videoInputFile = `video-temp.${getExtensionForCodec(config.video.codec)}`;
             await ffmpeg.writeFile(videoInputFile, new Uint8Array(await encodedVideo.arrayBuffer()));
 
-            const audioInputFile = 'audio-temp.aac';
+            const audioInputFile = `audio-temp.${config.audio.codec}`;
             if (encodedAudio) {
                 await ffmpeg.writeFile(audioInputFile, new Uint8Array(await encodedAudio.arrayBuffer()));
             }
