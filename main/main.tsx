@@ -5,25 +5,6 @@ import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler } from 'f
 import { FileItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
 
-interface FileSystemEntry {
-    isFile: boolean;
-    isDirectory: boolean;
-    name: string;
-    fullPath: string;
-}
-
-interface FileSystemFileEntry extends FileSystemEntry {
-    file(callback: (file: File) => void): void;
-}
-
-interface FileSystemDirectoryReader {
-    readEntries(callback: (entries: FileSystemEntry[]) => void): void;
-}
-
-interface FileSystemDirectoryEntry extends FileSystemEntry {
-    createReader(): FileSystemDirectoryReader;
-}
-
 const dropTarget = document.getElementById('droptarget')!!
 const fileInput = document.getElementById('fileinput') as HTMLInputElement
 const pasteHint = document.getElementById('paste-hint')!!
@@ -48,63 +29,39 @@ dropTarget.addEventListener('drop', async (e) => {
     dropTarget.classList.remove('dropover');
     e.preventDefault();
 
-    const files: File[] = [];
-    const items = Array.from(e.dataTransfer!.items);
+    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+    const getFile = (entry: FileSystemFileEntry): Promise<File> => new Promise((resolve, reject) => entry.file(resolve, reject));
 
-    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
-        return new Promise((resolve, reject) => {
-            reader.readEntries(resolve, reject);
-        });
-    };
-
-    const getFile = (entry: FileSystemFileEntry): Promise<File> => {
-        return new Promise((resolve, reject) => {
-            entry.file(resolve, reject);
-        });
-    };
-
-    const traverse = async (entry: FileSystemEntry | null) => {
-        if (!entry) {
-            return;
-        }
+    async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
         if (entry.isFile) {
-            const file = await getFile(entry as FileSystemFileEntry);
-            files.push(file);
+            yield await getFile(entry as FileSystemFileEntry);
         } else if (entry.isDirectory) {
             const reader = (entry as FileSystemDirectoryEntry).createReader();
-            let entries: FileSystemEntry[];
-            do {
-                entries = await readEntries(reader);
-                for (const entry of entries) {
-                    await traverse(entry);
-                }
-            } while (entries.length > 0);
+            for (const entry of await readEntries(reader)) {
+                yield* traverse(entry);
+            }
         }
-    };
+    }
 
-    const filePromises = [];
-    const nonFileItems = [];
+    const items = Array.from(e.dataTransfer!.items);
+    const files: File[] = [];
 
     for (const item of items) {
         const entry = item.webkitGetAsEntry();
         if (entry) {
-            filePromises.push(traverse(entry));
+            for await (const file of traverse(entry)) {
+                files.push(file);
+            }
         } else if (item.kind === 'file') {
+            // If webkitGetAsEntry is not available
             const file = item.getAsFile();
             if (file) {
                 files.push(file);
             }
         } else {
-            nonFileItems.push(item);
+            alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
+            console.warn('Unsupported drop items:', item);
         }
-    }
-
-    await Promise.all(filePromises);
-
-    if (nonFileItems.length > 0) {
-        const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
-        alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
-        console.warn('Unsupported drop items:', nonFileItems);
     }
 
     if (files.length > 0) {
