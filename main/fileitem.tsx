@@ -1,13 +1,22 @@
 import React, { CSSProperties, ReactElement, useEffect, useState } from "react";
-import CustomTypes from "./mime-db/custom-types.json";
-import IanaTypes from "./mime-db/iana-types.json";
-import { setDefaultHandler, getDefaultHandler, HandlerDefinition } from 'file-type-detector';
+import CustomTypesRaw from "./mime-db/custom-types.json";
+const CustomTypes = CustomTypesRaw as Record<string, MimeDbItem>;
+import IanaTypesRaw from "./mime-db/iana-types.json";
+const IanaTypes = IanaTypesRaw as Record<string, MimeDbItem>;
+import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch } from 'file-type-detector';
 import ICON_LOOKUP from './icons';
+
+interface MimeDbItem {
+    compressible?: boolean,
+    extensions?: string[],
+    sources?: string[],
+}
 
 function getIcon(name: string) {
     for (const ext in ICON_LOOKUP) {
+        const key = ext as keyof typeof ICON_LOOKUP
         if (name.toLowerCase().endsWith("." + ext) || name.toLowerCase() == ext) {
-            return `icons/file_type_${ICON_LOOKUP[ext][0]}.svg`
+            return `icons/file_type_${ICON_LOOKUP[key][0]}.svg`
         }
     }
     return `icons/default_file.svg`
@@ -24,8 +33,9 @@ interface FileItemProps {
     initialActiveHandler?: string;
 }
 
-export function FileItem(props: FileItemProps) {
-    const { file, name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler } = props;
+export function FileItem(
+    { file, name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler }: FileItemProps
+) {
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
@@ -79,8 +89,21 @@ export function FileItem(props: FileItemProps) {
         transition: 'all 0.2s ease',
     }
 
-    const activeButtonStyle: CSSProperties = {
+    const promotedButtonStyle: CSSProperties = {
         ...buttonStyle,
+        border: '1px solid #0066cc',
+        color: '#0066cc',
+    }
+
+    const demotedButtonStyle: CSSProperties = {
+        ...buttonStyle,
+        backgroundColor: '#f0f0f0',
+        color: '#555',
+        border: '1px solid #ccc',
+    }
+
+    const activeButtonStyle: CSSProperties = {
+        ...promotedButtonStyle,
         backgroundColor: '#e6f3ff',
         border: '1px solid #0066cc',
         color: '#0066cc',
@@ -133,82 +156,81 @@ export function FileItem(props: FileItemProps) {
                     <label style={labelStyle}>description</label>
                     <span className="filedescription" style={{ fontSize: '14px' }}>{description}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
-                    <label style={labelStyle}>Download</label>
-                    <button
-                        onClick={() => {
-                            const url = URL.createObjectURL(file);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = file.name;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                        }}
-                        style={buttonStyle}
-                    >
-                        Download File
-                    </button>
-                </div>
-                <div className="buttonBar" style={{ display: 'flex', alignItems: 'center' }}>
-                    {matchedHandlers.length === 0 && <span style={{ fontSize: '12px', color: '#777' }}>No handlers available.</span>}
-                    {matchedHandlers.length > 0 && (
-                        <>
-                            <label style={labelStyle}>Open with</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-                                {matchedHandlers
-                                    .sort((a, b) => {
-                                        // Sort active handler to the front
-                                        if (a.handler === activeHandlerId) return -1;
-                                        if (b.handler === activeHandlerId) return 1;
-                                        return 0;
-                                    })
-                                    .map(handlerConfig => {
-                                        const isCurrentDefault = handlerConfig.handler === currentDefaultHandlerId;
-                                        const isActive = handlerConfig.handler === activeHandlerId;
-                                        return (
-                                            <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
-                                                <button
-                                                    onClick={() => {
-                                                        setActiveHandlerId(handlerConfig.handler);
-                                                        onOpenHandler(handlerConfig.handler, name, mimetype);
-                                                    }}
-                                                    style={isActive ? activeButtonStyle : buttonStyle}
-                                                >
-                                                    {handlerConfig.name}
-                                                </button>
-                                                {isCurrentDefault && (
-                                                    <div style={defaultIndicatorStyle}>Default</div>
-                                                )}
-                                                {isActive && !isCurrentDefault && localDefaultHandlerId !== handlerConfig.handler && (
-                                                    <div
-                                                        onClick={() => {
-                                                            setDefaultHandler(mimetype, name, handlerConfig.handler);
-                                                            setLocalDefaultHandlerId(handlerConfig.handler);
-                                                            console.log(`Set ${handlerConfig.name} (id: ${handlerConfig.handler}) as default for mimetype: ${mimetype}`);
-                                                        }}
-                                                        title="Set as default"
-                                                        className="circle-container"
-                                                        style={defaultIndicatorStyle}
-                                                    >Default</div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
-                                    <button
-                                        onClick={() => setOtherHandlersDialogOpen(true)}
-                                        style={{ ...buttonStyle }}
-                                        title="Show all handlers"
-                                    >
-                                        Other
-                                        <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" /></svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </>
-                    )}
+                <div className="buttonBar" style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
+                    <label style={labelStyle}>Open with</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {matchedHandlers
+                            .sort((a, b) => {
+                                // Sort active handler to the front
+                                if (a.handler === activeHandlerId) return -1;
+                                if (b.handler === activeHandlerId) return 1;
+                                return 0;
+                            })
+                            .map(handlerConfig => {
+                                const isCurrentDefault = handlerConfig.handler === currentDefaultHandlerId;
+                                const isActive = handlerConfig.handler === activeHandlerId;
+                                let style = isAnyMimeMatch(handlerConfig.mimetypes) ? demotedButtonStyle : promotedButtonStyle;
+                                if (isActive) {
+                                    style = activeButtonStyle;
+                                }
+
+                                return (
+                                    <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                                        <button
+                                            onClick={() => {
+                                                setActiveHandlerId(handlerConfig.handler);
+                                                onOpenHandler(handlerConfig.handler, name, mimetype);
+                                            }}
+                                            style={style}
+                                        >
+                                            {handlerConfig.name}
+                                        </button>
+                                        {isCurrentDefault && (
+                                            <div style={defaultIndicatorStyle}>Default</div>
+                                        )}
+                                        {isActive && !isCurrentDefault && localDefaultHandlerId !== handlerConfig.handler && (
+                                            <div
+                                                onClick={() => {
+                                                    setDefaultHandler(mimetype, name, handlerConfig.handler);
+                                                    setLocalDefaultHandlerId(handlerConfig.handler);
+                                                    console.log(`Set ${handlerConfig.name} (id: ${handlerConfig.handler}) as default for mimetype: ${mimetype}`);
+                                                }}
+                                                title="Set as default"
+                                                className="circle-container"
+                                                style={defaultIndicatorStyle}
+                                            >Default</div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                            <button
+                                onClick={() => setOtherHandlersDialogOpen(true)}
+                                style={demotedButtonStyle}
+                                title="Show all handlers"
+                            >
+                                Other
+                                <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" /></svg>
+                            </button>
+                        </div>
+                        <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                            <button
+                                onClick={() => {
+                                    const url = URL.createObjectURL(file);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = file.name;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                }}
+                                style={demotedButtonStyle}
+                            >
+                                Download
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 {isOtherHandlersDialogOpen && (
                     <div className="other-handlers-dialog-overlay">
