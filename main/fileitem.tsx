@@ -1,13 +1,22 @@
 import React, { CSSProperties, ReactElement, useEffect, useState } from "react";
-import CustomTypes from "./mime-db/custom-types.json";
-import IanaTypes from "./mime-db/iana-types.json";
+import CustomTypesRaw from "./mime-db/custom-types.json";
+const CustomTypes = CustomTypesRaw as Record<string, MimeDbItem>;
+import IanaTypesRaw from "./mime-db/iana-types.json";
+const IanaTypes = IanaTypesRaw as Record<string, MimeDbItem>;
 import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch } from 'file-type-detector';
 import ICON_LOOKUP from './icons';
 
+interface MimeDbItem {
+    compressible?: boolean,
+    extensions?: string[],
+    sources?: string[],
+}
+
 function getIcon(name: string) {
     for (const ext in ICON_LOOKUP) {
+        const key = ext as keyof typeof ICON_LOOKUP
         if (name.toLowerCase().endsWith("." + ext) || name.toLowerCase() == ext) {
-            return `icons/file_type_${ICON_LOOKUP[ext][0]}.svg`
+            return `icons/file_type_${ICON_LOOKUP[key][0]}.svg`
         }
     }
     return `icons/default_file.svg`
@@ -32,8 +41,6 @@ export function FileItem(
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
-
-    console.log('matched handlers', matchedHandlers)
 
     // Set initial active handler if provided
     useEffect(() => {
