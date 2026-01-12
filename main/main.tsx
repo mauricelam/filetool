@@ -1,7 +1,7 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
-import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler } from 'file-type-detector';
+import { HANDLERS, HandlerDefinition, matchMimetype, getDefaultHandler, getHandlersForFile, getHandlersForFileNameAndType } from 'file-type-detector';
 import { FileItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
 
@@ -271,14 +271,7 @@ function LoadFileItem({ file }: { file: File }): ReactNode {
             const fileBuf = new Uint8Array(await file.arrayBuffer())
             const mime = mimeMagic.detect(fileBuf)
             const fileDescription = magic.detect(fileBuf) // Store description
-            const handlers: HandlerDefinition[] = [];
-            for (const handler of HANDLERS) {
-                // Pass fileDescription to matchMimetype
-                const match = handler.mimetypes.some(m => matchMimetype(m, mime, file.name, fileDescription))
-                if (match) {
-                    handlers.push(handler)
-                }
-            }
+            const handlers = getHandlersForFileNameAndType(file.name, mime, fileDescription);
             setMime(_ => mime)
             setHandlers(_ => handlers)
             setDescription(_ => fileDescription)

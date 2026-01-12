@@ -47,6 +47,15 @@ interface MimeMatchDetailed {
     description?: string | RegExp,
 }
 
+export const MIME_MATCH_ANY: MimeMatchDetailed = {};
+
+export function isAnyMimeMatch(mimeMatches: MimeMatch[]): boolean {
+    return mimeMatches.some(mimeMatch => {
+        return typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)
+            && !(mimeMatch.mime || mimeMatch.description || mimeMatch.description)
+    })
+}
+
 type MimeMatch = MimeMatchDetailed | string | RegExp;
 
 let magic: WASMagic | null = null;
@@ -74,7 +83,7 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
     if (typeof mimeMatch === 'object' && !(mimeMatch instanceof RegExp)) {
         return matchStringOrRegex(mimeMatch.mime, mime) &&
             matchStringOrRegex(mimeMatch.filename, filename) &&
-            (mimeMatch.description === undefined || matchStringOrRegex(mimeMatch.description, description));
+            matchStringOrRegex(mimeMatch.description, description);
     } else {
         return matchStringOrRegex(mimeMatch, mime);
     }
@@ -87,7 +96,7 @@ export interface HandlerDefinition {
 }
 
 export const HANDLERS: HandlerDefinition[] = [
-    { "name": "CyberChef", "handler": "cyberchef", "mimetypes": [/.*/] },
+    { "name": "CyberChef", "handler": "cyberchef", "mimetypes": [MIME_MATCH_ANY] },
     // ... (Handlers remain the same as before)
     {
         "name": "reStructuredText Viewer",
@@ -99,7 +108,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "cborviewer",
         "mimetypes": ["application/cbor", { "filename": /\.cbor$/i }]
     },
-    { "name": "Hex", "handler": "hex_viewer", "mimetypes": [/.*/] },
+    { "name": "Hex", "handler": "hex_viewer", "mimetypes": [MIME_MATCH_ANY] },
     { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {
         "name": "Browser",
@@ -215,14 +224,19 @@ export async function getHandlersForFile(file: File): Promise<HandlerDefinition[
     const mime = file.type || mimeMagic.detect(buffer) || 'application/octet-stream';
     const description = magic.detect(buffer);
 
+    return getHandlersForFileNameAndType(file.name, mime, description);
+}
+
+export function getHandlersForFileNameAndType(fileName: string, mimeType: string, description: string): HandlerDefinition[] {
     const matchingHandlers: HandlerDefinition[] = [];
     for (const handler of HANDLERS) {
         for (const mimetype of handler.mimetypes) {
-            if (matchMimetype(mimetype, mime, file.name, description)) {
+            if (matchMimetype(mimetype, mimeType, fileName, description)) {
                 matchingHandlers.push(handler);
                 break;
             }
         }
     }
-    return sortHandlersBySpecificity(matchingHandlers, mime, file.name);
+    return sortHandlersBySpecificity(matchingHandlers, mimeType, fileName);
 }
+

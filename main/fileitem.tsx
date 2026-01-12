@@ -1,7 +1,7 @@
 import React, { CSSProperties, ReactElement, useEffect, useState } from "react";
 import CustomTypes from "./mime-db/custom-types.json";
 import IanaTypes from "./mime-db/iana-types.json";
-import { setDefaultHandler, getDefaultHandler, HandlerDefinition } from 'file-type-detector';
+import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch } from 'file-type-detector';
 import ICON_LOOKUP from './icons';
 
 function getIcon(name: string) {
@@ -11,15 +11,6 @@ function getIcon(name: string) {
         }
     }
     return `icons/default_file.svg`
-}
-
-function isGenericHandler(handler: HandlerDefinition): boolean {
-    return handler.mimetypes.some(m => {
-        if (m instanceof RegExp) {
-            return m.source === '.*';
-        }
-        return false;
-    });
 }
 
 interface FileItemProps {
@@ -33,13 +24,16 @@ interface FileItemProps {
     initialActiveHandler?: string;
 }
 
-export function FileItem(props: FileItemProps) {
-    const { file, name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler } = props;
+export function FileItem(
+    { file, name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler }: FileItemProps
+) {
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
+
+    console.log('matched handlers', matchedHandlers)
 
     // Set initial active handler if provided
     useEffect(() => {
@@ -158,23 +152,6 @@ export function FileItem(props: FileItemProps) {
                 <div className="buttonBar" style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
                     <label style={labelStyle}>Open with</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
-                            <button
-                                onClick={() => {
-                                    const url = URL.createObjectURL(file);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = file.name;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(url);
-                                }}
-                                style={demotedButtonStyle}
-                            >
-                                Download File
-                            </button>
-                        </div>
                         {matchedHandlers
                             .sort((a, b) => {
                                 // Sort active handler to the front
@@ -185,8 +162,7 @@ export function FileItem(props: FileItemProps) {
                             .map(handlerConfig => {
                                 const isCurrentDefault = handlerConfig.handler === currentDefaultHandlerId;
                                 const isActive = handlerConfig.handler === activeHandlerId;
-                                const isGeneric = isGenericHandler(handlerConfig);
-                                let style = isGeneric ? demotedButtonStyle : promotedButtonStyle;
+                                let style = isAnyMimeMatch(handlerConfig.mimetypes) ? demotedButtonStyle : promotedButtonStyle;
                                 if (isActive) {
                                     style = activeButtonStyle;
                                 }
@@ -228,6 +204,23 @@ export function FileItem(props: FileItemProps) {
                             >
                                 Other
                                 <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" /></svg>
+                            </button>
+                        </div>
+                        <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                            <button
+                                onClick={() => {
+                                    const url = URL.createObjectURL(file);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = file.name;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                }}
+                                style={demotedButtonStyle}
+                            >
+                                Download
                             </button>
                         </div>
                     </div>
