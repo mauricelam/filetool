@@ -124,7 +124,7 @@ Unit tests are located within their respective workspaces and can be run individ
 
 This repository includes Playwright-based integration tests under `tests/integration/`. The tests use a small test harness page (`tests/integration/driver.html` and `tests/integration/driver.js`) that loads a handler iframe and posts a file to it.
 
-The development server (`serve.mjs`) is used to serve the application on port `8080` during testing.
+The development server (`serve.mts`) is used to serve the application on port `8080` during testing.
 
 #### How to run
 

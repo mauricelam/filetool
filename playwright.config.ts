@@ -9,7 +9,7 @@ export default defineConfig({
     baseURL: 'http://localhost:8080',
   },
   webServer: {
-    command: 'node serve.mjs',
+    command: 'node serve.mts',
     port: 8080,
     timeout: 600 * 1000,
     reuseExistingServer: !process.env.CI,
