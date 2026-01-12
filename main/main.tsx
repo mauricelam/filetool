@@ -25,29 +25,71 @@ infoToggle.onclick = () => {
 
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
 dropTarget.onclick = (e) => fileInput.click();
-dropTarget.addEventListener('drop', (e) => {
+dropTarget.addEventListener('drop', async (e) => {
     dropTarget.classList.remove('dropover');
     e.preventDefault();
-    const nonFileItems: DataTransferItem[] = [];
-    const items = Array.from(e.dataTransfer!.items).filter(item => {
-        if (item.webkitGetAsEntry()?.isDirectory) {
-            alert("Error: Dropping folders is not supported.");
-            return false;
+
+    const files: File[] = [];
+    const items = Array.from(e.dataTransfer!.items);
+
+    const readEntries = (reader: any): Promise<any[]> => {
+        return new Promise((resolve, reject) => {
+            reader.readEntries(resolve, reject);
+        });
+    };
+
+    const getFile = (entry: any): Promise<File> => {
+        return new Promise((resolve, reject) => {
+            entry.file(resolve, reject);
+        });
+    };
+
+    const traverse = async (entry: any | null) => {
+        if (!entry) {
+            return;
+        }
+        if (entry.isFile) {
+            const file = await getFile(entry);
+            files.push(file);
+        } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            let entries: any[];
+            do {
+                entries = await readEntries(reader);
+                for (const entry of entries) {
+                    await traverse(entry);
+                }
+            } while (entries.length > 0);
+        }
+    };
+
+    const filePromises = [];
+    const nonFileItems = [];
+
+    for (const item of items) {
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+            filePromises.push(traverse(entry));
         } else if (item.kind === 'file') {
-            return true;
+            const file = item.getAsFile();
+            if (file) {
+                files.push(file);
+            }
         } else {
             nonFileItems.push(item);
-            return false;
         }
-    });
+    }
+
+    await Promise.all(filePromises);
 
     if (nonFileItems.length > 0) {
         const unsupportedItemsInfo = nonFileItems.map(item => `Type: ${item.type}, Kind: ${item.kind}`).join('\n');
         alert(`Warning: Drop of non-file items is not supported. Dropped items:\n${unsupportedItemsInfo}`);
         console.warn('Unsupported drop items:', nonFileItems);
     }
-    if (items.length > 0) {
-        dispatchOpenFiles(items.map(item => item.getAsFile()).filter((file): file is File => file !== null));
+
+    if (files.length > 0) {
+        dispatchOpenFiles(files);
     }
 }, false);
 
@@ -198,12 +240,15 @@ function FileList() {
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
-            setFiles(cur => [...cur, ...e.detail])
-            setSelected(_ => files.length)
+            setFiles(cur => {
+                const newFiles = [...cur, ...e.detail];
+                setSelected(newFiles.length > 0 ? newFiles.length - 1 : 0);
+                return newFiles;
+            });
         }
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
         return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
-    }, [setFiles, files])
+    }, [setFiles, setSelected])
 
     useEffect(() => {
         if (files.length > 0) {
