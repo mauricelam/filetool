@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { getHandlersForFile, getDefaultHandler, HandlerDefinition } from 'file-type-detector';
+import { getHandlersForFile, getDefaultHandler, HandlerDefinition, sortHandlersBySpecificity } from 'file-type-detector';
 
 interface PreviewComponentProps {
     path: string[];
@@ -23,7 +23,10 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
             try {
                 const file = await filePromise();
 
-                const sortedHandlers = await getHandlersForFile(file);
+                const matchingHandlers = await getHandlersForFile(file);
+                console.log("Matching handlers:", matchingHandlers);
+                const sortedHandlers = sortHandlersBySpecificity(matchingHandlers, file.type, file.name);
+                console.log("Sorted handlers:", sortedHandlers);
                 setHandlers(sortedHandlers);
 
                 if (sortedHandlers.length > 0) {
