@@ -6,7 +6,9 @@
     "build": "node build.mjs",
     "watch": "BUILD_MODE=dev node build.mjs"
   },
-  "dependencies": {},
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
 }

@@ -14,5 +14,8 @@
     "wabt": "^1.0.36"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
 }

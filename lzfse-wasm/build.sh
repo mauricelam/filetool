@@ -1,17 +1,9 @@
 #!/bin/bash
 
-cd "$(dirname "$0")"
+set -ex
 
-OUTDIR="./dist"
-mkdir -p "$OUTDIR"
-emcc lzfse/src/lzfse_decode.c lzfse/src/lzfse_decode_base.c lzfse/src/lzvn_decode_base.c lzfse/src/lzfse_fse.c \
-    -I lzfse/src -o "$OUTDIR/lzfse.js" \
-    -s FORCE_FILESYSTEM=1 \
-    -s ENVIRONMENT=web \
-    -s EXPORTED_FUNCTIONS='["_lzfse_decode_buffer", "_malloc", "_free"]' \
-    -s EXPORTED_RUNTIME_METHODS='["HEAPU8", "cwrap"]' \
-    -s MODULARIZE=1 \
-    -s EXPORT_NAME='createLzfseModule' \
-    -s ALLOW_MEMORY_GROWTH=1 \
-    -s WASM=1 \
-    --emit-tsd lzfse.d.ts
+source ../../emsdk/emsdk_env.sh
+
+emcc -O3 -s STANDALONE_WASM=1 -s EXPORTED_FUNCTIONS="['_malloc', '_free', '_lzfse_decode_buffer']" ../lzfse/lzfse.c -o ../dist/lzfse/lzfse.wasm
+
+hexdump -v -e '"%u,"' ../dist/lzfse/lzfse.wasm > ../dist/lzfse/lzfse.wasm.h

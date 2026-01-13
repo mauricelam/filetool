@@ -190,6 +190,13 @@ export const HANDLERS: HandlerDefinition[] = [
             }
         ]
     },
+    {
+        "name": "SEPolicy Analyzer",
+        "handler": "sepolicy/index.html",
+        "mimetypes": [
+            { "description": /^SE Linux policy/i }
+        ]
+    },
 ];
 
 export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {

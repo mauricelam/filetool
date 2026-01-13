@@ -7,11 +7,12 @@
     "watch": "BUILD_MODE=dev node build.mjs"
   },
   "dependencies": {
-    "wasmagic": "^1.0.2",
-    "file-type-detector": "file:../file-type-detector"
+    "file-type-detector": "file:../file-type-detector",
+    "wasmagic": "^1.0.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
+    "esbuild": "^0.27.2",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
     "typescript": "^5.3.3"
