@@ -108,6 +108,11 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "cborviewer",
         "mimetypes": ["application/cbor", { "filename": /\.cbor$/i }]
     },
+    {
+        "name": "DMG Viewer",
+        "handler": "dmg-viewer",
+        "mimetypes": [{ "filename": /\.dmg$/i }]
+    },
     { "name": "Hex", "handler": "hex_viewer", "mimetypes": [MIME_MATCH_ANY] },
     { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {
