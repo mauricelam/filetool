@@ -20,15 +20,15 @@ const SETTINGS = {
           watch: process.env['BUILD_MODE'] === 'dev',
         },
         {
-            from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
-            to: ["libmagic-wrapper.wasm"],
+          from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
+          to: ["libmagic-wrapper.wasm"],
         }
       ]
     }),
     rustWasm({
       projectDir: 'abxml-wasm-bindings',
-      outName: 'abxml-wasm-bindings', // wasm-pack will add _bg to the .wasm file, so this becomes abxml_wrapper_bg.wasm and abxml_wrapper.js
-      watchPaths: [ // Paths relative to projectDir (abxml-wasm-bindings)
+      outName: 'abxml-wasm-bindings',
+      watchPaths: [
         'src/**/*.rs',
         'Cargo.toml',
         // Watch paths for the dependent local workspace abxml-rs
