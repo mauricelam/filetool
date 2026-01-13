@@ -5,36 +5,43 @@ import { TopBar } from './TopBar';
 import { DropTarget } from './DropTarget';
 import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { processDataTransferItems } from './utils';
-import { IframeManager, IframeManagerHandle } from './IframeManager';
+import { IframeManager } from './IframeManager';
 
 export function App() {
-    const [magic, setMagic] = useState<WASMagic | null>(null);
-    const [mimeMagic, setMimeMagic] = useState<WASMagic | null>(null);
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
     const [isDragging, setIsDragging] = useState(false);
-    const [isAddFileHovered, setAddFileHovered] = useState(false);
+    const [activeHandler, setActiveHandler] = useState<{ file: File, magicMime: string, handler: string } | undefined>(undefined);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const iframeManagerRef = useRef<IframeManagerHandle>(null);
 
+    const handlePaste = async (e: ClipboardEvent) => {
+        e.preventDefault();
+        const files = Array.from(e.clipboardData?.items || [])
+            .filter(item => item.kind === 'file')
+            .map(item => item.getAsFile())
+            .filter((file): file is File => file !== null);
+
+        if (files.length > 0) {
+            handleAddFiles(files);
+            return;
+        }
+
+        const text = e.clipboardData?.getData('text/plain');
+        if (text) {
+            const file = new File([text], 'pasted.txt', { type: 'text/plain' });
+            handleAddFiles([file]);
+            return;
+        }
+    };
+
+    // Global paste handler
     useEffect(() => {
-        const magic = WASMagic.create({
-            flags: WASMagicFlags.NONE,
-            stdio: (name, text) => console.log(text)
-        });
-        const mimeMagic = WASMagic.create({
-            flags: WASMagicFlags.MIME_TYPE,
-            stdio: (name, text) => console.log(text)
-        });
-
-        Promise.all([magic, mimeMagic]).then(([magic, mimeMagic]) => {
-            setMagic(magic);
-            setMimeMagic(mimeMagic);
-        });
+        document.addEventListener('paste', handlePaste);
+        return () => document.removeEventListener('paste', handlePaste);
     }, []);
 
-    const openHandler = (handler: string, file: File, mime: string) => {
-        iframeManagerRef.current?.openHandler(handler, file, mime);
+    const openHandler = async (handler: string, file: File, mime: string) => {
+        setActiveHandler({ file, magicMime: mime, handler });
     };
 
     const handleAddFiles = (newFiles: File[]) => {
@@ -57,7 +64,6 @@ export function App() {
         setSelected(prev => Math.min(prev, files.length - 2));
     };
 
-    // Correct selection clamping when files change
     useEffect(() => {
         if (files.length > 0 && selected >= files.length) {
             setSelected(files.length - 1);
@@ -65,7 +71,6 @@ export function App() {
     }, [files.length, selected]);
 
 
-    // Handle Drop on Sidebar
     const onSidebarDrop = async (e: React.DragEvent<HTMLDivElement>) => {
         setIsDragging(false);
         e.preventDefault();
@@ -95,66 +100,6 @@ export function App() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [files]);
 
-    function LoadFileItem({ file }: { file: File }): ReactNode {
-        const [handlers, setHandlers] = useState<any[]>([]);
-        const [mime, setMime] = useState("");
-        const [description, setDescription] = useState("Loading...");
-
-        useEffect(() => {
-            const fun = async () => {
-                if (!magic || !mimeMagic) return;
-                const fileBuf = new Uint8Array(await file.arrayBuffer());
-                const mime = mimeMagic.detect(fileBuf);
-                const fileDescription = magic.detect(fileBuf);
-                const handlers = getHandlersForFileNameAndType(file.name, mime, fileDescription);
-                setMime(mime);
-                setHandlers(handlers);
-                setDescription(fileDescription);
-
-                if (window.history.state?.fileName !== file.name) {
-                    window.history.pushState({ fileName: file.name }, file.name);
-                }
-
-                const defaultHandlerId = getDefaultHandler(mime, file.name);
-                if (defaultHandlerId) {
-                    const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
-                    if (defaultHandlerConfig) {
-                        const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
-                        if (isMatch) {
-                            setTimeout(() => openHandler(defaultHandlerConfig.handler, file, mime), 0);
-                        }
-                    }
-                }
-            }
-            fun()
-        }, [file]);
-
-        const defaultHandler = getDefaultHandler(mime, file.name);
-        return (
-            <FileItem
-                key={file.name}
-                file={file}
-                name={file.name}
-                mimetype={mime}
-                description={description}
-                matchedHandlers={handlers}
-                allHandlers={HANDLERS}
-                initialActiveHandler={defaultHandler}
-                onOpenHandler={(handlerId, filename, mimetype) => {
-                    openHandler(handlerId, file, mimetype);
-                }}
-            />
-        )
-    }
-
-    if (!magic || !mimeMagic) {
-        return (
-            <div style={{ padding: 20 }}>
-                Loading WASMagic...
-            </div>
-        );
-    }
-
     return (
         <>
             <TopBar showToggle={files.length > 0} />
@@ -166,16 +111,17 @@ export function App() {
                     </>
                 ) : (
                     <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-                        <div style={{
-                            width: '200px',
-                            borderRight: '1px solid #ccc',
-                            padding: '8px',
-                            overflowY: 'auto',
-                            display: 'flex',
-                            flexShrink: 0,
-                            flexDirection: 'column',
-                            backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
-                        }}
+                        <div
+                            style={{
+                                width: '200px',
+                                borderRight: '1px solid #ccc',
+                                padding: '8px',
+                                overflowY: 'auto',
+                                display: 'flex',
+                                flexShrink: 0,
+                                flexDirection: 'column',
+                                backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
+                            }}
                             onDrop={onSidebarDrop}
                             onDragOver={(e) => {
                                 e.preventDefault();
@@ -204,17 +150,7 @@ export function App() {
                             </div>
                             <div
                                 onClick={() => fileInputRef.current?.click()}
-                                onMouseEnter={() => setAddFileHovered(true)}
-                                onMouseLeave={() => setAddFileHovered(false)}
-                                style={{
-                                    marginTop: '8px',
-                                    padding: '8px',
-                                    textAlign: 'center',
-                                    border: `1px dashed ${isAddFileHovered ? '#0066cc' : '#ccc'}`,
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    backgroundColor: isAddFileHovered ? '#e6f3ff' : 'transparent'
-                                }}
+                                className="add-file-button"
                             >
                                 Add file
                             </div>
@@ -227,12 +163,79 @@ export function App() {
                             />
                         </div>
                         <div id="result" style={{ flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' }}>
-                            {files[selected] && <LoadFileItem key={selected} file={files[selected]} />}
+                            {files[selected] && <LoadFileItem key={selected} file={files[selected]} openHandler={openHandler} />}
                         </div>
                     </div>
                 )}
             </div>
-            <IframeManager ref={iframeManagerRef} activeFile={files[selected]} />
+            <IframeManager activeHandler={activeHandler} />
         </>
     );
+}
+
+interface LoadFileItemProps {
+    file: File;
+    openHandler: (handler: string, file: File, mime: string) => Promise<void>;
+}
+
+function LoadFileItem({ file, openHandler }: LoadFileItemProps): ReactNode {
+    const [handlers, setHandlers] = useState<any[]>([]);
+    const [mime, setMime] = useState("");
+    const [description, setDescription] = useState("Loading...");
+
+    const magicPromise = WASMagic.create({
+        flags: WASMagicFlags.NONE,
+        stdio: (name, text) => console.log(text)
+    });
+    const mimeMagicPromise = WASMagic.create({
+        flags: WASMagicFlags.MIME_TYPE,
+        stdio: (name, text) => console.log(text)
+    });
+
+    useEffect(() => {
+        const effect = async () => {
+            const magic = await magicPromise;
+            const mimeMagic = await mimeMagicPromise;
+            const fileBuf = new Uint8Array(await file.arrayBuffer());
+            const mime = mimeMagic.detect(fileBuf);
+            const fileDescription = magic.detect(fileBuf);
+            const handlers = getHandlersForFileNameAndType(file.name, mime, fileDescription);
+            setMime(mime);
+            setHandlers(handlers);
+            setDescription(fileDescription);
+
+            if (window.history.state?.fileName !== file.name) {
+                window.history.pushState({ fileName: file.name }, file.name);
+            }
+
+            const defaultHandlerId = getDefaultHandler(mime, file.name);
+            if (defaultHandlerId) {
+                const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
+                if (defaultHandlerConfig) {
+                    const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
+                    if (isMatch) {
+                        setTimeout(() => openHandler(defaultHandlerConfig.handler, file, mime), 0);
+                    }
+                }
+            }
+        }
+        effect()
+    }, [file]);
+
+    const defaultHandler = getDefaultHandler(mime, file.name);
+    return (
+        <FileItem
+            key={file.name}
+            file={file}
+            name={file.name}
+            mimetype={mime}
+            description={description}
+            matchedHandlers={handlers}
+            allHandlers={HANDLERS}
+            initialActiveHandler={defaultHandler}
+            onOpenHandler={(handlerId, filename, mimetype) => {
+                openHandler(handlerId, file, mimetype);
+            }}
+        />
+    )
 }

@@ -1,4 +1,4 @@
-import React, { useRef, useState, DragEvent, useEffect } from 'react';
+import React, { useRef, useState, DragEvent } from 'react';
 import { processDataTransferItems } from './utils';
 
 export function DropTarget({ onFiles }: { onFiles: (files: File[]) => void }) {
@@ -16,33 +16,6 @@ export function DropTarget({ onFiles }: { onFiles: (files: File[]) => void }) {
             onFiles(files);
         }
     };
-
-    const handlePaste = async (e: ClipboardEvent) => {
-        e.preventDefault();
-        const files = Array.from(e.clipboardData?.items || [])
-            .filter(item => item.kind === 'file')
-            .map(item => item.getAsFile())
-            .filter((file): file is File => file !== null);
-
-        if (files.length > 0) {
-            onFiles(files);
-            return;
-        }
-
-        const text = e.clipboardData?.getData('text/plain');
-        if (text) {
-            const file = new File([text], 'pasted.txt', { type: 'text/plain' });
-            onFiles([file]);
-            return;
-        }
-    };
-
-    // Global paste handler
-    useEffect(() => {
-        document.addEventListener('paste', handlePaste);
-        return () => document.removeEventListener('paste', handlePaste);
-    }, []);
-
 
     return (
         <div id="droptarget"

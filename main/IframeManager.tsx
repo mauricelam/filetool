@@ -1,39 +1,27 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { IframeMessage } from "filemagic-common/messages";
 
-export interface IframeManagerHandle {
-    openHandler: (handler: string, file: File, mime: string) => Promise<void>;
-}
-
 interface IframeManagerProps {
-    activeFile: File | undefined;
+    activeHandler?: { file: File, magicMime: string, handler: string };
 }
 
-export const IframeManager = forwardRef<IframeManagerHandle, IframeManagerProps>(({ activeFile }, ref) => {
+export function IframeManager({ activeHandler }: IframeManagerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const iframes = useRef<HTMLIFrameElement[]>([]);
     const fileToIframe = useRef<Map<File, HTMLIFrameElement>>(new Map());
-    const iframeToMime = useRef<Map<HTMLIFrameElement, string>>(new Map());
+    const fileToMime = useRef<Map<File, string>>(new Map());
     const iframeToHandler = useRef<Map<HTMLIFrameElement, string>>(new Map());
     const MAX_IFRAMES = 5;
 
-    // helper to update visibility
-    const updateVisibility = () => {
-        iframes.current.forEach(f => f.style.display = 'none');
-        if (activeFile && fileToIframe.current.has(activeFile)) {
-            const iframe = fileToIframe.current.get(activeFile)!;
-            iframe.style.display = 'block';
-        }
-    };
-
-    useImperativeHandle(ref, () => ({
-        openHandler: async (handler: string, file: File, mime: string) => {
-            if (fileToIframe.current.has(file)) {
-                const iframe = fileToIframe.current.get(file)!;
-                if (iframeToHandler.current.get(iframe) !== handler) {
+    useEffect(() => {
+        const effect = async () => {
+            if (!activeHandler) return
+            if (fileToIframe.current.has(activeHandler.file)) {
+                const iframe = fileToIframe.current.get(activeHandler.file)!;
+                if (iframeToHandler.current.get(iframe) !== activeHandler.handler) {
                     iframe.removeAttribute('sandbox');
-                    iframe.src = handler;
-                    iframeToHandler.current.set(iframe, handler);
+                    iframe.src = activeHandler.handler;
+                    iframeToHandler.current.set(iframe, activeHandler.handler);
                 }
                 iframes.current.forEach(f => f.style.display = 'none');
                 iframe.style.display = 'block';
@@ -60,22 +48,27 @@ export const IframeManager = forwardRef<IframeManagerHandle, IframeManagerProps>
                 }
             }
 
-            fileToIframe.current.set(file, iframe);
-            iframeToMime.current.set(iframe, mime);
-            iframeToHandler.current.set(iframe, handler);
+            fileToIframe.current.set(activeHandler.file, iframe);
+            fileToMime.current.set(activeHandler.file, activeHandler.magicMime);
+            iframeToHandler.current.set(iframe, activeHandler.handler);
 
             iframes.current.forEach(f => f.style.display = 'none');
             iframe.style.display = 'block';
 
             iframe.removeAttribute('sandbox');
-            iframe.src = handler;
+            iframe.src = activeHandler.handler;
         }
-    }));
+        effect()
+    }, [activeHandler])
 
     // Sync visibility when activeFile changes from props
     useEffect(() => {
-        updateVisibility();
-    }, [activeFile]);
+        iframes.current.forEach(f => f.style.display = 'none');
+        if (activeHandler && fileToIframe.current.has(activeHandler.file)) {
+            const iframe = fileToIframe.current.get(activeHandler.file)!;
+            iframe.style.display = 'block';
+        }
+    }, [activeHandler]);
 
     // Message Listener
     useEffect(() => {
@@ -90,7 +83,7 @@ export const IframeManager = forwardRef<IframeManagerHandle, IframeManagerProps>
 
             if (file) {
                 const iframe = fileToIframe.current.get(file)!;
-                const mime = iframeToMime.current.get(iframe)!;
+                const mime = fileToMime.current.get(file)!;
                 if (e.data.action === 'requestFile') {
                     if (file.type !== mime) {
                         console.log("Mismatched mime types", file.type, mime);
@@ -112,4 +105,4 @@ export const IframeManager = forwardRef<IframeManagerHandle, IframeManagerProps>
     return (
         <div id="framecontainer" ref={containerRef}></div>
     );
-});
+}
