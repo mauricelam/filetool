@@ -4,7 +4,7 @@
   "description": "Binary plist viewer",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "BUILD_MODE=dev node build.mjs",
     "build": "node build.mjs"
   },
   "keywords": [],

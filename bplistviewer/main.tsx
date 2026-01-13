@@ -8,10 +8,6 @@ const App = () => {
     const [data, setData] = useState<Record<string, unknown> | null>(null);
 
     useEffect(() => {
-        if (window.parent) {
-            window.parent.postMessage({ action: 'requestFile' }, '*');
-        }
-
         window.onmessage = async (e) => {
             if (e.data.action === 'respondFile') {
                 try {
@@ -20,10 +16,17 @@ const App = () => {
                     const parsed = parseBuffer(buffer);
                     setData(parsed[0]);
                 } catch (err) {
-                    setData({ error: err.message });
+                    console.error(err);
+                    if (err instanceof Error) {
+                        setData({ error: err.message });
+                    }
                 }
             }
         };
+
+        if (window.parent) {
+            window.parent.postMessage({ action: 'requestFile' }, '*');
+        }
     }, []);
 
     return (

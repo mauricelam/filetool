@@ -13,7 +13,8 @@ const SETTINGS = {
             assets: [
                 {
                     from: './index.html',
-                    to: 'index.html'
+                    to: 'index.html',
+                    watch: isDev,
                 }
             ]
         })
