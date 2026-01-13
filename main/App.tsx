@@ -3,35 +3,39 @@ import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndTy
 import { FileItem, FileListItem } from "./fileitem";
 import { TopBar } from './TopBar';
 import { DropTarget } from './DropTarget';
-import { WASMagic } from 'wasmagic';
+import { WASMagic, WASMagicFlags } from 'wasmagic';
+import { processDataTransferItems } from './utils';
+import { IframeManager, IframeManagerHandle } from './IframeManager';
 
-interface AppProps {
-    openHandler: (handler: string, file: File, mime: string) => void;
-    magic: WASMagic;
-    mimeMagic: WASMagic;
-    iframes: HTMLIFrameElement[];
-    fileToIframe: Map<File, HTMLIFrameElement>;
-}
-
-// Helper for directory traversal (copied from DropTarget/main logic)
-async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
-    if (entry.isFile) {
-        yield await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
-    } else if (entry.isDirectory) {
-        const reader = (entry as FileSystemDirectoryEntry).createReader();
-        const entries = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
-        for (const child of entries) {
-            yield* traverse(child);
-        }
-    }
-}
-
-export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: AppProps) {
+export function App() {
+    const [magic, setMagic] = useState<WASMagic | null>(null);
+    const [mimeMagic, setMimeMagic] = useState<WASMagic | null>(null);
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
     const [isDragging, setIsDragging] = useState(false);
     const [isAddFileHovered, setAddFileHovered] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const iframeManagerRef = useRef<IframeManagerHandle>(null);
+
+    useEffect(() => {
+        const magic = WASMagic.create({
+            flags: WASMagicFlags.NONE,
+            stdio: (name, text) => console.log(text)
+        });
+        const mimeMagic = WASMagic.create({
+            flags: WASMagicFlags.MIME_TYPE,
+            stdio: (name, text) => console.log(text)
+        });
+
+        Promise.all([magic, mimeMagic]).then(([magic, mimeMagic]) => {
+            setMagic(magic);
+            setMimeMagic(mimeMagic);
+        });
+    }, []);
+
+    const openHandler = (handler: string, file: File, mime: string) => {
+        iframeManagerRef.current?.openHandler(handler, file, mime);
+    };
 
     const handleAddFiles = (newFiles: File[]) => {
         setFiles(cur => {
@@ -46,22 +50,11 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
             const newFiles = [...cur];
             newFiles.splice(index, 1);
             if (selected >= newFiles.length) {
-                // Adjust selected index if it was the last one or after
-                // If we removed the last item, selected should point to the new last item (length - 1)
-                // If we removed an item before selected, selected should ideally shift?
-                // For simplicity, just clamp it.
-                // If files empty, selects -1 potentially but check logic handles files.length > 0
                 return newFiles;
             }
             return newFiles;
         });
-        // Also ensure selected index is valid after render
         setSelected(prev => Math.min(prev, files.length - 2));
-        // Wait, files.length is old length. New length is length - 1. 
-        // Logic inside setFiles doesn't update 'selected' state directly unless we call setSelected.
-        // Better logic:
-        // If we remove the item at 'selected', we show the previous one or the next one?
-        // Let's rely on the useEffect clamping or just clamp here.
     };
 
     // Correct selection clamping when files change
@@ -77,26 +70,8 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
         setIsDragging(false);
         e.preventDefault();
 
-        const newFiles: File[] = [];
-        const items = Array.from(e.dataTransfer!.items);
-
-        for (const item of items) {
-            const entry = item.webkitGetAsEntry();
-            if (entry) {
-                for await (const file of traverse(entry)) {
-                    newFiles.push(file);
-                }
-            } else if (item.kind === 'file') {
-                const file = item.getAsFile();
-                if (file) {
-                    newFiles.push(file);
-                }
-            }
-        }
-
-        if (newFiles.length > 0) {
-            handleAddFiles(newFiles);
-        }
+        const files = await processDataTransferItems(e.dataTransfer!.items);
+        handleAddFiles(files);
     }
 
     useEffect(() => {
@@ -120,16 +95,6 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
         return () => window.removeEventListener('popstate', handlePopState);
     }, [files]);
 
-    useEffect(() => {
-        if (files.length > 0) {
-            const selectedFile = files[selected];
-            iframes.forEach(f => f.style.display = 'none');
-            if (selectedFile && fileToIframe.has(selectedFile)) {
-                fileToIframe.get(selectedFile)!.style.display = 'block';
-            }
-        }
-    }, [files, selected, iframes, fileToIframe]);
-
     function LoadFileItem({ file }: { file: File }): ReactNode {
         const [handlers, setHandlers] = useState<any[]>([]);
         const [mime, setMime] = useState("");
@@ -137,6 +102,7 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
 
         useEffect(() => {
             const fun = async () => {
+                if (!magic || !mimeMagic) return;
                 const fileBuf = new Uint8Array(await file.arrayBuffer());
                 const mime = mimeMagic.detect(fileBuf);
                 const fileDescription = magic.detect(fileBuf);
@@ -179,6 +145,14 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
                 }}
             />
         )
+    }
+
+    if (!magic || !mimeMagic) {
+        return (
+            <div style={{ padding: 20 }}>
+                Loading WASMagic...
+            </div>
+        );
     }
 
     return (
@@ -258,7 +232,7 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
                     </div>
                 )}
             </div>
-
+            <IframeManager ref={iframeManagerRef} activeFile={files[selected]} />
         </>
     );
 }

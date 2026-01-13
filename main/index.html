@@ -12,8 +12,12 @@
         }
 
         body {
-            display: flex;
             margin: 0;
+            height: 100%;
+        }
+
+        #root {
+            display: flex;
             flex-direction: column;
             height: 100%;
             box-sizing: border-box;
@@ -88,10 +92,6 @@
             pointer-events: none;
         }
 
-        #result:not(:empty) {
-            flex-grow: 999;
-        }
-
         #framecontainer {
             flex-grow: 100;
         }
@@ -120,7 +120,7 @@
             background-color: rgba(255, 255, 255, 0.1);
         }
 
-        .collapsed #basicinfo {
+        .collapsed+#basicinfo {
             display: none;
         }
 
@@ -131,7 +131,7 @@
             transition: padding 0.2s;
         }
 
-        .collapsed nav {
+        nav.collapsed {
             padding: 4px 8px;
         }
 
@@ -154,8 +154,6 @@
 
 <body>
     <div id="root"></div>
-    <div id="framecontainer"></div>
-    <input type="file" id="fileinput" style="display: none;" multiple />
 </body>
 <script src="main.js" type="module"></script>
 

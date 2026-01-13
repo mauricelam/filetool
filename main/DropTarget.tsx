@@ -1,16 +1,5 @@
-import React, { useRef, useState, DragEvent, ClipboardEvent, useEffect } from 'react';
-
-async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
-    if (entry.isFile) {
-        yield await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
-    } else if (entry.isDirectory) {
-        const reader = (entry as FileSystemDirectoryEntry).createReader();
-        const entries = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
-        for (const child of entries) {
-            yield* traverse(child);
-        }
-    }
-}
+import React, { useRef, useState, DragEvent, useEffect } from 'react';
+import { processDataTransferItems } from './utils';
 
 export function DropTarget({ onFiles }: { onFiles: (files: File[]) => void }) {
     const fileInput = useRef<HTMLInputElement>(null);
@@ -22,29 +11,13 @@ export function DropTarget({ onFiles }: { onFiles: (files: File[]) => void }) {
         setDropOver(false);
         e.preventDefault();
 
-        const files: File[] = [];
-        const items = Array.from(e.dataTransfer!.items);
-
-        for (const item of items) {
-            const entry = item.webkitGetAsEntry();
-            if (entry) {
-                for await (const file of traverse(entry)) {
-                    files.push(file);
-                }
-            } else if (item.kind === 'file') {
-                const file = item.getAsFile();
-                if (file) {
-                    files.push(file);
-                }
-            }
-        }
-
+        const files = await processDataTransferItems(e.dataTransfer!.items);
         if (files.length > 0) {
             onFiles(files);
         }
     };
 
-    const handlePaste = async (e: ClipboardEvent<HTMLDivElement>) => {
+    const handlePaste = async (e: ClipboardEvent) => {
         e.preventDefault();
         const files = Array.from(e.clipboardData?.items || [])
             .filter(item => item.kind === 'file')
@@ -66,13 +39,9 @@ export function DropTarget({ onFiles }: { onFiles: (files: File[]) => void }) {
 
     // Global paste handler
     useEffect(() => {
-        const globalPasteHandler = (e: globalThis.ClipboardEvent) => {
-            // Need to cast to React's event type for handlePaste
-            handlePaste(e as unknown as ClipboardEvent<HTMLDivElement>);
-        };
-        document.addEventListener('paste', globalPasteHandler);
-        return () => document.removeEventListener('paste', globalPasteHandler);
-    }, [onFiles]);
+        document.addEventListener('paste', handlePaste);
+        return () => document.removeEventListener('paste', handlePaste);
+    }, []);
 
 
     return (
