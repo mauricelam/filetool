@@ -15,6 +15,7 @@ await esbuild.build({
         rustWasm({
             projectDir: 'dmg-wasm',
             outName: 'dmg-wasm',
+            watchPaths: ['src/**/*.rs']
         }),
         copy({
             assets: [
@@ -31,6 +32,5 @@ await esbuild.build({
     format: 'esm',
     define: {
         'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
-    },
-    external: ['./dmg-wasm']
+    }
 });

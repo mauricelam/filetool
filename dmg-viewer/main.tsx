@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import init, { parse_dmg, DmgInfo } from './dmg-wasm';
-
+import init, { parse_dmg, DmgInfo } from './dmg-wasm/pkg';
 // Request file from parent window
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' });
