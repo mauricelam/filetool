@@ -40,10 +40,6 @@ export function App() {
         return () => document.removeEventListener('paste', handlePaste);
     }, []);
 
-    const openHandler = async (handler: string, file: File, mime: string) => {
-        setActiveHandler({ file, magicMime: mime, handler });
-    };
-
     const handleAddFiles = (newFiles: File[]) => {
         setFiles(cur => {
             const updatedFiles = [...cur, ...newFiles];
@@ -163,7 +159,15 @@ export function App() {
                             />
                         </div>
                         <div id="result" style={{ flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' }}>
-                            {files[selected] && <LoadFileItem key={selected} file={files[selected]} openHandler={openHandler} />}
+                            {files[selected] &&
+                                <LoadFileItem
+                                    key={selected}
+                                    file={files[selected]}
+                                    openHandler={(handler: string, file: File, mime: string) => {
+                                        setActiveHandler({ file, magicMime: mime, handler });
+                                    }}
+                                />
+                            }
                         </div>
                     </div>
                 )}
@@ -175,7 +179,7 @@ export function App() {
 
 interface LoadFileItemProps {
     file: File;
-    openHandler: (handler: string, file: File, mime: string) => Promise<void>;
+    openHandler: (handler: string, file: File, mime: string) => void;
 }
 
 function LoadFileItem({ file, openHandler }: LoadFileItemProps): ReactNode {
@@ -233,9 +237,7 @@ function LoadFileItem({ file, openHandler }: LoadFileItemProps): ReactNode {
             matchedHandlers={handlers}
             allHandlers={HANDLERS}
             initialActiveHandler={defaultHandler}
-            onOpenHandler={(handlerId, filename, mimetype) => {
-                openHandler(handlerId, file, mimetype);
-            }}
+            onOpenHandler={openHandler}
         />
     )
 }

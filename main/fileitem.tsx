@@ -29,7 +29,7 @@ interface FileItemProps {
     description: string;
     matchedHandlers: HandlerDefinition[];
     allHandlers: HandlerDefinition[];
-    onOpenHandler: (handlerId: string, filename: string, mimetype: string) => void;
+    onOpenHandler: (handlerId: string, file: File, mimetype: string) => void;
     initialActiveHandler?: string;
 }
 
@@ -179,7 +179,7 @@ export function FileItem(
                                         <button
                                             onClick={() => {
                                                 setActiveHandlerId(handlerConfig.handler);
-                                                onOpenHandler(handlerConfig.handler, name, mimetype);
+                                                onOpenHandler(handlerConfig.handler, file, mimetype);
                                             }}
                                             style={style}
                                         >
@@ -268,7 +268,7 @@ export function FileItem(
                                         <button
                                             key={handler.handler}
                                             onClick={() => {
-                                                onOpenHandler(handler.handler, name, mimetype);
+                                                onOpenHandler(handler.handler, file, mimetype);
                                                 setOtherHandlersDialogOpen(false);
                                             }}
                                             className="handler-button"
