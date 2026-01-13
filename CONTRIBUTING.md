@@ -226,8 +226,10 @@ npm run build -w workspace-name
 Many handlers use WebAssembly for performance-critical operations:
 
 - **Rust WASM**: Use `wasm-pack` for compilation
+  - Wasm-pack can be installed via `cargo install wasm-pack` or `npm install -g wasm-pack`.
 - **Go WASM**: Use `GOOS=js GOARCH=wasm go build`
 - **C/C++ WASM**: Use Emscripten
+  - Emscripten can be installed by cloning https://github.com/emscripten-core/emsdk.git outside of this project directory and running `./emsdk install latest` and `./emsdk activate latest`.
 
 Ensure WASM files are properly bundled and accessible in the browser.
 
