@@ -5,7 +5,7 @@ import { Buffer } from 'buffer';
 import { parseBuffer } from './parser';
 
 const App = () => {
-    const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<Record<string, unknown> | null>(null);
 
     useEffect(() => {
         if (window.parent) {

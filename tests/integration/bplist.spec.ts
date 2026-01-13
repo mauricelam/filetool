@@ -1,27 +1,21 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
+import { runHandlerTest } from './test-utils';
 
 test('BplistViewer should display the content of a binary plist file', async ({ page }) => {
-  await page.goto('/filetool/tests/integration/driver.html');
+    const filePath = path.resolve(__dirname, '../fixtures/sample.bplist');
+    const fileContent = fs.readFileSync(filePath);
 
-  const filePath = path.resolve(__dirname, '../fixtures/sample.plist');
-  const buffer = fs.readFileSync(filePath);
+    const iframe = await runHandlerTest(page, {
+        handler: 'bplistviewer',
+        file: {
+            content: fileContent,
+            name: 'sample.bplist',
+            type: 'application/x-plist'
+        }
+    });
 
-  await page.evaluate(async ({ buffer }) => {
-    const file = new File([buffer], 'sample.plist', { type: 'application/x-plist' });
-
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-    window.postMessage({
-      action: 'setFile',
-      files: dataTransfer.files,
-      handler: 'bplistviewer'
-    }, '*');
-  }, { buffer });
-
-  await page.waitForSelector('iframe');
-  const iframe = await page.frameLocator('iframe');
-  await expect(iframe.locator('text="some-key"')).toBeVisible();
-  await expect(iframe.locator('text="some-value"')).toBeVisible();
+    await expect(iframe.locator('text="some-key"')).toBeVisible();
+    await expect(iframe.locator('text="some-value"')).toBeVisible();
 });

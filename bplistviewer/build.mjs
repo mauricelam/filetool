@@ -1,19 +1,35 @@
 import * as esbuild from 'esbuild';
-import * as fs from 'fs';
-import * as path from 'path';
+import { copy } from 'esbuild-plugin-copy';
+import process from 'process';
 
-const outdir = '../dist/bplistviewer';
+const isDev = process.env.BUILD_MODE === 'dev';
 
-fs.rmSync(outdir, { recursive: true, force: true });
-fs.mkdirSync(outdir, { recursive: true });
-fs.cpSync('index.html', path.join(outdir, 'index.html'));
-
-await esbuild.build({
+const SETTINGS = {
     entryPoints: ['main.tsx'],
     bundle: true,
-    outfile: path.join(outdir, 'main.js'),
+    outdir: '../dist/bplistviewer',
+    plugins: [
+        copy({
+            assets: [
+                {
+                    from: './index.html',
+                    to: 'index.html'
+                }
+            ]
+        })
+    ],
+    sourcemap: isDev,
+    minify: !isDev,
+    target: ['es2020'],
     format: 'esm',
-    define: {
-        'process.env.NODE_ENV': '"production"',
-    }
-}).catch(() => process.exit(1));
+};
+
+if (isDev) {
+    const ctx = await esbuild.context({
+        ...SETTINGS,
+        sourcemap: true,
+    });
+    await ctx.watch();
+} else {
+    await esbuild.build({ ...SETTINGS, minify: true });
+}
