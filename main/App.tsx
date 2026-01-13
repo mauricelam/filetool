@@ -1,18 +1,15 @@
 import React, { ReactNode, useEffect, useState, useRef } from 'react';
 import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndType } from 'file-type-detector';
-import { FileItem, FileListItem } from "./fileitem";
+import { FileItem } from "./fileitem";
 import { TopBar } from './TopBar';
-import { DropTarget } from './DropTarget';
 import { WASMagic, WASMagicFlags } from 'wasmagic';
-import { processDataTransferItems } from './utils';
 import { IframeManager } from './IframeManager';
+import { FileList } from './FileList';
 
 export function App() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
-    const [isDragging, setIsDragging] = useState(false);
     const [activeHandler, setActiveHandler] = useState<{ file: File, magicMime: string, handler: string } | undefined>(undefined);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handlePaste = async (e: ClipboardEvent) => {
         e.preventDefault();
@@ -52,9 +49,6 @@ export function App() {
         setFiles(cur => {
             const newFiles = [...cur];
             newFiles.splice(index, 1);
-            if (selected >= newFiles.length) {
-                return newFiles;
-            }
             return newFiles;
         });
         setSelected(prev => Math.min(prev, files.length - 2));
@@ -65,15 +59,6 @@ export function App() {
             setSelected(files.length - 1);
         }
     }, [files.length, selected]);
-
-
-    const onSidebarDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-        setIsDragging(false);
-        e.preventDefault();
-
-        const files = await processDataTransferItems(e.dataTransfer!.items);
-        handleAddFiles(files);
-    }
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
@@ -100,77 +85,26 @@ export function App() {
         <>
             <TopBar showToggle={files.length > 0} />
             <div id="basicinfo">
-                {files.length === 0 ? (
-                    <>
-                        <DropTarget onFiles={handleAddFiles} />
-                        <div id="result"></div>
-                    </>
-                ) : (
-                    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-                        <div
-                            style={{
-                                width: '200px',
-                                borderRight: '1px solid #ccc',
-                                padding: '8px',
-                                overflowY: 'auto',
-                                display: 'flex',
-                                flexShrink: 0,
-                                flexDirection: 'column',
-                                backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
-                            }}
-                            onDrop={onSidebarDrop}
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                e.dataTransfer.dropEffect = 'copy';
-                            }}
-                            onDragEnter={(e) => {
-                                e.preventDefault();
-                                setIsDragging(true);
-                            }}
-                            onDragLeave={(e) => {
-                                e.preventDefault();
-                                setIsDragging(false);
-                            }}
-                        >
-                            <div style={{ flexGrow: 1 }}>
-                                {files.map((file, index) => (
-                                    <FileListItem
-                                        key={`${file.name}-${file.lastModified}-${index}`}
-                                        file={file}
-                                        selected={index === selected}
-                                        onClick={() => setSelected(index)}
-                                        onRemove={() => removeFile(index)}
-                                    />
-                                ))}
-                            </div>
-                            <div
-                                onClick={() => fileInputRef.current?.click()}
-                                className="add-file-button"
-                            >
-                                Add file
-                            </div>
-                            <input
-                                type="file"
-                                style={{ display: 'none' }}
-                                multiple
-                                ref={fileInputRef}
-                                onChange={(e) => e.target.files && handleAddFiles(Array.from(e.target.files))}
+                <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+                    <FileList
+                        files={files}
+                        selected={selected}
+                        onSelect={setSelected}
+                        onRemove={removeFile}
+                        onAddFiles={handleAddFiles}
+                    />
+                    <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
+                        {files[selected] &&
+                            <LoadFileItem
+                                key={selected}
+                                file={files[selected]}
+                                openHandler={(handler: string, file: File, mime: string) => {
+                                    setActiveHandler({ file, magicMime: mime, handler });
+                                }}
                             />
-                        </div>
-                        <div id="result" style={{ flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' }}>
-                            {files[selected] &&
-                                <LoadFileItem
-                                    key={selected}
-                                    file={files[selected]}
-                                    openHandler={(handler: string, file: File, mime: string) => {
-                                        setActiveHandler({ file, magicMime: mime, handler });
-                                    }}
-                                />
-                            }
-                        </div>
+                        }
                     </div>
-                )}
+                </div>
             </div>
             <IframeManager activeHandler={activeHandler} />
         </>
