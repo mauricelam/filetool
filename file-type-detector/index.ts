@@ -183,7 +183,7 @@ export const HANDLERS: HandlerDefinition[] = [
             { "mime": "application/octet-stream", "description": /DER Encoded PKCS#7 Signed Data/i }
         ]
     },
-    { "name": "Protoscope", "handler": "protoscope", "mimetypes": [{ "mime": "application/x-protobuf" }, { "filename": /\.pb$/i }, { "filename": /\.binbp$/i }] },
+    { "name": "Protoscope", "handler": "protoscope", "mimetypes": [{ "mime": "application/x-protobuf" }, { "filename": /\.pb$/i }, { "filename": /\.binarypb$/i }] },
     { "name": "SQLite Viewer", "handler": "sqliteviewer", "mimetypes": [{ "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3"] },
     { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /(\.(map|mapping)|proguard\.txt)$/i }] },
     {
