@@ -326,20 +326,20 @@ function FileList() {
                     onClick={() => fileInput.click()}
                     onDrop={onDrop}
                     onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.dataTransfer.dropEffect = 'copy';
-                }}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#434343">
-                    <path
-                        d="M186.67-120q-27.5 0-47.09-19.58Q120-159.17 120-186.67v-426.66q0-27.5 19.58-47.09Q159.17-680 186.67-680H380v66.67H186.67v426.66h586.66v-426.66H580V-680h193.33q27.5 0 47.09 19.58Q840-640.83 840-613.33v426.66q0 27.5-19.58-47.09Q800.83-120 773.33-120H186.67ZM480-322 318.67-483.33 366-530.67l80.67 80.34V-960h66.66v509.67L594-530.67l47.33 47.34L480-322Z" />
-                </svg>
-                <div>Drop file here</div>
-                <div style={{ color: '#666', fontSize: 'smaller' }}>
-                    or {navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? 'Cmd-V' : 'Ctrl-V'} to paste
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'copy';
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#434343">
+                        <path
+                            d="M186.67-120q-27.5 0-47.09-19.58Q120-159.17 120-186.67v-426.66q0-27.5 19.58-47.09Q159.17-680 186.67-680H380v66.67H186.67v426.66h586.66v-426.66H580V-680h193.33q27.5 0 47.09 19.58Q840-640.83 840-613.33v426.66q0 27.5-19.58-47.09Q800.83-120 773.33-120H186.67ZM480-322 318.67-483.33 366-530.67l80.67 80.34V-960h66.66v509.67L594-530.67l47.33 47.34L480-322Z" />
+                    </svg>
+                    <div>Drop file here</div>
+                    <div style={{ color: '#666', fontSize: 'smaller' }}>
+                        or {navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? 'Cmd-V' : 'Ctrl-V'} to paste
+                    </div>
                 </div>
-            </div>
             </div>
         )
     }

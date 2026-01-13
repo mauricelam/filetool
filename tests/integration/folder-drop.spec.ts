@@ -1,4 +1,3 @@
-
 import { test, expect } from '@playwright/test';
 
 test('should correctly handle a folder drop', async ({ page }) => {
