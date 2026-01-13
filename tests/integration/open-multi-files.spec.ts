@@ -1,7 +1,6 @@
-
 import { test, expect } from '@playwright/test';
 
-test('should correctly handle a folder drop', async ({ page }) => {
+test('should correctly handle opening multiple files', async ({ page }) => {
     await page.goto('/filetool/');
 
     // Wait for the drop target to be ready
@@ -18,19 +17,18 @@ test('should correctly handle a folder drop', async ({ page }) => {
         window.dispatchEvent(new CustomEvent('openFiles', { detail: files }));
     });
 
-    // Wait for the pager to show "3 / 3" since the last file is selected by default
-    await expect(page.getByText('3 / 3')).toBeVisible();
+    // Check that all files are in the list
+    await expect(page.locator('span', { hasText: 'test1.txt' })).toBeVisible();
+    await expect(page.locator('span', { hasText: 'test2.txt' })).toBeVisible();
+    await expect(page.locator('span', { hasText: 'test3.txt' })).toBeVisible();
 
     // Check that the last file is displayed
     await expect(page.locator('.filename')).toHaveCount(1);
-    await expect(page.getByText('test3.txt')).toBeVisible();
+    await expect(page.locator('.filename')).toHaveText('test3.txt');
 
-    // Click the pager to navigate to the first file
-    await page.getByText('◀').click();
-    await page.getByText('◀').click();
-
+    // Click the first file in the list
+    await page.locator('span', { hasText: 'test1.txt' }).click();
 
     // Check that the first file is now displayed
-    await expect(page.getByText('1 / 3')).toBeVisible();
-    await expect(page.getByText('test1.txt')).toBeVisible();
+    await expect(page.locator('.filename')).toHaveText('test1.txt');
 });
