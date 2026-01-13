@@ -1,135 +1,24 @@
 import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
-import React, { ReactNode, useEffect, useState } from 'react';
-import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndType } from 'file-type-detector';
-import { FileItem } from "./fileitem";
+import React from 'react';
 import { IframeMessage } from "filemagic-common/messages";
-
-const dropTarget = document.getElementById('droptarget')!!
-const fileInput = document.getElementById('fileinput') as HTMLInputElement
-const pasteHint = document.getElementById('paste-hint')!!
-
-const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
-
-const infoToggle = document.getElementById('info-toggle')!!
-const iconDown = document.getElementById('toggle-icon-down')!!
-const iconUp = document.getElementById('toggle-icon-up')!!
-
-infoToggle.onclick = () => {
-    document.body.classList.toggle('collapsed');
-    const isCollapsed = document.body.classList.contains('collapsed');
-    iconDown.style.display = isCollapsed ? 'none' : 'block';
-    iconUp.style.display = isCollapsed ? 'block' : 'none';
-};
-
-fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
-dropTarget.onclick = (e) => fileInput.click();
-dropTarget.addEventListener('drop', async (e) => {
-    dropTarget.classList.remove('dropover');
-    e.preventDefault();
-
-    const files: File[] = [];
-    const items = Array.from(e.dataTransfer!.items);
-
-    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
-        return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
-    };
-    const getFile = (entry: FileSystemFileEntry): Promise<File> => {
-        return new Promise((resolve, reject) => entry.file(resolve, reject))
-    };
-
-    async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
-        if (entry.isFile) {
-            yield await getFile(entry as FileSystemFileEntry);
-        } else if (entry.isDirectory) {
-            const reader = (entry as FileSystemDirectoryEntry).createReader();
-            for (const entry of await readEntries(reader)) {
-                yield* traverse(entry)
-            }
-        }
-    };
-
-    for (const item of items) {
-        const entry = item.webkitGetAsEntry();
-        if (entry) {
-            for await (const file of traverse(entry)) {
-                files.push(file);
-            }
-        } else if (item.kind === 'file') {
-            const file = item.getAsFile();
-            if (file) {
-                files.push(file);
-            }
-        } else {
-            alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
-            console.warn('Unsupported drop item:', item);
-        }
-    }
-
-    if (files.length > 0) {
-        dispatchOpenFiles(files);
-    }
-}, false);
-
-dropTarget.addEventListener('dragend', (e) => {
-    dropTarget.classList.remove('dropover')
-    e.preventDefault();
-}, false);
-dropTarget.addEventListener('dragover', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer!.dropEffect = 'copy'
-}, false);
-dropTarget.addEventListener('dragenter', (e) => {
-    dropTarget.classList.add('dropover')
-    e.preventDefault()
-}, false);
-dropTarget.addEventListener('dragleave', (e) => {
-    dropTarget.classList.remove('dropover')
-    e.preventDefault()
-}, false);
-
-document.ondragover = (e) => {
-    e.dataTransfer!.dropEffect = 'none'
-    e.dataTransfer!.effectAllowed = 'none'
-    e.preventDefault()
-}
-document.ondragend = (e) => e.preventDefault()
-document.ondrop = (e) => e.preventDefault()
-
-document.addEventListener('paste', async (e) => {
-    e.preventDefault();
-    const files = Array.from(e.clipboardData?.items || [])
-        .filter(item => item.kind === 'file')
-        .map(item => item.getAsFile())
-        .filter((file): file is File => file !== null);
-
-    if (files.length > 0) {
-        dispatchOpenFiles(files);
-        return;
-    }
-
-    const text = e.clipboardData?.getData('text/plain');
-    if (text) {
-        const file = new File([text], 'pasted.txt', { type: 'text/plain' });
-        dispatchOpenFiles([file]);
-        return;
-    }
-
-    alert('Cannot parse information from clipboard');
-});
+import { App } from "./App";
 
 const MAGIC = WASMagic.create({
     flags: WASMagicFlags.NONE,
     stdio: (name, text) => console.log(text)
-})
+});
 const MIMEMAGIC = WASMagic.create({
     flags: WASMagicFlags.MIME_TYPE,
     stdio: (name, text) => console.log(text)
-})
-const resultDiv = createRoot(document.getElementById("result")!)
-resultDiv.render(<FileList />)
+});
+
+const root = createRoot(document.getElementById("root")!);
+
+Promise.all([MAGIC, MIMEMAGIC]).then(([magic, mimeMagic]) => {
+    root.render(<App openHandler={openHandler} magic={magic} mimeMagic={mimeMagic} iframes={iframes} fileToIframe={fileToIframe} />);
+});
+
 setupMessageListener();
 
 function setupMessageListener() {
@@ -159,10 +48,6 @@ function setupMessageListener() {
             }
         }
     };
-}
-
-function dispatchOpenFiles(files: File[]) {
-    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
 }
 
 const framecontainer = document.getElementById('framecontainer')!
@@ -211,126 +96,4 @@ async function openHandler(handler: string, file: File, mime: string) {
 
     iframe.removeAttribute('sandbox');
     iframe.src = handler;
-}
-
-function FileList() {
-    const [selected, setSelected] = useState(0)
-    const [files, setFiles] = useState<File[]>([])
-
-    useEffect(() => {
-        const handleOpenFile = (e: CustomEvent<File[]>) => {
-            setFiles(cur => {
-                const newFiles = [...cur, ...e.detail];
-                setSelected(newFiles.length > 0 ? newFiles.length - 1 : 0);
-                return newFiles;
-            });
-        }
-        window.addEventListener("openFiles", handleOpenFile as EventListener, false)
-        return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
-    }, [setFiles, setSelected])
-
-    useEffect(() => {
-        if (files.length > 0) {
-            infoToggle.style.display = 'flex';
-        } else {
-            infoToggle.style.display = 'none';
-            document.body.classList.remove('collapsed');
-            iconDown.style.display = 'block';
-            iconUp.style.display = 'none';
-        }
-    }, [files]);
-
-    useEffect(() => {
-        const handlePopState = (event: PopStateEvent) => {
-            if (event.state && event.state.fileName) {
-                const fileIndex = files.findIndex(f => f.name === event.state.fileName);
-                if (fileIndex !== -1) {
-                    setSelected(fileIndex);
-                }
-            }
-        };
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, [files, setSelected]);
-
-    if (files.length) {
-        const selectedFile = files[selected];
-        iframes.forEach(f => f.style.display = 'none');
-        if (selectedFile && fileToIframe.has(selectedFile)) {
-            fileToIframe.get(selectedFile)!.style.display = 'block';
-        }
-
-        return (
-            <>
-                <div style={{ display: files.length <= 1 ? 'none' : 'block', position: 'absolute', top: 0, right: 0, userSelect: 'none' }}>
-                    <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.max(0, i - 1))}>◀</a>
-                    <span>{selected + 1} / {files.length}</span>
-                    <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.min(files.length - 1, i + 1))}>▶</a>
-                </div>
-                {files.length ? <LoadFileItem key={selected} file={files[selected]} /> : undefined}
-            </>
-        )
-    } else {
-        return <></>
-    }
-}
-
-function LoadFileItem({ file }: { file: File }): ReactNode {
-    const [handlers, setHandlers] = useState<any[]>([])
-    const [mime, setMime] = useState("")
-    const [description, setDescription] = useState("Loading...")
-    useEffect(() => {
-        const fun = async () => {
-            const [magic, mimeMagic] = await Promise.all([MAGIC, MIMEMAGIC])
-            const fileBuf = new Uint8Array(await file.arrayBuffer())
-            const mime = mimeMagic.detect(fileBuf)
-            const fileDescription = magic.detect(fileBuf) // Store description
-            const handlers = getHandlersForFileNameAndType(file.name, mime, fileDescription);
-            setMime(_ => mime)
-            setHandlers(_ => handlers)
-            setDescription(_ => fileDescription)
-
-            // Push new state to history
-            if (window.history.state?.fileName !== file.name) {
-                window.history.pushState({
-                    fileName: file.name,
-                }, file.name);
-            }
-
-            // Check for and use default handler
-            const defaultHandlerId = getDefaultHandler(mime, file.name);
-            if (defaultHandlerId) {
-                const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
-                if (defaultHandlerConfig) {
-                    const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
-                    if (isMatch) {
-                        setTimeout(
-                            () => openHandler(defaultHandlerConfig.handler, file, mime),
-                            0);
-                    } else {
-                        console.warn(`Default handler '${defaultHandlerId}' no longer matches file '${file.name}' (mime: '${mime}').`);
-                    }
-                } else {
-                    console.warn(`Default handler '${defaultHandlerId}' not found in HANDLERS configuration.`);
-                }
-            }
-        }
-        fun()
-    }, [setHandlers, setDescription, setMime, file])
-    const defaultHandler = getDefaultHandler(mime, file.name);
-    return (
-        <FileItem
-            key={file.name}
-            file={file}
-            name={file.name}
-            mimetype={mime}
-            description={description}
-            matchedHandlers={handlers}
-            allHandlers={HANDLERS}
-            initialActiveHandler={defaultHandler}
-            onOpenHandler={(handlerId, filename, mimetype) => {
-                openHandler(handlerId, file, mimetype);
-            }}
-        />
-    )
 }
