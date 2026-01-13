@@ -2,15 +2,10 @@ import { WASMagic, WASMagicFlags } from "wasmagic";
 import { createRoot } from 'react-dom/client';
 import React, { ReactNode, useEffect, useState } from 'react';
 import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndType } from 'file-type-detector';
-import { FileItem } from "./fileitem";
+import { FileItem, FileListItem } from "./fileitem";
 import { IframeMessage } from "filemagic-common/messages";
 
-const dropTarget = document.getElementById('droptarget')!!
-const fileInput = document.getElementById('fileinput') as HTMLInputElement
-const pasteHint = document.getElementById('paste-hint')!!
-
-const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-pasteHint.innerText = isMac ? 'or Cmd-V to paste' : 'or Ctrl-V to paste';
+const fileInput = document.getElementById('fileinput') as HTMLInputElement;
 
 const infoToggle = document.getElementById('info-toggle')!!
 const iconDown = document.getElementById('toggle-icon-down')!!
@@ -24,71 +19,6 @@ infoToggle.onclick = () => {
 };
 
 fileInput.onchange = (e) => fileInput.files && dispatchOpenFiles(Array.from(fileInput.files));
-dropTarget.onclick = (e) => fileInput.click();
-dropTarget.addEventListener('drop', async (e) => {
-    dropTarget.classList.remove('dropover');
-    e.preventDefault();
-
-    const files: File[] = [];
-    const items = Array.from(e.dataTransfer!.items);
-
-    const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
-        return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
-    };
-    const getFile = (entry: FileSystemFileEntry): Promise<File> => {
-        return new Promise((resolve, reject) => entry.file(resolve, reject))
-    };
-
-    async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
-        if (entry.isFile) {
-            yield await getFile(entry as FileSystemFileEntry);
-        } else if (entry.isDirectory) {
-            const reader = (entry as FileSystemDirectoryEntry).createReader();
-            for (const entry of await readEntries(reader)) {
-                yield* traverse(entry)
-            }
-        }
-    };
-
-    for (const item of items) {
-        const entry = item.webkitGetAsEntry();
-        if (entry) {
-            for await (const file of traverse(entry)) {
-                files.push(file);
-            }
-        } else if (item.kind === 'file') {
-            const file = item.getAsFile();
-            if (file) {
-                files.push(file);
-            }
-        } else {
-            alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
-            console.warn('Unsupported drop item:', item);
-        }
-    }
-
-    if (files.length > 0) {
-        dispatchOpenFiles(files);
-    }
-}, false);
-
-dropTarget.addEventListener('dragend', (e) => {
-    dropTarget.classList.remove('dropover')
-    e.preventDefault();
-}, false);
-dropTarget.addEventListener('dragover', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer!.dropEffect = 'copy'
-}, false);
-dropTarget.addEventListener('dragenter', (e) => {
-    dropTarget.classList.add('dropover')
-    e.preventDefault()
-}, false);
-dropTarget.addEventListener('dragleave', (e) => {
-    dropTarget.classList.remove('dropover')
-    e.preventDefault()
-}, false);
 
 document.ondragover = (e) => {
     e.dataTransfer!.dropEffect = 'none'
@@ -162,11 +92,14 @@ function setupMessageListener() {
 }
 
 function dispatchOpenFiles(files: File[]) {
-    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
+    if (files.length > 0) {
+        window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
+    }
 }
 
 const framecontainer = document.getElementById('framecontainer')!
 const MAX_IFRAMES = 5;
+const MAX_FILES = 1024;
 const iframes: HTMLIFrameElement[] = [];
 const fileToIframe = new Map<File, HTMLIFrameElement>();
 const iframeToMime = new Map<HTMLIFrameElement, string>();
@@ -216,13 +149,73 @@ async function openHandler(handler: string, file: File, mime: string) {
 function FileList() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
+    const [isDragging, setIsDragging] = useState(false);
+    const [isAddFileHovered, setAddFileHovered] = useState(false);
+
+    const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDragging(false);
+
+        console.log('drop event', e.dataTransfer.items[0], e.dataTransfer.items[1]);
+
+        const files: File[] = [];
+        const entries: FileSystemEntry[] = [];
+
+        for (const item of e.dataTransfer!.items) {
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+                entries.push(entry);
+            } else if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    files.push(file);
+                }
+            } else {
+                alert(`Warning: Drop of non-file items is not supported. Dropped items:\nType: ${item.type}, Kind: ${item.kind}`);
+                console.warn('Unsupported drop item:', item);
+            }
+        }
+
+        // DataTransferItem is no longer valid after async.
+        async function continueAsync() {
+            const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+                return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
+            };
+            const getFile = (entry: FileSystemFileEntry): Promise<File> => {
+                return new Promise((resolve, reject) => entry.file(resolve, reject))
+            };
+
+            async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
+                if (entry.isFile) {
+                    yield await getFile(entry as FileSystemFileEntry);
+                } else if (entry.isDirectory) {
+                    const reader = (entry as FileSystemDirectoryEntry).createReader();
+                    for (const entry of await readEntries(reader)) {
+                        yield* traverse(entry)
+                    }
+                }
+            };
+
+            for (const entry of entries) {
+                for await (const file of traverse(entry)) {
+                    files.push(file);
+                }
+            }
+            if (files.length > MAX_FILES) {
+                alert(`Warning: Too many files dropped. Only ${MAX_FILES} files will be opened.`);
+            }
+            dispatchOpenFiles(files.slice(0, MAX_FILES));
+        }
+
+        continueAsync()
+    };
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
             setFiles(cur => {
-                const newFiles = [...cur, ...e.detail];
-                setSelected(newFiles.length > 0 ? newFiles.length - 1 : 0);
-                return newFiles;
+                const updatedFiles = [...cur, ...e.detail];
+                setSelected(updatedFiles.length - 1);
+                return updatedFiles;
             });
         }
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
@@ -253,7 +246,18 @@ function FileList() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [files, setSelected]);
 
-    if (files.length) {
+    const removeFile = (index: number) => {
+        setFiles(cur => {
+            const newFiles = [...cur];
+            newFiles.splice(index, 1);
+            if (selected >= newFiles.length) {
+                setSelected(newFiles.length - 1);
+            }
+            return newFiles;
+        });
+    };
+
+    if (files.length > 0) {
         const selectedFile = files[selected];
         iframes.forEach(f => f.style.display = 'none');
         if (selectedFile && fileToIframe.has(selectedFile)) {
@@ -261,17 +265,89 @@ function FileList() {
         }
 
         return (
-            <>
-                <div style={{ display: files.length <= 1 ? 'none' : 'block', position: 'absolute', top: 0, right: 0, userSelect: 'none' }}>
-                    <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.max(0, i - 1))}>◀</a>
-                    <span>{selected + 1} / {files.length}</span>
-                    <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.min(files.length - 1, i + 1))}>▶</a>
+            <div style={{ display: 'flex', height: '100%' }}>
+                <div style={{
+                    width: '200px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '8px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexShrink: 0,
+                    flexDirection: 'column',
+                    backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
+                }}
+                    onDrop={onDrop}
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'copy';
+                    }}
+                    onDragEnter={(e) => {
+                        e.preventDefault();
+                        setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                        e.preventDefault();
+                        setIsDragging(false);
+                    }}
+                >
+                    <div style={{ flexGrow: 1 }}>
+                        {files.map((file, index) => (
+                            <FileListItem
+                                key={`${file.name}-${file.lastModified}-${index}`}
+                                file={file}
+                                selected={index === selected}
+                                onClick={() => setSelected(index)}
+                                onRemove={() => removeFile(index)}
+                            />
+                        ))}
+                    </div>
+                    <div
+                        onClick={() => fileInput.click()}
+                        onMouseEnter={() => setAddFileHovered(true)}
+                        onMouseLeave={() => setAddFileHovered(false)}
+                        style={{
+                            marginTop: '8px',
+                            padding: '8px',
+                            textAlign: 'center',
+                            border: `1px dashed ${isAddFileHovered ? '#0066cc' : '#ccc'}`,
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            backgroundColor: isAddFileHovered ? '#e6f3ff' : 'transparent'
+                        }}
+                    >
+                        Add file
+                    </div>
                 </div>
-                {files.length ? <LoadFileItem key={selected} file={files[selected]} /> : undefined}
-            </>
+                <div style={{ flexGrow: 1, padding: '8px', position: 'relative' }}>
+                    {selectedFile ? <LoadFileItem key={selected} file={selectedFile} /> : undefined}
+                </div>
+            </div>
         )
     } else {
-        return <></>
+        return (
+            <div style={{ display: 'flex', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                <div id="droptarget"
+                    onClick={() => fileInput.click()}
+                    onDrop={onDrop}
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'copy';
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#434343">
+                        <path
+                            d="M186.67-120q-27.5 0-47.09-19.58Q120-159.17 120-186.67v-426.66q0-27.5 19.58-47.09Q159.17-680 186.67-680H380v66.67H186.67v426.66h586.66v-426.66H580V-680h193.33q27.5 0 47.09 19.58Q840-640.83 840-613.33v426.66q0 27.5-19.58-47.09Q800.83-120 773.33-120H186.67ZM480-322 318.67-483.33 366-530.67l80.67 80.34V-960h66.66v509.67L594-530.67l47.33 47.34L480-322Z" />
+                    </svg>
+                    <div>Drop file here</div>
+                    <div style={{ color: '#666', fontSize: 'smaller' }}>
+                        or {navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? 'Cmd-V' : 'Ctrl-V'} to paste
+                    </div>
+                </div>
+            </div>
+        )
     }
 }
 
