@@ -1,6 +1,6 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useState, useRef } from 'react';
 import { HANDLERS, matchMimetype, getDefaultHandler, getHandlersForFileNameAndType } from 'file-type-detector';
-import { FileItem } from "./fileitem";
+import { FileItem, FileListItem } from "./fileitem";
 import { TopBar } from './TopBar';
 import { DropTarget } from './DropTarget';
 import { WASMagic } from 'wasmagic';
@@ -13,9 +13,25 @@ interface AppProps {
     fileToIframe: Map<File, HTMLIFrameElement>;
 }
 
+// Helper for directory traversal (copied from DropTarget/main logic)
+async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
+    if (entry.isFile) {
+        yield await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+    } else if (entry.isDirectory) {
+        const reader = (entry as FileSystemDirectoryEntry).createReader();
+        const entries = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+        for (const child of entries) {
+            yield* traverse(child);
+        }
+    }
+}
+
 export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: AppProps) {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
+    const [isDragging, setIsDragging] = useState(false);
+    const [isAddFileHovered, setAddFileHovered] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleAddFiles = (newFiles: File[]) => {
         setFiles(cur => {
@@ -23,6 +39,64 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
             setSelected(updatedFiles.length > 0 ? updatedFiles.length - 1 : 0);
             return updatedFiles;
         });
+    }
+
+    const removeFile = (index: number) => {
+        setFiles(cur => {
+            const newFiles = [...cur];
+            newFiles.splice(index, 1);
+            if (selected >= newFiles.length) {
+                // Adjust selected index if it was the last one or after
+                // If we removed the last item, selected should point to the new last item (length - 1)
+                // If we removed an item before selected, selected should ideally shift?
+                // For simplicity, just clamp it.
+                // If files empty, selects -1 potentially but check logic handles files.length > 0
+                return newFiles;
+            }
+            return newFiles;
+        });
+        // Also ensure selected index is valid after render
+        setSelected(prev => Math.min(prev, files.length - 2));
+        // Wait, files.length is old length. New length is length - 1. 
+        // Logic inside setFiles doesn't update 'selected' state directly unless we call setSelected.
+        // Better logic:
+        // If we remove the item at 'selected', we show the previous one or the next one?
+        // Let's rely on the useEffect clamping or just clamp here.
+    };
+
+    // Correct selection clamping when files change
+    useEffect(() => {
+        if (files.length > 0 && selected >= files.length) {
+            setSelected(files.length - 1);
+        }
+    }, [files.length, selected]);
+
+
+    // Handle Drop on Sidebar
+    const onSidebarDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+        setIsDragging(false);
+        e.preventDefault();
+
+        const newFiles: File[] = [];
+        const items = Array.from(e.dataTransfer!.items);
+
+        for (const item of items) {
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+                for await (const file of traverse(entry)) {
+                    newFiles.push(file);
+                }
+            } else if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    newFiles.push(file);
+                }
+            }
+        }
+
+        if (newFiles.length > 0) {
+            handleAddFiles(newFiles);
+        }
     }
 
     useEffect(() => {
@@ -117,16 +191,74 @@ export function App({ openHandler, magic, mimeMagic, iframes, fileToIframe }: Ap
                         <div id="result"></div>
                     </>
                 ) : (
-                    <div id="result">
-                        <div style={{ display: files.length <= 1 ? 'none' : 'block', position: 'absolute', top: 0, right: 0, userSelect: 'none' }}>
-                            <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.max(0, i - 1))}>◀</a>
-                            <span>{selected + 1} / {files.length}</span>
-                            <a style={{ cursor: "pointer" }} onClick={() => setSelected(i => Math.min(files.length - 1, i + 1))}>▶</a>
+                    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+                        <div style={{
+                            width: '200px',
+                            borderRight: '1px solid #ccc',
+                            padding: '8px',
+                            overflowY: 'auto',
+                            display: 'flex',
+                            flexShrink: 0,
+                            flexDirection: 'column',
+                            backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
+                        }}
+                            onDrop={onSidebarDrop}
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.dataTransfer.dropEffect = 'copy';
+                            }}
+                            onDragEnter={(e) => {
+                                e.preventDefault();
+                                setIsDragging(true);
+                            }}
+                            onDragLeave={(e) => {
+                                e.preventDefault();
+                                setIsDragging(false);
+                            }}
+                        >
+                            <div style={{ flexGrow: 1 }}>
+                                {files.map((file, index) => (
+                                    <FileListItem
+                                        key={`${file.name}-${file.lastModified}-${index}`}
+                                        file={file}
+                                        selected={index === selected}
+                                        onClick={() => setSelected(index)}
+                                        onRemove={() => removeFile(index)}
+                                    />
+                                ))}
+                            </div>
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                onMouseEnter={() => setAddFileHovered(true)}
+                                onMouseLeave={() => setAddFileHovered(false)}
+                                style={{
+                                    marginTop: '8px',
+                                    padding: '8px',
+                                    textAlign: 'center',
+                                    border: `1px dashed ${isAddFileHovered ? '#0066cc' : '#ccc'}`,
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    backgroundColor: isAddFileHovered ? '#e6f3ff' : 'transparent'
+                                }}
+                            >
+                                Add file
+                            </div>
+                            <input
+                                type="file"
+                                style={{ display: 'none' }}
+                                multiple
+                                ref={fileInputRef}
+                                onChange={(e) => e.target.files && handleAddFiles(Array.from(e.target.files))}
+                            />
                         </div>
-                        <LoadFileItem key={selected} file={files[selected]} />
+                        <div id="result" style={{ flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' }}>
+                            {files[selected] && <LoadFileItem key={selected} file={files[selected]} />}
+                        </div>
                     </div>
                 )}
             </div>
+
         </>
     );
 }
