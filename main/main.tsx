@@ -92,11 +92,14 @@ function setupMessageListener() {
 }
 
 function dispatchOpenFiles(files: File[]) {
-    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
+    if (files.length > 0) {
+        window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: files }))
+    }
 }
 
 const framecontainer = document.getElementById('framecontainer')!
 const MAX_IFRAMES = 5;
+const MAX_FILES = 1024;
 const iframes: HTMLIFrameElement[] = [];
 const fileToIframe = new Map<File, HTMLIFrameElement>();
 const iframeToMime = new Map<HTMLIFrameElement, string>();
@@ -146,40 +149,22 @@ async function openHandler(handler: string, file: File, mime: string) {
 function FileList() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
-    const [isDragging, setIsDragging] = useState(false); // For visual feedback
+    const [isDragging, setIsDragging] = useState(false);
     const [isAddFileHovered, setAddFileHovered] = useState(false);
 
-    const onDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDragging(false);
 
+        console.log('drop event', e.dataTransfer.items[0], e.dataTransfer.items[1]);
+
         const files: File[] = [];
-        const items = Array.from(e.dataTransfer!.items);
+        const entries: FileSystemEntry[] = [];
 
-        const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
-            return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
-        };
-        const getFile = (entry: FileSystemFileEntry): Promise<File> => {
-            return new Promise((resolve, reject) => entry.file(resolve, reject))
-        };
-
-        async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
-            if (entry.isFile) {
-                yield await getFile(entry as FileSystemFileEntry);
-            } else if (entry.isDirectory) {
-                const reader = (entry as FileSystemDirectoryEntry).createReader();
-                for (const entry of await readEntries(reader)) {
-                    yield* traverse(entry)
-                }
-            }
-        };
-
-        for (const item of items) {
+        for (const item of e.dataTransfer!.items) {
             const entry = item.webkitGetAsEntry();
             if (entry) {
-                for await (const file of traverse(entry)) {
-                    files.push(file);
-                }
+                entries.push(entry);
             } else if (item.kind === 'file') {
                 const file = item.getAsFile();
                 if (file) {
@@ -191,9 +176,38 @@ function FileList() {
             }
         }
 
-        if (files.length > 0) {
-            dispatchOpenFiles(files);
+        // DataTransferItem is no longer valid after async.
+        async function continueAsync() {
+            const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+                return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
+            };
+            const getFile = (entry: FileSystemFileEntry): Promise<File> => {
+                return new Promise((resolve, reject) => entry.file(resolve, reject))
+            };
+
+            async function* traverse(entry: FileSystemEntry): AsyncGenerator<File> {
+                if (entry.isFile) {
+                    yield await getFile(entry as FileSystemFileEntry);
+                } else if (entry.isDirectory) {
+                    const reader = (entry as FileSystemDirectoryEntry).createReader();
+                    for (const entry of await readEntries(reader)) {
+                        yield* traverse(entry)
+                    }
+                }
+            };
+
+            for (const entry of entries) {
+                for await (const file of traverse(entry)) {
+                    files.push(file);
+                }
+            }
+            if (files.length > MAX_FILES) {
+                alert(`Warning: Too many files dropped. Only ${MAX_FILES} files will be opened.`);
+            }
+            dispatchOpenFiles(files.slice(0, MAX_FILES));
         }
+
+        continueAsync()
     };
 
     useEffect(() => {
@@ -259,6 +273,7 @@ function FileList() {
                     padding: '8px',
                     overflowY: 'auto',
                     display: 'flex',
+                    flexShrink: 0,
                     flexDirection: 'column',
                     backgroundColor: isDragging ? '#e6f3ff' : 'transparent'
                 }}
