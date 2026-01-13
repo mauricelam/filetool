@@ -199,23 +199,14 @@ function FileList() {
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
             setFiles(cur => {
-                const newFiles = e.detail.filter(file => !cur.find(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified));
-                if (newFiles.length === 0) {
-                    const existingFileIndex = cur.findIndex(f => e.detail.some(d => d.name === f.name && d.size === f.size && d.lastModified === f.lastModified));
-                    if (existingFileIndex !== -1) {
-                        setSelected(existingFileIndex);
-                    }
-                    return cur;
-                }
-
-                const updatedFiles = [...cur, ...newFiles];
+                const updatedFiles = [...cur, ...e.detail];
                 setSelected(updatedFiles.length - 1);
                 return updatedFiles;
             });
         }
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
         return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
-    }, [])
+    }, [setFiles, setSelected])
 
     useEffect(() => {
         if (files.length > 0) {

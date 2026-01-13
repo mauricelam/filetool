@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('should correctly handle a folder drop', async ({ page }) => {
+test('should correctly handle opening multiple files', async ({ page }) => {
     await page.goto('/filetool/');
 
     // Wait for the drop target to be ready
