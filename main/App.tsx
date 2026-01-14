@@ -46,6 +46,9 @@ export function App() {
     }
 
     const removeFile = (index: number) => {
+        if (activeHandler && files[index] === activeHandler.file) {
+            setActiveHandler(undefined);
+        }
         setFiles(cur => {
             const newFiles = [...cur];
             newFiles.splice(index, 1);
@@ -106,7 +109,7 @@ export function App() {
                     </div>
                 </div>
             </div>
-            <IframeManager activeHandler={activeHandler} />
+            <IframeManager activeHandler={activeHandler} files={files} />
         </>
     );
 }
