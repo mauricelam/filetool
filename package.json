@@ -4,6 +4,7 @@
         "archive",
         "binaryxml",
         "binutils",
+        "bplistviewer",
         "browser",
         "cborviewer",
         "cyberchef",
@@ -41,7 +42,7 @@
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
         "test": "npm run test --workspaces --if-present",
-        "test:integration": "node tests/integration/build.mjs && playwright test"
+        "test:integration": "npm run build && node tests/integration/build.mjs && playwright test"
     },
     "devDependencies": {
         "@playwright/test": "^1.56.1",

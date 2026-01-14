@@ -195,6 +195,11 @@ export const HANDLERS: HandlerDefinition[] = [
             }
         ]
     },
+    {
+        "name": "Binary Plist Viewer",
+        "handler": "bplistviewer",
+        "mimetypes": ["application/x-plist", { "filename": /\.bplist$/i }]
+    },
 ];
 
 export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {
