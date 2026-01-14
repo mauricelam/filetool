@@ -4,6 +4,7 @@
         "archive",
         "binaryxml",
         "binutils",
+        "bplistviewer",
         "browser",
         "cborviewer",
         "cyberchef",
@@ -41,7 +42,7 @@
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
         "test": "npm run test --workspaces --if-present",
-        "test:integration": "node tests/integration/build.mjs && playwright test"
+        "test:integration": "npm run build && node tests/integration/build.mjs && playwright test"
     },
     "devDependencies": {
         "@playwright/test": "^1.56.1",
@@ -54,7 +55,6 @@
         "@types/react-dom": "^18.3.0",
         "@types/react-table": "^7.7.20",
         "@types/serve-static": "^1.15.7",
-        "esbuild": "^0.27.2",
         "esbuild-plugin-copy": "^2.1.1",
         "esbuild-plugin-wasm": "^1.1.0",
         "express": "^5.2.1",
