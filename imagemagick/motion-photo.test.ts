@@ -35,7 +35,6 @@ describe('extractMotionPhotoInfo', () => {
         const image = createMockImage(xml);
         const result = extractMotionPhotoInfo(image);
         expect(result).not.toBeNull();
-        expect(result?.isMotionPhoto).toBe(true);
         expect(result?.microVideoOffset).toBe('12345');
     });
 
@@ -52,7 +51,6 @@ describe('extractMotionPhotoInfo', () => {
         const image = createMockImage(xml);
         const result = extractMotionPhotoInfo(image);
         expect(result).not.toBeNull();
-        expect(result?.isMotionPhoto).toBe(true);
         expect(result?.microVideoOffset).toBe('54321');
         expect(result?.presentationTimestampUs).toBe('999');
     });
@@ -68,7 +66,6 @@ describe('extractMotionPhotoInfo', () => {
         `;
         const image = createMockImage(xml);
         const result = extractMotionPhotoInfo(image);
-        expect(result?.isMotionPhoto).toBe(true);
         expect(result?.microVideoOffset).toBe('100');
     });
 
@@ -98,7 +95,6 @@ describe('extractMotionPhotoInfo', () => {
         const image = createMockImage(xml);
         const result = extractMotionPhotoInfo(image);
         expect(result).not.toBeNull();
-        expect(result?.isMotionPhoto).toBe(true);
         expect(result?.microVideoOffset).toBe('1107297');
     });
 });

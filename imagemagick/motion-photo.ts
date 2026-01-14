@@ -1,7 +1,7 @@
 import { IMagickImage } from "@imagemagick/magick-wasm";
 
 export interface MotionPhotoInfo {
-    isMotionPhoto: boolean;
+    type: 'motionphoto';
     version?: string;
     presentationTimestampUs?: string;
     microVideoOffset?: string;
@@ -67,7 +67,7 @@ export function extractMotionPhotoInfo(image: IMagickImage): MotionPhotoInfo | n
 
     if (parsedMotionInfo.isMotion) {
         return {
-            isMotionPhoto: true,
+            type: 'motionphoto',
             version: parsedMotionInfo.version,
             presentationTimestampUs: parsedMotionInfo.timestamp,
             microVideoOffset: parsedMotionInfo.offset

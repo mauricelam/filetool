@@ -4,13 +4,15 @@ import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
 import { RespondFileMessage } from "filemagic-common/messages";
 import { extractMotionPhotoInfo, MotionPhotoInfo } from "./motion-photo";
+import { extractLivePhotoInfo, LivePhotoInfo, getAppleMakerNoteTags, AppleMakerNoteTag } from "./live-photo";
 
 export const ImageMagickApp = ({ file }: { file: File }) => {
     const [imageInfo, setImageInfo] = useState<IMagickImageInfo | null>(null);
-    const [buf, setBuf] = useState<Uint8Array | null>(null);
+    const [fileBuf, setFileBuf] = useState<Uint8Array | null>(null);
     const [readSettings, setReadSettings] = useState<MagickReadSettings | null>(null);
     const [metadata, setMetadata] = useState<Record<string, string>>({});
-    const [motionPhotoInfo, setMotionPhotoInfo] = useState<MotionPhotoInfo | null>(null);
+    const [motionPhotoInfo, setMotionPhotoInfo] = useState<MotionPhotoInfo | LivePhotoInfo | null>(null);
+    const [makerNoteTags, setMakerNoteTags] = useState<AppleMakerNoteTag[]>([]);
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
 
@@ -23,7 +25,7 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
             const inputFormat = mimeTypeToFormat(file.type, file.name);
             const settings = new MagickReadSettings({ format: inputFormat });
 
-            const onImageRead = (image: IMagickImage) => {
+            const onImageRead = async (image: IMagickImage) => {
                 if (canvasEl) {
                     image.writeToCanvas(canvasEl);
                 }
@@ -37,14 +39,18 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                 }
                 setMetadata(meta);
 
-                const info = extractMotionPhotoInfo(image);
+                // Extract MakerNote tags independently
+                const tags = getAppleMakerNoteTags(image);
+                setMakerNoteTags(tags);
+
+                const info = extractMotionPhotoInfo(image) ?? await extractLivePhotoInfo(image);
                 setMotionPhotoInfo(info);
             };
 
             ImageMagick.read(buffer, settings, onImageRead);
             const info = MagickImageInfo.create(buffer, settings);
 
-            setBuf(buffer);
+            setFileBuf(buffer);
             setReadSettings(settings);
             setImageInfo(info);
         };
@@ -52,12 +58,12 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
         processFile();
     }, [file]);
 
-    if (!imageInfo || !buf || !readSettings) {
+    if (!imageInfo || !fileBuf || !readSettings) {
         return <div>Loading...</div>;
     }
 
     const doConvert = (format: MagickFormat, cb: (file: File) => void) => {
-        const data: Uint8Array = ImageMagick.read(buf, readSettings, (image) => {
+        const data: Uint8Array = ImageMagick.read(fileBuf, readSettings, (image) => {
             return image.write(format, (data: Uint8Array) => data);
         });
         const outputFile = new File([data.buffer as ArrayBuffer], `${getFileStem(file.name)}.${format.toLowerCase()}`);
@@ -81,12 +87,14 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
     };
 
     const playMotionVideo = () => {
-        if (!buf || !motionPhotoInfo?.microVideoOffset) return;
+        if (!fileBuf) return;
+        const offsetString = (motionPhotoInfo as MotionPhotoInfo)?.microVideoOffset;
+        if (!offsetString) return;
 
-        const offset = parseInt(motionPhotoInfo.microVideoOffset);
+        const offset = parseInt(offsetString);
         if (isNaN(offset)) return;
 
-        const videoData = buf.slice(buf.length - offset);
+        const videoData = fileBuf.slice(fileBuf.length - offset);
         const blob = new Blob([videoData], { type: 'video/mp4' });
         const url = URL.createObjectURL(blob);
         setVideoUrl(url);
@@ -126,7 +134,7 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Orientation:</span> <span style={{ color: '#fff' }}>{OrientationType[imageInfo.orientation]}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Quality:</span> <span style={{ color: '#fff' }}>{imageInfo.quality}</span></div>
 
-                {motionPhotoInfo?.isMotionPhoto && (
+                {motionPhotoInfo?.type === 'motionphoto' && (
                     <div style={{
                         marginTop: '12px',
                         padding: '10px',
@@ -172,6 +180,26 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                     </div>
                 )}
 
+                {motionPhotoInfo?.type === 'livephoto' && (
+                    <div style={{
+                        marginTop: '12px',
+                        padding: '10px',
+                        background: 'rgba(0, 122, 255, 0.15)',
+                        borderLeft: '4px solid #007aff',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0, 122, 255, 0.3)',
+                        borderLeftWidth: '4px'
+                    }}>
+                        <div style={{ color: '#007aff', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                            Live Photo
+                        </div>
+                        <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px', color: '#eee' }}>
+                            {motionPhotoInfo.contentIdentifier && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#aaa' }}>Content Identifier:</span> {motionPhotoInfo.contentIdentifier}</div>}
+                        </div>
+                    </div>
+                )}
+
                 {Object.keys(metadata).length > 0 && (
                     <details style={{ marginTop: '12px' }}>
                         <summary style={{ cursor: 'pointer', padding: '4px 0', color: '#007aff', fontWeight: 'bold' }}>
@@ -202,6 +230,38 @@ export const ImageMagickApp = ({ file }: { file: File }) => {
                                     </table>
                                 </div>
                             ))}
+                        </div>
+                    </details>
+                )}
+
+                {makerNoteTags.length > 0 && (
+                    <details style={{ marginTop: '12px' }}>
+                        <summary style={{ cursor: 'pointer', padding: '4px 0', color: '#007aff', fontWeight: 'bold' }}>
+                            Apple MakerNote ({makerNoteTags.length})
+                        </summary>
+                        <div style={{ marginTop: '8px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid #333' }}>
+                                        <th style={{ padding: '4px 0', color: '#666', fontSize: '11px', textAlign: 'left', width: '15%' }}>ID</th>
+                                        <th style={{ padding: '4px 0', color: '#666', fontSize: '11px', textAlign: 'left', width: '35%' }}>Name</th>
+                                        <th style={{ padding: '4px 0', color: '#666', fontSize: '11px', textAlign: 'left' }}>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {makerNoteTags.map((tag) => (
+                                        <tr key={tag.id} style={{ borderBottom: '1px solid #222' }}>
+                                            <td style={{ padding: '4px 0', color: '#aaa', fontSize: '11px', fontFamily: 'monospace' }}>0x{tag.id.toString(16).padStart(4, '0')}</td>
+                                            <td style={{ padding: '4px 0', color: '#aaa', fontSize: '11px' }}>{tag.name}</td>
+                                            <td style={{ padding: '4px 0', color: '#fff', fontSize: '11px', wordBreak: 'break-all' }}>
+                                                {typeof tag.value === 'object' && tag.value !== null
+                                                    ? JSON.stringify(tag.value, null, 2)
+                                                    : String(tag.value)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </details>
                 )}

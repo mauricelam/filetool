@@ -20,7 +20,6 @@ export class UID {
 export const parseBuffer = function (buffer: Buffer) {
     // check header
     const header = buffer.slice(0, 'bplist'.length).toString('utf8');
-    console.log('header', header);
     if (header !== 'bplist') {
         throw new Error("Invalid binary plist. Expected 'bplist' at offset 0.");
     }
