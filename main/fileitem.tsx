@@ -3,7 +3,7 @@ import CustomTypesRaw from "./mime-db/custom-types.json";
 const CustomTypes = CustomTypesRaw as Record<string, MimeDbItem>;
 import IanaTypesRaw from "./mime-db/iana-types.json";
 const IanaTypes = IanaTypesRaw as Record<string, MimeDbItem>;
-import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch } from 'file-type-detector';
+import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch, MIME_MATCH_ANY } from 'file-type-detector';
 import ICON_LOOKUP from './icons';
 import { HandlerConfig } from "./App";
 
@@ -39,6 +39,8 @@ export function FileItem(
 ) {
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
+    const isUniversal = (handler: HandlerDefinition) => handler.mimetypes.length === 1 && handler.mimetypes[0] === MIME_MATCH_ANY;
+    const universalHandlers = allHandlers.filter(isUniversal);
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
@@ -161,6 +163,7 @@ export function FileItem(
                     <label style={labelStyle}>Open with</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                         {matchedHandlers
+                            .filter(handler => !isUniversal(handler))
                             .sort((a, b) => {
                                 // Sort active handler to the front
                                 if (a.handler === activeHandlerId) return -1;
@@ -245,8 +248,29 @@ export function FileItem(
                                 onChange={(e) => setOtherHandlersFilter(e.target.value)}
                                 className="filter-input"
                             />
+                            {universalHandlers.length > 0 && (
+                                <>
+                                    <h3 className="handler-section-title">Universal Handlers</h3>
+                                    <div className="handlers-grid">
+                                        {universalHandlers.map(handler => (
+                                            <button
+                                                key={handler.handler}
+                                                onClick={() => {
+                                                    onOpenHandler(handler.handler, file, mimetype);
+                                                    setOtherHandlersDialogOpen(false);
+                                                }}
+                                                className="handler-button"
+                                            >
+                                                {handler.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <hr />
+                                </>
+                            )}
                             <div className="handlers-grid">
                                 {allHandlers
+                                    .filter(handler => !isUniversal(handler))
                                     .filter(handler => {
                                         const filter = otherHandlersFilter.toLowerCase();
                                         if (!filter) return true;
