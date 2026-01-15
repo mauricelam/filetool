@@ -38,6 +38,7 @@ export function FileItem(
 ) {
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
+    const universalHandlers = allHandlers.filter(handler => handler.universal);
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
@@ -160,6 +161,7 @@ export function FileItem(
                     <label style={labelStyle}>Open with</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                         {matchedHandlers
+                            .filter(handler => !handler.universal)
                             .sort((a, b) => {
                                 // Sort active handler to the front
                                 if (a.handler === activeHandlerId) return -1;
@@ -244,8 +246,29 @@ export function FileItem(
                                 onChange={(e) => setOtherHandlersFilter(e.target.value)}
                                 className="filter-input"
                             />
+                            {universalHandlers.length > 0 && (
+                                <>
+                                    <h3 className="handler-section-title">Universal Handlers</h3>
+                                    <div className="handlers-grid">
+                                        {universalHandlers.map(handler => (
+                                            <button
+                                                key={handler.handler}
+                                                onClick={() => {
+                                                    onOpenHandler(handler.handler, file, mimetype);
+                                                    setOtherHandlersDialogOpen(false);
+                                                }}
+                                                className="handler-button"
+                                            >
+                                                {handler.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <hr />
+                                </>
+                            )}
                             <div className="handlers-grid">
                                 {allHandlers
+                                    .filter(handler => !handler.universal)
                                     .filter(handler => {
                                         const filter = otherHandlersFilter.toLowerCase();
                                         if (!filter) return true;
