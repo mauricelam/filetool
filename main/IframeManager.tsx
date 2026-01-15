@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IframeMessage } from "filemagic-common/messages";
+import { HandlerConfig } from "./App";
 
 interface IframeManagerProps {
-    activeHandler?: { file: File, magicMime: string, handler: string };
+    activeHandler?: HandlerConfig;
+    files: File[];
 }
 
 interface FrameData {
@@ -14,9 +16,13 @@ interface FrameData {
 
 const MAX_IFRAMES = 5;
 
-export function IframeManager({ activeHandler }: IframeManagerProps) {
+export function IframeManager({ activeHandler, files }: IframeManagerProps) {
     const [frames, setFrames] = useState<FrameData[]>([]);
     const iframeRefs = useRef<Map<string, HTMLIFrameElement>>(new Map());
+
+    useEffect(() => {
+        setFrames(currentFrames => currentFrames.filter(frame => files.includes(frame.file)));
+    }, [files]);
 
     // Manage frames based on activeHandler
     useEffect(() => {

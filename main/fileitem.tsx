@@ -5,6 +5,7 @@ import IanaTypesRaw from "./mime-db/iana-types.json";
 const IanaTypes = IanaTypesRaw as Record<string, MimeDbItem>;
 import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch } from 'file-type-detector';
 import ICON_LOOKUP from './icons';
+import { HandlerConfig } from "./App";
 
 interface MimeDbItem {
     compressible?: boolean,
@@ -29,7 +30,7 @@ interface FileItemProps {
     description: string;
     matchedHandlers: HandlerDefinition[];
     allHandlers: HandlerDefinition[];
-    onOpenHandler: (handlerId: string, file: File, mimetype: string) => void;
+    onOpenHandler: (handlerConfig: HandlerConfig) => void;
     initialActiveHandler?: string;
 }
 
@@ -179,7 +180,7 @@ export function FileItem(
                                         <button
                                             onClick={() => {
                                                 setActiveHandlerId(handlerConfig.handler);
-                                                onOpenHandler(handlerConfig.handler, file, mimetype);
+                                                onOpenHandler({ handler: handlerConfig.handler, file, magicMime: mimetype });
                                             }}
                                             style={style}
                                         >
@@ -268,7 +269,7 @@ export function FileItem(
                                         <button
                                             key={handler.handler}
                                             onClick={() => {
-                                                onOpenHandler(handler.handler, file, mimetype);
+                                                onOpenHandler({ handler: handler.handler, file, magicMime: mimetype });
                                                 setOtherHandlersDialogOpen(false);
                                             }}
                                             className="handler-button"
