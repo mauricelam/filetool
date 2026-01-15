@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@imagemagick/magick-wasm": "^0.0.30",
+    "buffer": "^6.0.3",
+    "exifreader": "^4.36.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -17,8 +19,7 @@
     "@testing-library/react": "^16.3.0",
     "esbuild": "^0.27.2",
     "esbuild-plugin-copy": "^2.1.1",
-    "jsdom": "^24.0.0",
-    "vitest": "^3.2.4"
+    "jsdom": "^24.0.0"
   },
   "license": "MIT",
   "description": ""

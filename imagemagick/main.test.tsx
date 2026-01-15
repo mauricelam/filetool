@@ -65,7 +65,6 @@ vi.mock('@imagemagick/magick-wasm/magick.wasm', () => ({
     default: 'magick.wasm'
 }));
 
-
 describe('ImageMagickApp', () => {
     let file: File;
 
