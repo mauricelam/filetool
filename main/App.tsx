@@ -6,62 +6,66 @@ import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { IframeManager } from './IframeManager';
 import { FileList } from './FileList';
 
+export type HandlerConfig = {
+    file: File,
+    magicMime: string,
+    handler: string,
+}
+
 export function App() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
-    const [activeHandler, setActiveHandler] = useState<{ file: File, magicMime: string, handler: string } | undefined>(undefined);
-
-    const handlePaste = async (e: ClipboardEvent) => {
-        e.preventDefault();
-        const files = Array.from(e.clipboardData?.items || [])
-            .filter(item => item.kind === 'file')
-            .map(item => item.getAsFile())
-            .filter((file): file is File => file !== null);
-
-        if (files.length > 0) {
-            handleAddFiles(files);
-            return;
-        }
-
-        const text = e.clipboardData?.getData('text/plain');
-        if (text) {
-            const file = new File([text], 'pasted.txt', { type: 'text/plain' });
-            handleAddFiles([file]);
-            return;
-        }
-    };
+    const [activeHandlers, setActiveHandlers] = useState<(HandlerConfig | undefined)[]>([]);
 
     // Global paste handler
     useEffect(() => {
+        const handlePaste = async (e: ClipboardEvent) => {
+            e.preventDefault();
+            const files = Array.from(e.clipboardData?.items || [])
+                .filter(item => item.kind === 'file')
+                .map(item => item.getAsFile())
+                .filter((file): file is File => file !== null);
+
+            if (files.length > 0) {
+                handleAddFiles(files);
+                return;
+            }
+
+            const text = e.clipboardData?.getData('text/plain');
+            if (text) {
+                const file = new File([text], 'pasted.txt', { type: 'text/plain' });
+                handleAddFiles([file]);
+                return;
+            }
+        };
         document.addEventListener('paste', handlePaste);
         return () => document.removeEventListener('paste', handlePaste);
     }, []);
 
     const handleAddFiles = (newFiles: File[]) => {
-        setFiles(cur => {
-            const updatedFiles = [...cur, ...newFiles];
-            setSelected(updatedFiles.length > 0 ? updatedFiles.length - 1 : 0);
-            return updatedFiles;
-        });
+        setFiles(cur => [...cur, ...newFiles]);
+        setActiveHandlers(cur => [...cur, ...Array(newFiles.length)])
     }
 
     const removeFile = (index: number) => {
-        if (activeHandler && files[index] === activeHandler.file) {
-            setActiveHandler(undefined);
-        }
         setFiles(cur => {
             const newFiles = [...cur];
             newFiles.splice(index, 1);
+            setSelected(prev => Math.min(prev, newFiles.length - 1));
             return newFiles;
         });
-        setSelected(prev => Math.min(prev, files.length - 2));
+        setActiveHandlers(cur => {
+            const newHandlers = [...cur];
+            newHandlers.splice(index, 1);
+            return newHandlers;
+        })
     };
 
     useEffect(() => {
-        if (files.length > 0 && selected >= files.length) {
+        if (files.length > 0) {
             setSelected(files.length - 1);
         }
-    }, [files.length, selected]);
+    }, [files]);
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[]>) => {
@@ -101,28 +105,35 @@ export function App() {
                             <LoadFileItem
                                 key={selected}
                                 file={files[selected]}
-                                openHandler={(handler: string, file: File, mime: string) => {
-                                    setActiveHandler({ file, magicMime: mime, handler });
+                                openHandler={(handlerConfig: HandlerConfig) => {
+                                    setActiveHandlers(cur => {
+                                        const updatedHandlers = [...cur];
+                                        updatedHandlers[selected] = handlerConfig;
+                                        return updatedHandlers;
+                                    });
                                 }}
+                                initialActiveHandler={activeHandlers[selected]}
                             />
                         }
                     </div>
                 </div>
             </div>
-            <IframeManager activeHandler={activeHandler} files={files} />
+            <IframeManager activeHandler={activeHandlers[selected]} files={files} />
         </>
     );
 }
 
 interface LoadFileItemProps {
     file: File;
-    openHandler: (handler: string, file: File, mime: string) => void;
+    openHandler: (handlerConfig: HandlerConfig) => void;
+    initialActiveHandler?: HandlerConfig;
 }
 
-function LoadFileItem({ file, openHandler }: LoadFileItemProps): ReactNode {
+function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemProps): ReactNode {
     const [handlers, setHandlers] = useState<any[]>([]);
     const [mime, setMime] = useState("");
     const [description, setDescription] = useState("Loading...");
+    const [activeHandler, setActiveHandler] = useState<HandlerConfig | undefined>(initialActiveHandler) ?? getDefaultHandler(mime, file.name);
 
     const magicPromise = WASMagic.create({
         flags: WASMagicFlags.NONE,
@@ -155,7 +166,7 @@ function LoadFileItem({ file, openHandler }: LoadFileItemProps): ReactNode {
                 if (defaultHandlerConfig) {
                     const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
                     if (isMatch) {
-                        setTimeout(() => openHandler(defaultHandlerConfig.handler, file, mime), 0);
+                        setTimeout(() => openHandler({ handler: defaultHandlerConfig.handler, file, magicMime: mime }), 0);
                     }
                 }
             }
@@ -163,7 +174,11 @@ function LoadFileItem({ file, openHandler }: LoadFileItemProps): ReactNode {
         effect()
     }, [file]);
 
-    const defaultHandler = getDefaultHandler(mime, file.name);
+    const onOpenFile = (handlerConfig: HandlerConfig) => {
+        openHandler(handlerConfig);
+        setActiveHandler(handlerConfig);
+    }
+
     return (
         <FileItem
             key={file.name}
@@ -173,8 +188,8 @@ function LoadFileItem({ file, openHandler }: LoadFileItemProps): ReactNode {
             description={description}
             matchedHandlers={handlers}
             allHandlers={HANDLERS}
-            initialActiveHandler={defaultHandler}
-            onOpenHandler={openHandler}
+            initialActiveHandler={activeHandler?.handler}
+            onOpenHandler={onOpenFile}
         />
     )
 }

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IframeMessage } from "filemagic-common/messages";
+import { HandlerConfig } from "./App";
 
 interface IframeManagerProps {
-    activeHandler?: { file: File, magicMime: string, handler: string };
+    activeHandler?: HandlerConfig;
     files: File[];
 }
 
