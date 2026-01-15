@@ -92,12 +92,11 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
 export interface HandlerDefinition {
     name: string,
     handler: string,
-    mimetypes: MimeMatch[],
-    universal?: boolean
+    mimetypes: MimeMatch[]
 }
 
 export const HANDLERS: HandlerDefinition[] = [
-    { "name": "CyberChef", "handler": "cyberchef", "mimetypes": [MIME_MATCH_ANY], "universal": true },
+    { "name": "CyberChef", "handler": "cyberchef", "mimetypes": [MIME_MATCH_ANY] },
     // ... (Handlers remain the same as before)
     {
         "name": "reStructuredText Viewer",
@@ -114,7 +113,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "dmg-viewer",
         "mimetypes": [{ "filename": /\.dmg$/i }]
     },
-    { "name": "Hex", "handler": "hex_viewer", "mimetypes": [MIME_MATCH_ANY], "universal": true },
+    { "name": "Hex", "handler": "hex_viewer", "mimetypes": [MIME_MATCH_ANY] },
     { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {
         "name": "Browser",

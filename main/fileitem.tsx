@@ -3,7 +3,7 @@ import CustomTypesRaw from "./mime-db/custom-types.json";
 const CustomTypes = CustomTypesRaw as Record<string, MimeDbItem>;
 import IanaTypesRaw from "./mime-db/iana-types.json";
 const IanaTypes = IanaTypesRaw as Record<string, MimeDbItem>;
-import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch } from 'file-type-detector';
+import { setDefaultHandler, getDefaultHandler, HandlerDefinition, isAnyMimeMatch, MIME_MATCH_ANY } from 'file-type-detector';
 import ICON_LOOKUP from './icons';
 
 interface MimeDbItem {
@@ -38,7 +38,8 @@ export function FileItem(
 ) {
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
-    const universalHandlers = allHandlers.filter(handler => handler.universal);
+    const isUniversal = (handler: HandlerDefinition) => handler.mimetypes.length === 1 && handler.mimetypes[0] === MIME_MATCH_ANY;
+    const universalHandlers = allHandlers.filter(isUniversal);
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
@@ -161,7 +162,7 @@ export function FileItem(
                     <label style={labelStyle}>Open with</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                         {matchedHandlers
-                            .filter(handler => !handler.universal)
+                            .filter(handler => !isUniversal(handler))
                             .sort((a, b) => {
                                 // Sort active handler to the front
                                 if (a.handler === activeHandlerId) return -1;
@@ -268,7 +269,7 @@ export function FileItem(
                             )}
                             <div className="handlers-grid">
                                 {allHandlers
-                                    .filter(handler => !handler.universal)
+                                    .filter(handler => !isUniversal(handler))
                                     .filter(handler => {
                                         const filter = otherHandlersFilter.toLowerCase();
                                         if (!filter) return true;
