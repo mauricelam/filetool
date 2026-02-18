@@ -160,8 +160,22 @@ export const HANDLERS: HandlerDefinition[] = [
         "mimetypes": [
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.oasis.opendocument.text",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            "application/vnd.oasis.opendocument.presentation",
             { "filename": /\.xlsx$/i },
-            { "filename": /\.xls$/i }
+            { "filename": /\.xls$/i },
+            { "filename": /\.docx$/i },
+            { "filename": /\.doc$/i },
+            { "filename": /\.pptx$/i },
+            { "filename": /\.ppt$/i },
+            { "filename": /\.odt$/i },
+            { "filename": /\.ods$/i },
+            { "filename": /\.odp$/i }
         ]
     },
     {

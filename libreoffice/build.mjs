@@ -3,7 +3,7 @@ import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 
 const SETTINGS = {
-  entryPoints: ['main.js'],
+  entryPoints: ['main.ts'],
   outdir: "../dist/libreoffice",
   bundle: true,
   format: "esm",
