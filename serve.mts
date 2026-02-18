@@ -17,7 +17,7 @@ function setHeaders(res: Response, filePath: string): void {
 
   // Note: serve-static provides the absolute OS path here
   // Using case-insensitive check and normalized separators
-  if (filePath.toLowerCase().includes('ffmpeg')) {
+  if (filePath.toLowerCase().includes('ffmpeg') || filePath.toLowerCase().includes('libreoffice')) {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
   }

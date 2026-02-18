@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LibreOffice WASM Handler</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #2c2c2c;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+        }
+        #qtcanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+        }
+        #status-container {
+            position: absolute;
+            z-index: 10;
+            background: rgba(40, 40, 40, 0.9);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            text-align: center;
+            max-width: 80%;
+        }
+        #message {
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        #progress-bar {
+            width: 280px;
+            height: 8px;
+            background: #444;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        #progress-fill {
+            width: 0%;
+            height: 100%;
+            background: #0078d4;
+            transition: width 0.2s ease-out;
+        }
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="status-container">
+        <div id="message">Loading LibreOffice...</div>
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+
+    <!-- LibreOffice renders to this canvas -->
+    <canvas id="qtcanvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+
+    <script type="text/javascript">
+        const statusContainer = document.getElementById('status-container');
+        const messageEl = document.getElementById('message');
+        const progressFill = document.getElementById('progress-fill');
+
+        function updateStatus(text, progress) {
+            if (text) messageEl.textContent = text;
+            if (progress !== undefined) {
+                progressFill.style.width = progress + '%';
+            }
+            if (!text && !progress) {
+                statusContainer.classList.add('hidden');
+            } else {
+                statusContainer.classList.remove('hidden');
+            }
+        }
+
+        // Emscripten Module configuration
+        var Module = {
+            canvas: document.getElementById('qtcanvas'),
+
+            print: (text) => console.log('[LibreOffice STDOUT]:', text),
+            printErr: (text) => console.warn('[LibreOffice STDERR]:', text),
+
+            locateFile: (path, prefix) => {
+                // Point to the assets directory for WASM and data files
+                if (path.endsWith('.wasm') || path.endsWith('.js') || path.endsWith('.data')) {
+                    return '/filetool/assets/libreoffice/' + path;
+                }
+                return prefix + path;
+            },
+
+            setStatus: (text) => {
+                const m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+                if (m) {
+                    const progress = (parseInt(m[2]) / parseInt(m[4])) * 100;
+                    updateStatus(m[1].trim(), progress);
+                } else {
+                    updateStatus(text);
+                }
+            },
+
+            onAbort: (msg) => {
+                console.error('LibreOffice WASM Aborted:', msg);
+                window.parent.postMessage({
+                    type: 'ERROR',
+                    message: 'LibreOffice WASM aborted: ' + msg
+                }, '*');
+            },
+
+            onRuntimeInitialized: () => {
+                console.log('LibreOffice Runtime Initialized');
+                updateStatus('', 0); // Hide status
+            }
+        };
+
+        // Error Proxying
+        window.onerror = (msg, url, line, col, error) => {
+            const errorMessage = `LibreOffice Error: ${msg} (${url}:${line})`;
+            window.parent.postMessage({ type: 'ERROR', message: errorMessage }, '*');
+            return false;
+        };
+
+        // PostMessage API: Listen for files from the parent window
+        window.addEventListener('message', async (event) => {
+            const data = event.data;
+
+            // Support both the requested 'OPEN_FILE' and existing 'respondFile' protocols
+            if (data.type === 'OPEN_FILE' || data.action === 'respondFile') {
+                const fileBlob = data.blob || data.file;
+                const fileName = data.fileName || (data.file ? data.file.name : 'document.xlsx');
+
+                if (!fileBlob) {
+                    console.error('Received message without file data');
+                    return;
+                }
+
+                try {
+                    updateStatus(`Opening ${fileName}...`);
+
+                    const arrayBuffer = await fileBlob.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
+
+                    // Write the file to Emscripten's virtual file system (MEMFS)
+                    if (Module.FS) {
+                        // Ensure we use a clean path
+                        const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        Module.FS.writeFile(safeFileName, uint8Array);
+                        console.log(`Saved ${safeFileName} to Emscripten FS (${uint8Array.length} bytes)`);
+
+                        // Call LibreOffice to open the file
+                        if (Module.callMain) {
+                            // We use common CLI args for viewing/editing
+                            Module.callMain([safeFileName]);
+                        } else {
+                            throw new Error('Module.callMain is not available');
+                        }
+                    } else {
+                        throw new Error('Emscripten FS is not initialized');
+                    }
+                } catch (err) {
+                    console.error('Failed to open file:', err);
+                    window.parent.postMessage({
+                        type: 'ERROR',
+                        message: 'Failed to open file: ' + err.message
+                    }, '*');
+                } finally {
+                    updateStatus('', 0);
+                }
+            }
+        });
+
+        // Request file from parent (standard filetool behavior)
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ action: 'requestFile' }, '*');
+        }
+
+        // Clean Shutdown
+        window.addEventListener('unload', () => {
+            if (Module.exit) {
+                console.log('Attempting clean shutdown of LibreOffice WASM');
+                Module.exit();
+            }
+        });
+    </script>
+
+    <!-- Load the Emscripten glue code -->
+    <!-- The script is loaded as async as recommended for Emscripten pthreads builds -->
+    <script async src="/filetool/assets/libreoffice/soffice.js"></script>
+</body>
+</html>
