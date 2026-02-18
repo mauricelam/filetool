@@ -1,4 +1,4 @@
-import React, { CSSProperties, ReactElement, useEffect, useState } from "react";
+import React, { CSSProperties, ReactElement, useEffect, useState, useRef } from "react";
 import CustomTypesRaw from "./mime-db/custom-types.json";
 const CustomTypes = CustomTypesRaw as Record<string, MimeDbItem>;
 import IanaTypesRaw from "./mime-db/iana-types.json";
@@ -39,8 +39,39 @@ export function FileItem(
 ) {
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const filterInputRef = useRef<HTMLInputElement>(null);
+    const otherButtonRef = useRef<HTMLButtonElement>(null);
+
     const isUniversal = (handler: HandlerDefinition) => handler.mimetypes.length === 1 && handler.mimetypes[0] === MIME_MATCH_ANY;
     const universalHandlers = allHandlers.filter(isUniversal);
+
+    const matchesFilter = (handler: HandlerDefinition) => {
+        const filter = otherHandlersFilter.toLowerCase();
+        if (!filter) return true;
+
+        const nameMatch = handler.name.toLowerCase().includes(filter);
+        const mimeMatch = handler.mimetypes.some(m => {
+            if (typeof m === 'string') {
+                return m.toLowerCase().includes(filter);
+            } else if (m instanceof RegExp) {
+                return m.source.toLowerCase().includes(filter);
+            } else if (typeof m === 'object' && m.filename instanceof RegExp) {
+                return m.filename.source.toLowerCase().includes(filter)
+            }
+            return false;
+        });
+
+        return nameMatch || mimeMatch;
+    };
+
+    const filteredUniversalHandlers = universalHandlers.filter(matchesFilter);
+    const filteredTypeSpecificHandlers = allHandlers
+        .filter(handler => !isUniversal(handler))
+        .filter(matchesFilter);
+
+    const allVisibleHandlers = [...filteredUniversalHandlers, ...filteredTypeSpecificHandlers];
+
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
@@ -61,12 +92,37 @@ export function FileItem(
 
         if (isOtherHandlersDialogOpen) {
             document.addEventListener('keydown', handleKeyDown);
+            filterInputRef.current?.focus();
+            setSelectedIndex(0);
+        } else {
+            otherButtonRef.current?.focus();
         }
 
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
     }, [isOtherHandlersDialogOpen]);
+
+    useEffect(() => {
+        setSelectedIndex(0);
+    }, [otherHandlersFilter]);
+
+    const handleFilterKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelectedIndex(prev => (prev + 1) % allVisibleHandlers.length);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelectedIndex(prev => (prev - 1 + allVisibleHandlers.length) % allVisibleHandlers.length);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const handler = allVisibleHandlers[selectedIndex];
+            if (handler) {
+                onOpenHandler({ handler: handler.handler, file, magicMime: mimetype });
+                setOtherHandlersDialogOpen(false);
+            }
+        }
+    };
 
     const labelStyle: CSSProperties = {
         color: '#fff',
@@ -209,6 +265,7 @@ export function FileItem(
                             })}
                         <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
                             <button
+                                ref={otherButtonRef}
                                 onClick={() => setOtherHandlersDialogOpen(true)}
                                 style={demotedButtonStyle}
                                 title="Show all handlers"
@@ -237,29 +294,40 @@ export function FileItem(
                     </div>
                 </div>
                 {isOtherHandlersDialogOpen && (
-                    <div className="other-handlers-dialog-overlay">
-                        <div className="other-handlers-dialog">
-                            <button className="close-button" onClick={() => setOtherHandlersDialogOpen(false)}>×</button>
+                    <div className="other-handlers-dialog-overlay" onClick={() => setOtherHandlersDialogOpen(false)}>
+                        <div
+                            className="other-handlers-dialog"
+                            onClick={e => e.stopPropagation()}
+                            role="dialog"
+                            aria-modal="true"
+                        >
+                            <button
+                                className="close-button"
+                                onClick={() => setOtherHandlersDialogOpen(false)}
+                                aria-label="Close"
+                            >×</button>
                             <h2>All Handlers</h2>
                             <input
+                                ref={filterInputRef}
                                 type="text"
                                 placeholder="Filter by name, mime, or extension"
                                 value={otherHandlersFilter}
                                 onChange={(e) => setOtherHandlersFilter(e.target.value)}
+                                onKeyDown={handleFilterKeyDown}
                                 className="filter-input"
                             />
-                            {universalHandlers.length > 0 && (
+                            {filteredUniversalHandlers.length > 0 && (
                                 <>
                                     <h3 className="handler-section-title">Universal Handlers</h3>
                                     <div className="handlers-grid">
-                                        {universalHandlers.map(handler => (
+                                        {filteredUniversalHandlers.map((handler, index) => (
                                             <button
                                                 key={handler.handler}
                                                 onClick={() => {
-                                                    onOpenHandler(handler.handler, file, mimetype);
+                                                    onOpenHandler({ handler: handler.handler, file, magicMime: mimetype });
                                                     setOtherHandlersDialogOpen(false);
                                                 }}
-                                                className="handler-button"
+                                                className={`handler-button ${selectedIndex === index ? 'selected' : ''}`}
                                             >
                                                 {handler.name}
                                             </button>
@@ -269,38 +337,21 @@ export function FileItem(
                                 </>
                             )}
                             <div className="handlers-grid">
-                                {allHandlers
-                                    .filter(handler => !isUniversal(handler))
-                                    .filter(handler => {
-                                        const filter = otherHandlersFilter.toLowerCase();
-                                        if (!filter) return true;
-
-                                        const nameMatch = handler.name.toLowerCase().includes(filter);
-                                        const mimeMatch = handler.mimetypes.some(m => {
-                                            if (typeof m === 'string') {
-                                                return m.toLowerCase().includes(filter);
-                                            } else if (m instanceof RegExp) {
-                                                return m.source.toLowerCase().includes(filter);
-                                            } else if (typeof m === 'object' && m.filename instanceof RegExp) {
-                                                return m.filename.source.toLowerCase().includes(filter)
-                                            }
-                                            return false;
-                                        });
-
-                                        return nameMatch || mimeMatch;
-                                    })
-                                    .map(handler => (
+                                {filteredTypeSpecificHandlers.map((handler, index) => {
+                                    const overallIndex = index + filteredUniversalHandlers.length;
+                                    return (
                                         <button
                                             key={handler.handler}
                                             onClick={() => {
                                                 onOpenHandler({ handler: handler.handler, file, magicMime: mimetype });
                                                 setOtherHandlersDialogOpen(false);
                                             }}
-                                            className="handler-button"
+                                            className={`handler-button ${selectedIndex === overallIndex ? 'selected' : ''}`}
                                         >
                                             {handler.name}
                                         </button>
-                                    ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -370,6 +421,11 @@ export function FileItem(
                     }
                     .handler-button:hover {
                         background-color: #e0e0e0;
+                    }
+                    .handler-button.selected {
+                        background-color: #e6f3ff;
+                        border-color: #0066cc;
+                        box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
                     }
                 `}
             </style>
