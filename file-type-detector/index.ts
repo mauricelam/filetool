@@ -121,6 +121,11 @@ export const HANDLERS: HandlerDefinition[] = [
     { "name": "Hex", "handler": "hex_viewer", "mimetypes": [MIME_MATCH_ANY] },
     { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {
+        "name": "PDF.js",
+        "handler": "pdfjs",
+        "mimetypes": ["application/pdf"]
+    },
+    {
         "name": "Browser",
         "handler": "browser",
         "mimetypes": [

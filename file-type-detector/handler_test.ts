@@ -187,4 +187,29 @@ describe('Handler Tests', () => {
         }
       });
     });
+
+    describe('PDF Viewer Handler', () => {
+        it('correctly matches PDF files', () => {
+            const matchedHandlers = HANDLERS.filter(h =>
+                h.mimetypes.some(m => matchMimetype(m, 'application/pdf', 'test.pdf'))
+            );
+            expect(matchedHandlers.some(h => h.handler === 'pdfviewer')).toBe(true);
+        });
+
+        it('gives pdfviewer precedence over browser for PDF files', () => {
+            const filename = 'test.pdf';
+            const mime = 'application/pdf';
+
+            const matchedHandlers = HANDLERS.filter(h =>
+                h.mimetypes.some(m => matchMimetype(m, mime, filename))
+            );
+
+            const pdfViewerIndex = matchedHandlers.findIndex(h => h.handler === 'pdfviewer');
+            const browserIndex = matchedHandlers.findIndex(h => h.handler === 'browser');
+
+            expect(pdfViewerIndex).not.toBe(-1);
+            expect(browserIndex).not.toBe(-1);
+            expect(pdfViewerIndex).toBeLessThan(browserIndex);
+        });
+    });
 });
