@@ -10,7 +10,7 @@ const isWatch = process.argv.includes('--watch');
 const context = await esbuild.context({
     entryPoints: ['main.tsx'],
     bundle: true,
-    outdir: '../dist/ext4-viewer',
+    outdir: '../dist/img-viewer',
     platform: 'browser',
     plugins: [
         rustWasm({

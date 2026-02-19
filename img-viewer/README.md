@@ -1,4 +1,4 @@
-# ext4 Viewer
+# img Viewer
 
 A handler for inspecting and extracting files from ext4 disk images (.img files).
 
