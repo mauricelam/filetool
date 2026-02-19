@@ -1,0 +1,23 @@
+{
+  "name": "ext4-viewer",
+  "version": "1.0.0",
+  "description": "ext4 image viewer",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs --watch",
+    "test": "echo \"No test specified\" && exit 0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.27.2"
+  }
+}

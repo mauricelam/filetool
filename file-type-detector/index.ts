@@ -113,6 +113,11 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "dmg-viewer",
         "mimetypes": [{ "filename": /\.dmg$/i }]
     },
+    {
+        "name": "ext4 Viewer",
+        "handler": "ext4-viewer",
+        "mimetypes": [{ "filename": /\.img$/i }]
+    },
     { "name": "Hex", "handler": "hex_viewer", "mimetypes": [MIME_MATCH_ANY] },
     { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {

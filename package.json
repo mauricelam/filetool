@@ -33,7 +33,8 @@
         "sqliteviewer",
         "textviewer",
         "wat_viewer",
-        "webgl_previewer"
+        "webgl_previewer",
+        "ext4-viewer"
     ],
     "scripts": {
         "start": "node serve.mts",
