@@ -11,7 +11,7 @@ test('PDF Viewer should correctly render a PDF file using PDF.js', async ({ page
     const pdfBuffer = fs.readFileSync(pdfPath);
 
     const iframe = await runHandlerTest(page, {
-        handler: 'pdfviewer',
+        handler: 'pdfjs',
         file: {
             content: pdfBuffer,
             name: 'test.pdf',
