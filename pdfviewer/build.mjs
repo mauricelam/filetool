@@ -4,7 +4,7 @@ import process from 'process';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
-  outdir: "../dist/pdfjs",
+  outdir: "../dist/pdfviewer",
   bundle: true,
   format: "esm",
   platform: "browser",

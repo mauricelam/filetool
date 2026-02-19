@@ -27,7 +27,7 @@
         "main",
         "markdown",
         "mhtml",
-        "pdfjs",
+        "pdfviewer",
         "proguardviewer",
         "protoscope",
         "rstviewer",
