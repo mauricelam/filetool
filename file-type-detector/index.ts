@@ -122,7 +122,7 @@ export const HANDLERS: HandlerDefinition[] = [
     { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {
         "name": "PDF.js",
-        "handler": "pdfviewer",
+        "handler": "pdfjs",
         "mimetypes": ["application/pdf"]
     },
     {
