@@ -1,5 +1,5 @@
 {
-  "name": "wasmtools-pdfviewer",
+  "name": "wasmtools-pdfjs",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {
