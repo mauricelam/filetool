@@ -155,6 +155,14 @@ export const HANDLERS: HandlerDefinition[] = [
     { "name": "JVM Classfile", "handler": "classfile", "mimetypes": ["application/x-java-applet"] },
     { "name": "Binutils", "handler": "binutils", "mimetypes": ["application/x-mach-binary", "application/x-executable", "application/x-sharedlib"] },
     {
+        "name": "SETools (SELinux Policy)",
+        "handler": "setools",
+        "mimetypes": [
+            { "filename": /^(sepolicy|policy\.\d+)$/i },
+            { "description": /SELinux policy/i }
+        ]
+    },
+    {
         "name": "ImageMagick",
         "handler": "imagemagick",
         "mimetypes": [
