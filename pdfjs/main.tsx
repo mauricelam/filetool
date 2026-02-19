@@ -52,7 +52,9 @@ function PDFPage({ pdf, pageNum }: { pdf: any, pageNum: number }) {
         const renderPage = async () => {
             try {
                 const page = await pdf.getPage(pageNum);
-                const viewport = page.getViewport({ scale: 1.5 });
+                const dpr = window.devicePixelRatio || 1;
+                const baseScale = 1.5;
+                const viewport = page.getViewport({ scale: baseScale * dpr });
                 const canvas = canvasRef.current;
                 if (!canvas) return;
                 const context = canvas.getContext('2d');
@@ -60,6 +62,8 @@ function PDFPage({ pdf, pageNum }: { pdf: any, pageNum: number }) {
 
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
+                canvas.style.height = `${viewport.height / dpr}px`;
+                canvas.style.width = `${viewport.width / dpr}px`;
 
                 const renderContext = {
                     canvasContext: context,
