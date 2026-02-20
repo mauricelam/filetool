@@ -63,6 +63,14 @@ export function App() {
         })
     };
 
+    const handleOpenHandler = React.useCallback((handlerConfig: HandlerConfig) => {
+        setActiveHandlers(cur => {
+            const updatedHandlers = [...cur];
+            updatedHandlers[selected] = handlerConfig;
+            return updatedHandlers;
+        });
+    }, [selected]);
+
     useEffect(() => {
         if (files.length > 0) {
             setSelected(files.length - 1);
@@ -141,13 +149,7 @@ export function App() {
                             <LoadFileItem
                                 key={selected}
                                 file={files[selected]}
-                                openHandler={(handlerConfig: HandlerConfig) => {
-                                    setActiveHandlers(cur => {
-                                        const updatedHandlers = [...cur];
-                                        updatedHandlers[selected] = handlerConfig;
-                                        return updatedHandlers;
-                                    });
-                                }}
+                                openHandler={handleOpenHandler}
                                 initialActiveHandler={activeHandlers[selected]}
                             />
                         }
@@ -165,20 +167,20 @@ interface LoadFileItemProps {
     initialActiveHandler?: HandlerConfig;
 }
 
-function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemProps): ReactNode {
+const LoadFileItem = React.memo(({ file, openHandler, initialActiveHandler }: LoadFileItemProps) => {
     const [handlers, setHandlers] = useState<any[]>([]);
     const [mime, setMime] = useState("");
     const [description, setDescription] = useState("Loading...");
     const [activeHandler, setActiveHandler] = useState<HandlerConfig | undefined>(initialActiveHandler) ?? getDefaultHandler(mime, file.name);
 
-    const magicPromise = WASMagic.create({
+    const magicPromise = React.useMemo(() => WASMagic.create({
         flags: WASMagicFlags.NONE,
         stdio: (name, text) => console.log(text)
-    });
-    const mimeMagicPromise = WASMagic.create({
+    }), []);
+    const mimeMagicPromise = React.useMemo(() => WASMagic.create({
         flags: WASMagicFlags.MIME_TYPE,
         stdio: (name, text) => console.log(text)
-    });
+    }), []);
 
     useEffect(() => {
         const effect = async () => {
@@ -228,4 +230,4 @@ function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemP
             onOpenHandler={onOpenFile}
         />
     )
-}
+});

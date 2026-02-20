@@ -46,14 +46,25 @@ const SQLiteViewer: React.FC = () => {
         };
     }, [isResizing]);
 
+    const memoizedSidebar = React.useMemo(() => (
+        <Sidebar
+            tables={tables}
+            selectedTable={selectedTable}
+            onSelect={setSelectedTable}
+            style={{ width: `${sidebarWidth}px`, flex: `0 0 ${sidebarWidth}px`, maxWidth: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+        />
+    ), [tables, selectedTable, setSelectedTable, sidebarWidth]);
+
+    const memoizedMain = React.useMemo(() => (
+        <main className="sqlite-main">
+            <QueryControls query={query} onChange={setQuery} onRun={() => exec(query)} error={execResult.error} />
+            <ResultsTable results={execResult.results} columns={execResult.columns} />
+        </main>
+    ), [query, setQuery, exec, execResult.error, execResult.results, execResult.columns]);
+
     return (
         <div className="sqlite-root">
-            <Sidebar
-                tables={tables}
-                selectedTable={selectedTable}
-                onSelect={setSelectedTable}
-                style={{ width: `${sidebarWidth}px`, flex: `0 0 ${sidebarWidth}px`, maxWidth: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
-            />
+            {memoizedSidebar}
             <div
                 className="sidebar-resizer"
                 onMouseDown={(e) => {
@@ -63,10 +74,7 @@ const SQLiteViewer: React.FC = () => {
                     });
                 }}
             />
-            <main className="sqlite-main">
-                <QueryControls query={query} onChange={setQuery} onRun={() => exec(query)} error={execResult.error} />
-                <ResultsTable results={execResult.results} columns={execResult.columns} />
-            </main>
+            {memoizedMain}
         </div>
     );
 };

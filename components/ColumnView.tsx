@@ -206,6 +206,11 @@ export function ColumnView<T>({
         }
     };
 
+    const previewContent = React.useMemo(() => {
+        if (!selectedFile || !renderFilePreview) return null;
+        return renderFilePreview(selectedFile.content, selectedFile.path);
+    }, [selectedFile, renderFilePreview]);
+
     return (
         <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
             <div className="columns-container" ref={columnsContainerRef} style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
@@ -246,6 +251,14 @@ export function ColumnView<T>({
                 })}
                 {selectedFile && renderFilePreview && (
                     <>
+                        <div className="preview-pane" style={{
+                            width: `${previewWidth}px`,
+                            minWidth: `${previewWidth}px`,
+                            height: '100%',
+                            overflow: 'auto'
+                        }}>
+                            {previewContent}
+                        </div>
                         <div
                             className="resizer"
                             onMouseDown={(e) => {
@@ -256,14 +269,6 @@ export function ColumnView<T>({
                                 });
                             }}
                         />
-                        <div className="preview-pane" style={{
-                            width: `${previewWidth}px`,
-                            minWidth: `${previewWidth}px`,
-                            height: '100%',
-                            overflow: 'auto'
-                        }}>
-                            {renderFilePreview(selectedFile.content, selectedFile.path)}
-                        </div>
                     </>
                 )}
             </div>
