@@ -3,6 +3,33 @@ import { createRoot } from 'react-dom/client';
 import init, { parse_ext4, read_ext4_file, Ext4File } from './ext4-wasm/pkg';
 import { ColumnView } from '../components/ColumnView';
 
+const guessImageType = (data: Uint8Array): string | null => {
+    const checkString = (offset: number, str: string) => {
+        if (data.length < offset + str.length) return false;
+        for (let i = 0; i < str.length; i++) {
+            if (data[offset + i] !== str.charCodeAt(i)) return false;
+        }
+        return true;
+    };
+
+    if (checkString(0x3, "NTFS    ")) return "NTFS";
+    if (checkString(0x3, "EXFAT   ")) return "exFAT";
+    if (checkString(0x52, "FAT32   ")) return "FAT32";
+    if (checkString(0x36, "FAT12   ")) return "FAT12";
+    if (checkString(0x36, "FAT16   ")) return "FAT16";
+    if (checkString(0x0, "XFSB")) return "XFS";
+    if (checkString(0x20, "NXSB") || checkString(0x0, "NXSB") || checkString(0x8, "NXSB")) return "APFS";
+    if (checkString(0x8001, "CD001")) return "ISO9660";
+    if (checkString(0x10040, "_BHRfS_M")) return "Btrfs";
+    if (data.length > 0x400 + 4 && data[0x400] === 0x10 && data[0x401] === 0x20 && data[0x402] === 0xF5 && data[0x403] === 0xF2) return "F2FS";
+    if (checkString(0x400, "H+") || checkString(0x400, "HX")) return "HFS+";
+    if (checkString(0x0, "hsqs")) return "SquashFS";
+    if (checkString(0x1FE, "\x55\xAA")) return "MBR/FAT";
+    if (checkString(512, "EFI PART")) return "GPT";
+
+    return null;
+};
+
 const Ext4Viewer: React.FC = () => {
     const [fileData, setFileData] = useState<Uint8Array | null>(null);
     const [tree, setTree] = useState<any>(null);
@@ -26,7 +53,12 @@ const Ext4Viewer: React.FC = () => {
                 // ext4 magic number 0xEF53 at offset 1080 (0x438)
                 const isExt4 = data.length > 1081 && data[1080] === 0x53 && data[1081] === 0xEF;
                 if (!isExt4) {
-                    setError("This file does not appear to be a valid ext4 filesystem image.");
+                    const guessedType = guessImageType(data);
+                    if (guessedType) {
+                        setError(`.img file with type ${guessedType} is not supported yet. Try an ext4 formatted img file instead`);
+                    } else {
+                        setError("This file does not appear to be a valid ext4 filesystem image.");
+                    }
                     return;
                 }
 
