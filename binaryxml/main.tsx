@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc } from './abxml-wasm-bindings/pkg'
+import init, { ArscResource, decode_apk, extract_arsc, decode_xml } from './abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
@@ -39,9 +39,10 @@ function pathToTree(paths: [string, string][]): { [key: string]: any } {
 }
 
 function App() {
-    const [view, setView] = useState<'file' | 'resource'>('file');
+    const [view, setView] = useState<'file' | 'resource' | 'xml'>('file');
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
     const [resources, setResources] = useState<ArscResource[]>([]);
+    const [xmlContent, setXmlContent] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -80,10 +81,54 @@ function App() {
             return;
         }
 
-        const decoded = decode_apk(fileBytes)
-        const tree = pathToTree(decoded)
-        setFileTree(tree);
-        setView('file');
+        // Try to decode as standalone XML first if it's not an APK
+        if (file.name.endsWith('.xml')) {
+            try {
+                console.log("Attempting to decode as standalone XML");
+                const xml = decode_xml(fileBytes);
+                console.log("Successfully decoded standalone XML");
+                setXmlContent(xml);
+                setView('xml');
+                return;
+            } catch (e) {
+                console.log("Failed to decode as standalone XML, trying as APK", e);
+            }
+        }
+
+        try {
+            const decoded = decode_apk(fileBytes)
+            const tree = pathToTree(decoded)
+            setFileTree(tree);
+            setView('file');
+        } catch (error) {
+            console.error('Error handling file as APK:', error);
+
+            // Try standalone XML if we haven't already
+            if (!file.name.endsWith('.xml')) {
+                try {
+                    const xml = decode_xml(fileBytes);
+                    setXmlContent(xml);
+                    setView('xml');
+                    return;
+                } catch (xmlError) {
+                    // Ignore, try ARSC
+                }
+            }
+
+            // Try standalone ARSC if we haven't already
+            if (!file.name.endsWith('.arsc')) {
+                try {
+                    const resources = extract_arsc(fileBytes);
+                    setResources(resources);
+                    setView('resource');
+                    return;
+                } catch (arscError) {
+                    // Ignore
+                }
+            }
+
+            setError((error as Error).message);
+        }
     }
 
     const handleItemClick = (level: number, key: string, content: any) => {
@@ -101,6 +146,10 @@ function App() {
 
     if (view === 'resource') {
         return <ResourceTableViewer resources={resources} onBack={() => setView('file')} />;
+    }
+
+    if (view === 'xml') {
+        return <XmlViewer content={xmlContent} onBack={() => setView('file')} />;
     }
 
     return <FileViewer files={fileTree} onItemClick={handleItemClick} />;
@@ -165,6 +214,47 @@ function FileViewer({ files, onItemClick }: {
                 renderFileActions={renderFileActions}
                 renderFilePreview={renderFilePreview}
             />
+        </div>
+    );
+}
+
+function XmlViewer({ content, onBack }: { content: string, onBack: () => void }) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                <button
+                    onClick={onBack}
+                    style={{
+                        padding: '8px 16px',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        background: 'white',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                    </svg>
+                    Back
+                </button>
+                <h3 style={{ margin: 0 }}>Binary XML Content</h3>
+            </div>
+            <pre style={{
+                flex: 1,
+                overflow: 'auto',
+                backgroundColor: '#f5f5f5',
+                padding: '10px',
+                borderRadius: '4px',
+                margin: 0,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                fontFamily: 'monospace'
+            }}>
+                {content}
+            </pre>
         </div>
     );
 }
@@ -379,4 +469,3 @@ initializeWasm().catch(error => {
 
 // Initial render
 OUTPUT.render(<App />);
-
