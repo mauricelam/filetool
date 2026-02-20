@@ -13,6 +13,8 @@ const SQLiteViewer: React.FC = () => {
 
     const [selectedTable, setSelectedTable] = useState<string | null>(null);
     const [query, setQuery] = useState<string>('');
+    const [sidebarWidth, setSidebarWidth] = useState<number>(240);
+    const [isResizing, setIsResizing] = useState<{ startX: number; startWidth: number } | null>(null);
 
     useEffect(() => {
         if (selectedTable) {
@@ -22,9 +24,45 @@ const SQLiteViewer: React.FC = () => {
         }
     }, [selectedTable, exec]);
 
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizing) return;
+            const deltaX = e.clientX - isResizing.startX;
+            setSidebarWidth(Math.max(100, isResizing.startWidth + deltaX));
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(null);
+        };
+
+        if (isResizing) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing]);
+
     return (
         <div className="sqlite-root">
-            <Sidebar tables={tables} selectedTable={selectedTable} onSelect={setSelectedTable} />
+            <Sidebar
+                tables={tables}
+                selectedTable={selectedTable}
+                onSelect={setSelectedTable}
+                style={{ width: `${sidebarWidth}px`, flex: `0 0 ${sidebarWidth}px`, maxWidth: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+            />
+            <div
+                className="sidebar-resizer"
+                onMouseDown={(e) => {
+                    setIsResizing({
+                        startX: e.clientX,
+                        startWidth: sidebarWidth
+                    });
+                }}
+            />
             <main className="sqlite-main">
                 <QueryControls query={query} onChange={setQuery} onRun={() => exec(query)} error={execResult.error} />
                 <ResultsTable results={execResult.results} columns={execResult.columns} />

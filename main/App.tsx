@@ -16,6 +16,8 @@ export function App() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
     const [activeHandlers, setActiveHandlers] = useState<(HandlerConfig | undefined)[]>([]);
+    const [sidebarWidth, setSidebarWidth] = useState<number>(200)
+    const [isResizingSidebar, setIsResizingSidebar] = useState<{ startX: number; startWidth: number } | null>(null);
 
     // Global paste handler
     useEffect(() => {
@@ -88,6 +90,28 @@ export function App() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [files]);
 
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizingSidebar) return;
+            const deltaX = e.clientX - isResizingSidebar.startX;
+            setSidebarWidth(Math.max(100, isResizingSidebar.startWidth + deltaX));
+        };
+
+        const handleMouseUp = () => {
+            setIsResizingSidebar(null);
+        };
+
+        if (isResizingSidebar) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizingSidebar]);
+
     return (
         <>
             <TopBar showToggle={files.length > 0} />
@@ -99,7 +123,19 @@ export function App() {
                         onSelect={setSelected}
                         onRemove={removeFile}
                         onAddFiles={handleAddFiles}
+                        width={sidebarWidth}
                     />
+                    {files.length > 0 && (
+                        <div
+                            className="sidebar-resizer"
+                            onMouseDown={(e) => {
+                                setIsResizingSidebar({
+                                    startX: e.clientX,
+                                    startWidth: sidebarWidth
+                                });
+                            }}
+                        />
+                    )}
                     <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
                         {files[selected] &&
                             <LoadFileItem
