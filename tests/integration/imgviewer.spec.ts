@@ -21,7 +21,7 @@ test('img-viewer should list files in an ext4 image', async ({ page }) => {
     });
 
     // Check if the explorer title is present
-    await expect(iframe.getByText('img Image Explorer')).toBeVisible();
+    await expect(iframe.getByText('ext4 Image Explorer')).toBeVisible();
 
     // Check for the hello.txt file we added to the image
     await expect(iframe.getByText('hello.txt')).toBeVisible();

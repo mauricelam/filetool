@@ -23,6 +23,13 @@ const Ext4Viewer: React.FC = () => {
                 const data = new Uint8Array(buffer);
                 setFileData(data);
 
+                // ext4 magic number 0xEF53 at offset 1080 (0x438)
+                const isExt4 = data.length > 1081 && data[1080] === 0x53 && data[1081] === 0xEF;
+                if (!isExt4) {
+                    setError("This file does not appear to be a valid ext4 filesystem image.");
+                    return;
+                }
+
                 try {
                     setLoading(true);
                     const parsedTree = parse_ext4(data);
@@ -125,7 +132,51 @@ const Ext4Viewer: React.FC = () => {
     };
 
     if (error) {
-        return <div style={{ color: 'red', padding: '20px' }}>{error}</div>;
+        return (
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                padding: '20px',
+                textAlign: 'center',
+                color: '#333'
+            }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+                <h2 style={{ margin: '0 0 12px 0', color: '#d32f2f' }}>Error Loading Image</h2>
+                <div style={{
+                    backgroundColor: '#fdecea',
+                    color: '#d32f2f',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    maxWidth: '450px',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                    border: '1px solid #f5c6cb'
+                }}>
+                    {error}
+                </div>
+                <button
+                    onClick={() => {
+                        setError(null);
+                        setTree(null);
+                        setFileData(null);
+                        window.parent.postMessage({ action: 'requestFile' });
+                    }}
+                    style={{
+                        marginTop: '20px',
+                        padding: '8px 16px',
+                        backgroundColor: '#f5f5f5',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Try again
+                </button>
+            </div>
+        );
     }
 
     if (loading) {
