@@ -212,7 +212,16 @@ export function ColumnView<T>({
     }, [selectedFile, renderFilePreview]);
 
     return (
-        <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+            {isResizing && <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 100,
+                cursor: 'col-resize'
+            }} />}
             <div className="columns-container" ref={columnsContainerRef} style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
                 {columns.map((column, index) => {
                     const width = columnWidths[index] || 250;
@@ -282,7 +291,7 @@ export function ColumnView<T>({
                         cursor: col-resize;
                         background: transparent;
                         transition: background 0.2s;
-                        z-index: 10;
+                        z-index: 101;
                         margin-left: -2px;
                         margin-right: -2px;
                     }

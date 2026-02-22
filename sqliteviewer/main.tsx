@@ -63,7 +63,17 @@ const SQLiteViewer: React.FC = () => {
     ), [query, setQuery, exec, execResult.error, execResult.results, execResult.columns]);
 
     return (
-        <div className="sqlite-root">
+        <div className="sqlite-root" style={{ position: 'relative' }}>
+            {isResizing && <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 100,
+                cursor: 'col-resize',
+                background: 'transparent'
+            }} />}
             {memoizedSidebar}
             <div
                 className="sidebar-resizer"

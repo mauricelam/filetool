@@ -122,9 +122,19 @@ export function App() {
 
     return (
         <>
+            {isResizingSidebar && <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 1000,
+                cursor: 'col-resize',
+                background: 'transparent'
+            }} />}
             <TopBar showToggle={files.length > 0} />
             <div id="basicinfo">
-                <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+                <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative' }}>
                     <FileList
                         files={files}
                         selected={selected}
