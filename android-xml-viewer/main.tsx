@@ -1,10 +1,8 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc } from './abxml-wasm-bindings/pkg'
+import init, { ArscResource, extract_arsc, decode_xml } from '../binaryxml/abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
-import { ColumnView } from '../components/ColumnView'
-import { PreviewComponent } from '../components/PreviewComponent';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
@@ -21,27 +19,10 @@ const initializeWasm = async () => {
     }
 };
 
-function pathToTree(paths: [string, string][]): { [key: string]: any } {
-    const result = {}
-    function addToTree(tree: { [key: string]: any }, pathComponents: string[], content: string) {
-        if (pathComponents.length === 1) {
-            tree[pathComponents[0]] = content
-        } else {
-            tree[pathComponents[0]] = tree[pathComponents[0]] || {}
-            addToTree(tree[pathComponents[0]], pathComponents.slice(1), content)
-        }
-    }
-    for (const [path, content] of paths) {
-        const pathComponents = path.split('/')
-        addToTree(result, pathComponents, content)
-    }
-    return result
-}
-
 function App() {
-    const [view, setView] = useState<'file' | 'resource'>('file');
-    const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
+    const [view, setView] = useState<'resource' | 'xml' | 'loading'>('loading');
     const [resources, setResources] = useState<ArscResource[]>([]);
+    const [xmlContent, setXmlContent] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -72,96 +53,79 @@ function App() {
         }
         const fileBytes = new Uint8Array(await file.arrayBuffer());
 
-        const decoded = decode_apk(fileBytes)
-        const tree = pathToTree(decoded)
-        setFileTree(tree);
-        setView('file');
-    }
-
-    const handleItemClick = (level: number, key: string, content: any) => {
-        // Check if it's an ARSC file
-        if (key.endsWith('.arsc') && content instanceof Uint8Array) {
-            const resources = extract_arsc(content);
-            setResources(resources);
-            setView('resource');
+        // Try standalone ARSC
+        if (file.name.endsWith('.arsc')) {
+            try {
+                const resources = extract_arsc(fileBytes);
+                setResources(resources);
+                setView('resource');
+                return;
+            } catch (e) {
+                console.log("Failed to decode as standalone ARSC", e);
+            }
         }
-    };
+
+        // Try standalone XML
+        try {
+            const xml = decode_xml(fileBytes);
+            setXmlContent(xml);
+            setView('xml');
+        } catch (e) {
+            console.log("Failed to decode as standalone XML", e);
+            // If it failed and we haven't tried ARSC yet
+            if (!file.name.endsWith('.arsc')) {
+                try {
+                    const resources = extract_arsc(fileBytes);
+                    setResources(resources);
+                    setView('resource');
+                    return;
+                } catch (arscError) {
+                    console.log("Also failed to decode as standalone ARSC", arscError);
+                }
+            }
+            setError("Failed to decode file as Android Binary XML or ARSC");
+        }
+    }
 
     if (error) {
         return <div style={{ color: 'red', padding: '10px' }}>Error: {error}</div>;
     }
 
-    if (view === 'resource') {
-        return <ResourceTableViewer resources={resources} onBack={() => setView('file')} />;
+    if (view === 'loading') {
+        return <div style={{ padding: '20px' }}>Loading...</div>;
     }
 
-    return <FileViewer files={fileTree} onItemClick={handleItemClick} />;
+    if (view === 'resource') {
+        return <ResourceTableViewer resources={resources} />;
+    }
+
+    return <XmlViewer content={xmlContent} />;
 }
 
-function FileViewer({ files, onItemClick }: {
-    files: { [key: string]: any },
-    onItemClick: (level: number, key: string, content: any) => void,
-}) {
-    const handleOpenFile = async (file: Uint8Array, filename: string) => {
-        const extractedFile = new File([file.buffer as ArrayBuffer], filename);
-        window.parent?.postMessage({
-            action: 'openFile',
-            file: extractedFile
-        }, "/", [await extractedFile.arrayBuffer()]);
-    };
-
-    const handleDownloadFile = async (file: Uint8Array, filename: string) => {
-        const extractedFile = new File([file.buffer as ArrayBuffer], filename);
-        const url = URL.createObjectURL(extractedFile);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = extractedFile.name;
-        anchor.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const renderFileActions = (file: any, path: string[]) => {
-        if (!window.parent || !(file instanceof Uint8Array)) return null;
-
-        return (
-            <div className="file-actions">
-                <button onClick={() => handleOpenFile(file, path[path.length - 1])} title="Open">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M216-144q-29.7 0-50.85-21.15Q144-186.3 144-216v-528q0-29.7 21.15-50.85Q186.3-816 216-816h264v72H216v528h528v-264h72v264q0 29.7-21.15 50.85Q773.7-144 744-144H216Zm171-192-51-51 357-357H576v-72h240v240h-72v-117L387-336Z" />
-                    </svg>
-                </button>
-                <button onClick={() => handleDownloadFile(file, path[path.length - 1])} title="Download">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
-                    </svg>
-                </button>
-            </div>
-        );
-    };
-
-    const renderFilePreview = (file: Uint8Array, path: string[]) => {
-        const extractFile = async () => {
-            return new File([file.buffer as ArrayBuffer], path[path.length - 1]);
-        };
-        return <PreviewComponent path={path} filePromise={extractFile} />;
-    };
-
+function XmlViewer({ content }: { content: string }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                <h3 style={{ margin: 0 }}>APK Contents</h3>
+                <h3 style={{ margin: 0 }}>Binary XML Content</h3>
             </div>
-            <ColumnView
-                initialContent={files}
-                onItemClick={onItemClick}
-                renderFileActions={renderFileActions}
-                renderFilePreview={renderFilePreview}
-            />
+            <pre style={{
+                flex: 1,
+                overflow: 'auto',
+                backgroundColor: '#f5f5f5',
+                padding: '10px',
+                borderRadius: '4px',
+                margin: 0,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                fontFamily: 'monospace'
+            }}>
+                {content}
+            </pre>
         </div>
     );
 }
 
-function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[], onBack: () => void }) {
+function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
     // Group resources by type name
     const resourcesByType = resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
@@ -172,11 +136,18 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
         return acc;
     }, {} as Record<string, any[]>);
 
-    const [selectedType, setSelectedType] = useState<string>(Object.keys(resourcesByType)[0]);
+    const types = Object.keys(resourcesByType);
+    const [selectedType, setSelectedType] = useState<string>(types[0] || '');
     const [sortConfig, setSortConfig] = useState<{ key: 'entry_id' | 'name' | 'value', direction: 'asc' | 'desc' }>({
         key: 'entry_id',
         direction: 'asc'
     });
+
+    useEffect(() => {
+        if (!selectedType && types.length > 0) {
+            setSelectedType(types[0]);
+        }
+    }, [types, selectedType]);
 
     const handleSort = (key: 'entry_id' | 'name' | 'value') => {
         setSortConfig(prev => ({
@@ -194,7 +165,7 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
             } else if (sortConfig.key === 'name') {
                 comparison = a.name.localeCompare(b.name);
             } else {
-                comparison = a.value.localeCompare(b.value);
+                comparison = (a.value || '').localeCompare(b.value || '');
             }
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         });
@@ -205,10 +176,6 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
             {sortConfig.key === column && (sortConfig.direction === 'asc' ? '↑' : '↓')}
         </span>
     );
-
-    const showValueColumn = selectedType !== 'id';
-
-    const resourceTypes = Object.keys(resourcesByType);
 
     return (
         <div style={{
@@ -224,40 +191,24 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
                 gap: '16px',
                 marginBottom: '16px'
             }}>
-                <button
-                    onClick={onBack}
-                    style={{
-                        padding: '8px 16px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        background: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
-                    </svg>
-                    Back
-                </button>
                 <h3 style={{ margin: 0 }}>Resource Table</h3>
             </div>
+
+            {types.length === 0 && <div style={{ padding: '20px' }}>No resources found in ARSC file.</div>}
 
             {/* Type selector tabs */}
             <div style={{ marginBottom: '16px' }}>
                 <Tabs
-                    selectedIndex={resourceTypes.indexOf(selectedType)}
-                    onSelect={(index) => setSelectedType(resourceTypes[index])}
+                    selectedIndex={types.indexOf(selectedType)}
+                    onSelect={(index) => setSelectedType(types[index])}
                 >
                     <TabList>
-                        {resourceTypes.map(typeName => (
+                        {types.map(typeName => (
                             <Tab key={typeName}>{typeName}</Tab>
                         ))}
                     </TabList>
 
-                    {resourceTypes.map(typeName => (
+                    {types.map(typeName => (
                         <TabPanel key={typeName}>
                             {/* Resource table */}
                             <div style={{
@@ -326,7 +277,7 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
                                                 <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
                                                     {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                         {resource.value}
-                                                        {resource.value.startsWith('#') && resource.value.length === 9 && (
+                                                        {resource.value?.startsWith('#') && resource.value.length === 9 && (
                                                             <div style={{
                                                                 width: '20px',
                                                                 height: '20px',
@@ -336,19 +287,6 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
                                                             }} />
                                                         )}
                                                     </div>}
-                                                    {resource.entries && (
-                                                        <div style={{ marginTop: '8px' }}>
-                                                            {Object.entries(resource).map(([key, value], i) => (
-                                                                <div key={i} style={{
-                                                                    padding: '4px 0',
-                                                                    borderTop: i > 0 ? '1px solid #eee' : 'none'
-                                                                }}>
-                                                                    <span style={{ fontWeight: 'bold' }}>{key}:</span> {value}
-                                                                </div>
-                                                            ))
-                                                            }
-                                                        </div>
-                                                    )}
                                                 </div>
                                             )}
                                         </React.Fragment>

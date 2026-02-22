@@ -162,11 +162,17 @@ export const HANDLERS: HandlerDefinition[] = [
     },
     { "name": "ClassyShark", "handler": "classyshark", "mimetypes": [] },
     {
-        "name": "Android Binary XML/APK viewer",
+        "name": "Android APK viewer",
         "handler": "binaryxml",
         "mimetypes": [
             "application/vnd.android.package-archive",
-            { "mime": "application/zip", "filename": /.*\.apk$/i },
+            { "mime": "application/zip", "filename": /.*\.apk$/i }
+        ]
+    },
+    {
+        "name": "Android Binary XML viewer",
+        "handler": "android-xml-viewer",
+        "mimetypes": [
             { "description": /Android binary XML/i },
             { "description": /Android package resource table \(ARSC\)/i },
             { "filename": /.*\.arsc$/i }

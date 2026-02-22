@@ -2,6 +2,7 @@
     "name": "filemagic",
     "workspaces": [
         "archive",
+        "android-xml-viewer",
         "binaryxml",
         "binutils",
         "bplistviewer",
