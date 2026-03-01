@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc } from './abxml-wasm-bindings/pkg'
+import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata } from './abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
@@ -39,9 +39,10 @@ function pathToTree(paths: [string, string][]): { [key: string]: any } {
 }
 
 function App() {
-    const [view, setView] = useState<'file' | 'resource'>('file');
+    const [view, setView] = useState<'file' | 'resource' | 'metadata'>('file');
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
     const [resources, setResources] = useState<ArscResource[]>([]);
+    const [metadata, setMetadata] = useState<ApkMetadata | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -73,8 +74,9 @@ function App() {
         const fileBytes = new Uint8Array(await file.arrayBuffer());
 
         const decoded = decode_apk(fileBytes)
-        const tree = pathToTree(decoded)
+        const tree = pathToTree(decoded.files.map(([path, content]) => [path, new Uint8Array(content)] as any))
         setFileTree(tree);
+        setMetadata(decoded.metadata);
         setView('file');
     }
 
@@ -95,7 +97,47 @@ function App() {
         return <ResourceTableViewer resources={resources} onBack={() => setView('file')} />;
     }
 
-    return <FileViewer files={fileTree} onItemClick={handleItemClick} />;
+    if (view === 'metadata') {
+        return <MetadataViewer metadata={metadata} onBack={() => setView('file')} />;
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {metadata && (
+                <div style={{
+                    padding: '10px 20px',
+                    borderBottom: '1px solid #ccc',
+                    backgroundColor: '#f9f9f9',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}>
+                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 'bold' }}>{metadata.manifest?.package || 'Unknown APK'}</span>
+                        <span style={{ fontSize: '12px', color: '#666' }}>
+                            {metadata.manifest?.version_name} ({metadata.manifest?.version_code})
+                        </span>
+                    </div>
+                    <button
+                        onClick={() => setView('metadata')}
+                        style={{
+                            padding: '4px 12px',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            background: 'white',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                        }}
+                    >
+                        View APK Metadata
+                    </button>
+                </div>
+            )}
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+                <FileViewer files={fileTree} onItemClick={handleItemClick} />
+            </div>
+        </div>
+    );
 }
 
 function FileViewer({ files, onItemClick }: {
@@ -358,6 +400,160 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
                         </TabPanel>
                     ))}
                 </Tabs>
+            </div>
+        </div>
+    );
+}
+
+function MetadataViewer({ metadata, onBack }: { metadata: ApkMetadata | null, onBack: () => void }) {
+    if (!metadata) return null;
+
+    const formatSize = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    return (
+        <div style={{ padding: '20px', height: '100%', overflow: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+                <button
+                    onClick={onBack}
+                    style={{
+                        padding: '8px 16px',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        background: 'white',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                    </svg>
+                    Back to Files
+                </button>
+                <h2 style={{ margin: 0 }}>APK Metadata</h2>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                <section style={{ border: '1px solid #eee', padding: '16px', borderRadius: '8px' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: '1px solid #eee', paddingBottom: '8px' }}>App Information</h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold', width: '150px' }}>Package Name</td>
+                                <td style={{ padding: '8px 0', fontFamily: 'monospace' }}>{metadata.manifest?.package || 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Version Name</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.manifest?.version_name || 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Version Code</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.manifest?.version_code || 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Min SDK</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.manifest?.min_sdk_version || 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Target SDK</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.manifest?.target_sdk_version || 'N/A'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section style={{ border: '1px solid #eee', padding: '16px', borderRadius: '8px' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: '1px solid #eee', paddingBottom: '8px' }}>Archive Details</h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold', width: '150px' }}>File Count</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.file_count}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Uncompressed Size</td>
+                                <td style={{ padding: '8px 0' }}>{formatSize(metadata.uncompressed_size)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section style={{ border: '1px solid #eee', padding: '16px', borderRadius: '8px', gridColumn: 'span 2' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: '1px solid #eee', paddingBottom: '8px' }}>Signature Information</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                backgroundColor: metadata.v1_signature ? '#4caf50' : '#ccc'
+                            }}></div>
+                            <span style={{ fontWeight: metadata.v1_signature ? 'bold' : 'normal' }}>V1 (JAR)</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                backgroundColor: metadata.v2_signature ? '#4caf50' : '#ccc'
+                            }}></div>
+                            <span style={{ fontWeight: metadata.v2_signature ? 'bold' : 'normal' }}>V2 (Block)</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                backgroundColor: metadata.v3_signature ? '#4caf50' : '#ccc'
+                            }}></div>
+                            <span style={{ fontWeight: metadata.v3_signature ? 'bold' : 'normal' }}>V3 (Block)</span>
+                        </div>
+                    </div>
+
+                    {metadata.signers.length > 0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <h4 style={{ marginBottom: '12px' }}>Signer Certificates</h4>
+                            {metadata.signers.map((signer, i) => (
+                                <div key={i} style={{ backgroundColor: '#f5f5f5', padding: '12px', borderRadius: '4px', marginBottom: '12px' }}>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>Subject</div>
+                                        <div style={{ fontWeight: 'bold' }}>{signer.subject}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>SHA-256 Digest</div>
+                                        <div style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{signer.sha256_digest}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>SHA-1 Digest</div>
+                                        <div style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{signer.sha1_digest}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>MD5 Digest</div>
+                                        <div style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{signer.md5_digest}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {metadata.jar_signatures.length > 0 && (
+                        <div>
+                            <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>V1 Certificate Files:</div>
+                            <ul style={{ margin: 0, paddingLeft: '20px', fontFamily: 'monospace', fontSize: '13px' }}>
+                                {metadata.jar_signatures.map((sig, i) => (
+                                    <li key={i}>{sig}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </section>
             </div>
         </div>
     );

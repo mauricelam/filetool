@@ -37,6 +37,7 @@
 pub mod apk;
 pub mod chunks;
 pub mod decoder;
+mod signature_test;
 pub mod encoder;
 pub mod model;
 #[cfg(test)]
