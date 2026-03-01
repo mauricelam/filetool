@@ -127,6 +127,9 @@ export function ColumnView<T>({
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [columns, setColumns] = useState<any[]>([]);
     const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);
+    const [columnWidths, setColumnWidths] = useState<Record<number, number>>({});
+    const [previewWidth, setPreviewWidth] = useState<number>(700);
+    const [isResizing, setIsResizing] = useState<{ index: number | 'preview'; startX: number; startWidth: number } | null>(null);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -134,6 +137,38 @@ export function ColumnView<T>({
         setSelectedPath([]);
         setSelectedFile(null);
     }, [initialContent]);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizing) return;
+
+            const deltaX = e.clientX - isResizing.startX;
+            const newWidth = Math.max(100, isResizing.startWidth + deltaX);
+
+            if (isResizing.index === 'preview') {
+                setPreviewWidth(newWidth);
+            } else {
+                setColumnWidths(prev => ({
+                    ...prev,
+                    [isResizing.index]: newWidth
+                }));
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(null);
+        };
+
+        if (isResizing) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing]);
 
     const handleItemClick = (level: number, key: string, content: any) => {
         const newPath = [...selectedPath.slice(0, level), key];
@@ -171,44 +206,97 @@ export function ColumnView<T>({
         }
     };
 
+    const previewContent = React.useMemo(() => {
+        if (!selectedFile || !renderFilePreview) return null;
+        return renderFilePreview(selectedFile.content, selectedFile.path);
+    }, [selectedFile, renderFilePreview]);
+
     return (
-        <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+            {isResizing && <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 100,
+                cursor: 'col-resize'
+            }} />}
             <div className="columns-container" ref={columnsContainerRef} style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
-                {columns.map((column, index) => (
-                    <div
-                        key={index}
-                        style={{
-                            width: '250px',
-                            minWidth: '250px',
-                            borderRight: '1px solid #ccc',
-                            overflow: 'auto',
-                            height: '100%'
-                        }}
-                    >
-                        <Column
-                            content={column.content}
-                            level={index}
-                            selectedPath={selectedPath}
-                            onItemClick={handleItemClick}
-                            renderFileActions={renderFileActions}
-                        />
-                    </div>
-                ))}
+                {columns.map((column, index) => {
+                    const width = columnWidths[index] || 250;
+                    return (
+                        <React.Fragment key={index}>
+                            <div
+                                style={{
+                                    width: `${width}px`,
+                                    minWidth: `${width}px`,
+                                    borderRight: '1px solid #ccc',
+                                    overflow: 'auto',
+                                    height: '100%',
+                                    position: 'relative'
+                                }}
+                            >
+                                <Column
+                                    content={column.content}
+                                    level={index}
+                                    selectedPath={selectedPath}
+                                    onItemClick={handleItemClick}
+                                    renderFileActions={renderFileActions}
+                                />
+                            </div>
+                            <div
+                                className="resizer"
+                                onMouseDown={(e) => {
+                                    setIsResizing({
+                                        index,
+                                        startX: e.clientX,
+                                        startWidth: width
+                                    });
+                                }}
+                            />
+                        </React.Fragment>
+                    );
+                })}
                 {selectedFile && renderFilePreview && (
-                    <div className="preview-pane" style={{
-                        width: '700px',
-                        minWidth: '700px',
-                        height: '100%',
-                        overflow: 'auto'
-                    }}>
-                        {renderFilePreview(selectedFile.content, selectedFile.path)}
-                    </div>
+                    <>
+                        <div className="preview-pane" style={{
+                            width: `${previewWidth}px`,
+                            minWidth: `${previewWidth}px`,
+                            height: '100%',
+                            overflow: 'auto'
+                        }}>
+                            {previewContent}
+                        </div>
+                        <div
+                            className="resizer"
+                            onMouseDown={(e) => {
+                                setIsResizing({
+                                    index: 'preview',
+                                    startX: e.clientX,
+                                    startWidth: previewWidth
+                                });
+                            }}
+                        />
+                    </>
                 )}
             </div>
             <style>
                 {`
                     *, *::before, *::after {
                         box-sizing: border-box;
+                    }
+                    .resizer {
+                        width: 4px;
+                        cursor: col-resize;
+                        background: transparent;
+                        transition: background 0.2s;
+                        z-index: 101;
+                        margin-left: -2px;
+                        margin-right: -2px;
+                    }
+                    .resizer:hover, .resizer:active {
+                        background: #2196F3;
                     }
                     .column-content {
                         padding: 8px;
