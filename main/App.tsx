@@ -16,8 +16,6 @@ export function App() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
     const [activeHandlers, setActiveHandlers] = useState<(HandlerConfig | undefined)[]>([]);
-    const [sidebarWidth, setSidebarWidth] = useState<number>(200)
-    const [isResizingSidebar, setIsResizingSidebar] = useState<{ startX: number; startWidth: number } | null>(null);
 
     // Global paste handler
     useEffect(() => {
@@ -63,14 +61,6 @@ export function App() {
         })
     };
 
-    const handleOpenHandler = React.useCallback((handlerConfig: HandlerConfig) => {
-        setActiveHandlers(cur => {
-            const updatedHandlers = [...cur];
-            updatedHandlers[selected] = handlerConfig;
-            return updatedHandlers;
-        });
-    }, [selected]);
-
     useEffect(() => {
         if (files.length > 0) {
             setSelected(files.length - 1);
@@ -98,68 +88,30 @@ export function App() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [files]);
 
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isResizingSidebar) return;
-            const deltaX = e.clientX - isResizingSidebar.startX;
-            setSidebarWidth(Math.max(100, isResizingSidebar.startWidth + deltaX));
-        };
-
-        const handleMouseUp = () => {
-            setIsResizingSidebar(null);
-        };
-
-        if (isResizingSidebar) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        }
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isResizingSidebar]);
-
     return (
         <>
-            {isResizingSidebar && <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 1000,
-                cursor: 'col-resize',
-                background: 'transparent'
-            }} />}
             <TopBar showToggle={files.length > 0} />
             <div id="basicinfo">
-                <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative' }}>
+                <div style={{ display: 'flex', height: '100%', width: '100%' }}>
                     <FileList
                         files={files}
                         selected={selected}
                         onSelect={setSelected}
                         onRemove={removeFile}
                         onAddFiles={handleAddFiles}
-                        width={sidebarWidth}
                     />
-                    {files.length > 0 && (
-                        <div
-                            className="sidebar-resizer"
-                            onMouseDown={(e) => {
-                                setIsResizingSidebar({
-                                    startX: e.clientX,
-                                    startWidth: sidebarWidth
-                                });
-                            }}
-                        />
-                    )}
                     <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
                         {files[selected] &&
                             <LoadFileItem
                                 key={selected}
                                 file={files[selected]}
-                                openHandler={handleOpenHandler}
+                                openHandler={(handlerConfig: HandlerConfig) => {
+                                    setActiveHandlers(cur => {
+                                        const updatedHandlers = [...cur];
+                                        updatedHandlers[selected] = handlerConfig;
+                                        return updatedHandlers;
+                                    });
+                                }}
                                 initialActiveHandler={activeHandlers[selected]}
                             />
                         }
@@ -177,20 +129,20 @@ interface LoadFileItemProps {
     initialActiveHandler?: HandlerConfig;
 }
 
-const LoadFileItem = React.memo(({ file, openHandler, initialActiveHandler }: LoadFileItemProps) => {
+function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemProps): ReactNode {
     const [handlers, setHandlers] = useState<any[]>([]);
     const [mime, setMime] = useState("");
     const [description, setDescription] = useState("Loading...");
     const [activeHandler, setActiveHandler] = useState<HandlerConfig | undefined>(initialActiveHandler) ?? getDefaultHandler(mime, file.name);
 
-    const magicPromise = React.useMemo(() => WASMagic.create({
+    const magicPromise = WASMagic.create({
         flags: WASMagicFlags.NONE,
         stdio: (name, text) => console.log(text)
-    }), []);
-    const mimeMagicPromise = React.useMemo(() => WASMagic.create({
+    });
+    const mimeMagicPromise = WASMagic.create({
         flags: WASMagicFlags.MIME_TYPE,
         stdio: (name, text) => console.log(text)
-    }), []);
+    });
 
     useEffect(() => {
         const effect = async () => {
@@ -240,4 +192,4 @@ const LoadFileItem = React.memo(({ file, openHandler, initialActiveHandler }: Lo
             onOpenHandler={onOpenFile}
         />
     )
-});
+}

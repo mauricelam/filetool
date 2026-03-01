@@ -16,7 +16,7 @@ interface FrameData {
 
 const MAX_IFRAMES = 5;
 
-export const IframeManager = React.memo(({ activeHandler, files }: IframeManagerProps) => {
+export function IframeManager({ activeHandler, files }: IframeManagerProps) {
     const [frames, setFrames] = useState<FrameData[]>([]);
     const iframeRefs = useRef<Map<string, HTMLIFrameElement>>(new Map());
 
@@ -112,4 +112,4 @@ export const IframeManager = React.memo(({ activeHandler, files }: IframeManager
             })}
         </div>
     );
-});
+}

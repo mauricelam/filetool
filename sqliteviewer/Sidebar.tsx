@@ -4,12 +4,11 @@ type Props = {
     tables: string[];
     selectedTable: string | null;
     onSelect: (t: string) => void;
-    style?: React.CSSProperties;
 };
 
-export const Sidebar: React.FC<Props> = ({ tables, selectedTable, onSelect, style }) => {
+export const Sidebar: React.FC<Props> = ({ tables, selectedTable, onSelect }) => {
     return (
-        <aside className="sqlite-sidebar" style={style}>
+        <aside className="sqlite-sidebar">
             <div className="sidebar-inner">
                 <h3>Tables</h3>
                 <ul className="table-list">

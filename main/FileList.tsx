@@ -9,10 +9,9 @@ interface SidebarProps {
     onSelect: (index: number) => void;
     onRemove: (index: number) => void;
     onAddFiles: (files: File[]) => void;
-    width: number;
 }
 
-export function FileList({ files, selected, onSelect, onRemove, onAddFiles, width }: SidebarProps) {
+export function FileList({ files, selected, onSelect, onRemove, onAddFiles }: SidebarProps) {
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,7 +28,7 @@ export function FileList({ files, selected, onSelect, onRemove, onAddFiles, widt
         : (
             <div
                 style={{
-                    width: `${width}px`,
+                    width: '200px',
                     borderRight: '1px solid #ccc',
                     padding: '8px',
                     overflowY: 'auto',
