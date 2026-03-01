@@ -1,6 +1,8 @@
 //! High level abstraction to easy the extraction to file system of APKs
 
 use std::{
+    collections::HashMap,
+    convert::TryInto,
     fs::{self, File},
     io::{Cursor, Read, Seek, Write},
     path::Path,
@@ -31,9 +33,20 @@ pub struct ManifestInfo {
 }
 
 #[derive(Debug, serde::Serialize, Clone)]
+pub struct SignerInfo {
+    pub sha256_digest: String,
+    pub sha1_digest: String,
+    pub md5_digest: String,
+    pub subject: String,
+}
+
+#[derive(Debug, serde::Serialize, Clone)]
 pub struct ApkMetadata {
     pub manifest: Option<ManifestInfo>,
     pub v1_signature: bool,
+    pub v2_signature: bool,
+    pub v3_signature: bool,
+    pub signers: Vec<SignerInfo>,
     pub jar_signatures: Vec<String>,
     pub file_count: usize,
     pub uncompressed_size: u64,
@@ -50,7 +63,7 @@ pub struct ArscResource {
 }
 
 impl<Reader: Read + Seek> Apk<Reader> {
-    pub fn get_metadata(&mut self) -> Result<ApkMetadata, Error> {
+    pub fn get_metadata_with_bytes(&mut self, bytes: &[u8]) -> Result<ApkMetadata, Error> {
         let mut v1_signature = false;
         let mut jar_signatures = Vec::new();
         let mut uncompressed_size = 0;
@@ -69,6 +82,27 @@ impl<Reader: Read + Seek> Apk<Reader> {
             }
         }
 
+        let mut v2_signature = false;
+        let mut v3_signature = false;
+        let mut signers = Vec::new();
+
+        if let Ok(signing_block) = self.find_signing_block(bytes) {
+            if signing_block.contains_key(&0x7109871a) {
+                v2_signature = true;
+                if let Some(v2_data) = signing_block.get(&0x7109871a) {
+                    signers.extend(self.parse_signing_block_v2_v3(v2_data)?);
+                }
+            }
+            if signing_block.contains_key(&0xf9511388) {
+                v3_signature = true;
+                if signers.is_empty() {
+                    if let Some(v3_data) = signing_block.get(&0xf9511388) {
+                        signers.extend(self.parse_signing_block_v2_v3(v3_data)?);
+                    }
+                }
+            }
+        }
+
         // Try to get manifest info
         if let Ok(mut manifest_file) = self.handler.by_name("AndroidManifest.xml") {
             let mut contents = Vec::new();
@@ -84,10 +118,173 @@ impl<Reader: Read + Seek> Apk<Reader> {
         Ok(ApkMetadata {
             manifest: manifest_info,
             v1_signature,
+            v2_signature,
+            v3_signature,
+            signers,
             jar_signatures,
             file_count,
             uncompressed_size,
         })
+    }
+
+    pub fn get_metadata(&mut self) -> Result<ApkMetadata, Error> {
+        // This is a fallback if bytes are not available, but for now we expect them
+        // in our current use case.
+        self.get_metadata_with_bytes(&[])
+    }
+
+    #[cfg(test)]
+    pub(crate) fn find_signing_block_for_test(bytes: &[u8]) -> Result<HashMap<u32, Vec<u8>>, Error> {
+        Self::find_signing_block_internal(bytes)
+    }
+
+    fn find_signing_block(&self, bytes: &[u8]) -> Result<HashMap<u32, Vec<u8>>, Error> {
+        Self::find_signing_block_internal(bytes)
+    }
+
+    fn find_signing_block_internal(bytes: &[u8]) -> Result<HashMap<u32, Vec<u8>>, Error> {
+        if bytes.len() < 22 {
+            return Err(anyhow!("File too small"));
+        }
+
+        // Find EOCD
+        let mut eocd_pos = None;
+        for i in (0..bytes.len() - 21).rev() {
+            if &bytes[i..i + 4] == b"\x50\x4b\x05\x06" {
+                eocd_pos = Some(i);
+                break;
+            }
+        }
+
+        let eocd_pos = eocd_pos.ok_or_else(|| anyhow!("EOCD not found"))?;
+        let cd_offset = u32::from_le_bytes(bytes[eocd_pos + 16..eocd_pos + 20].try_into()?) as usize;
+
+        if cd_offset < 32 {
+            return Err(anyhow!("Central Directory offset too small for Signing Block"));
+        }
+
+        // APK Signing Block is right before Central Directory
+        if bytes.len() < cd_offset {
+            return Err(anyhow!("Invalid offset"));
+        }
+
+        let magic = &bytes[cd_offset - 16..cd_offset];
+        if magic != b"APK Sig Block 42" {
+            return Err(anyhow!("APK Signing Block magic not found"));
+        }
+
+        let block_size_low = u64::from_le_bytes(bytes[cd_offset - 24..cd_offset - 16].try_into()?);
+        let block_start = cd_offset - 8 - block_size_low as usize;
+        let block_size_high = u64::from_le_bytes(bytes[block_start..block_start + 8].try_into()?);
+
+        if block_size_low != block_size_high {
+            return Err(anyhow!("APK Signing Block size mismatch"));
+        }
+
+        let mut pos = block_start + 8;
+        let mut pairs = HashMap::new();
+        while pos < cd_offset - 24 {
+            let pair_size = u64::from_le_bytes(bytes[pos..pos + 8].try_into()?) as usize;
+            let id = u32::from_le_bytes(bytes[pos + 8..pos + 12].try_into()?);
+            let value = bytes[pos + 12..pos + 8 + pair_size].to_vec();
+            pairs.insert(id, value);
+            pos += 8 + pair_size;
+        }
+
+        Ok(pairs)
+    }
+
+    fn parse_signing_block_v2_v3(&self, data: &[u8]) -> Result<Vec<SignerInfo>, Error> {
+        // data is the value of the V2/V3 ID-value pair.
+        // It starts with a length-prefixed sequence of signers.
+        if data.len() < 4 {
+            return Ok(vec![]);
+        }
+
+        let mut signers = Vec::new();
+        let signers_len = u32::from_le_bytes(data[0..4].try_into()?) as usize;
+        let mut pos = 4;
+        let end = 4 + signers_len;
+
+        while pos < end && pos + 4 <= data.len() {
+            let signer_len = u32::from_le_bytes(data[pos..pos + 4].try_into()?) as usize;
+            pos += 4;
+            if pos + signer_len > data.len() {
+                break;
+            }
+            let signer_data = &data[pos..pos + signer_len];
+            pos += signer_len;
+
+            // Inside signer data:
+            // - length-prefixed signed data
+            // - length-prefixed sequence of signatures
+            // - length-prefixed public key
+            if signer_data.len() < 4 {
+                continue;
+            }
+            let signed_data_len = u32::from_le_bytes(signer_data[0..4].try_into()?) as usize;
+            if signed_data_len + 4 > signer_data.len() {
+                continue;
+            }
+            let signed_data = &signer_data[4..4 + signed_data_len];
+
+            // Inside signed data:
+            // - length-prefixed sequence of digests
+            // - length-prefixed sequence of certificates
+            // - ...
+            if signed_data.len() < 4 {
+                continue;
+            }
+            let digests_len = u32::from_le_bytes(signed_data[0..4].try_into()?) as usize;
+            let certs_pos = 4 + digests_len;
+            if certs_pos + 4 > signed_data.len() {
+                continue;
+            }
+            let certs_len = u32::from_le_bytes(signed_data[certs_pos..certs_pos + 4].try_into()?) as usize;
+            if certs_pos + 4 + certs_len > signed_data.len() {
+                continue;
+            }
+            let certs_data = &signed_data[certs_pos + 4..certs_pos + 4 + certs_len];
+
+            // Inside certs_data: sequence of length-prefixed certificates.
+            // We take the first one.
+            if certs_data.len() < 4 {
+                continue;
+            }
+            let first_cert_len = u32::from_le_bytes(certs_data[0..4].try_into()?) as usize;
+            if first_cert_len + 4 > certs_data.len() {
+                continue;
+            }
+            let first_cert = &certs_data[4..4 + first_cert_len];
+
+            use sha2::{Digest, Sha256};
+            let sha256_digest = hex::encode(Sha256::digest(first_cert));
+
+            use sha1::Sha1;
+            let mut sha1_hasher = Sha1::new();
+            sha1_hasher.update(first_cert);
+            let sha1_digest = hex::encode(sha1_hasher.finalize());
+
+            use md5::Md5;
+            let mut md5_hasher = Md5::new();
+            md5_hasher.update(first_cert);
+            let md5_digest = hex::encode(md5_hasher.finalize());
+
+            use x509_parser::prelude::*;
+            let subject = match X509Certificate::from_der(first_cert) {
+                Ok((_, cert)) => cert.subject().to_string(),
+                Err(_) => "Unknown".to_string(),
+            };
+
+            signers.push(SignerInfo {
+                sha256_digest,
+                sha1_digest,
+                md5_digest,
+                subject,
+            });
+        }
+
+        Ok(signers)
     }
 
     fn extract_manifest_info(root: &Element) -> ManifestInfo {

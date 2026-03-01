@@ -44,9 +44,21 @@ pub struct ManifestInfo {
 
 #[derive(serde::Serialize, serde::Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct SignerInfo {
+    pub sha256_digest: String,
+    pub sha1_digest: String,
+    pub md5_digest: String,
+    pub subject: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct ApkMetadata {
     pub manifest: Option<ManifestInfo>,
     pub v1_signature: bool,
+    pub v2_signature: bool,
+    pub v3_signature: bool,
+    pub signers: Vec<SignerInfo>,
     pub jar_signatures: Vec<String>,
     pub file_count: usize,
     pub uncompressed_size: u64,
@@ -67,7 +79,7 @@ pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> 
         JsError::new(&format!("{e}"))
     })?;
 
-    let metadata = apk.get_metadata().map_err(|e| {
+    let metadata = apk.get_metadata_with_bytes(&bytes).map_err(|e| {
         error!("Failed to get APK metadata: {}", e);
         JsError::new(&format!("{e}"))
     })?;
@@ -93,6 +105,18 @@ pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> 
                 target_sdk_version: m.target_sdk_version,
             }),
             v1_signature: metadata.v1_signature,
+            v2_signature: metadata.v2_signature,
+            v3_signature: metadata.v3_signature,
+            signers: metadata
+                .signers
+                .into_iter()
+                .map(|s| SignerInfo {
+                    sha256_digest: s.sha256_digest,
+                    sha1_digest: s.sha1_digest,
+                    md5_digest: s.md5_digest,
+                    subject: s.subject,
+                })
+                .collect(),
             jar_signatures: metadata.jar_signatures,
             file_count: metadata.file_count,
             uncompressed_size: metadata.uncompressed_size,

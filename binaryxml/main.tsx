@@ -495,22 +495,66 @@ function MetadataViewer({ metadata, onBack }: { metadata: ApkMetadata | null, on
 
                 <section style={{ border: '1px solid #eee', padding: '16px', borderRadius: '8px', gridColumn: 'span 2' }}>
                     <h3 style={{ marginTop: 0, borderBottom: '1px solid #eee', paddingBottom: '8px' }}>Signature Information</h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <div style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: metadata.v1_signature ? '#4caf50' : '#f44336'
-                        }}></div>
-                        <span style={{ fontWeight: 'bold' }}>
-                            {metadata.v1_signature ? 'V1 Signature (JAR) Detected' : 'No V1 Signature Detected'}
-                        </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                backgroundColor: metadata.v1_signature ? '#4caf50' : '#ccc'
+                            }}></div>
+                            <span style={{ fontWeight: metadata.v1_signature ? 'bold' : 'normal' }}>V1 (JAR)</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                backgroundColor: metadata.v2_signature ? '#4caf50' : '#ccc'
+                            }}></div>
+                            <span style={{ fontWeight: metadata.v2_signature ? 'bold' : 'normal' }}>V2 (Block)</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                backgroundColor: metadata.v3_signature ? '#4caf50' : '#ccc'
+                            }}></div>
+                            <span style={{ fontWeight: metadata.v3_signature ? 'bold' : 'normal' }}>V3 (Block)</span>
+                        </div>
                     </div>
+
+                    {metadata.signers.length > 0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <h4 style={{ marginBottom: '12px' }}>Signer Certificates</h4>
+                            {metadata.signers.map((signer, i) => (
+                                <div key={i} style={{ backgroundColor: '#f5f5f5', padding: '12px', borderRadius: '4px', marginBottom: '12px' }}>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>Subject</div>
+                                        <div style={{ fontWeight: 'bold' }}>{signer.subject}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>SHA-256 Digest</div>
+                                        <div style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{signer.sha256_digest}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>SHA-1 Digest</div>
+                                        <div style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{signer.sha1_digest}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 'bold' }}>MD5 Digest</div>
+                                        <div style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{signer.md5_digest}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {metadata.jar_signatures.length > 0 && (
                         <div>
-                            <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Certificate Files:</div>
-                            <ul style={{ margin: 0, paddingLeft: '20px', fontFamily: 'monospace' }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>V1 Certificate Files:</div>
+                            <ul style={{ margin: 0, paddingLeft: '20px', fontFamily: 'monospace', fontSize: '13px' }}>
                                 {metadata.jar_signatures.map((sig, i) => (
                                     <li key={i}>{sig}</li>
                                 ))}
