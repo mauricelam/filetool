@@ -33,4 +33,32 @@ mod tests {
         assert!(result.contains_key(&0x7109871a));
         assert_eq!(result.get(&0x7109871a).unwrap(), b"test");
     }
+
+    #[test]
+    fn test_signature_extraction_real_apk() {
+        let path = "../../tests/fixtures/Tasker.6.6.20.apk";
+        let bytes = std::fs::read(path).expect("Could not read Tasker APK");
+
+        let mut apk = Apk::<std::io::Cursor<&[u8]>>::from_bytes(&bytes).expect("Failed to load APK");
+        let metadata = apk.get_metadata_with_bytes(&bytes).expect("Failed to get metadata");
+
+        // Based on the user's apksigner output:
+        // Verified using v2 scheme (APK Signature Scheme v2): true
+        assert!(metadata.v2_signature, "V2 signature should be detected");
+        assert!(!metadata.v1_signature, "V1 signature should NOT be detected (as per apksigner output)");
+
+        assert!(!metadata.signers.is_empty(), "Should have at least one signer");
+        let signer = &metadata.signers[0];
+
+        // apksigner output:
+        // Signer #1 certificate DN: CN=Lee Wilmot, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown
+        // Signer #1 certificate SHA-256 digest: 973fe25b9be28fb7436d49582b04277767c852539be31783d134a55621b6636d
+        // Signer #1 certificate SHA-1 digest: feadd18b23781cfd4eac71118c76fb35c1ab39c7
+        // Signer #1 certificate MD5 digest: 39a8d78a20654f15b953c1783ebb0c63
+
+        assert_eq!(signer.sha256_digest, "973fe25b9be28fb7436d49582b04277767c852539be31783d134a55621b6636d");
+        assert_eq!(signer.sha1_digest, "feadd18b23781cfd4eac71118c76fb35c1ab39c7");
+        assert_eq!(signer.md5_digest, "39a8d78a20654f15b953c1783ebb0c63");
+        assert!(signer.subject.contains("CN=Lee Wilmot"), "Subject should contain Lee Wilmot");
+    }
 }
