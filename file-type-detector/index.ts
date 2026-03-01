@@ -170,7 +170,7 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
-        "name": "Android Binary XML viewer",
+        "name": "Android Binary XML",
         "handler": "android-xml-viewer",
         "mimetypes": [
             { "description": /Android binary XML/i },
