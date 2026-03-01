@@ -123,6 +123,30 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::J
     Ok(result)
 }
 
+#[wasm_bindgen]
+pub fn decode_xml(bytes: Vec<u8>) -> Result<String, wasm_bindgen::JsError> {
+    info!("Decoding standalone XML of size {} bytes", bytes.len());
+
+    let mut visitor = abxml::visitor::ModelVisitor::default();
+    abxml::visitor::Executor::arsc(abxml::STR_ARSC, &mut visitor).map_err(|e| {
+        error!("Failed to load system resources: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+
+    let resources = visitor.get_resources();
+    let mut xml_visitor = abxml::visitor::XmlVisitor::new(resources);
+
+    abxml::visitor::Executor::xml(std::io::Cursor::new(&bytes), &mut xml_visitor).map_err(|e| {
+        error!("Failed to decode XML: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+
+    xml_visitor.into_string().map_err(|e| {
+        error!("Failed to convert XML to string: {}", e);
+        JsError::new(&format!("{e}"))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
