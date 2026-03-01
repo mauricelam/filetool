@@ -12,13 +12,31 @@ use zip::read::ZipArchive;
 
 use crate::{
     decoder::BufferedDecoder,
-    model::Library as LibraryTrait,
+    model::{Element, Library as LibraryTrait},
 };
 
 #[derive(Debug)]
 pub struct Apk<Reader: Read + Seek = File> {
     handler: ZipArchive<Reader>,
     decoder: BufferedDecoder,
+}
+
+#[derive(Debug, serde::Serialize, Clone)]
+pub struct ManifestInfo {
+    pub package: String,
+    pub version_code: Option<String>,
+    pub version_name: Option<String>,
+    pub min_sdk_version: Option<String>,
+    pub target_sdk_version: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, Clone)]
+pub struct ApkMetadata {
+    pub manifest: Option<ManifestInfo>,
+    pub v1_signature: bool,
+    pub jar_signatures: Vec<String>,
+    pub file_count: usize,
+    pub uncompressed_size: u64,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -32,6 +50,86 @@ pub struct ArscResource {
 }
 
 impl<Reader: Read + Seek> Apk<Reader> {
+    pub fn get_metadata(&mut self) -> Result<ApkMetadata, Error> {
+        let mut v1_signature = false;
+        let mut jar_signatures = Vec::new();
+        let mut uncompressed_size = 0;
+        let file_count = self.handler.len();
+        let mut manifest_info = None;
+
+        for i in 0..file_count {
+            let file = self.handler.by_index(i)?;
+            uncompressed_size += file.size();
+            let name = file.name();
+            if name.starts_with("META-INF/")
+                && (name.ends_with(".RSA") || name.ends_with(".DSA") || name.ends_with(".EC"))
+            {
+                v1_signature = true;
+                jar_signatures.push(name.to_string());
+            }
+        }
+
+        // Try to get manifest info
+        if let Ok(mut manifest_file) = self.handler.by_name("AndroidManifest.xml") {
+            let mut contents = Vec::new();
+            manifest_file.read_to_end(&mut contents)?;
+
+            let decoder = self.decoder.get_decoder()?;
+            let xml_visitor = decoder.xml_visitor(&contents)?;
+            if let Some(root) = xml_visitor.get_root() {
+                manifest_info = Some(Self::extract_manifest_info(root));
+            }
+        }
+
+        Ok(ApkMetadata {
+            manifest: manifest_info,
+            v1_signature,
+            jar_signatures,
+            file_count,
+            uncompressed_size,
+        })
+    }
+
+    fn extract_manifest_info(root: &Element) -> ManifestInfo {
+        let attrs = root.get_attributes();
+        let package = attrs.get("package").cloned().unwrap_or_default();
+
+        let get_attr = |name: &str| {
+            attrs
+                .get(name)
+                .cloned()
+                .or_else(|| attrs.get(&format!("android:{}", name)).cloned())
+        };
+
+        let version_code = get_attr("versionCode");
+        let version_name = get_attr("versionName");
+
+        let mut min_sdk = None;
+        let mut target_sdk = None;
+
+        for child in root.get_children() {
+            if child.get_tag().get_name().as_str() == "uses-sdk" {
+                let sdk_attrs = child.get_attributes();
+                let get_sdk_attr = |name: &str| {
+                    sdk_attrs
+                        .get(name)
+                        .cloned()
+                        .or_else(|| sdk_attrs.get(&format!("android:{}", name)).cloned())
+                };
+                min_sdk = get_sdk_attr("minSdkVersion");
+                target_sdk = get_sdk_attr("targetSdkVersion");
+            }
+        }
+
+        ManifestInfo {
+            package,
+            version_code,
+            version_name,
+            min_sdk_version: min_sdk,
+            target_sdk_version: target_sdk,
+        }
+    }
+
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Apk<File>, Error> {
         let mut buffer = Vec::new();
         let file = File::open(&path)?;

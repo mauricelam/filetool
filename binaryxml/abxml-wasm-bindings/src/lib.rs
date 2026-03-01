@@ -32,27 +32,71 @@ pub struct ArscResource {
     entries: Option<HashMap<String, String>>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ManifestInfo {
+    pub package: String,
+    pub version_code: Option<String>,
+    pub version_name: Option<String>,
+    pub min_sdk_version: Option<String>,
+    pub target_sdk_version: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ApkMetadata {
+    pub manifest: Option<ManifestInfo>,
+    pub v1_signature: bool,
+    pub jar_signatures: Vec<String>,
+    pub file_count: usize,
+    pub uncompressed_size: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ApkResponse {
+    pub files: Vec<(String, ByteBuf)>,
+    pub metadata: ApkMetadata,
+}
+
 #[wasm_bindgen]
-pub fn decode_apk(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
+pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> {
     info!("Decoding APK of size {} bytes", bytes.len());
     let mut apk = Apk::<File>::from_bytes(&bytes).map_err(|e| {
         error!("Failed to decode APK: {}", e);
         JsError::new(&format!("{e}"))
     })?;
+
+    let metadata = apk.get_metadata().map_err(|e| {
+        error!("Failed to get APK metadata: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+
     let strings = apk.export_string().map_err(|e| {
         error!("Failed to export strings: {}", e);
         JsError::new(&format!("{e}"))
     })?;
+
     info!("Successfully decoded APK");
-    serde_wasm_bindgen::to_value(
-        &strings
+
+    Ok(ApkResponse {
+        files: strings
             .into_iter()
             .map(|(name, contents)| (name, ByteBuf::from(contents)))
-            .collect::<Vec<(String, ByteBuf)>>(),
-    )
-    .map_err(|e| {
-        error!("Failed to serialize result: {}", e);
-        JsError::new(&format!("{e}"))
+            .collect(),
+        metadata: ApkMetadata {
+            manifest: metadata.manifest.map(|m| ManifestInfo {
+                package: m.package,
+                version_code: m.version_code,
+                version_name: m.version_name,
+                min_sdk_version: m.min_sdk_version,
+                target_sdk_version: m.target_sdk_version,
+            }),
+            v1_signature: metadata.v1_signature,
+            jar_signatures: metadata.jar_signatures,
+            file_count: metadata.file_count,
+            uncompressed_size: metadata.uncompressed_size,
+        },
     })
 }
 
