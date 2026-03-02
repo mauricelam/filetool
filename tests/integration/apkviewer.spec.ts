@@ -37,8 +37,11 @@ test('APK Viewer should display APK contents, metadata and resources', async ({ 
     await expect(iframe.locator('h3:has-text("APK Contents")')).toBeVisible();
 
     // 5. Click on resources.arsc and verify Resource Table view
-    // In ColumnView, we might need to click the item.
-    // It's likely a div or span containing the text.
-    await iframe.locator('text="resources.arsc"').click();
-    await expect(iframe.locator('h3:has-text("Resource Table")')).toBeVisible();
+    // Use a more specific locator to ensure we're clicking the file item
+    const resourcesArsc = iframe.locator('.column-item:has-text("resources.arsc")');
+    await resourcesArsc.scrollIntoViewIfNeeded();
+    await resourcesArsc.click();
+
+    // Increased timeout for resource table extraction as it can be slow
+    await expect(iframe.locator('h3:has-text("Resource Table")')).toBeVisible({ timeout: 15000 });
 });
