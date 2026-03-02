@@ -20,8 +20,8 @@ test('APK Viewer should display APK contents, metadata and resources', async ({ 
     await expect(iframe.locator('h3:has-text("APK Contents")')).toBeVisible({ timeout: 15000 });
 
     // 2. Verify the file tree contains expected entries
-    await expect(iframe.locator('text="AndroidManifest.xml"')).toBeVisible();
-    await expect(iframe.locator('text="resources.arsc"')).toBeVisible();
+    await expect(iframe.locator('.item-name >> text="AndroidManifest.xml"')).toBeVisible();
+    await expect(iframe.locator('.item-name >> text="resources.arsc"')).toBeVisible();
 
     // 3. Click "View APK Metadata" and verify metadata view
     await iframe.locator('button:has-text("View APK Metadata")').click();
@@ -37,11 +37,11 @@ test('APK Viewer should display APK contents, metadata and resources', async ({ 
     await expect(iframe.locator('h3:has-text("APK Contents")')).toBeVisible();
 
     // 5. Click on resources.arsc and verify Resource Table view
-    // Use a more specific locator to ensure we're clicking the file item
-    const resourcesArsc = iframe.locator('.column-item:has-text("resources.arsc")');
-    await resourcesArsc.scrollIntoViewIfNeeded();
-    await resourcesArsc.click();
+    // Use a very specific locator and ensure it's scrolled into view
+    const resourcesArscItem = iframe.locator('.column-item', { has: iframe.locator('.item-name >> text="resources.arsc"') });
+    await resourcesArscItem.scrollIntoViewIfNeeded();
+    await resourcesArscItem.click();
 
-    // Increased timeout for resource table extraction as it can be slow
-    await expect(iframe.locator('h3:has-text("Resource Table")')).toBeVisible({ timeout: 15000 });
+    // Increased timeout for resource table extraction as it can be slow in CI
+    await expect(iframe.locator('h3:has-text("Resource Table")')).toBeVisible({ timeout: 30000 });
 });
