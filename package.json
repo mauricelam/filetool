@@ -36,7 +36,8 @@
         "textviewer",
         "wat_viewer",
         "webgl_previewer",
-        "img-viewer"
+        "img-viewer",
+        "parquetviewer"
     ],
     "scripts": {
         "start": "node serve.mts",

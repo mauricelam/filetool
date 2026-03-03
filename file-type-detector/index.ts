@@ -226,6 +226,16 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "bplistviewer",
         "mimetypes": ["application/x-plist", { "filename": /\.bplist$/i }]
     },
+    {
+        "name": "Parquet Viewer",
+        "handler": "parquetviewer",
+        "mimetypes": [
+            { "filename": /\.parquet$/i },
+            "application/x-parquet",
+            "application/parquet",
+            { "description": /Apache Parquet/i }
+        ]
+    },
 ];
 
 export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {
