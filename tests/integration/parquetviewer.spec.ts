@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { runHandlerTest } from './test-utils';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 test.describe('parquetviewer handler', () => {
     test('should display an error for an invalid parquet file', async ({ page }) => {
@@ -28,5 +30,28 @@ test.describe('parquetviewer handler', () => {
             },
         });
         await expect(iframe.locator('body')).toContainText('Error');
+    });
+
+    test('should correctly process and display the example parquet file', async ({ page }) => {
+        const filePath = path.join(__dirname, '..', 'fixtures', 'example.parquet');
+        const content = await fs.readFile(filePath);
+
+        const iframe = await runHandlerTest(page, {
+            handler: 'parquetviewer',
+            file: {
+                content,
+                name: 'example.parquet',
+                type: 'application/octet-stream'
+            },
+        });
+
+        // Increase timeout for processing and check for column headers from example.parquet
+        await expect(iframe.locator('text=first_name')).toBeVisible({ timeout: 15000 });
+        await expect(iframe.locator('text=last_name')).toBeVisible();
+        await expect(iframe.locator('text=email')).toBeVisible();
+
+        // Check for some data
+        await expect(iframe.locator('body')).toContainText('Amanda');
+        await expect(iframe.locator('body')).not.toContainText('Error');
     });
 });

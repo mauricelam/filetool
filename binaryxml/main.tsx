@@ -367,8 +367,10 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
                                             {selectedType !== 'id' && (
                                                 <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
                                                     {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        {resource.value}
-                                                        {resource.value.startsWith('#') && resource.value.length === 9 && (
+                                                        {typeof resource.value === 'object' && resource.value !== null
+                                                            ? JSON.stringify(resource.value)
+                                                            : resource.value}
+                                                        {typeof resource.value === 'string' && resource.value.startsWith('#') && resource.value.length === 9 && (
                                                             <div style={{
                                                                 width: '20px',
                                                                 height: '20px',
@@ -385,7 +387,9 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
                                                                     padding: '4px 0',
                                                                     borderTop: i > 0 ? '1px solid #eee' : 'none'
                                                                 }}>
-                                                                    <span style={{ fontWeight: 'bold' }}>{key}:</span> {value}
+                                                                    <span style={{ fontWeight: 'bold' }}>{key}:</span> {typeof value === 'object' && value !== null
+                                                                        ? JSON.stringify(value)
+                                                                        : String(value)}
                                                                 </div>
                                                             ))
                                                             }

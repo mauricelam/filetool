@@ -6,7 +6,7 @@ import {
     useMantineReactTable,
     type MRT_ColumnDef,
 } from 'mantine-react-table';
-import { parquetRead, toJson, parquetMetadata } from 'hyparquet';
+import { parquetReadObjects, toJson } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 import '@mantine/core/styles.css';
 import 'mantine-react-table/styles.css';
@@ -40,31 +40,21 @@ const ParquetViewer: React.FC = () => {
                 const uint8Array = new Uint8Array(arrayBuffer);
                 const fileWrapper = {
                     byteLength: uint8Array.byteLength,
-                    slice: async (start: number, end?: number) => uint8Array.subarray(start, end).buffer
+                    slice: async (start: number, end?: number) => {
+                        const s = Math.max(0, start);
+                        const e = end === undefined ? uint8Array.byteLength : Math.min(uint8Array.byteLength, end);
+                        const slice = uint8Array.slice(s, e);
+                        return slice.buffer;
+                    }
                 };
 
-                const metadata = parquetMetadata(arrayBuffer);
-                // metadata.schema contains the flat list of SchemaElements
-                // The first element is the root (usually named "schema" or "root")
-                const columnNames = metadata.schema
-                    .filter(element => element.num_children === undefined || element.num_children === 0)
-                    .map(element => element.name);
-
-                await parquetRead({
+                const data = await parquetReadObjects({
                     file: fileWrapper,
-                    metadata,
-                    compressors,
-                    onComplete: (rows) => {
-                        const objects = rows.map(row => {
-                            const obj: any = {};
-                            columnNames.forEach((name, i) => {
-                                obj[name] = row[i];
-                            });
-                            return toJson(obj);
-                        });
-                        setFileState({ data: objects, error: null });
-                    }
+                    compressors
                 });
+
+                const objects = data.map(row => toJson(row));
+                setFileState({ data: objects, error: null });
             } catch (err: any) {
                 console.error('Failed to read parquet file:', err);
                 setFileState({ data: [], error: err.message || String(err) });

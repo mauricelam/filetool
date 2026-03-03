@@ -233,7 +233,8 @@ export const HANDLERS: HandlerDefinition[] = [
             { "filename": /\.parquet$/i },
             "application/x-parquet",
             "application/parquet",
-            { "description": /Apache Parquet/i }
+            { "description": /Apache Parquet/i },
+            { "mime": "application/octet-stream", "description": /Apache Parquet/i }
         ]
     },
 ];

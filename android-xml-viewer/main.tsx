@@ -276,7 +276,9 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
                                             {selectedType !== 'id' && (
                                                 <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
                                                     {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        {resource.value}
+                                                        {typeof resource.value === 'object' && resource.value !== null
+                                                            ? JSON.stringify(resource.value)
+                                                            : resource.value}
                                                         {resource.value?.startsWith('#') && resource.value.length === 9 && (
                                                             <div style={{
                                                                 width: '20px',
