@@ -16,6 +16,7 @@ declare module 'libarchive.js' {
         addFile(path: string, file: File): Promise<void>;
         write(mimeType: string): Promise<Blob>;
         getFilesObject(): Promise<{ [key: string]: ArchiveFile }>;
+        hasEncryptedData(): Promise<boolean>;
     }
 
     interface ArchiveStatic {
