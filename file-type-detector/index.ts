@@ -210,6 +210,14 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     { "name": "Protoscope", "handler": "protoscope", "mimetypes": [{ "mime": "application/x-protobuf" }, { "filename": /\.pb$/i }, { "filename": /\.binarypb$/i }] },
+    {
+        "name": "FlatBuffers Viewer",
+        "handler": "flatbuffers",
+        "mimetypes": [
+            { "filename": /\.(fb|fbs|bfbs)$/i },
+            { "description": /FlatBuffers/i }
+        ]
+    },
     { "name": "SQLite Viewer", "handler": "sqliteviewer", "mimetypes": [{ "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3"] },
     { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /(\.(map|mapping)|proguard\.txt)$/i }] },
     {

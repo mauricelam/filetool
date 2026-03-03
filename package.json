@@ -17,6 +17,7 @@
         "dmg-viewer",
         "esbuild-plugins",
         "ffmpeg",
+        "flatbuffers",
         "file-type-detector",
         "filemagic-common",
         "graphviz",
