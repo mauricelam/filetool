@@ -43,13 +43,45 @@ export const rustWasm = (options) => {
       let needsRebuild = false;
       let watcher = null;
 
-      const buildWasm = () => {
+      const absoluteProjectDir = path.resolve(projectDir);
+      const lockPath = path.join(absoluteProjectDir, '.wasm-pack.lock');
+
+      const buildWasm = async () => {
         if (isBuilding) {
           needsRebuild = true;
           return;
         }
         isBuilding = true;
+
+        let lockAcquired = false;
         try {
+          // Acquire cross-process lock
+          while (!lockAcquired) {
+            try {
+              const fd = fs.openSync(lockPath, 'wx');
+              fs.writeSync(fd, process.pid.toString());
+              fs.closeSync(fd);
+              lockAcquired = true;
+            } catch (err) {
+              if (err.code === 'EEXIST') {
+                // Check if the lock is stale (older than 2 minutes)
+                try {
+                  const stats = fs.statSync(lockPath);
+                  if (Date.now() - stats.mtimeMs > 120000) {
+                    try { fs.unlinkSync(lockPath); } catch (e) { }
+                    continue;
+                  }
+                } catch (e) {
+                  // Lock file might have been deleted by another process between EEXIST and statSync
+                  continue;
+                }
+                await new Promise(resolve => setTimeout(resolve, 500));
+                continue;
+              }
+              throw err;
+            }
+          }
+
           execSync(`wasm-pack --quiet build "${projectDir}" --target web --out-name "${outName}"`, {
             stdio: 'inherit',
           });
@@ -68,10 +100,13 @@ export const rustWasm = (options) => {
             fs.copyFileSync(sourcePath, destPath);
           });
         } finally {
+          if (lockAcquired) {
+            try { fs.unlinkSync(lockPath); } catch (e) { }
+          }
           isBuilding = false;
           if (needsRebuild) {
             needsRebuild = false;
-            buildWasm(); // Trigger rebuild if changes occurred during the build
+            await buildWasm(); // Trigger rebuild if changes occurred during the build
           }
         }
       };
@@ -80,8 +115,8 @@ export const rustWasm = (options) => {
       const debouncedBuild = debounce(buildWasm, 500);
 
       // Initial build
-      build.onStart(() => {
-        buildWasm();
+      build.onStart(async () => {
+        await buildWasm();
       });
 
       // Setup watcher in dev mode
