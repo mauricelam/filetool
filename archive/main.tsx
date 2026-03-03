@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { Archive, ArchiveCompression, ArchiveFormat, ArchiveFile, ArchiveEntryFile, ArchiveEntry } from 'libarchive.js';
 import React, { useEffect, useState } from 'react';
 import { ColumnView } from '../components/ColumnView';
+import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { PreviewComponent } from '../components/PreviewComponent';
 
 Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
@@ -108,18 +109,153 @@ const FormatDialog: React.FC<{
     );
 };
 
+interface ArchiveMetadata {
+    fileName: string;
+    description: string;
+    fileCount: number;
+    uncompressedSize: number;
+    compressedSize: number;
+    hasEncryptedData: boolean;
+}
+
+const MetadataViewer: React.FC<{ metadata: ArchiveMetadata | null, onBack: () => void }> = ({ metadata, onBack }) => {
+    if (!metadata) return null;
+
+    const formatSize = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const compressionRatio = metadata.uncompressedSize > 0
+        ? ((1 - metadata.compressedSize / metadata.uncompressedSize) * 100).toFixed(1)
+        : '0';
+
+    return (
+        <div style={{ padding: '20px', height: '100%', overflow: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+                <button
+                    onClick={onBack}
+                    style={{
+                        padding: '8px 16px',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        background: 'white',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                    </svg>
+                    Back to Files
+                </button>
+                <h2 style={{ margin: 0 }}>Archive Metadata</h2>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                <section style={{ border: '1px solid #eee', padding: '16px', borderRadius: '8px' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: '1px solid #eee', paddingBottom: '8px' }}>File Information</h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold', width: '150px' }}>Filename</td>
+                                <td style={{ padding: '8px 0', wordBreak: 'break-all' }}>{metadata.fileName}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Format</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.description}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Encrypted</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.hasEncryptedData ? 'Yes' : 'No'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section style={{ border: '1px solid #eee', padding: '16px', borderRadius: '8px' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: '1px solid #eee', paddingBottom: '8px' }}>Archive Details</h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold', width: '150px' }}>File Count</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.fileCount}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Compressed Size</td>
+                                <td style={{ padding: '8px 0' }}>{formatSize(metadata.compressedSize)}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Uncompressed Size</td>
+                                <td style={{ padding: '8px 0' }}>{formatSize(metadata.uncompressedSize)}</td>
+                            </tr>
+                            <tr>
+                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Compression Ratio</td>
+                                <td style={{ padding: '8px 0' }}>{compressionRatio}% savings</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </div>
+    );
+};
+
 const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const [archiveFile, setArchiveFile] = useState<File | null>(initialFile);
     const [files, setFiles] = useState<{ [key: string]: ArchiveFile }>({});
     const [isFormatDialogOpen, setIsFormatDialogOpen] = useState(false);
     const [isCompressing, setIsCompressing] = useState(false);
+    const [view, setView] = useState<'file' | 'metadata'>('file');
+    const [metadata, setMetadata] = useState<ArchiveMetadata | null>(null);
 
     useEffect(() => {
         const loadArchive = async () => {
             if (!archiveFile) return;
             const ar = await Archive.open(archiveFile);
-            const files = await ar.getFilesObject();
-            setFiles(files);
+            const filesObj = await ar.getFilesObject();
+            setFiles(filesObj);
+
+            // Calculate metadata
+            let uncompressedSize = 0;
+            let fileCount = 0;
+
+            const processFiles = (obj: any) => {
+                for (const key in obj) {
+                    const item = obj[key];
+                    if (item.extract) {
+                        // It's an ArchiveFile
+                        uncompressedSize += item._size;
+                        fileCount++;
+                    } else {
+                        // It's a directory
+                        processFiles(item);
+                    }
+                }
+            };
+            processFiles(filesObj);
+
+            const hasEncryptedData = await ar.hasEncryptedData();
+
+            // Detect format using wasmagic. Only read first 1MB to avoid OOM.
+            const magic = await WASMagic.create({ flags: WASMagicFlags.NONE });
+            const head = archiveFile.slice(0, 1024 * 1024);
+            const buffer = new Uint8Array(await head.arrayBuffer());
+            const description = magic.detect(buffer);
+
+            setMetadata({
+                fileName: archiveFile.name,
+                description,
+                fileCount,
+                uncompressedSize,
+                compressedSize: archiveFile.size,
+                hasEncryptedData
+            });
         };
 
         loadArchive();
@@ -258,10 +394,29 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         return <PreviewComponent path={path} filePromise={extractFile} />;
     };
 
+    if (view === 'metadata') {
+        return <MetadataViewer metadata={metadata} onBack={() => setView('file')} />;
+    }
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0 }}>Archive Contents</h3>
+                {metadata && (
+                    <button
+                        onClick={() => setView('metadata')}
+                        style={{
+                            padding: '4px 12px',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            background: 'white',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                        }}
+                    >
+                        View Metadata
+                    </button>
+                )}
                 {archiveFile && (
                     <button
                         onClick={() => setIsFormatDialogOpen(true)}
@@ -286,11 +441,13 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                     </button>
                 )}
             </div>
-            <ColumnView
-                initialContent={files}
-                renderFileActions={renderFileActions}
-                renderFilePreview={renderFilePreview}
-            />
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+                <ColumnView
+                    initialContent={files}
+                    renderFileActions={renderFileActions}
+                    renderFilePreview={renderFilePreview}
+                />
+            </div>
             <FormatDialog
                 isOpen={isFormatDialogOpen}
                 onClose={() => setIsFormatDialogOpen(false)}

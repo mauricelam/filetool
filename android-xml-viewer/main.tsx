@@ -177,6 +177,8 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
         </span>
     );
 
+    console.log("resourcesByType", resourcesByType)
+
     return (
         <div style={{
             padding: '20px',

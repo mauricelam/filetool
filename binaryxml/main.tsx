@@ -370,7 +370,7 @@ function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[],
                                                         {typeof resource.value === 'object' && resource.value !== null
                                                             ? JSON.stringify(resource.value)
                                                             : resource.value}
-                                                        {typeof resource.value === 'string' && resource.value.startsWith('#') && resource.value.length === 9 && (
+                                                        {resource.value.startsWith('#') && resource.value.length === 9 && (
                                                             <div style={{
                                                                 width: '20px',
                                                                 height: '20px',
