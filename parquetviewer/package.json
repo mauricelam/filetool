@@ -4,7 +4,7 @@
   "description": "Apache Parquet file viewer",
   "main": "index.js",
   "scripts": {
-    "build": "BUILD_MODE=prod node build.mjs",
+    "build": "node build.mjs",
     "watch": "BUILD_MODE=dev node build.mjs"
   },
   "keywords": [],

@@ -227,7 +227,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "mimetypes": ["application/x-plist", { "filename": /\.bplist$/i }]
     },
     {
-        "name": "Parquet Viewer",
+        "name": "Parquet",
         "handler": "parquetviewer",
         "mimetypes": [
             { "filename": /\.parquet$/i },

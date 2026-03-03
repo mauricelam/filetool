@@ -6,80 +6,94 @@ import {
     useMantineReactTable,
     type MRT_ColumnDef,
 } from 'mantine-react-table';
-import { parquetRead, parquetSchema, toJson, parquetMetadata } from 'hyparquet';
+import { parquetRead, toJson, parquetMetadata } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 import '@mantine/core/styles.css';
 import 'mantine-react-table/styles.css';
 
+interface FileData {
+    data: any[];
+    error: string | null;
+}
+
+let onFileLoaded: ((file: File) => void) | null = null;
+
+const handleMessage = (e: MessageEvent) => {
+    if (e.data.action === 'respondFile' && onFileLoaded) {
+        onFileLoaded(e.data.file);
+    }
+};
+
+window.addEventListener('message', handleMessage);
+
 const ParquetViewer: React.FC = () => {
-    const [data, setData] = useState<any[]>([]);
+    const [fileState, setFileState] = useState<FileData>({ data: [], error: null });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const handleMessage = async (e: MessageEvent) => {
-            if (e.data.action === 'respondFile') {
-                const file: File = e.data.file;
-                try {
-                    setLoading(true);
-                    setError(null);
-                    const arrayBuffer = await file.arrayBuffer();
+        onFileLoaded = async (file: File) => {
+            try {
+                setLoading(true);
+                setFileState({ data: [], error: null });
+                const arrayBuffer = await file.arrayBuffer();
 
-                    const uint8Array = new Uint8Array(arrayBuffer);
-                    const fileWrapper = {
-                        byteLength: uint8Array.byteLength,
-                        request: async (offset: number, length: number) => uint8Array.subarray(offset, offset + length)
-                    };
+                const uint8Array = new Uint8Array(arrayBuffer);
+                const fileWrapper = {
+                    byteLength: uint8Array.byteLength,
+                    slice: async (start: number, end?: number) => uint8Array.subarray(start, end).buffer
+                };
 
-                    const metadata = parquetMetadata(arrayBuffer);
-                    const schema = parquetSchema(metadata);
-                    // schema[0] is root, schema[1..n] are columns
-                    const columnNames = schema.slice(1).map(s => s.element.name);
+                const metadata = parquetMetadata(arrayBuffer);
+                // metadata.schema contains the flat list of SchemaElements
+                // The first element is the root (usually named "schema" or "root")
+                const columnNames = metadata.schema
+                    .filter(element => element.num_children === undefined || element.num_children === 0)
+                    .map(element => element.name);
 
-                    await parquetRead({
-                        file: fileWrapper,
-                        metadata,
-                        compressors,
-                        onComplete: (rows) => {
-                            const objects = rows.map(row => {
-                                const obj: any = {};
-                                columnNames.forEach((name, i) => {
-                                    obj[name] = row[i];
-                                });
-                                return toJson(obj);
+                await parquetRead({
+                    file: fileWrapper,
+                    metadata,
+                    compressors,
+                    onComplete: (rows) => {
+                        const objects = rows.map(row => {
+                            const obj: any = {};
+                            columnNames.forEach((name, i) => {
+                                obj[name] = row[i];
                             });
-                            setData(objects);
-                        }
-                    });
-                } catch (err: any) {
-                    console.error('Failed to read parquet file:', err);
-                    setError(err.message || String(err));
-                } finally {
-                    setLoading(false);
-                }
+                            return toJson(obj);
+                        });
+                        setFileState({ data: objects, error: null });
+                    }
+                });
+            } catch (err: any) {
+                console.error('Failed to read parquet file:', err);
+                setFileState({ data: [], error: err.message || String(err) });
+            } finally {
+                setLoading(false);
             }
         };
 
-        window.addEventListener('message', handleMessage);
         if (window.parent) {
             window.parent.postMessage({ action: 'requestFile' }, '*');
         }
 
-        return () => window.removeEventListener('message', handleMessage);
+        return () => {
+            onFileLoaded = null;
+        };
     }, []);
 
     const columns = useMemo<MRT_ColumnDef<any>[]>(() => {
-        if (data.length === 0) return [];
-        const firstRow = data[0];
+        if (fileState.data.length === 0) return [];
+        const firstRow = fileState.data[0];
         return Object.keys(firstRow).map((key) => ({
             accessorKey: key,
             header: key,
         }));
-    }, [data]);
+    }, [fileState.data]);
 
     const table = useMantineReactTable({
         columns,
-        data,
+        data: fileState.data,
         enableColumnResizing: true,
         columnResizeMode: 'onChange',
         initialState: { density: 'compact' },
@@ -96,15 +110,15 @@ const ParquetViewer: React.FC = () => {
         );
     }
 
-    if (error) {
+    if (fileState.error) {
         return (
             <Center style={{ height: '100vh' }}>
-                <Text color="red">Error: {error}</Text>
+                <Text color="red">Error: {fileState.error}</Text>
             </Center>
         );
     }
 
-    if (data.length === 0) {
+    if (fileState.data.length === 0) {
         return (
             <Center style={{ height: '100vh' }}>
                 <Text>No data found or file is empty.</Text>
