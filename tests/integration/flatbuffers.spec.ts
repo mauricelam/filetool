@@ -84,4 +84,28 @@ test.describe('flatbuffers handler', () => {
         await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
         await expect(iframe.locator('body')).toContainText('Root Table Offset');
     });
+
+    test('should display extended view', async ({ page }) => {
+        const fbData = Buffer.alloc(32);
+        fbData.writeInt32LE(12, 0);
+        fbData.writeUInt16LE(6, 4);
+        fbData.writeUInt16LE(8, 6);
+        fbData.writeUInt16LE(4, 8);
+        fbData.writeInt32LE(8, 12);
+        fbData.writeInt32LE(42, 16);
+
+        const validFbFile = {
+            content: fbData,
+            name: 'valid.fb',
+            type: ''
+        };
+
+        const iframe = await runHandlerTest(page, {
+            handler: 'flatbuffers',
+            file: validFbFile,
+        });
+        await iframe.click('text=Extended View');
+        await expect(iframe.locator('body')).toContainText('Extended Structural View');
+        await expect(iframe.locator('body')).toContainText('32-bit soffset to vtable location');
+    });
 });

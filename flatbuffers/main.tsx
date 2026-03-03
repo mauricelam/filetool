@@ -6,6 +6,7 @@ import SyntaxHighlighter from 'react-syntax-highlighter';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { RequestFileMessage, RespondFileMessage } from 'common/messages';
 import { StructuralDecoder, FBNode } from './decoder';
+import { AnnotatedDecoder } from './annotated';
 
 const FlatBuffersViewer: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
@@ -14,6 +15,8 @@ const FlatBuffersViewer: React.FC = () => {
     const [schemaData, setSchemaData] = useState<Uint8Array | null>(null);
     const [decodedData, setDecodedData] = useState<any>(null);
     const [structuralData, setStructuralData] = useState<FBNode | null>(null);
+    const [annotatedText, setAnnotatedText] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'structural' | 'extended'>('structural');
     const [error, setError] = useState<string | null>(null);
     const [fileType, setFileType] = useState<'data' | 'schema_text' | 'schema_binary' | null>(null);
 
@@ -63,6 +66,11 @@ const FlatBuffersViewer: React.FC = () => {
             const structure = decoder.decode();
             setStructuralData(structure);
 
+            // Annotated decoding for extended view
+            const annotatedDecoder = new AnnotatedDecoder(mainFileData);
+            const annotated = annotatedDecoder.decode();
+            setAnnotatedText(annotated);
+
             if (fileType === 'schema_binary' || (mainFile?.name.endsWith('.bfbs'))) {
                 setDecodedData({ info: "This is a binary FlatBuffers schema (.bfbs). Deep inspection without the reflection schema's generated code is currently limited." });
                 return;
@@ -107,6 +115,22 @@ const FlatBuffersViewer: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0 }}>FlatBuffers Viewer - {mainFile.name}</h2>
+                {fileType !== 'schema_text' && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => setViewMode('structural')}
+                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'structural' ? '#007bff' : '#f8f9fa', color: viewMode === 'structural' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Structural Tree
+                        </button>
+                        <button
+                            onClick={() => setViewMode('extended')}
+                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'extended' ? '#007bff' : '#f8f9fa', color: viewMode === 'extended' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Extended View
+                        </button>
+                    </div>
+                )}
             </div>
 
             {fileType === 'schema_text' ? (
@@ -146,7 +170,7 @@ const FlatBuffersViewer: React.FC = () => {
                                 <pre>Processing...</pre>
                             )}
                         </div>
-                    ) : (
+                    ) : viewMode === 'structural' ? (
                         <div style={{ flex: 1 }}>
                             <h3>Structure (Schema-less)</h3>
                             {structuralData ? (
@@ -160,6 +184,25 @@ const FlatBuffersViewer: React.FC = () => {
                                 />
                             ) : (
                                 <pre>Analyzing structure...</pre>
+                            )}
+                        </div>
+                    ) : (
+                        <div style={{ flex: 1 }}>
+                            <h3>Extended Structural View</h3>
+                            {annotatedText ? (
+                                <pre style={{
+                                    backgroundColor: '#f5f5f5',
+                                    padding: '20px',
+                                    borderRadius: '4px',
+                                    overflowX: 'auto',
+                                    fontFamily: 'monospace',
+                                    fontSize: '14px',
+                                    lineHeight: '1.4'
+                                }}>
+                                    {annotatedText}
+                                </pre>
+                            ) : (
+                                <pre>Generating extended view...</pre>
                             )}
                         </div>
                     )}
