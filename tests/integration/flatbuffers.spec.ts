@@ -42,7 +42,7 @@ test.describe('flatbuffers handler', () => {
             handler: 'flatbuffers',
             file: bfbsFile,
         });
-        await expect(iframe.locator('body')).toContainText('binary FlatBuffers schema');
+        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
     });
 
     test('should display data file info and identifier', async ({ page }) => {
@@ -51,9 +51,10 @@ test.describe('flatbuffers handler', () => {
             file: dataFile,
         });
         await expect(iframe.locator('body')).toContainText('TEST');
+        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
     });
 
-    test('should display structural view', async ({ page }) => {
+    test('should display structural view for valid file', async ({ page }) => {
         // Create a more valid-looking FlatBuffer for structural view
         const fbData = Buffer.alloc(32);
         // Root offset at 0
@@ -80,7 +81,6 @@ test.describe('flatbuffers handler', () => {
             handler: 'flatbuffers',
             file: validFbFile,
         });
-        await iframe.click('text=Structural View');
         await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
         await expect(iframe.locator('body')).toContainText('Root Table Offset');
     });

@@ -14,7 +14,6 @@ const FlatBuffersViewer: React.FC = () => {
     const [schemaData, setSchemaData] = useState<Uint8Array | null>(null);
     const [decodedData, setDecodedData] = useState<any>(null);
     const [structuralData, setStructuralData] = useState<FBNode | null>(null);
-    const [viewMode, setViewMode] = useState<'basic' | 'structural'>('basic');
     const [error, setError] = useState<string | null>(null);
     const [fileType, setFileType] = useState<'data' | 'schema_text' | 'schema_binary' | null>(null);
 
@@ -108,22 +107,6 @@ const FlatBuffersViewer: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0 }}>FlatBuffers Viewer - {mainFile.name}</h2>
-                {fileType !== 'schema_text' && (
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <button
-                            onClick={() => setViewMode('basic')}
-                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'basic' ? '#007bff' : '#f8f9fa', color: viewMode === 'basic' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                            Basic Info
-                        </button>
-                        <button
-                            onClick={() => setViewMode('structural')}
-                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'structural' ? '#007bff' : '#f8f9fa', color: viewMode === 'structural' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                            Structural View
-                        </button>
-                    </div>
-                )}
             </div>
 
             {fileType === 'schema_text' ? (
@@ -137,7 +120,7 @@ const FlatBuffersViewer: React.FC = () => {
                         {new TextDecoder().decode(mainFileData!)}
                     </SyntaxHighlighter>
                 </div>
-            ) : viewMode === 'basic' ? (
+            ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {fileType === 'data' && (
                         <div style={{ padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }}>
@@ -148,20 +131,38 @@ const FlatBuffersViewer: React.FC = () => {
                         </div>
                     )}
 
-                    <div style={{ flex: 1 }}>
-                        <h3>Content Summary</h3>
-                        {decodedData ? (
-                            <ReactJson
-                                src={decodedData}
-                                theme="monokai"
-                                collapsed={2}
-                                displayDataTypes={false}
-                                style={{ padding: '15px', borderRadius: '4px' }}
-                            />
-                        ) : (
-                            <pre>Processing...</pre>
-                        )}
-                    </div>
+                    {schemaData ? (
+                        <div style={{ flex: 1 }}>
+                            <h3>Decoded Content (with Schema)</h3>
+                            {decodedData ? (
+                                <ReactJson
+                                    src={decodedData}
+                                    theme="monokai"
+                                    collapsed={2}
+                                    displayDataTypes={false}
+                                    style={{ padding: '15px', borderRadius: '4px' }}
+                                />
+                            ) : (
+                                <pre>Processing...</pre>
+                            )}
+                        </div>
+                    ) : (
+                        <div style={{ flex: 1 }}>
+                            <h3>Structure (Schema-less)</h3>
+                            {structuralData ? (
+                                <ReactJson
+                                    src={structuralData}
+                                    theme="monokai"
+                                    collapsed={3}
+                                    displayDataTypes={false}
+                                    name="root"
+                                    style={{ padding: '15px', borderRadius: '4px' }}
+                                />
+                            ) : (
+                                <pre>Analyzing structure...</pre>
+                            )}
+                        </div>
+                    )}
 
                     <div style={{ marginTop: '20px' }}>
                         <h3>Raw Data Stats</h3>
@@ -172,22 +173,6 @@ const FlatBuffersViewer: React.FC = () => {
                                 "None"}</li>
                         </ul>
                     </div>
-                </div>
-            ) : (
-                <div style={{ flex: 1 }}>
-                    <h3>Structure (Schema-less)</h3>
-                    {structuralData ? (
-                        <ReactJson
-                            src={structuralData}
-                            theme="monokai"
-                            collapsed={3}
-                            displayDataTypes={false}
-                            name="root"
-                            style={{ padding: '15px', borderRadius: '4px' }}
-                        />
-                    ) : (
-                        <pre>Analyzing structure...</pre>
-                    )}
                 </div>
             )}
         </div>
