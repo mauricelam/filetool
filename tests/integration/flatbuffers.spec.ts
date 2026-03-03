@@ -52,4 +52,36 @@ test.describe('flatbuffers handler', () => {
         });
         await expect(iframe.locator('body')).toContainText('TEST');
     });
+
+    test('should display structural view', async ({ page }) => {
+        // Create a more valid-looking FlatBuffer for structural view
+        const fbData = Buffer.alloc(32);
+        // Root offset at 0
+        fbData.writeInt32LE(12, 0); // Root Table at offset 12
+
+        // VTable at 4
+        fbData.writeUInt16LE(6, 4);  // vtable size
+        fbData.writeUInt16LE(8, 6);  // table size
+        fbData.writeUInt16LE(4, 8);  // field 0 offset (relative to table start)
+
+        // Table at 12
+        fbData.writeInt32LE(8, 12); // Points back to VTable at 4 (12 - 8 = 4)
+
+        // Field 0 at 16 (12 + 4)
+        fbData.writeInt32LE(42, 16);
+
+        const validFbFile = {
+            content: fbData,
+            name: 'valid.fb',
+            type: ''
+        };
+
+        const iframe = await runHandlerTest(page, {
+            handler: 'flatbuffers',
+            file: validFbFile,
+        });
+        await iframe.click('text=Structural View');
+        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
+        await expect(iframe.locator('body')).toContainText('Root Table Offset');
+    });
 });

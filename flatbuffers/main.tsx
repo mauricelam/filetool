@@ -5,6 +5,7 @@ import ReactJson from '@microlink/react-json-view';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { RequestFileMessage, RespondFileMessage } from 'common/messages';
+import { StructuralDecoder, FBNode } from './decoder';
 
 const FlatBuffersViewer: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
@@ -12,6 +13,8 @@ const FlatBuffersViewer: React.FC = () => {
     const [schemaFile, setSchemaFile] = useState<File | null>(null);
     const [schemaData, setSchemaData] = useState<Uint8Array | null>(null);
     const [decodedData, setDecodedData] = useState<any>(null);
+    const [structuralData, setStructuralData] = useState<FBNode | null>(null);
+    const [viewMode, setViewMode] = useState<'basic' | 'structural'>('basic');
     const [error, setError] = useState<string | null>(null);
     const [fileType, setFileType] = useState<'data' | 'schema_text' | 'schema_binary' | null>(null);
 
@@ -56,24 +59,17 @@ const FlatBuffersViewer: React.FC = () => {
         if (!mainFileData) return;
 
         try {
-            // FlatBuffers reflection in JS is limited without generated code.
-            // For now, we'll try to at least show the basic structure or provide
-            // a placeholder if a .bfbs schema is present.
-
-            // If it's a binary schema (.bfbs), it is itself a FlatBuffer.
-            // We can potentially decode it using the reflection schema if we had it.
+            // Heuristic structural decoding
+            const decoder = new StructuralDecoder(mainFileData);
+            const structure = decoder.decode();
+            setStructuralData(structure);
 
             if (fileType === 'schema_binary' || (mainFile?.name.endsWith('.bfbs'))) {
-                // .bfbs files use a standard reflection schema.
-                // Decoding .bfbs without the reflection schema's generated code is hard.
                 setDecodedData({ info: "This is a binary FlatBuffers schema (.bfbs). Deep inspection without the reflection schema's generated code is currently limited." });
                 return;
             }
 
             if (schemaData) {
-                // If we have a schemaData (binary schema), we could use it for reflection.
-                // However, the flatbuffers JS library doesn't have a built-in generic
-                // reflector that works directly with .bfbs yet.
                 setDecodedData({ info: "A binary schema was provided. Generic reflection-based decoding is not yet implemented in this viewer." });
             } else {
                 // Basic heuristic: try to read the 4-byte identifier at offset 4.
@@ -110,16 +106,38 @@ const FlatBuffersViewer: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
-            <h2>FlatBuffers Viewer - {mainFile.name}</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0 }}>FlatBuffers Viewer - {mainFile.name}</h2>
+                {fileType !== 'schema_text' && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => setViewMode('basic')}
+                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'basic' ? '#007bff' : '#f8f9fa', color: viewMode === 'basic' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Basic Info
+                        </button>
+                        <button
+                            onClick={() => setViewMode('structural')}
+                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'structural' ? '#007bff' : '#f8f9fa', color: viewMode === 'structural' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Structural View
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {fileType === 'schema_text' ? (
-                <div style={{ flex: 1 }}>
-                    <h3>Schema (.fbs)</h3>
-                    <SyntaxHighlighter language="protobuf" style={docco}>
+                <div style={{ flex: 1, backgroundColor: '#f5f5f5', borderRadius: '4px', overflow: 'auto' }}>
+                    <h3 style={{ padding: '0 20px' }}>Schema (.fbs)</h3>
+                    <SyntaxHighlighter
+                        language="protobuf"
+                        style={docco}
+                        customStyle={{ padding: '20px' }}
+                    >
                         {new TextDecoder().decode(mainFileData!)}
                     </SyntaxHighlighter>
                 </div>
-            ) : (
+            ) : viewMode === 'basic' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {fileType === 'data' && (
                         <div style={{ padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }}>
@@ -131,7 +149,7 @@ const FlatBuffersViewer: React.FC = () => {
                     )}
 
                     <div style={{ flex: 1 }}>
-                        <h3>Content</h3>
+                        <h3>Content Summary</h3>
                         {decodedData ? (
                             <ReactJson
                                 src={decodedData}
@@ -154,6 +172,22 @@ const FlatBuffersViewer: React.FC = () => {
                                 "None"}</li>
                         </ul>
                     </div>
+                </div>
+            ) : (
+                <div style={{ flex: 1 }}>
+                    <h3>Structure (Schema-less)</h3>
+                    {structuralData ? (
+                        <ReactJson
+                            src={structuralData}
+                            theme="monokai"
+                            collapsed={3}
+                            displayDataTypes={false}
+                            name="root"
+                            style={{ padding: '15px', borderRadius: '4px' }}
+                        />
+                    ) : (
+                        <pre>Analyzing structure...</pre>
+                    )}
                 </div>
             )}
         </div>
