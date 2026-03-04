@@ -4,7 +4,7 @@
   "description": "SQLite file viewer",
   "main": "index.js",
   "scripts": {
-    "build": "node build.mjs",
+    "build": "BUILD_MODE=prod node build.mjs",
     "watch": "BUILD_MODE=dev node build.mjs"
   },
   "keywords": [],
