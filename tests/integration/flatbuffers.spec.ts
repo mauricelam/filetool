@@ -108,4 +108,69 @@ test.describe('flatbuffers handler', () => {
         await expect(iframe.locator('body')).toContainText('Extended Structural View');
         await expect(iframe.locator('body')).toContainText('32-bit soffset to vtable location');
     });
+
+    test('should display real fixture (.fbs)', async ({ page }) => {
+        const filePath = path.resolve(__dirname, '../fixtures/monster.fbs');
+        const content = await fs.readFile(filePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'flatbuffers',
+            file: {
+                content,
+                name: 'monster.fbs',
+                type: ''
+            },
+        });
+        await expect(iframe.locator('body')).toContainText('table Monster');
+        await expect(iframe.locator('body')).toContainText('health:int');
+    });
+
+    test('should display real fixture (.bin)', async ({ page }) => {
+        const filePath = path.resolve(__dirname, '../fixtures/monster.bin');
+        const content = await fs.readFile(filePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'flatbuffers',
+            file: {
+                content,
+                name: 'monster.bin',
+                type: ''
+            },
+        });
+        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
+        await expect(iframe.locator('body')).toContainText('Root Table Offset');
+        await expect(iframe.locator('body')).toContainText('Root Table');
+    });
+});
+
+test('should detect FlatBuffers file in main UI', async ({ page }) => {
+    await page.goto('/filetool/');
+
+    // Wait for the drop target to be ready
+    const dropTarget = page.locator('#droptarget');
+    await expect(dropTarget).toBeVisible({ timeout: 15000 });
+
+    // Dispatch the 'openFiles' event with a mock .fb file
+    await page.evaluate(() => {
+        const fbData = new Uint8Array([0, 0, 0, 0, 0x54, 0x45, 0x53, 0x54]); // Dummy data with ID 'TEST'
+        const file = new File([fbData], 'test.fb', { type: 'application/octet-stream' });
+        // Use the event name 'openFiles' which is handled in App.tsx
+        window.dispatchEvent(new CustomEvent('openFiles', { detail: [file] }));
+    });
+
+    // Check that the file is displayed
+    await expect(page.locator('.filename')).toHaveText('test.fb');
+
+    // Check that the FlatBuffers handler is offered
+    const fbButton = page.getByRole('button', { name: 'FlatBuffers' });
+    await expect(fbButton).toBeVisible({ timeout: 10000 });
+
+    // Click it to open
+    await fbButton.click();
+
+    // Check that the FlatBuffers Viewer is opened in the iframe
+    const iframeLocator = page.locator('#framecontainer iframe');
+    await expect(iframeLocator).toBeVisible();
+
+    const iframe = page.frameLocator('#framecontainer iframe');
+    await expect(iframe.locator('body')).toContainText('FlatBuffers Viewer - test.fb');
+    await expect(iframe.locator('body')).toContainText('TEST');
 });
