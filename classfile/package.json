@@ -1,5 +1,5 @@
 {
-  "name": "classfile-viewer",
+  "name": "wasmtools-classfile",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {

@@ -26,13 +26,15 @@ const SETTINGS = {
       ]
     }),
     rustWasm({
-      projectDir: path.join('..', 'binaryxml', 'abxml-wasm-bindings'),
-      outName: 'abxml-wasm-bindings',
+      projectDir: 'wasm-bindings',
+      outName: 'android-xml-wasm-bindings',
       watchPaths: [
         'src/**/*.rs',
         'Cargo.toml',
-        path.join('..', 'abxml-rs', 'src', '**', '*.rs'),
-        path.join('..', 'abxml-rs', 'Cargo.toml'),
+        path.join('..', '..', 'binaryxml', 'abxml-wasm-common', 'src', '**', '*.rs'),
+        path.join('..', '..', 'binaryxml', 'abxml-wasm-common', 'Cargo.toml'),
+        path.join('..', '..', 'binaryxml', 'abxml-rs', 'src', '**', '*.rs'),
+        path.join('..', '..', 'binaryxml', 'abxml-rs', 'Cargo.toml'),
       ]
     }),
   ],
