@@ -237,6 +237,15 @@ export const HANDLERS: HandlerDefinition[] = [
             { "mime": "application/octet-stream", "description": /Apache Parquet/i }
         ]
     },
+    {
+        "name": "SELinux Policy",
+        "handler": "setools",
+        "mimetypes": [
+            { "filename": /sepolicy/i },
+            { "filename": /policy\.\d+$/i },
+            { "description": /SELinux policy/i }
+        ]
+    },
 ];
 
 export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {
