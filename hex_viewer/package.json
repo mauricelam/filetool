@@ -1,5 +1,5 @@
 {
-  "name": "wasmtools-hex_viewer",
+  "name": "hex-viewer",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {
