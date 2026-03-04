@@ -211,7 +211,7 @@ export const HANDLERS: HandlerDefinition[] = [
     },
     { "name": "Protoscope", "handler": "protoscope", "mimetypes": [{ "mime": "application/x-protobuf" }, { "filename": /\.pb$/i }, { "filename": /\.binarypb$/i }] },
     {
-        "name": "FlatBuffers Viewer",
+        "name": "FlatBuffers",
         "handler": "flatbuffers",
         "mimetypes": [
             { "filename": /\.(fb|fbs|bfbs)$/i },
