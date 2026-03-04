@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
-import 'react-tabs/style/react-tabs.css'
 
 import AceEditor from "react-ace"
 import "ace-builds/src-noconflict/ace"
 import "ace-builds/src-noconflict/theme-twilight"
 import "ace-builds/src-noconflict/mode-lisp"
 import "ace-builds/src-noconflict/ext-searchbox"
+
+import './styles.css';
+import { Sidebar } from './Sidebar';
+import { Controls } from './Controls';
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -120,57 +122,44 @@ function App({ file }: { file: File }) {
         });
     };
 
-    const toolNames = TOOLS.map(t => t.name)
+    const currentToolInfo = TOOLS.find(t => t.name === selectedTool);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', gap: '20px' }}>
-            <Tabs
-                selectedIndex={toolNames.indexOf(selectedTool)}
-                onSelect={(index) => setSelectedTool(toolNames[index])}
-                style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-            >
-                <TabList>
-                    {TOOLS.map(tool => (
-                        <Tab key={tool.name}>{tool.name}</Tab>
-                    ))}
-                </TabList>
-
-                {TOOLS.map(tool => (
-                    <TabPanel key={tool.name} style={{ height: '100%' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                            <div>
-                                {tool.flags.map(flagInfo => (
-                                    <label key={flagInfo.flag} style={{ marginRight: '15px' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={(toolFlags[tool.name] || []).includes(flagInfo.flag)}
-                                            onChange={(e) => handleFlagChange(tool.name, flagInfo.flag, e.target.checked)}
-                                        />
-                                        {flagInfo.flag}: {flagInfo.label}
-                                    </label>
-                                ))}
-                            </div>
-                            <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '0 4px 4px 4px' }}>
-                                <AceEditor
-                                    value={output}
-                                    mode="lisp"
-                                    theme="twilight"
-                                    name="output-editor"
-                                    editorProps={{ $blockScrolling: true }}
-                                    setOptions={{
-                                        showLineNumbers: true,
-                                        showGutter: true,
-                                        readOnly: true,
-                                        highlightActiveLine: false,
-                                        showPrintMargin: false
-                                    }}
-                                    style={{ width: '100%', height: '100%' }}
-                                />
-                            </div>
-                        </div>
-                    </TabPanel>
-                ))}
-            </Tabs>
+        <div className="binutils-root">
+            <Sidebar
+                tools={TOOLS}
+                selectedTool={selectedTool}
+                onSelect={setSelectedTool}
+            />
+            <main className="binutils-main">
+                {currentToolInfo && (
+                    <Controls
+                        toolName={selectedTool}
+                        flags={currentToolInfo.flags}
+                        selectedFlags={toolFlags[selectedTool] || []}
+                        onFlagChange={handleFlagChange}
+                    />
+                )}
+                <div className="binutils-output">
+                    <AceEditor
+                        value={output}
+                        mode="lisp"
+                        theme="twilight"
+                        name="output-editor"
+                        fontSize={14}
+                        editorProps={{ $blockScrolling: true }}
+                        setOptions={{
+                            showLineNumbers: true,
+                            showGutter: true,
+                            readOnly: true,
+                            highlightActiveLine: false,
+                            showPrintMargin: false,
+                            wrapEnabled: true
+                        }}
+                        style={{ width: '100%', height: '100%' }}
+                    />
+                </div>
+            </main>
         </div>
     )
 }
