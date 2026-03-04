@@ -1,5 +1,5 @@
 {
-  "name": "wasmtools-wat_viewer",
+  "name": "wat_viewer",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {

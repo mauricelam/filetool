@@ -8,15 +8,28 @@ use std::{collections::HashMap, fs::File};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
+// Initialize panic hook and logger
+fn init() {
+    debug!("abxml init");
+    console_error_panic_hook::set_once();
+    console_log::init_with_level(log::Level::Debug).expect("Failed to initialize logger");
+}
+
+#[wasm_bindgen(start)]
+pub fn start() {
+    init();
+    info!("ARSC parser initialized");
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct ArscResource {
-    pub package_id: u8,
-    pub type_name: String,
-    pub entry_id: u32,
-    pub name: String,
-    pub value: String,
-    pub entries: Option<HashMap<String, String>>,
+    package_id: u8,
+    type_name: String,
+    entry_id: u32,
+    name: String,
+    value: String,
+    entries: Option<HashMap<String, String>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Tsify)]
@@ -58,13 +71,23 @@ pub struct ApkResponse {
     pub metadata: ApkMetadata,
 }
 
-pub fn common_decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, anyhow::Error> {
+#[wasm_bindgen]
+pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> {
     info!("Decoding APK of size {} bytes", bytes.len());
-    let mut apk = Apk::<File>::from_bytes(&bytes)?;
+    let mut apk = Apk::<File>::from_bytes(&bytes).map_err(|e| {
+        error!("Failed to decode APK: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
 
-    let metadata = apk.get_metadata_with_bytes(&bytes)?;
+    let metadata = apk.get_metadata_with_bytes(&bytes).map_err(|e| {
+        error!("Failed to get APK metadata: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
 
-    let strings = apk.export_string()?;
+    let strings = apk.export_string().map_err(|e| {
+        error!("Failed to export strings: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
 
     info!("Successfully decoded APK");
 
@@ -101,11 +124,12 @@ pub fn common_decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, anyhow::Error> {
     })
 }
 
-pub fn common_extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, anyhow::Error> {
+#[wasm_bindgen]
+pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::JsError> {
     info!("Extracting ARSC of size {} bytes", bytes.len());
     let decoder = abxml::decoder::Decoder::from_arsc(&bytes).map_err(|e| {
         error!("Failed to decode ARSC: {}", e);
-        anyhow::anyhow!("XX {e}")
+        JsError::new(&format!("XX {e}"))
     })?;
 
     let resources = decoder.get_resources();
@@ -167,13 +191,14 @@ pub fn common_extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, anyhow::
     Ok(result)
 }
 
-pub fn common_decode_xml(bytes: Vec<u8>) -> Result<String, anyhow::Error> {
+#[wasm_bindgen]
+pub fn decode_xml(bytes: Vec<u8>) -> Result<String, wasm_bindgen::JsError> {
     info!("Decoding standalone XML of size {} bytes", bytes.len());
 
     let mut visitor = abxml::visitor::ModelVisitor::default();
     abxml::visitor::Executor::arsc(abxml::STR_ARSC, &mut visitor).map_err(|e| {
         error!("Failed to load system resources: {}", e);
-        anyhow::anyhow!("{e}")
+        JsError::new(&format!("{e}"))
     })?;
 
     let resources = visitor.get_resources();
@@ -181,29 +206,21 @@ pub fn common_decode_xml(bytes: Vec<u8>) -> Result<String, anyhow::Error> {
 
     abxml::visitor::Executor::xml(std::io::Cursor::new(&bytes), &mut xml_visitor).map_err(|e| {
         error!("Failed to decode XML: {}", e);
-        anyhow::anyhow!("{e}")
+        JsError::new(&format!("{e}"))
     })?;
 
     xml_visitor.into_string().map_err(|e| {
         error!("Failed to convert XML to string: {}", e);
-        anyhow::anyhow!("{e}")
+        JsError::new(&format!("{e}"))
     })
-}
-
-pub fn common_init() {
-    debug!("abxml common init");
-    console_error_panic_hook::set_once();
-    let _ = console_log::init_with_level(log::Level::Debug);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_extract_arsc() {
         let bytes = include_bytes!("example_resources.arsc").to_vec();
-        // Since test.arsc is very small, we just check that it doesn't panic
-        let _ = common_extract_arsc(bytes);
+        let decoder = abxml::decoder::Decoder::from_arsc(&bytes).unwrap();
+        decoder.get_resources();
     }
 }

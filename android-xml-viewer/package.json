@@ -5,8 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "BUILD_MODE=prod node build.mjs",
-    "dev": "BUILD_MODE=dev node build.mjs",
+    "build": "node build.mjs",
     "watch": "BUILD_MODE=dev node build.mjs"
   },
   "keywords": [],

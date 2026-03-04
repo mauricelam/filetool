@@ -1,5 +1,5 @@
 {
-  "name": "wasmtools-ffmpeg",
+  "name": "ffmpeg",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {
