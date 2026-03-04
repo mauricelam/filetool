@@ -16,8 +16,26 @@ test.describe('flatbuffers handler', () => {
             type: ''
         };
 
+        // Minimal valid BFBS
+        const bfbsData = Buffer.alloc(64);
+        bfbsData.writeInt32LE(12, 0); // Root offset to Schema table at 12
+        bfbsData.write('BFBS', 4);     // Identifier
+        // Schema VTable at 8
+        bfbsData.writeUInt16LE(8, 8);  // vtable size
+        bfbsData.writeUInt16LE(20, 10); // table size
+        bfbsData.writeUInt16LE(4, 12);  // objects vector offset
+        bfbsData.writeUInt16LE(8, 14);  // enums vector offset
+        // Schema Table at 12
+        bfbsData.writeInt32LE(4, 12);  // Points back to VTable at 8 (12-4=8)
+        bfbsData.writeInt32LE(8, 16);  // objects vector at 12+8=20
+        bfbsData.writeInt32LE(12, 20); // enums vector at 12+12=24
+        // objects vector at 20 (12+8)
+        bfbsData.writeInt32LE(0, 20);  // length 0
+        // enums vector at 24 (12+12)
+        bfbsData.writeInt32LE(0, 24);  // length 0
+
         bfbsFile = {
-            content: Buffer.from([0, 0, 0, 0, 0x42, 0x46, 0x42, 0x53, 0, 0, 0, 0]), // Dummy BFBS
+            content: bfbsData,
             name: 'test.bfbs',
             type: ''
         };
@@ -42,7 +60,8 @@ test.describe('flatbuffers handler', () => {
             handler: 'flatbuffers',
             file: bfbsFile,
         });
-        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
+        await expect(iframe.locator('body')).toContainText('objects');
+        await expect(iframe.locator('body')).toContainText('enums');
     });
 
     test('should display data file info and identifier', async ({ page }) => {

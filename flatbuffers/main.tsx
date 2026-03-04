@@ -7,6 +7,7 @@ import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { RequestFileMessage, RespondFileMessage } from 'common/messages';
 import { StructuralDecoder, FBNode } from './decoder';
 import { AnnotatedDecoder } from './annotated';
+import { decodeReflectionSchema } from './reflection';
 
 const FlatBuffersViewer: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
@@ -72,7 +73,13 @@ const FlatBuffersViewer: React.FC = () => {
             setAnnotatedText(annotated);
 
             if (fileType === 'schema_binary' || (mainFile?.name.endsWith('.bfbs'))) {
-                setDecodedData({ info: "This is a binary FlatBuffers schema (.bfbs). Deep inspection without the reflection schema's generated code is currently limited." });
+                try {
+                    const schemaData = decodeReflectionSchema(mainFileData);
+                    setDecodedData(schemaData);
+                    setSchemaData(mainFileData); // Treat as own schema
+                } catch (e) {
+                    setDecodedData({ info: "This is a binary FlatBuffers schema (.bfbs). Failed to decode using reflection: " + e });
+                }
                 return;
             }
 
