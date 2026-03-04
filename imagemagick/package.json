@@ -1,5 +1,5 @@
 {
-  "name": "wasmtools-imagemagick",
+  "name": "imagemagick",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {
