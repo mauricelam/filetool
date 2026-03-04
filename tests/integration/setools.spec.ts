@@ -16,10 +16,7 @@ import * as path from 'path';
 test('SETools handler loads and parses minimal sepolicy', async ({ page }) => {
     // The fixture is a hand-crafted minimal SELinux binary policy
     const fixturePath = path.join(__dirname, '..', 'fixtures', 'setools', 'minimal_sepolicy.bin');
-    if (!fs.existsSync(fixturePath)) {
-        test.skip(true, 'Minimal sepolicy fixture not found. Skipping test.');
-        return;
-    }
+    expect(fs.existsSync(fixturePath), `Minimal sepolicy fixture not found at ${fixturePath}`).toBe(true);
     const buffer = fs.readFileSync(fixturePath);
 
     const iframe = await runHandlerTest(page, {
