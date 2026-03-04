@@ -86,7 +86,7 @@ const ParquetViewer: React.FC = () => {
         data: fileState.data,
         enableColumnResizing: true,
         columnResizeMode: 'onChange',
-        initialState: { density: 'compact' },
+        initialState: { density: 'xs' },
     });
 
     if (loading) {
