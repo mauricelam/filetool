@@ -1,5 +1,5 @@
 {
-  "name": "wasmtools-dexviewer",
+  "name": "dexviewer",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {
