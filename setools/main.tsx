@@ -212,15 +212,15 @@ function App({ file }: { file: File }) {
 
 /**
  * SymbolList: Simple component to render a list of strings efficiently.
- * It caps the displayed items to 1000 to prevent browser crashes on huge policies.
+ * It caps the displayed items to 10000 to prevent browser crashes on huge policies.
  */
 function SymbolList({ symbols }: { symbols: string[] }) {
     return (
         <div style={{ padding: '10px' }}>
-            {symbols.slice(0, 1000).map((s, i) => (
+            {symbols.slice(0, 10000).map((s, i) => (
                 <div key={i} style={{ padding: '6px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>{s}</div>
             ))}
-            {symbols.length > 1000 && <div style={{ color: '#888', fontStyle: 'italic' }}>... Showing first 1000 items</div>}
+            {symbols.length > 10000 && <div style={{ color: '#888', fontStyle: 'italic' }}>... Showing first 10000 items</div>}
             {symbols.length === 0 && <div>No symbols found.</div>}
         </div>
     )

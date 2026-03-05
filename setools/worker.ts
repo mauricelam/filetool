@@ -128,13 +128,19 @@ self.onmessage = async (e: MessageEvent) => {
         // The search logic is moved to the C bridge for performance on large policies.
         if (!policyPtr || !mod) return;
 
-        const maxCollect = 1000; // Result set cap for the UI
+        const maxCollect = 20000; // Result set cap for the UI
         const structSize = 16;   // 4 * uint32 (src_id, tgt_id, class_id, av_bits)
         const resultsPtr = mod._malloc(maxCollect * structSize);
+        if (!resultsPtr) {
+            console.error("Failed to allocate memory for rules");
+            self.postMessage({ action: 'results', results: [] });
+            return;
+        }
 
         // Query the C bridge which maps the avtab and filters by symbol names.
         const actualCount = mod.ccall('api_get_rules', 'number', ['number', 'number', 'number', 'string'],
                                     [policyPtr, resultsPtr, maxCollect, query || ""]);
+
         const rules = [];
 
         // Read results from the WASM heap.
