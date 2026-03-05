@@ -3,7 +3,7 @@
     "workspaces": [
         "archive",
         "android-xml-viewer",
-        "binaryxml",
+        "apk-viewer",
         "binutils",
         "bplistviewer",
         "browser",

@@ -1,8 +1,8 @@
 {
     "rust-analyzer.linkedProjects": [
-        "binaryxml/abxml-rs/Cargo.toml",
+        "apk-viewer/abxml-rs/Cargo.toml",
         "classfile/classfile-wasm/Cargo.toml",
         "rustdexviewer/dexviewer/Cargo.toml",
-        "binaryxml/abxml-wasm-bindings/Cargo.toml"
+        "apk-viewer/abxml-wasm-bindings/Cargo.toml"
     ]
 }

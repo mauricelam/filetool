@@ -6,7 +6,7 @@ import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
-  outdir: "../dist/binaryxml",
+  outdir: "../dist/apk-viewer",
   bundle: true,
   format: "esm",
   platform: "browser",
@@ -26,17 +26,11 @@ const SETTINGS = {
       ]
     }),
     rustWasm({
-      projectDir: 'abxml-wasm-bindings',
-      outName: 'abxml-wasm-bindings',
+      projectDir: 'apk-wasm-bindings',
+      outName: 'apk-wasm-bindings',
       watchPaths: [
         'src/**/*.rs',
         'Cargo.toml',
-        // Watch paths for the dependent local workspace abxml-rs
-        // This requires careful relative pathing from abxml-wasm-bindings to abxml-rs
-        // Assuming abxml-rs is a sibling or at a known relative path to abxml-wasm-bindings
-        // For this example, let's assume direct relative path for simplicity
-        // This might need adjustment based on actual monorepo structure if chokidar has issues.
-        // A robust solution might involve passing absolute paths or resolving them carefully.
         path.join('..', 'abxml-rs', 'src', '**', '*.rs'),
         path.join('..', 'abxml-rs', 'Cargo.toml'),
       ]

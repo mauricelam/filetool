@@ -29,7 +29,7 @@ FileMagic is organized as a monorepo with multiple workspaces, each handling dif
 - File type handlers:
     - **`hex_viewer/`** - Binary file viewer
     - **`archive/`** - Archive file handlers (ZIP, RAR, etc.)
-    - **`binaryxml/`** - Android binary XML parser
+    - **`apk-viewer/`** - Android binary XML parser
     - **`classfile/`** - Java class file viewer
     - **`dexviewer/`** - Android DEX file viewer
     - **`imagemagick/`** - Image file processing

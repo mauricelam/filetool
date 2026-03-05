@@ -54,7 +54,7 @@ npm test
 ## File Structure
 
 ```
-binaryxml/
+apk-viewer/
 ├── build.mjs              # Build configuration
 ├── index.html             # Entry point
 ├── main.tsx               # Main React component
