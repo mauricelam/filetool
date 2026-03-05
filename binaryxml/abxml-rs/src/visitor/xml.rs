@@ -43,8 +43,8 @@ impl<'a> XmlVisitor<'a> {
         &self.namespaces
     }
 
-    pub fn get_root(&self) -> &Option<Element> {
-        self.container.get_root()
+    pub fn get_roots(&self) -> &[Element] {
+        self.container.get_roots()
     }
 
     pub fn get_string_table(&self) -> &Option<StringTableCache<StringTableWrapper<'a>>> {
@@ -61,10 +61,11 @@ impl<'a> XmlVisitor<'a> {
 
     // TODO: Convert to TryInto once it will be stable
     pub fn into_string(self) -> Result<String, Error> {
-        if let Some(root) = self.get_root() {
+        let roots = self.get_roots();
+        if !roots.is_empty() {
             if self.get_string_table().is_some() {
                 let res =
-                    Xml::encode(self.get_namespaces(), root).context("could note encode XML")?;
+                    Xml::encode(self.get_namespaces(), roots).context("could note encode XML")?;
                 return Ok(res);
             } else {
                 warn!("No string table found");
@@ -615,5 +616,49 @@ mod tests {
         let result = AttributeHelper::resolve_flags(&attribute, flags, &resc, &resources);
 
         assert_eq!("left|right", result.unwrap());
+    }
+
+    #[test]
+    fn it_only_preserves_the_last_root_element() {
+        use crate::model::owned::{OwnedBuf, StringTableBuf, XmlTagEndBuf, XmlTagStartBuf};
+        use crate::visitor::{ChunkVisitor, ModelVisitor};
+
+        let mut model_visitor = ModelVisitor::default();
+        let resources = model_visitor.get_resources();
+        let mut visitor = super::XmlVisitor::new(resources);
+
+        // Setup string table: [0: "tag1", 1: "tag2"]
+        let mut st_buf = StringTableBuf::default();
+        st_buf.add_string("tag1".to_string());
+        st_buf.add_string("tag2".to_string());
+        let st_bytes = st_buf.to_vec().unwrap();
+        visitor.visit_string_table(
+            crate::chunks::StringTableWrapper::new(&st_bytes),
+            Origin::Global,
+        );
+
+        // Visit first tag: <tag1 />
+        let tag1_start = XmlTagStartBuf::new(0, 0, 0xFFFF_FFFF, 0, 0, 0xFFFF_FFFF);
+        let tag1_start_bytes = tag1_start.to_vec().unwrap();
+        visitor.visit_xml_tag_start(crate::chunks::XmlTagStartWrapper::new(&tag1_start_bytes));
+
+        let tag1_end = XmlTagEndBuf::new(0);
+        let tag1_end_bytes = tag1_end.to_vec().unwrap();
+        visitor.visit_xml_tag_end(crate::chunks::XmlTagEndWrapper::new(&tag1_end_bytes));
+
+        // Visit second tag: <tag2 />
+        let tag2_start = XmlTagStartBuf::new(0, 0, 0xFFFF_FFFF, 1, 0, 0xFFFF_FFFF);
+        let tag2_start_bytes = tag2_start.to_vec().unwrap();
+        visitor.visit_xml_tag_start(crate::chunks::XmlTagStartWrapper::new(&tag2_start_bytes));
+
+        let tag2_end = XmlTagEndBuf::new(1);
+        let tag2_end_bytes = tag2_end.to_vec().unwrap();
+        visitor.visit_xml_tag_end(crate::chunks::XmlTagEndWrapper::new(&tag2_end_bytes));
+
+        let xml = visitor.into_string().unwrap();
+
+        // Should now contain both tags
+        assert!(xml.contains("<tag1"));
+        assert!(xml.contains("<tag2"));
     }
 }

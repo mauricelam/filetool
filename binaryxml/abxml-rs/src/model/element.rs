@@ -84,7 +84,7 @@ impl Display for Element {
 #[derive(Default, Debug)]
 pub struct ElementContainer {
     stack: Vec<Element>,
-    root: Option<Element>,
+    roots: Vec<Element>,
 }
 
 impl ElementContainer {
@@ -98,7 +98,7 @@ impl ElementContainer {
             .pop()
             .and_then(|element| {
                 if self.stack.is_empty() {
-                    self.root = Some(element);
+                    self.roots.push(element);
                 } else {
                     // Append child to current element
                     let last_element = self.stack.len();
@@ -112,7 +112,7 @@ impl ElementContainer {
             });
     }
 
-    pub fn get_root(&self) -> &Option<Element> {
-        &self.root
+    pub fn get_roots(&self) -> &[Element] {
+        &self.roots
     }
 }
