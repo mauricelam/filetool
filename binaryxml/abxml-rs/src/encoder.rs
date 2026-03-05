@@ -14,7 +14,7 @@ use crate::model::{Element as AbxmlElement, Namespaces};
 pub struct Xml;
 
 impl Xml {
-    pub fn encode(namespaces: &Namespaces, element: &AbxmlElement) -> Result<String, Error> {
+    pub fn encode(namespaces: &Namespaces, elements: &[AbxmlElement]) -> Result<String, Error> {
         let target: Vec<u8> = Vec::new();
         let mut writer = EmitterConfig::new()
             .perform_indent(true)
@@ -26,8 +26,11 @@ impl Xml {
             encoding: None,
             standalone: Some(false),
         })?;
-        Self::encode_element(&mut writer, namespaces, element)
-            .context("error decoding an element")?;
+
+        for element in elements {
+            Self::encode_element(&mut writer, namespaces, element)
+                .context("error decoding an element")?;
+        }
 
         let inner = writer.into_inner();
         String::from_utf8(inner).context("could not export XML")
@@ -40,6 +43,14 @@ impl Xml {
     ) -> Result<(), Error> {
         let tag = element.get_tag();
         let tag_name = tag.get_name();
+
+        if tag_name.as_str() == "" {
+            for child in element.get_children() {
+                Self::encode_element(writer, namespaces, child)?;
+            }
+            return Ok(());
+        }
+
         let prefixes = tag.get_prefixes();
         let mut xml_element = XmlEvent::start_element(tag_name.deref().as_str());
 

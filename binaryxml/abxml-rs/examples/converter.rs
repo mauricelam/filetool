@@ -91,20 +91,20 @@ fn parse_xml<'a>(content: &[u8], resources: &'a Resources<'a>) -> Result<String,
 
     Executor::xml(cursor, &mut visitor)?;
 
-    match *visitor.get_root() {
-        Some(ref root) => match *visitor.get_string_table() {
+    let roots = visitor.get_roots();
+    if !roots.is_empty() {
+        match *visitor.get_string_table() {
             Some(_) => {
                 let res =
-                    Xml::encode(visitor.get_namespaces(), root).context("could note encode XML")?;
+                    Xml::encode(visitor.get_namespaces(), roots).context("could note encode XML")?;
                 return Ok(res);
             }
             None => {
                 println!("No string table found");
             }
-        },
-        None => {
-            println!("No root on target XML");
         }
+    } else {
+        println!("No root on target XML");
     }
 
     bail!("could not decode XML")

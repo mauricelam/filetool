@@ -110,7 +110,7 @@ impl<Reader: Read + Seek> Apk<Reader> {
 
             let decoder = self.decoder.get_decoder()?;
             let xml_visitor = decoder.xml_visitor(&contents)?;
-            if let Some(root) = xml_visitor.get_root() {
+            if let Some(root) = xml_visitor.get_roots().first() {
                 manifest_info = Some(Self::extract_manifest_info(root));
             }
         }

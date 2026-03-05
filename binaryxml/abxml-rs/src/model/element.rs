@@ -5,7 +5,6 @@ use std::{
     rc::Rc,
 };
 
-use log::error;
 
 #[derive(Default, Debug, PartialEq, Eq, Hash)]
 pub struct Tag {
@@ -84,7 +83,7 @@ impl Display for Element {
 #[derive(Default, Debug)]
 pub struct ElementContainer {
     stack: Vec<Element>,
-    root: Option<Element>,
+    roots: Vec<Element>,
 }
 
 impl ElementContainer {
@@ -98,7 +97,7 @@ impl ElementContainer {
             .pop()
             .and_then(|element| {
                 if self.stack.is_empty() {
-                    self.root = Some(element);
+                    self.roots.push(element);
                 } else {
                     // Append child to current element
                     let last_element = self.stack.len();
@@ -108,11 +107,12 @@ impl ElementContainer {
                 Some(())
             })
             .unwrap_or_else(|| {
-                error!("Received an end element event with an empty stack");
+                // If the stack is empty, it might be due to a failed start_element.
+                // We don't error here as it might be a valid (though weird) binary XML.
             });
     }
 
-    pub fn get_root(&self) -> &Option<Element> {
-        &self.root
+    pub fn get_roots(&self) -> &[Element] {
+        &self.roots
     }
 }
