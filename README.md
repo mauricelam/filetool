@@ -73,6 +73,7 @@ window.onmessage = (e) => {
 | Android APK | APK files |
 | JVM Classfile | Java class files |
 | Binutils | Mach-O, Executables, Shared Libraries |
+| SVG Viewer | SVG files (interactive pan/zoom, PNG export) |
 | ImageMagick | JPEG, PNG, WebP, GIF, JXL, ICO, PNM, TIFF, PSD, HEIF, Fonts, APNG, AVIF, RAW |
 | FFmpeg | 3GPP, AAC, MPEG, F4V, FLAC, FLV, HLS, MP4, MKV, WebM, MP3, Ogg, SWF, WAV, AVI, QuickTime |
 | Markdown | MD files |
