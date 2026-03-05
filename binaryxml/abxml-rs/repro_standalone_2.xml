@@ -1,0 +1,1131 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="internalOnly" platformBuildVersionCode="@flags:36" android:versionName="6.6.20" android:versionCode="5445" android:compileSdkVersion="36" platformBuildVersionName="@flags:16" android:compileSdkVersionCodename="16" package="net.dinglisch.android.taskerm">
+  <uses-sdk android:minSdkVersion="27" android:targetSdkVersion="35" />
+  <supports-screens android:resizeable="true" android:xlargeScreens="true" android:largeScreens="true" android:smallScreens="true" android:normalScreens="true" android:anyDensity="true" />
+  < />
+  < />
+  <permission android:protectionLevel="signature" android:name="com.joaomgcd.taskersettings.SET_SETTING" />
+  <permission android:name="com.joaomgcd.taskerexternal.TRIGGER_FROM_EXTERNAL_TASKER_APP" android:protectionLevel="signature" />
+  < />
+  <uses-permission android:name="net.dinglisch.android.zoom.permission.MAKE_CHANGES" />
+  <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+  < />
+  <uses-permission android:name="cyanogenmod.permission.PUBLISH_CUSTOM_TILE" />
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+  <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND" />
+  <uses-permission android:name="android.permission.REQUEST_COMPANION_USE_DATA_IN_BACKGROUND" />
+  <uses-permission android:name="android.permission.BODY_SENSORS" />
+  <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
+  <uses-permission android:name="android.permission.READ_CALL_LOG" />
+  <uses-permission android:name="android.permission.RECEIVE_SMS" />
+  <uses-permission android:name="com.latedroid.juicedefender.permission.CONTROL_JUICEDEFENDER" />
+  <uses-permission android:name="com.latedroid.juicedefender.permission.TOGGLE_MOBILE_DATA" />
+  <uses-permission android:name="android.permission.MODIFY_PHONE_STATE" />
+  <uses-permission android:name="com.android.phone.CHANGE_NETWORK_MODE" />
+  <uses-permission android:name="android.permission.SET_TIME_ZONE" />
+  <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+  <uses-permission android:name="android.permission.VIBRATE" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.GET_TASKS" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+  <uses-permission android:name="android.permission.SEND_SMS" />
+  <uses-permission android:name="android.permission.WRITE_SMS" />
+  <uses-permission android:name="android.permission.READ_SMS" />
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+  <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+  <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+  <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+  <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+  <uses-permission android:name="android.permission.BLUETOOTH" />
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.SET_WALLPAPER" />
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+  <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
+  <uses-permission android:name="android.permission.READ_CONTACTS" />
+  <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.CALL_PHONE" />
+  <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
+  <uses-permission android:name="android.permission.READ_CALENDAR" />
+  <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+  <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+  <uses-permission android:name="android.permission.DUMP" />
+  <uses-permission android:name="android.permission.CHANGE_CONFIGURATION" />
+  <uses-permission android:name="android.permission.TETHER_PRIVILEGED" />
+  <uses-permission android:name="com.joaomgcd.taskersettings.SET_SETTING" />
+  <uses-permission android:name="com.joaomgcd.taskerexternal.TRIGGER_FROM_EXTERNAL_TASKER_APP" />
+  <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+  <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+  <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+  <uses-permission android:name="android.permission.NFC" />
+  <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+  <uses-permission android:name="android.permission.SET_MEDIA_KEY_LISTENER" />
+  <uses-permission android:name="android.permission.SET_WALLPAPER_COMPONENT" />
+  <uses-permission android:name="android.permission.RESTART_PACKAGES" />
+  <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+  <uses-permission android:name="android.permission.ACCESS_WIMAX_STATE" />
+  <uses-permission android:name="android.permission.CHANGE_WIMAX_STATE" />
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+  <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND" />
+  <uses-permission android:name="android.permission.SET_VOLUME_KEY_LONG_PRESS_LISTENER" />
+  <uses-permission android:name="android.permission.READ_LOGS" />
+  <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+  <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.SET_PROCESS_LIMIT" />
+  <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+  <uses-permission android:name="com.wireguard.android.permission.CONTROL_TUNNELS" />
+  <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+  <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" />
+  <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+  <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+  <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+  <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+  <uses-permission android:name="android.permission.CALL_COMPANION_APP" />
+  <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
+  <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
+  <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="65536" />
+  <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+  <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+  <uses-permission android:name="android.permission.BATTERY_STATS" />
+  <uses-permission android:name="android.permission.MODIFY_QUIET_MODE" />
+  <uses-permission android:name="android.permission.BIND_APPWIDGET" />
+  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+  <uses-permission android:name="com.samsung.android.app.routines.permission.READ_ROUTINE_INFO" />
+  <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+  <uses-feature android:name="android.hardware.camera" android:required="false" />
+  <uses-feature android:required="false" android:name="android.hardware.usb.host" />
+  <uses-feature android:required="false" android:name="android.hardware.bluetooth_le" />
+  <uses-feature android:required="false" android:name="android.hardware.sensor.light" />
+  <uses-feature android:name="android.hardware.sensor.proximity" android:required="false" />
+  <uses-feature android:name="android.hardware.sensor.barometer" android:required="false" />
+  <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+  <uses-feature android:name="android.hardware.wifi" android:required="false" />
+  <uses-feature android:name="android.hardware.location.network" android:required="false" />
+  <uses-feature android:name="android.hardware.telephony" android:required="false" />
+  <uses-feature android:name="android.hardware.microphone" android:required="false" />
+  <uses-feature android:name="android.hardware.location" android:required="false" />
+  <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+  <uses-feature android:required="false" android:name="android.hardware.touchscreen" />
+  <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
+  <uses-feature android:required="false" android:name="android.hardware.screen.portrait" />
+  <uses-feature android:name="android.software.app_widgets" android:required="false" />
+  <uses-feature android:glEsVersion="131072" android:required="true" />
+  <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
+  <uses-feature android:required="false" android:name="android.hardware.nfc" />
+  <queries>
+    <package android:name="com.google.android.apps.maps" />
+  </queries>
+  <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+  <permission android:name="net.dinglisch.android.taskerm.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature" />
+  <uses-permission android:name="net.dinglisch.android.taskerm.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+  <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+  <uses-permission android:name="com.android.vending.CHECK_LICENSE" />
+  <>
+    < />
+    < />
+    < />
+    < />
+    < />
+    <meta-data android:name="io.fabric.ApiKey" android:value="629283e2b45fb5d335a25270441ca429f8649fb5" />
+    <meta-data android:value="2.1" android:name="android.max_aspect" />
+    <meta-data android:name="com.google.android.backup.api_key" android:value="AEdPqrEAAAAIloUzVq7-xvaHCcUYiu9aC2inqGijn-iW_px6eQ" />
+    < />
+    <meta-data android:name="com.google.android.maps.v2.API_KEY" android:value="AIzaSyDjkrU296YbCFBkDUq3KsJOG-yPS3pDNbk" />
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="tasker" android:host="auth" />
+      </intent-filter>
+    </>
+    <provider android:name="net.dinglisch.android.taskerm.MyContentProvider" android:exported="true" android:authorities="net.dinglisch.android.tasker" />
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      < />
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.APP_BROWSER" />
+        <category android:name="android.intent.category.APP_CONTACTS" />
+        <category android:name="android.intent.category.APP_EMAIL" />
+        <category android:name="android.intent.category.APP_MUSIC" />
+        <category android:name="android.intent.category.APP_CALCULATOR" />
+        <category android:name="android.intent.category.APP_CALENDAR" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.CREATE_NOTE" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.CREATE_NOTE" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.media.action.IMAGE_CAPTURE" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.media.action.IMAGE_CAPTURE_SECURE" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.media.action.STILL_IMAGE_CAMERA_SECURE" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.media.action.VIDEO_CAMERA" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.media.action.VIDEO_CAPTURE" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VOICE_COMMAND" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:host="secondary" android:scheme="tasker" />
+      </intent-filter>
+    </>
+    < />
+    <activity android:name="net.dinglisch.android.taskerm.KidConfig" android:windowSoftInputMode="adjustResize|stateHidden" android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="com.joaomgcd.taskerm.datashare.export.ShareDataConfig" android:windowSoftInputMode="adjustResize|stateHidden" android:configChanges="keyboardHidden|orientation|screenSize" android:exported="false" />
+    <activity android:windowSoftInputMode="adjustResize|stateHidden" android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.ListItemEdit" android:exported="false" />
+    <activity android:windowSoftInputMode="adjustResize|stateHidden" android:name="net.dinglisch.android.taskerm.CreateKeyStore" android:configChanges="keyboardHidden|orientation|screenSize" android:exported="false" />
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.SEARCH_LONG_PRESS" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </>
+    <activity android:excludeFromRecents="true" android:theme="@style/Theme.Panel" android:name="net.dinglisch.android.taskerm.VoiceProxy" />
+    <activity android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.HTMLView" />
+    <activity android:exported="true" android:windowSoftInputMode="adjustResize|stateHidden" android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.Settings">
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.ACTION_OPEN_PREFS" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity>
+    <activity android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.ActionEdit" android:windowSoftInputMode="adjustResize|stateHidden" />
+    <activity android:name="net.dinglisch.android.taskerm.ActionEditNoResize" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.SceneEdit" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.ScenePropertiesEdit" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.SceneEditElement" android:windowSoftInputMode="adjustResize|stateHidden" />
+    <activity android:name="net.dinglisch.android.taskerm.Licence" android:exported="true" android:configChanges="keyboardHidden|orientation|screenSize" android:windowSoftInputMode="adjustResize|stateHidden" />
+    <activity android:name="net.dinglisch.android.taskerm.EventEdit" android:configChanges="keyboardHidden|orientation|screenSize" android:windowSoftInputMode="adjustResize|stateHidden" />
+    <activity android:windowSoftInputMode="adjustResize|stateHidden" android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.StateEdit" />
+    <activity android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.MacroEdit" />
+    <activity android:name="net.dinglisch.android.taskerm.USBHandler" android:alwaysRetainTaskState="false" android:clearTaskOnLaunch="true" android:theme="@style/Theme.Translucent" android:finishOnTaskLaunch="true" android:stateNotNeeded="true" android:allowTaskReparenting="true" android:enabled="false" android:launchMode="singleInstance" android:noHistory="true" android:excludeFromRecents="true" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:clearTaskOnLaunch="true" android:allowTaskReparenting="true" android:enabled="true" android:theme="@style/Theme.Translucent" android:finishOnTaskLaunch="true" android:stateNotNeeded="true" android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.MIDIHandler" android:alwaysRetainTaskState="false" android:excludeFromRecents="true" android:launchMode="singleInstance" android:noHistory="true" android:exported="true">
+      <intent-filter>
+        <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+      </intent-filter>
+      < />
+    </activity>
+    <activity android:enabled="false" android:alwaysRetainTaskState="false" android:allowTaskReparenting="true" android:name="net.dinglisch.android.taskerm.WebSearchHandler" android:finishOnTaskLaunch="true" android:noHistory="true" android:stateNotNeeded="true" android:theme="@style/Theme.Translucent" android:exported="true" android:clearTaskOnLaunch="true" android:launchMode="singleInstance" android:excludeFromRecents="true" android:configChanges="keyboardHidden|orientation|screenSize">
+      <intent-filter>
+        <action android:name="android.speech.action.WEB_SEARCH" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity>
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.ASSIST" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </>
+    <service android:name="com.joaomgcd.taskerm.assistant.ServiceVoiceInteractionTasker" android:label="Tasker Voice Assistant" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION">
+      <intent-filter>
+        <action android:name="android.service.voice.VoiceInteractionService" />
+      </intent-filter>
+      < />
+    </service>
+    <service android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION" android:name="com.joaomgcd.taskerm.assistant.ServiceVoiceInteractionSessionTasker" />
+    < />
+    <>
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.WIDICKYUM" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.WIDICKYUM" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.WIDICKYUM" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="task" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.WIDICKYUM" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="tasker/task" />
+        <data android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:pathPattern=".*\.prf\.xml" android:scheme="http" android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:pathPattern=".*\.tsk\.xml" android:scheme="http" android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" android:pathPattern=".*\.scn\.xml" android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:pathPattern=".*\.prj\.xml" android:host="*" android:scheme="http" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\.prf\.xml" android:mimeType="text/*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:host="*" android:mimeType="text/*" android:scheme="file" android:pathPattern=".*\.tsk\.xml" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="file" android:host="*" android:mimeType="text/*" android:pathPattern=".*\.scn\.xml" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/*" android:host="*" android:pathPattern=".*\.prj\.xml" android:scheme="file" />
+      </intent-filter>
+    </>
+    <activity android:allowTaskReparenting="true" android:noHistory="true" android:excludeFromRecents="true" android:name="net.dinglisch.android.taskerm.CameraProxy" android:taskAffinity="" android:screenOrientation="landscape" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.CameraProxyDiscrete" android:taskAffinity="" android:excludeFromRecents="true" android:launchMode="singleInstance" android:noHistory="true" android:theme="@style/Theme.Light.Panel" android:configChanges="keyboardHidden|orientation|screenSize" android:allowTaskReparenting="true" />
+    <activity android:windowSoftInputMode="stateHidden" android:configChanges="keyboardHidden|orientation|screenSize" android:theme="@style/Theme.Translucent" android:exported="false" android:name="net.dinglisch.android.taskerm.ImageSelect" />
+    <activity android:name="net.dinglisch.android.taskerm.LocSelect" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.GeoCoder" android:theme="@style/Theme.Translucent" android:configChanges="keyboardHidden|orientation|screenSize" />
+    < />
+    <activity android:name="net.dinglisch.android.taskerm.RunLog" android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.Search" android:exported="false" />
+    < />
+    < />
+    <activity android:theme="@style/Theme.Translucent" android:exported="true" android:name="net.dinglisch.android.taskerm.TaskSelect">
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.ACTION_TASK_SELECT" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity>
+    < />
+    <activity android:name="net.dinglisch.android.taskerm.DockActivityCar" android:enabled="false" android:theme="@style/Theme.Translucent" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.CAR_DOCK" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity>
+    <activity android:enabled="false" android:name="net.dinglisch.android.taskerm.DockActivityDesk" android:theme="@style/Theme.Translucent" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.DESK_DOCK" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity>
+    <activity android:name="net.dinglisch.android.taskerm.TaskTimerConfigure" android:theme="@style/Theme.Translucent" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.ProfileProperties" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.AppSelect" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.DaySelect" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:name="net.dinglisch.android.taskerm.DoodleEdit" android:configChanges="keyboardHidden|orientation|screenSize" />
+    <activity android:configChanges="keyboardHidden|orientation|screenSize" android:name="net.dinglisch.android.taskerm.FileSelect" />
+    <activity android:name="net.dinglisch.android.taskerm.TimeSelect" android:windowSoftInputMode="stateHidden" />
+    <>
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+      </intent-filter>
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+      </intent-filter>
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.CREATE_SHORTCUT" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </>
+    <activity android:name="net.dinglisch.android.taskerm.TaskerAppWidgetCountdownConfigure" android:theme="@style/Theme.Dialog" android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+      </intent-filter>
+    </activity>
+    <service android:foregroundServiceType="location|mediaPlayback|mediaProjection" android:name="net.dinglisch.android.taskerm.MonitorService" android:exported="false" />
+    <service android:name="net.dinglisch.android.taskerm.ExecuteService" android:exported="false" android:foregroundServiceType="location|mediaPlayback|mediaProjection" />
+    <>
+      <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+      </intent-filter>
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE" />
+      </intent-filter>
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE" />
+      </intent-filter>
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE" />
+      </intent-filter>
+    </>
+    <service android:name="net.dinglisch.android.taskerm.NotificationListenerService" android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+    <service android:exported="false" android:name="net.dinglisch.android.taskerm.MyVpnService" />
+    <service android:label="Tasker" android:enabled="true" android:name="net.dinglisch.android.taskerm.MyAccessibilityService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      < />
+    </service>
+    <receiver android:exported="true" android:name="net.dinglisch.android.taskerm.IpackReceiver">
+      <intent-filter>
+        <action android:name="net.dinglisch.android.ipack.actions.QUERY_PACKS" />
+        <action android:name="net.dinglisch.android.ipack.actions.QUERY_ICONS" />
+      </intent-filter>
+    </receiver>
+    <activity android:name="net.dinglisch.android.taskerm.IpackIconSelect" android:exported="true">
+      <intent-filter>
+        <action android:name="net.dinglisch.android.ipack.actions.ICON_SELECT" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity>
+    <receiver android:exported="true" android:name="net.dinglisch.android.taskerm.ReceiverStaticPhoneState" android:enabled="false">
+      <intent-filter>
+        <action android:name="android.intent.action.PHONE_STATE" />
+      </intent-filter>
+    </receiver>
+    <receiver android:enabled="false" android:name="net.dinglisch.android.taskerm.ReceiverStaticNotification" android:exported="false">
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.NOTORUM" />
+      </intent-filter>
+    </receiver>
+    <receiver android:name="net.dinglisch.android.taskerm.ReceiverStaticMediaButton" android:enabled="false" />
+    <receiver android:enabled="false" android:name="net.dinglisch.android.taskerm.ReceiverStaticCallRewriter" android:exported="true">
+      <intent-filter android:priority="1">
+        <action android:name="android.intent.action.NEW_OUTGOING_CALL" />
+      </intent-filter>
+    </receiver>
+    <receiver android:name="net.dinglisch.android.taskerm.ReceiverStaticCallBlocker" android:enabled="false" android:exported="true">
+      <intent-filter android:priority="0">
+        <action android:name="android.intent.action.NEW_OUTGOING_CALL" />
+      </intent-filter>
+    </receiver>
+    <receiver android:exported="true" android:name="net.dinglisch.android.taskerm.ReceiverStaticAlwaysOn" android:enabled="true">
+      <intent-filter android:priority="999">
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.WILLYUM" />
+        <action android:name="net.dinglisch.android.tasker.AWAKEY" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.PACKAGE_ADDED" />
+        <action android:name="android.intent.action.PACKAGE_REPLACED" />
+        <action android:name="android.intent.action.PACKAGE_REMOVED" />
+        <data android:scheme="package" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.ACTION_PLUGIN_FINISHED" />
+        <data android:scheme="actionid" />
+      </intent-filter>
+    </receiver>
+    <receiver android:name="net.dinglisch.android.taskerm.ReceiverStaticRunTasks" android:enabled="true" android:permission="net.dinglisch.android.tasker.PERMISSION_RUN_TASKS" android:exported="true">
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.ACTION_TASK" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.ACTION_TASK" />
+        <data android:scheme="id" />
+      </intent-filter>
+    </receiver>
+    <receiver android:exported="true" android:name="net.dinglisch.android.taskerm.ReceiverStaticInternal" android:enabled="false">
+      <intent-filter>
+        <action android:name="net.dinglisch.android.tasker.ACTION_FILE_CHANGED" />
+        <action android:name="net.dinglisch.android.tasker.SMSEY" />
+        <action android:name="net.dinglisch.android.tasker.ALARUM" />
+        <action android:name="net.dinglisch.android.tasker.CALARUM" />
+        <action android:name="net.dinglisch.android.tasker.COOLORUM" />
+        <action android:name="net.dinglisch.android.tasker.WIDICKYUM" />
+        <action android:name="net.dinglisch.android.tasker.ANDPROFTUM" />
+        <action android:name="com.twofortyfouram.locale.intent.action.REQUEST_QUERY" />
+      </intent-filter>
+    </receiver>
+    <receiver android:name="net.dinglisch.android.taskerm.ReceiverStaticExternal" android:enabled="false" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.DATE_CHANGED" />
+        <action android:name="android.intent.action.TIME_SET" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+      </intent-filter>
+    </receiver>
+    <>
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      < />
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      < />
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      < />
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      < />
+    </>
+    <service android:name="com.joaomgcd.taskerwidgetv2.ServiceWidgetV2PinRequestReceiver" android:exported="true" />
+    <activity android:name="com.joaomgcd.taskerwidgetv2.configuration.WidgetV2Configuration" android:excludeFromRecents="true" android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+      </intent-filter>
+    </activity>
+    <activity android:exported="true" android:name="com.joaomgcd.taskerwidgetv2.configuration.layout.ActivityWidgetV2LayoutConfiguration" />
+    <receiver android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN" android:name="net.dinglisch.android.taskerm.MyDeviceAdminReceiver">
+      < />
+      <intent-filter>
+        <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+      </intent-filter>
+    </receiver>
+    <service android:name="com.joaomgcd.taskerm.plugin.ServiceRequestQuery" android:foregroundServiceType="mediaProjection" android:exported="true" android:enabled="true">
+      <intent-filter>
+        <action android:name="com.twofortyfouram.locale.intent.action.REQUEST_QUERY" />
+      </intent-filter>
+    </service>
+    <service android:name="com.joaomgcd.taskerm.plugin.ServicePluginFinished" android:enabled="true" android:exported="true" />
+    <service android:foregroundServiceType="mediaProjection" android:name="com.joaomgcd.taskerm.genericaction.ServiceGenericAction" />
+    < />
+    < />
+    <provider android:name="androidx.core.content.FileProvider" android:exported="false" android:grantUriPermissions="true" android:authorities="net.dinglisch.android.taskerm.fileprovider">
+      < />
+    </provider>
+    <>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/*" />
+        <data android:pathPattern=".*\.prf\.xml" android:host="*" android:scheme="content" android:mimeType="text/*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/*" />
+        <data android:host="*" android:scheme="content" android:pathPattern=".*\.tsk\.xml" android:mimeType="text/*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/*" />
+        <data android:host="*" android:mimeType="text/*" android:scheme="content" android:pathPattern=".*\.prj\.xml" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:host="*" android:pathPattern=".*\.prf\.xml" android:mimeType="text/*" android:scheme="content" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/*" android:scheme="content" android:pathPattern=".*\.tsk\.xml" android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="content" android:pathPattern=".*\.prj\.xml" android:host="*" android:mimeType="text/*" />
+      </intent-filter>
+    </>
+    <>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="taskershare" />
+        <data android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="taskertask" />
+        <data android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="taskerprofile" />
+        <data android:host="*" />
+      </intent-filter>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="taskerproject" />
+        <data android:host="*" />
+      </intent-filter>
+    </>
+    <activity android:exported="true" android:excludeFromRecents="true" android:name="com.joaomgcd.taskerm.datashare.import.ActivityPreviewTaskerDataFromUri">
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="taskersharepreview" />
+        <data android:host="*" />
+      </intent-filter>
+    </activity>
+    <service android:permission="android.permission.BIND_JOB_SERVICE" android:label="Job Service" android:name="com.joaomgcd.taskerm.genericaction.ServiceGenericActionJobs" />
+    <service android:permission="android.permission.BIND_INPUT_METHOD" android:exported="true" android:name="com.joaomgcd.taskerm.keyboard.InputMethodServiceTasker">
+      <intent-filter>
+        <action android:name="android.view.InputMethod" />
+      </intent-filter>
+      < />
+    </service>
+    <service android:name="com.joaomgcd.taskerm.location.IntentServicePhysicalActivities" />
+    <service android:name="com.joaomgcd.taskerm.state.sensor.IntentServiceSleeping" />
+    <>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:host="ext" android:scheme="vnd.android.nfc" android:pathPrefix="/android.com:pkg" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:mimeType="text/plain" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="http" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="https" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="tel" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="mailto" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="ftp" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="ftps" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="sftp" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="smb" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="nfs" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="dav" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="news" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="telnet" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="imap" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="rtsp" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="urn" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="pop" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="sip" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="sips" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="tftp" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="btspp" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="btl2cap" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="btgoep" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="tcpobex" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="irdaobex" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="file" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:scheme="geo" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <data android:mimeType="text/vcard" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.TECH_DISCOVERED" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.TECH_DISCOVERED" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.TAG_DISCOVERED" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.nfc.action.TAG_DISCOVERED" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      < />
+    </>
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.APP_BROWSER" />
+        <category android:name="android.intent.category.APP_CONTACTS" />
+        <category android:name="android.intent.category.APP_EMAIL" />
+        <category android:name="android.intent.category.APP_MUSIC" />
+        <category android:name="android.intent.category.APP_CALCULATOR" />
+        <category android:name="android.intent.category.APP_CALENDAR" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </>
+    <provider android:authorities="net.dinglisch.android.taskerm.iconprovider" android:exported="true" android:grantUriPermissions="true" android:name="com.joaomgcd.taskerm.navigationbar.IconProvider" />
+    < />
+    <activity android:name="com.joaomgcd.taskerm.location.ActivityPickLocation" />
+    <receiver android:exported="true" android:name="com.joaomgcd.taskerm.event.datetime.BroadcastReceiverNextAlarmChanged" android:enabled="true">
+      <intent-filter>
+        <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
+      </intent-filter>
+    </receiver>
+    <>
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="taskersetting" />
+        <data android:host="*" />
+      </intent-filter>
+    </>
+    < />
+    <>
+      <intent-filter>
+        <action android:name="android.service.controls.ControlsProviderService" />
+      </intent-filter>
+    </>
+    <service android:permission="net.dinglisch.android.tasker.PERMISSION_SEND_COMMAND" android:exported="true" android:foregroundServiceType="mediaProjection" android:name="com.joaomgcd.taskerm.command.ServiceSendCommand" android:enabled="true" android:label="Send Command" />
+    <>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="tasker" android:host="assistantactions" />
+      </intent-filter>
+    </>
+    < />
+    < />
+    < />
+    <service android:exported="true" android:name="com.joaomgcd.taskerm.call.ServiceCallScreening" android:permission="android.permission.BIND_SCREENING_SERVICE">
+      <intent-filter>
+        <action android:name="android.telecom.CallScreeningService" />
+      </intent-filter>
+    </service>
+    <service android:name="com.joaomgcd.taskerm.call.ServiceCallCompanion" android:permission="android.permission.BIND_INCALL_SERVICE" android:exported="true">
+      <meta-data android:name="android.telecom.IN_CALL_SERVICE_RINGING" android:value="true" />
+      <intent-filter>
+        <action android:name="android.telecom.InCallService" />
+      </intent-filter>
+    </service>
+    <>
+      <intent-filter>
+        <action android:name="com.google.android.gms.home.matter.ACTION_COMMISSION_DEVICE" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </>
+    <service android:enabled="true" android:name="com.joaomgcd.oldtaskercompat.matter.ServiceMatterCommissioning" android:exported="true" />
+    <service android:name="com.google.android.gms.metadata.ModuleDependencies" android:exported="false" android:enabled="false">
+      <intent-filter>
+        <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+      </intent-filter>
+      <meta-data android:value="" android:name="home:0:preferred" />
+    </service>
+    <service android:name="com.joaomgcd.tasker2024.webui.ServiceWebUI" android:exported="false" />
+    <service android:name="com.joaomgcd.oldtaskercompat.fcm.ServiceFCM" android:exported="false">
+      <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
+    <service android:name="com.joaomgcd.oldtaskercompat.fcm.ServiceRemoteMessageRunner" android:exported="false" />
+    <activity android:name="com.joaomgcd.oldtaskercompat.ActivityConfigZenRule" android:exported="true">
+      <meta-data android:name="android.service.zen.automatic.ruleType" android:value="Tasker Rules" />
+      <intent-filter>
+        <action android:name="android.app.action.AUTOMATIC_ZEN_RULE" />
+      </intent-filter>
+    </activity>
+    <activity android:name="com.joaomgcd.oldtaskercompat.colors.pick.ActivityPickColorVariables" android:exported="true" />
+    <>
+      <meta-data android:name="android.service.chooser.chooser_target_service" android:value=".service.ChooserTargetService" />
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="file" />
+        <data android:scheme="content" />
+        <data android:mimeType="image/*" />
+        <data android:mimeType="video/*" />
+        <data android:mimeType="audio/*" />
+        <data android:mimeType="application/*" />
+        <data android:mimeType="application/vnd.android.package-archive" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" />
+        <data android:scheme="https" />
+        <data android:mimeType="image/*" />
+        <data android:mimeType="video/*" />
+        <data android:mimeType="audio/*" />
+        <data android:mimeType="application/*" />
+        <data android:mimeType="*/avi" />
+        <data android:mimeType="*/mkv" />
+        <data android:mimeType="application/mp4" />
+        <data android:mimeType="application/mp3" />
+        <data android:mimeType="application/mpeg*" />
+        <data android:mimeType="application/ogg" />
+        <data android:mimeType="application/vnd.rn-realmedia*" />
+        <data android:mimeType="application/3gpp*" />
+        <data android:mimeType="application/vnd.3gp*" />
+        <data android:mimeType="application/vnd.dvd*" />
+        <data android:mimeType="application/vnd.dolby*" />
+        <data android:mimeType="application/x-mpegURL" />
+        <data android:mimeType="application/vnd.apple.mpegurl" />
+        <data android:mimeType="application/x-quicktimeplayer" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" />
+        <data android:scheme="https" />
+        <data android:scheme="about" />
+        <data android:scheme="javascript" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" />
+        <data android:scheme="https" />
+        <data android:scheme="about" />
+        <data android:scheme="content" />
+        <data android:scheme="javascript" />
+        <data android:mimeType="text/html" />
+        <data android:mimeType="text/plain" />
+        <data android:mimeType="application/xhtml+xml" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="com.google.android.gm.action.AUTO_SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" />
+        <data android:scheme="https" />
+        <data android:host="youtube.com" />
+        <data android:host="youtu.be" />
+        <data android:host="*.youtu.be" />
+        <data android:host="*.youtube.com" />
+        <data android:host="www.vimeo.com" />
+        <data android:host="vimeo.com" />
+        <data android:host="*.vimeo.com" />
+        <data android:host="www.dailymotion.com" />
+        <data android:host="dailymotion.com" />
+        <data android:host="*.dailymotion.com" />
+        <data android:host="www.flickr.com" />
+        <data android:host="flickr.com" />
+        <data android:host="*.flickr.com" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" android:pathPrefix="/" />
+        <data android:pathPrefix="/" android:scheme="https" />
+      </intent-filter>
+    </>
+    <activity android:name="com.joaomgcd.oldtaskercompat.aigenerator.ui.ActivityAIChat" />
+    <activity android:name="com.joaomgcd.oldtaskercompat.permissiongranter.ui.ActivityPermissionGranter" />
+    <service android:exported="true" android:name="com.joaomgcd.taskerm.taskerexternal.ServiceTaskerExternal" android:permission="com.joaomgcd.taskerexternal.TRIGGER_FROM_EXTERNAL_TASKER_APP" />
+    <provider android:name="rikka.shizuku.ShizukuProvider" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" android:authorities="net.dinglisch.android.taskerm.shizuku" android:exported="true" android:multiprocess="false" android:enabled="true" />
+    <uses-library android:required="false" android:name="org.apache.http.legacy" />
+    <activity android:theme="@style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:name="com.google.android.gms.auth.api.signin.internal.SignInHubActivity" android:exported="false" />
+    <service android:exported="true" android:visibleToInstantApps="true" android:permission="com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION" android:name="com.google.android.gms.auth.api.signin.RevocationBoundService" />
+    <activity android:exported="false" android:excludeFromRecents="true" android:theme="@style/Theme.NoDisplay" android:name="androidx.glance.appwidget.action.ActionTrampolineActivity" android:enabled="true" />
+    < />
+    <receiver android:name="androidx.glance.appwidget.action.ActionCallbackBroadcastReceiver" android:enabled="true" android:exported="false" />
+    <receiver android:name="androidx.glance.appwidget.UnmanagedSessionReceiver" android:enabled="true" android:exported="false" />
+    <receiver android:enabled="true" android:name="androidx.glance.appwidget.MyPackageReplacedReceiver" android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+    <service android:name="androidx.glance.appwidget.GlanceRemoteViewsService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="true" />
+    <receiver android:permission="com.google.android.c2dm.permission.SEND" android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:exported="true">
+      <intent-filter>
+        <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+      </intent-filter>
+      <meta-data android:name="com.google.android.gms.cloudmessaging.FINISHED_AFTER_HANDLED" android:value="true" />
+    </receiver>
+    <service android:directBootAware="true" android:exported="false" android:name="com.google.firebase.messaging.FirebaseMessagingService">
+      <intent-filter android:priority="4294966796">
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
+    <service android:directBootAware="true" android:name="com.google.firebase.components.ComponentDiscoveryService" android:exported="false">
+      <meta-data android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingKtxRegistrar" android:value="com.google.firebase.components.ComponentRegistrar" />
+      <meta-data android:value="com.google.firebase.components.ComponentRegistrar" android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar" />
+      <meta-data android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsKtxRegistrar" android:value="com.google.firebase.components.ComponentRegistrar" />
+      <meta-data android:value="com.google.firebase.components.ComponentRegistrar" android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar" />
+      <meta-data android:name="com.google.firebase.components:com.google.firebase.ktx.FirebaseCommonLegacyRegistrar" android:value="com.google.firebase.components.ComponentRegistrar" />
+      <meta-data android:name="com.google.firebase.components:com.google.firebase.FirebaseCommonKtxRegistrar" android:value="com.google.firebase.components.ComponentRegistrar" />
+      <meta-data android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar" android:value="com.google.firebase.components.ComponentRegistrar" />
+    </service>
+    <activity android:noHistory="true" android:name="androidx.core.google.shortcuts.TrampolineActivity" android:exported="true" android:theme="@style/Theme.NoDisplay">
+      <intent-filter>
+        <action android:name="androidx.core.content.pm.SHORTCUT_LISTENER" />
+      </intent-filter>
+      <meta-data android:name="androidx.core.content.pm.shortcut_listener_impl" android:value="androidx.core.google.shortcuts.ShortcutInfoChangeListenerImpl" />
+    </activity>
+    <activity android:exported="false" android:theme="@style/Theme.Translucent.NoTitleBar" android:name="com.google.android.gms.common.api.GoogleApiActivity" />
+    <provider android:exported="false" android:name="androidx.startup.InitializationProvider" android:authorities="net.dinglisch.android.taskerm.androidx-startup">
+      <meta-data android:value="androidx.startup" android:name="androidx.work.WorkManagerInitializer" />
+      <meta-data android:value="androidx.startup" android:name="androidx.emoji2.text.EmojiCompatInitializer" />
+      <meta-data android:name="androidx.lifecycle.ProcessLifecycleInitializer" android:value="androidx.startup" />
+      <meta-data android:value="androidx.startup" android:name="net.danlew.android.joda.JodaTimeInitializer" />
+      <meta-data android:value="androidx.startup" android:name="androidx.profileinstaller.ProfileInstallerInitializer" />
+    </provider>
+    < />
+    < />
+    < />
+    <receiver android:name="androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver" android:directBootAware="false" android:enabled="true" android:exported="false" />
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy" android:enabled="false" android:exported="false" android:directBootAware="false">
+      <intent-filter>
+        <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+        <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+      </intent-filter>
+    </receiver>
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy" android:exported="false" android:directBootAware="false" android:enabled="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BATTERY_OKAY" />
+        <action android:name="android.intent.action.BATTERY_LOW" />
+      </intent-filter>
+    </receiver>
+    <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy" android:directBootAware="false" android:exported="false" android:enabled="false">
+      <intent-filter>
+        <action android:name="android.intent.action.DEVICE_STORAGE_LOW" />
+        <action android:name="android.intent.action.DEVICE_STORAGE_OK" />
+      </intent-filter>
+    </receiver>
+    <receiver android:directBootAware="false" android:enabled="false" android:exported="false" android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy">
+      <intent-filter>
+        <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+      </intent-filter>
+    </receiver>
+    <receiver android:exported="false" android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver" android:directBootAware="false" android:enabled="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.TIME_SET" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+      </intent-filter>
+    </receiver>
+    <>
+      <intent-filter>
+        <action android:name="androidx.work.impl.background.systemalarm.UpdateProxies" />
+      </intent-filter>
+    </>
+    <receiver android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver" android:permission="android.permission.DUMP" android:enabled="true" android:exported="true" android:directBootAware="false">
+      <intent-filter>
+        <action android:name="androidx.work.diagnostics.REQUEST_DIAGNOSTICS" />
+      </intent-filter>
+    </receiver>
+    <service android:permission="android.permission.BIND_REMOTEVIEWS" android:name="androidx.core.widget.RemoteViewsCompatService" />
+    <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true" />
+    <service android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery" android:exported="false">
+      <meta-data android:value="cct" android:name="backend:com.google.android.datatransport.cct.CctBackendFactory" />
+    </service>
+    <service android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService" />
+    <receiver android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver" android:exported="false" />
+    <service android:exported="false" android:name="androidx.room.MultiInstanceInvalidationService" android:directBootAware="true" />
+    <receiver android:exported="true" android:directBootAware="false" android:permission="android.permission.DUMP" android:enabled="true" android:name="androidx.profileinstaller.ProfileInstallReceiver">
+      <intent-filter>
+        <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+      </intent-filter>
+    </receiver>
+    < />
+  </>
+</manifest>

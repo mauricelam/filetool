@@ -5,7 +5,6 @@ use std::{
     rc::Rc,
 };
 
-use log::error;
 
 #[derive(Default, Debug, PartialEq, Eq, Hash)]
 pub struct Tag {
@@ -108,7 +107,8 @@ impl ElementContainer {
                 Some(())
             })
             .unwrap_or_else(|| {
-                error!("Received an end element event with an empty stack");
+                // If the stack is empty, it might be due to a failed start_element.
+                // We don't error here as it might be a valid (though weird) binary XML.
             });
     }
 

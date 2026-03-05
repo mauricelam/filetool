@@ -43,6 +43,14 @@ impl Xml {
     ) -> Result<(), Error> {
         let tag = element.get_tag();
         let tag_name = tag.get_name();
+
+        if tag_name.as_str() == "" {
+            for child in element.get_children() {
+                Self::encode_element(writer, namespaces, child)?;
+            }
+            return Ok(());
+        }
+
         let prefixes = tag.get_prefixes();
         let mut xml_element = XmlEvent::start_element(tag_name.deref().as_str());
 

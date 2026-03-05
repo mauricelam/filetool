@@ -191,7 +191,11 @@ impl<'a> ChunkVisitor<'a> for XmlVisitor<'a> {
             Ok(element) => {
                 self.container.start_element(element);
             }
-            Err(e) => error!("Could not build a XML element: {e}"),
+            Err(e) => {
+                error!("Could not build a XML element: {e}");
+                // Push a placeholder element to keep the stack consistent with future end_element events
+                self.container.start_element(Element::default());
+            }
         }
     }
 
@@ -616,6 +620,101 @@ mod tests {
         let result = AttributeHelper::resolve_flags(&attribute, flags, &resc, &resources);
 
         assert_eq!("left|right", result.unwrap());
+    }
+
+    #[test]
+    fn it_breaks_hierarchy_if_start_tag_fails() {
+        use crate::model::owned::{OwnedBuf, StringTableBuf, XmlTagEndBuf, XmlTagStartBuf};
+        use crate::visitor::{ChunkVisitor, ModelVisitor};
+
+        let model_visitor = ModelVisitor::default();
+        let resources = model_visitor.get_resources();
+        let mut visitor = super::XmlVisitor::new(resources);
+
+        // Setup string table: [0: "root", 1: "child", 2: "after"]
+        let mut st_buf = StringTableBuf::default();
+        st_buf.add_string("root".to_string());
+        st_buf.add_string("child".to_string());
+        st_buf.add_string("after".to_string());
+        let st_bytes = st_buf.to_vec().unwrap();
+        visitor.visit_string_table(
+            crate::chunks::StringTableWrapper::new(&st_bytes),
+            Origin::Global,
+        );
+
+        // Visit root start: <root>
+        let root_start = XmlTagStartBuf::new(0, 0, 0xFFFF_FFFF, 0, 0, 0xFFFF_FFFF);
+        let b1 = root_start.to_vec().unwrap();
+        visitor.visit_xml_tag_start(crate::chunks::XmlTagStartWrapper::new(&b1));
+
+        // Visit child start (fails)
+        let child_start_invalid = XmlTagStartBuf::new(0, 0, 0xFFFF_FFFF, 99, 0, 0xFFFF_FFFF);
+        let b2 = child_start_invalid.to_vec().unwrap();
+        visitor.visit_xml_tag_start(crate::chunks::XmlTagStartWrapper::new(&b2));
+
+        // Visit child end: </child>
+        let child_end = XmlTagEndBuf::new(1);
+        let b3 = child_end.to_vec().unwrap();
+        visitor.visit_xml_tag_end(crate::chunks::XmlTagEndWrapper::new(&b3));
+
+        // Visit after start: <after />
+        let after_start = XmlTagStartBuf::new(0, 0, 0xFFFF_FFFF, 2, 0, 0xFFFF_FFFF);
+        let b4 = after_start.to_vec().unwrap();
+        visitor.visit_xml_tag_start(crate::chunks::XmlTagStartWrapper::new(&b4));
+        let after_end = XmlTagEndBuf::new(2);
+        let b5 = after_end.to_vec().unwrap();
+        visitor.visit_xml_tag_end(crate::chunks::XmlTagEndWrapper::new(&b5));
+
+        // Visit root end: </root>
+        let root_end = XmlTagEndBuf::new(0);
+        let b6 = root_end.to_vec().unwrap();
+        visitor.visit_xml_tag_end(crate::chunks::XmlTagEndWrapper::new(&b6));
+
+        let xml = visitor.into_string().unwrap();
+        println!("XML:\n{}", xml);
+
+        assert!(xml.contains("<root"));
+        assert!(xml.contains("<after"));
+        assert!(xml.contains("</root>"));
+    }
+
+    #[test]
+    fn it_mismatches_tags_if_end_id_is_ignored() {
+        use crate::model::owned::{OwnedBuf, StringTableBuf, XmlTagEndBuf, XmlTagStartBuf};
+        use crate::visitor::{ChunkVisitor, ModelVisitor};
+
+        let model_visitor = ModelVisitor::default();
+        let resources = model_visitor.get_resources();
+        let mut visitor = super::XmlVisitor::new(resources);
+
+        // Setup string table: [0: "outer", 1: "inner"]
+        let mut st_buf = StringTableBuf::default();
+        st_buf.add_string("outer".to_string());
+        st_buf.add_string("inner".to_string());
+        let st_bytes = st_buf.to_vec().unwrap();
+        visitor.visit_string_table(
+            crate::chunks::StringTableWrapper::new(&st_bytes),
+            Origin::Global,
+        );
+
+        // <outer>
+        let b1 = XmlTagStartBuf::new(0, 0, 0xFFFF_FFFF, 0, 0, 0xFFFF_FFFF).to_vec().unwrap();
+        visitor.visit_xml_tag_start(crate::chunks::XmlTagStartWrapper::new(&b1));
+
+        // <inner>
+        let b2 = XmlTagStartBuf::new(0, 0, 0xFFFF_FFFF, 1, 0, 0xFFFF_FFFF).to_vec().unwrap();
+        visitor.visit_xml_tag_start(crate::chunks::XmlTagStartWrapper::new(&b2));
+
+        // </inner>
+        let b3 = XmlTagEndBuf::new(1).to_vec().unwrap();
+        visitor.visit_xml_tag_end(crate::chunks::XmlTagEndWrapper::new(&b3));
+
+        // </outer>
+        let b4 = XmlTagEndBuf::new(0).to_vec().unwrap();
+        visitor.visit_xml_tag_end(crate::chunks::XmlTagEndWrapper::new(&b4));
+
+        let xml = visitor.into_string().unwrap();
+        println!("XML:\n{}", xml);
     }
 
     #[test]
