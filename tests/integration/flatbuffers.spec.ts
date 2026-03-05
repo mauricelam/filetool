@@ -157,7 +157,7 @@ test.describe('flatbuffers handler', () => {
     });
 
     test('should display real fixture (.bfbs)', async ({ page }) => {
-        const filePath = path.resolve(__dirname, '../fixtures/monster.bfbs');
+        const filePath = path.resolve(__dirname, '../../flatbuffers/example/monster.bfbs');
         const content = await fs.readFile(filePath);
         const iframe = await runHandlerTest(page, {
             handler: 'flatbuffers',
@@ -173,7 +173,7 @@ test.describe('flatbuffers handler', () => {
 
     test('should decode real fixture (.bin) with uploaded schema (.bfbs)', async ({ page }) => {
         const binPath = path.resolve(__dirname, '../../flatbuffers/example/monster.bin');
-        const bfbsPath = path.resolve(__dirname, '../fixtures/monster.bfbs');
+        const bfbsPath = path.resolve(__dirname, '../../flatbuffers/example/monster.bfbs');
         const binContent = await fs.readFile(binPath);
         const bfbsContent = await fs.readFile(bfbsPath);
 
