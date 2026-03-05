@@ -1,0 +1,100 @@
+                    filename: mainFile?.name,
+                    size: mainFileData.length,
+                    file_identifier: fileIdentifier,
+                    note: "Upload a binary schema (.bfbs) to attempt decoding."
+                });
+            }
+        } catch (err) {
+            setError(`Decoding error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }, [mainFileData, schemaData, fileType, mainFile]);
+
+    useEffect(() => {
+        if (mainFileData && (fileType === 'data' || fileType === 'schema_binary')) {
+            decodeFlatBuffer();
+        }
+    }, [mainFileData, fileType, decodeFlatBuffer]);
+
+    if (error) {
+        return <div style={{ color: 'red', padding: '20px' }}>Error: {error}</div>;
+    }
+
+    if (!mainFile) {
+        return <div style={{ padding: '20px' }}>Loading file...</div>;
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0 }}>FlatBuffers Viewer - {mainFile.name}</h2>
+                {fileType !== 'schema_text' && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => setViewMode('structural')}
+                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'structural' ? '#007bff' : '#f8f9fa', color: viewMode === 'structural' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Structural Tree
+                        </button>
+                        <button
+                            onClick={() => setViewMode('extended')}
+                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'extended' ? '#007bff' : '#f8f9fa', color: viewMode === 'extended' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Extended View
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {fileType === 'schema_text' ? (
+                <div style={{ flex: 1, backgroundColor: '#f5f5f5', borderRadius: '4px', overflow: 'auto' }}>
+                    <h3 style={{ padding: '0 20px' }}>Schema (.fbs)</h3>
+                    <SyntaxHighlighter
+                        language="protobuf"
+                        style={docco}
+                        customStyle={{ padding: '20px' }}
+                    >
+                        {new TextDecoder().decode(mainFileData!)}
+                    </SyntaxHighlighter>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {fileType === 'data' && (
+                        <div style={{ padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                                Upload Binary Schema (.bfbs) for decoding:
+                            </label>
+                            <input type="file" accept=".bfbs" onChange={handleSchemaUpload} />
+                        </div>
+                    )}
+
+                    {schemaData ? (
+                        <div style={{ flex: 1 }}>
+                            <h3>Decoded Content (with Schema)</h3>
+                            {decodedData ? (
+                                <ReactJson
+                                    src={decodedData}
+                                    theme="monokai"
+                                    collapsed={2}
+                                    displayDataTypes={false}
+                                    style={{ padding: '15px', borderRadius: '4px' }}
+                                />
+                            ) : (
+                                <pre>Processing...</pre>
+                            )}
+                        </div>
+                    ) : viewMode === 'structural' ? (
+                        <div style={{ flex: 1 }}>
+                            <h3>Structure (Schema-less)</h3>
+                            {structuralData ? (
+                                <ReactJson
+                                    src={structuralData}
+                                    theme="monokai"
+                                    collapsed={3}
+                                    displayDataTypes={false}
+                                    name="root"
+                                    style={{ padding: '15px', borderRadius: '4px' }}
+                                />
+                            ) : (
+                                <pre>Analyzing structure...</pre>
+                            )}
+                        </div>

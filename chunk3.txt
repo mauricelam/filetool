@@ -1,0 +1,41 @@
+                    ) : (
+                        <div style={{ flex: 1 }}>
+                            <h3>Extended Structural View</h3>
+                            {annotatedText ? (
+                                <pre style={{
+                                    backgroundColor: '#f5f5f5',
+                                    padding: '20px',
+                                    borderRadius: '4px',
+                                    overflowX: 'auto',
+                                    fontFamily: 'monospace',
+                                    fontSize: '14px',
+                                    lineHeight: '1.4'
+                                }}>
+                                    {annotatedText}
+                                </pre>
+                            ) : (
+                                <pre>Generating extended view...</pre>
+                            )}
+                        </div>
+                    )}
+
+                    <div style={{ marginTop: '20px' }}>
+                        <h3>Raw Data Stats</h3>
+                        <ul>
+                            <li>Size: {mainFileData?.length} bytes</li>
+                            <li>File Identifier: {mainFileData && mainFileData.length >= 8 ?
+                                String.fromCharCode(mainFileData[4], mainFileData[5], mainFileData[6], mainFileData[7]) :
+                                "None"}</li>
+                        </ul>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const container = document.getElementById('root');
+if (container) {
+    const root = createRoot(container);
+    root.render(<FlatBuffersViewer />);
+}

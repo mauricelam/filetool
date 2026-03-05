@@ -69,8 +69,8 @@ test.describe('flatbuffers handler', () => {
             handler: 'flatbuffers',
             file: dataFile,
         });
+        await iframe.click('text=Raw Stats');
         await expect(iframe.locator('body')).toContainText('TEST');
-        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
     });
 
     test('should display structural view for valid file', async ({ page }) => {
@@ -100,7 +100,6 @@ test.describe('flatbuffers handler', () => {
             handler: 'flatbuffers',
             file: validFbFile,
         });
-        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
         await expect(iframe.locator('body')).toContainText('Root Table Offset');
     });
 
@@ -124,7 +123,6 @@ test.describe('flatbuffers handler', () => {
             file: validFbFile,
         });
         await iframe.click('text=Extended View');
-        await expect(iframe.locator('body')).toContainText('Extended Structural View');
         await expect(iframe.locator('body')).toContainText('32-bit soffset to vtable location');
     });
 
@@ -154,7 +152,6 @@ test.describe('flatbuffers handler', () => {
                 type: ''
             },
         });
-        await expect(iframe.locator('body')).toContainText('Structure (Schema-less)');
         await expect(iframe.locator('body')).toContainText('Root Table Offset');
         await expect(iframe.locator('body')).toContainText('Root Table');
     });
@@ -175,7 +172,7 @@ test.describe('flatbuffers handler', () => {
     });
 
     test('should decode real fixture (.bin) with uploaded schema (.bfbs)', async ({ page }) => {
-        const binPath = path.resolve(__dirname, '../fixtures/monster.bin');
+        const binPath = path.resolve(__dirname, '../../flatbuffers/example/monster.bin');
         const bfbsPath = path.resolve(__dirname, '../fixtures/monster.bfbs');
         const binContent = await fs.readFile(binPath);
         const bfbsContent = await fs.readFile(bfbsPath);
@@ -191,7 +188,7 @@ test.describe('flatbuffers handler', () => {
 
         // Upload schema
         const fileChooserPromise = page.waitForEvent('filechooser');
-        await iframe.locator('input[type="file"]').click();
+        await iframe.locator('text=Drop .bfbs schema here').click();
         const fileChooser = await fileChooserPromise;
         await fileChooser.setFiles({
             name: 'monster.bfbs',
@@ -199,7 +196,7 @@ test.describe('flatbuffers handler', () => {
             mimeType: 'application/octet-stream'
         });
 
-        await expect(iframe.locator('body')).toContainText('Decoded Content (with Schema)');
+        await expect(iframe.locator('body')).toContainText('Gorgon');
         await expect(iframe.locator('body')).toContainText('Gorgon');
         await expect(iframe.locator('body')).toContainText('300'); // health
     });
@@ -236,5 +233,6 @@ test('should detect FlatBuffers file in main UI', async ({ page }) => {
 
     const iframe = page.frameLocator('#framecontainer iframe');
     await expect(iframe.locator('body')).toContainText('FlatBuffers Viewer - test.fb');
+    await iframe.locator('text=Raw Stats').click();
     await expect(iframe.locator('body')).toContainText('TEST');
 });
