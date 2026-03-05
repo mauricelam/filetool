@@ -10,12 +10,12 @@ import * as path from 'path';
  * SELinux binary policy fixture. libsepol is very strict about the binary format.
  * The current fixture is a minimal attempt at a binary policy.
  *
- * To fix: Replace tests/fixtures/setools/minimal_sepolicy.bin with a real
+ * To fix: Replace setools/example/minimal_sepolicy.bin with a real
  * sepolicy file (e.g. from an Android device or a Linux system).
  */
 test('SETools handler loads and parses minimal sepolicy', async ({ page }) => {
     // The fixture is a hand-crafted minimal SELinux binary policy
-    const fixturePath = path.join(__dirname, '..', 'fixtures', 'setools', 'minimal_sepolicy.bin');
+    const fixturePath = path.join(__dirname, '..', '..', 'setools', 'example', 'minimal_sepolicy.bin');
     expect(fs.existsSync(fixturePath), `Minimal sepolicy fixture not found at ${fixturePath}`).toBe(true);
     const buffer = fs.readFileSync(fixturePath);
 

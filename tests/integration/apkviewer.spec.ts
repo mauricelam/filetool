@@ -7,11 +7,11 @@ test('APK Viewer should display APK contents, metadata and resources', async ({ 
     // Increase test timeout as APK decoding can be very slow in some environments
     test.setTimeout(120000);
 
-    const filePath = path.resolve(__dirname, '../fixtures/Tasker.6.6.20.apk');
+    const filePath = path.resolve(__dirname, '../../apk-viewer/example/Tasker.6.6.20.apk');
     const fileContent = fs.readFileSync(filePath);
 
     const iframe = await runHandlerTest(page, {
-        handler: 'binaryxml',
+        handler: 'apk-viewer',
         file: {
             content: fileContent,
             name: 'Tasker.6.6.20.apk',

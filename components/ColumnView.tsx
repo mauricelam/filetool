@@ -172,7 +172,7 @@ export function ColumnView<T>({
     };
 
     return (
-        <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', height: '100%' }}>
             <div className="columns-container" ref={columnsContainerRef} style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
                 {columns.map((column, index) => (
                     <div
@@ -212,8 +212,6 @@ export function ColumnView<T>({
                     }
                     .column-content {
                         padding: 8px;
-                        height: 100%;
-                        overflow: auto;
                     }
                     .column-item {
                         padding: 8px;

@@ -8,7 +8,7 @@ test.describe('binutils handler', () => {
     let file: HandlerTestOptions['file'];
 
     test.beforeAll(async () => {
-        const filePath = path.join(__dirname, '..', 'fixtures', 'libhello.so');
+        const filePath = path.join(__dirname, '..', '..', 'binutils', 'example', 'libhello.so');
         const content = await fs.readFile(filePath);
         file = {
             content,

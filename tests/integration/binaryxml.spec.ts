@@ -83,3 +83,24 @@ test('should correctly detect standalone binary XML file and offer Android Binar
     const buttons = await page.locator('.handler-button, .buttonBar button').allTextContents();
     await expect(page.locator('.handler-button, .buttonBar button', { hasText: 'Android Binary XML' }), `Expected handler to be visible. Description was: ${description}. Available buttons: ${buttons.join(', ')}`).toBeVisible({ timeout: 15000 });
 });
+
+test('should correctly process and display a binary XML file with multiple roots', async ({ page }) => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const fixturePath = path.join(__dirname, '..', '..', 'android-xml-viewer', 'example', 'multiple_roots.xml.bin');
+    const xmlContent = fs.readFileSync(fixturePath);
+
+    const iframe = await runHandlerTest(page, {
+        handler: 'android-xml-viewer',
+        file: {
+            content: new Uint8Array(xmlContent),
+            name: 'multiple_roots.xml',
+            type: 'application/octet-stream'
+        },
+    });
+
+    await expect(iframe.locator('h3')).toContainText('Binary XML Content');
+    const preContent = await iframe.locator('pre').textContent();
+    expect(preContent).toContain('<tag1 />');
+    expect(preContent).toContain('<tag2 />');
+});

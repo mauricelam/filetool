@@ -26,7 +26,7 @@ const SETTINGS = {
       ]
     }),
     rustWasm({
-      projectDir: path.join('..', 'binaryxml', 'abxml-wasm-bindings'),
+      projectDir: 'abxml-wasm-bindings',
       outName: 'abxml-wasm-bindings',
       watchPaths: [
         'src/**/*.rs',

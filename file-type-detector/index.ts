@@ -168,7 +168,7 @@ export const HANDLERS: HandlerDefinition[] = [
     { "name": "ClassyShark", "handler": "classyshark", "mimetypes": [] },
     {
         "name": "Android APK",
-        "handler": "binaryxml",
+        "handler": "apk-viewer",
         "mimetypes": [
             "application/vnd.android.package-archive",
             { "mime": "application/zip", "filename": /.*\.apk$/i }
@@ -256,7 +256,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "mimetypes": [
             { "filename": /sepolicy/i },
             { "filename": /policy\.\d+$/i },
-            { "description": /SELinux policy/i }
+            { "description": /SE ?Linux policy/i }
         ]
     },
 ];
