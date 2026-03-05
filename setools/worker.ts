@@ -47,7 +47,15 @@ self.onmessage = async (e: MessageEvent) => {
 
             // Load the new policy buffer into WASM memory
             const uint8Buffer = new Uint8Array(buffer);
-            policyPtr = mod.ccall('api_load_policy', 'number', ['array', 'number'], [uint8Buffer, uint8Buffer.length]);
+
+            // Using explicit allocation instead of 'array' type in ccall to handle large buffers more reliably
+            const dataPtr = mod._malloc(uint8Buffer.length);
+            mod.HEAPU8.set(uint8Buffer, dataPtr);
+
+            policyPtr = mod.ccall('api_load_policy', 'number', ['number', 'number'], [dataPtr, uint8Buffer.length]);
+
+            // The memory for the buffer can be freed after api_load_policy since it copies or processes the data
+            mod._free(dataPtr);
 
             if (!policyPtr) {
                 throw new Error("Failed to load policy. Ensure it is a valid SELinux binary policy.");
