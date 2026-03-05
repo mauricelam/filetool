@@ -1,252 +1,230 @@
 import * as flatbuffers from 'flatbuffers';
-
-export enum BaseType {
-    None = 0,
-    UType = 1,
-    Bool = 2,
-    Byte = 3,
-    UByte = 4,
-    Short = 5,
-    UShort = 6,
-    Int = 7,
-    UInt = 8,
-    Long = 9,
-    ULong = 10,
-    Float = 11,
-    Double = 12,
-    String = 13,
-    Vector = 14,
-    Obj = 15,
-    Union = 16,
-    Array = 17,
-    Vector64 = 18,
-    MaxBaseType = 19
-}
-
-interface Table {
-    bb: flatbuffers.ByteBuffer;
-    bb_pos: number;
-}
-
-function __offset(t: Table, vtable_offset: number): number {
-    const vtable = t.bb_pos - t.bb.readInt32(t.bb_pos);
-    const vtable_size = t.bb.readUint16(vtable);
-    return vtable_offset < vtable_size ? t.bb.readUint16(vtable + vtable_offset) : 0;
-}
-
-function __indirect(t: Table, offset: number): number {
-    return offset + t.bb.readInt32(offset);
-}
-
-function __vector_len(t: Table, offset: number): number {
-    let off = offset;
-    off += t.bb.readInt32(off);
-    return t.bb.readInt32(off);
-}
-
-function __vector(t: Table, offset: number): number {
-    let off = offset;
-    return off + t.bb.readInt32(off) + 4;
-}
-
-function __string(t: Table, offset: number): string | null {
-    let off = offset + t.bb.readInt32(offset);
-    const length = t.bb.readInt32(off);
-    const bytes = t.bb.bytes();
-    return new TextDecoder().decode(bytes.slice(off + 4, off + 4 + length));
-}
-
-function __byte(t: Table, offset: number): number {
-    return t.bb.readInt8(offset);
-}
+import { Schema } from './reflection/schema';
+import { Object_ } from './reflection/object';
+import { Enum } from './reflection/enum';
+import { EnumVal } from './reflection/enum-val';
+import { Field } from './reflection/field';
+import { Type } from './reflection/type';
+import { KeyValue } from './reflection/key-value';
+import { Service } from './reflection/service';
+import { RPCCall } from './reflection/rpccall';
+import { SchemaFile } from './reflection/schema-file';
+import { BaseType } from './reflection/base-type';
 
 export function decodeReflectionSchema(data: Uint8Array): any {
     const bb = new flatbuffers.ByteBuffer(data);
-    const rootTable: Table = {
-        bb: bb,
-        bb_pos: bb.readInt32(bb.position()) + bb.position()
-    };
-
-    return readSchema(rootTable);
+    const schema = Schema.getRootAsSchema(bb);
+    return readSchema(schema);
 }
 
-function readString(table: Table, offset: number): string | null {
-    const off = __offset(table, offset);
-    return off ? __string(table, table.bb_pos + off) : null;
-}
-
-function readTable<T>(table: Table, offset: number, reader: (t: Table) => T): T | null {
-    const off = __offset(table, offset);
-    if (!off) return null;
-    const subTable: Table = {
-        bb: table.bb,
-        bb_pos: __indirect(table, table.bb_pos + off)
-    };
-    return reader(subTable);
-}
-
-function readVector<T>(table: Table, offset: number, reader: (t: Table) => T): T[] {
-    const off = __offset(table, offset);
-    if (!off) return [];
-    const len = __vector_len(table, table.bb_pos + off);
-    const result: T[] = [];
-    const vectorStart = __vector(table, table.bb_pos + off);
-    for (let i = 0; i < len; i++) {
-        const subTable: Table = {
-            bb: table.bb,
-            bb_pos: __indirect(table, vectorStart + i * 4)
-        };
-        result.push(reader(subTable));
+function readSchema(schema: Schema): any {
+    const objects = [];
+    for (let i = 0; i < schema.objectsLength(); i++) {
+        objects.push(readObject(schema.objects(i)!));
     }
-    return result;
-}
 
-function readScalarVector<T>(table: Table, offset: number, elementSize: number, reader: (table: Table, pos: number) => T): T[] {
-    const off = __offset(table, offset);
-    if (!off) return [];
-    const len = __vector_len(table, table.bb_pos + off);
-    const result: T[] = [];
-    const start = __vector(table, table.bb_pos + off);
-    for (let i = 0; i < len; i++) {
-        result.push(reader(table, start + i * elementSize));
+    const enums = [];
+    for (let i = 0; i < schema.enumsLength(); i++) {
+        enums.push(readEnum(schema.enums(i)!));
     }
-    return result;
-}
 
-function readSchema(table: Table): any {
+    const services = [];
+    for (let i = 0; i < schema.servicesLength(); i++) {
+        services.push(readService(schema.services(i)!));
+    }
+
+    const fbsFiles = [];
+    for (let i = 0; i < schema.fbsFilesLength(); i++) {
+        fbsFiles.push(readSchemaFile(schema.fbsFiles(i)!));
+    }
+
     return {
-        objects: readVector(table, 4, readObject),
-        enums: readVector(table, 6, readEnum),
-        file_ident: readString(table, 8),
-        file_ext: readString(table, 10),
-        root_table: readTable(table, 12, readObject),
-        services: readVector(table, 14, readService),
-        // advanced_features: 16 (ulong)
-        fbs_files: readVector(table, 18, readSchemaFile)
+        objects,
+        enums,
+        file_ident: schema.fileIdent(),
+        file_ext: schema.fileExt(),
+        root_table: schema.rootTable() ? readObject(schema.rootTable()!) : null,
+        services,
+        advanced_features: schema.advancedFeatures().toString(),
+        fbs_files: fbsFiles
     };
 }
 
-function readObject(table: Table): any {
-    const off8 = __offset(table, 8);
-    const off10 = __offset(table, 10);
-    const off12 = __offset(table, 12);
+function readObject(obj: Object_): any {
+    const fields = [];
+    for (let i = 0; i < obj.fieldsLength(); i++) {
+        fields.push(readField(obj.fields(i)!));
+    }
+
+    const attributes = [];
+    for (let i = 0; i < obj.attributesLength(); i++) {
+        attributes.push(readKeyValue(obj.attributes(i)!));
+    }
+
+    const documentation = [];
+    for (let i = 0; i < obj.documentationLength(); i++) {
+        documentation.push(obj.documentation(i));
+    }
 
     return {
-        name: readString(table, 4),
-        fields: readVector(table, 6, readField),
-        is_struct: off8 ? !!__byte(table, table.bb_pos + off8) : false,
-        minalign: off10 ? table.bb.readInt32(table.bb_pos + off10) : 0,
-        bytesize: off12 ? table.bb.readInt32(table.bb_pos + off12) : 0,
-        attributes: readVector(table, 14, readKeyValue),
-        documentation: readScalarVector(table, 16, 4, (t, pos) => __string(t, pos)),
-        declaration_file: readString(table, 18)
+        name: obj.name(),
+        fields,
+        is_struct: obj.isStruct(),
+        minalign: obj.minalign(),
+        bytesize: obj.bytesize(),
+        attributes,
+        documentation,
+        declaration_file: obj.declarationFile()
     };
 }
 
-function readField(table: Table): any {
-    const off8 = __offset(table, 8);
-    const off10 = __offset(table, 10);
-    const off12 = __offset(table, 12);
-    const off14 = __offset(table, 14);
-    const off16 = __offset(table, 16);
-    const off18 = __offset(table, 18);
-    const off20 = __offset(table, 20);
-    const off26 = __offset(table, 26);
-    const off28 = __offset(table, 28);
-    const off30 = __offset(table, 30);
+function readField(field: Field): any {
+    const attributes = [];
+    for (let i = 0; i < field.attributesLength(); i++) {
+        attributes.push(readKeyValue(field.attributes(i)!));
+    }
+
+    const documentation = [];
+    for (let i = 0; i < field.documentationLength(); i++) {
+        documentation.push(field.documentation(i));
+    }
 
     return {
-        name: readString(table, 4),
-        type: readTable(table, 6, readType),
-        id: off8 ? table.bb.readUint16(table.bb_pos + off8) : 0,
-        offset: off10 ? table.bb.readUint16(table.bb_pos + off10) : 0,
-        default_integer: off12 ? Number(table.bb.readInt64(table.bb_pos + off12)) : 0,
-        default_real: off14 ? table.bb.readFloat64(table.bb_pos + off14) : 0.0,
-        deprecated: off16 ? !!__byte(table, table.bb_pos + off16) : false,
-        required: off18 ? !!__byte(table, table.bb_pos + off18) : false,
-        key: off20 ? !!__byte(table, table.bb_pos + off20) : false,
-        attributes: readVector(table, 22, readKeyValue),
-        documentation: readScalarVector(table, 24, 4, (t, pos) => __string(t, pos)),
-        optional: off26 ? !!__byte(table, table.bb_pos + off26) : false,
-        padding: off28 ? table.bb.readUint16(table.bb_pos + off28) : 0,
-        offset64: off30 ? !!__byte(table, table.bb_pos + off30) : false
+        name: field.name(),
+        type: readType(field.type()!),
+        id: field.id(),
+        offset: field.offset(),
+        default_integer: field.defaultInteger().toString(),
+        default_real: field.defaultReal(),
+        deprecated: field.deprecated(),
+        required: field.required(),
+        key: field.key(),
+        attributes,
+        documentation,
+        optional: field.optional(),
+        padding: field.padding(),
+        offset64: field.offset64()
     };
 }
 
-function readType(table: Table): any {
-    const off4 = __offset(table, 4);
-    const off6 = __offset(table, 6);
-    const off8 = __offset(table, 8);
-    const off10 = __offset(table, 10);
-    const off12 = __offset(table, 12);
-    const off14 = __offset(table, 14);
-
+function readType(type: Type): any {
     return {
-        base_type: BaseType[off4 ? table.bb.readInt8(table.bb_pos + off4) : 0],
-        element: BaseType[off6 ? table.bb.readInt8(table.bb_pos + off6) : 0],
-        index: off8 ? table.bb.readInt32(table.bb_pos + off8) : -1,
-        fixed_length: off10 ? table.bb.readUint16(table.bb_pos + off10) : 0,
-        base_size: off12 ? table.bb.readUint32(table.bb_pos + off12) : 4,
-        element_size: off14 ? table.bb.readUint32(table.bb_pos + off14) : 0
+        base_type: BaseType[type.baseType()],
+        element: BaseType[type.element()],
+        index: type.index(),
+        fixed_length: type.fixedLength(),
+        base_size: type.baseSize(),
+        element_size: type.elementSize()
     };
 }
 
-function readEnum(table: Table): any {
-    const off8 = __offset(table, 8);
+function readEnum(en: Enum): any {
+    const values = [];
+    for (let i = 0; i < en.valuesLength(); i++) {
+        values.push(readEnumVal(en.values(i)!));
+    }
+
+    const attributes = [];
+    for (let i = 0; i < en.attributesLength(); i++) {
+        attributes.push(readKeyValue(en.attributes(i)!));
+    }
+
+    const documentation = [];
+    for (let i = 0; i < en.documentationLength(); i++) {
+        documentation.push(en.documentation(i));
+    }
 
     return {
-        name: readString(table, 4),
-        values: readVector(table, 6, readEnumVal),
-        is_union: off8 ? !!__byte(table, table.bb_pos + off8) : false,
-        underlying_type: readTable(table, 10, readType),
-        attributes: readVector(table, 12, readKeyValue),
-        documentation: readScalarVector(table, 14, 4, (t, pos) => __string(t, pos)),
-        declaration_file: readString(table, 16)
+        name: en.name(),
+        values,
+        is_union: en.isUnion(),
+        underlying_type: readType(en.underlyingType()!),
+        attributes,
+        documentation,
+        declaration_file: en.declarationFile()
     };
 }
 
-function readEnumVal(table: Table): any {
-    const off6 = __offset(table, 6);
+function readEnumVal(ev: EnumVal): any {
+    const documentation = [];
+    for (let i = 0; i < ev.documentationLength(); i++) {
+        documentation.push(ev.documentation(i));
+    }
+
+    const attributes = [];
+    for (let i = 0; i < ev.attributesLength(); i++) {
+        attributes.push(readKeyValue(ev.attributes(i)!));
+    }
 
     return {
-        name: readString(table, 4),
-        value: off6 ? Number(table.bb.readInt64(table.bb_pos + off6)) : 0,
-        union_type: readTable(table, 10, readType),
-        documentation: readScalarVector(table, 12, 4, (t, pos) => __string(t, pos)),
-        attributes: readVector(table, 14, readKeyValue)
+        name: ev.name(),
+        value: ev.value().toString(),
+        union_type: ev.unionType() ? readType(ev.unionType()!) : null,
+        documentation,
+        attributes
     };
 }
 
-function readKeyValue(table: Table): any {
+function readKeyValue(kv: KeyValue): any {
     return {
-        key: readString(table, 4),
-        value: readString(table, 6)
+        key: kv.key(),
+        value: kv.value()
     };
 }
 
-function readService(table: Table): any {
+function readService(svc: Service): any {
+    const calls = [];
+    for (let i = 0; i < svc.callsLength(); i++) {
+        calls.push(readRPCCall(svc.calls(i)!));
+    }
+
+    const attributes = [];
+    for (let i = 0; i < svc.attributesLength(); i++) {
+        attributes.push(readKeyValue(svc.attributes(i)!));
+    }
+
+    const documentation = [];
+    for (let i = 0; i < svc.documentationLength(); i++) {
+        documentation.push(svc.documentation(i));
+    }
+
     return {
-        name: readString(table, 4),
-        calls: readVector(table, 6, readRPCCall),
-        attributes: readVector(table, 8, readKeyValue),
-        documentation: readScalarVector(table, 10, 4, (t, pos) => __string(t, pos)),
-        declaration_file: readString(table, 12)
+        name: svc.name(),
+        calls,
+        attributes,
+        documentation,
+        declaration_file: svc.declarationFile()
     };
 }
 
-function readRPCCall(table: Table): any {
+function readRPCCall(call: RPCCall): any {
+    const attributes = [];
+    for (let i = 0; i < call.attributesLength(); i++) {
+        attributes.push(readKeyValue(call.attributes(i)!));
+    }
+
+    const documentation = [];
+    for (let i = 0; i < call.documentationLength(); i++) {
+        documentation.push(call.documentation(i));
+    }
+
     return {
-        name: readString(table, 4),
-        request: readTable(table, 6, readObject),
-        response: readTable(table, 8, readObject),
-        attributes: readVector(table, 10, readKeyValue),
-        documentation: readScalarVector(table, 12, 4, (t, pos) => __string(t, pos))
+        name: call.name(),
+        request: readObject(call.request()!),
+        response: readObject(call.response()!),
+        attributes,
+        documentation
     };
 }
 
-function readSchemaFile(table: Table): any {
+function readSchemaFile(sf: SchemaFile): any {
+    const includedFilenames = [];
+    for (let i = 0; i < sf.includedFilenamesLength(); i++) {
+        includedFilenames.push(sf.includedFilenames(i));
+    }
+
     return {
-        filename: readString(table, 4),
-        included_filenames: readScalarVector(table, 6, 4, (t, pos) => __string(t, pos))
+        filename: sf.filename(),
+        included_filenames: includedFilenames
     };
 }
