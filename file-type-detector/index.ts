@@ -126,6 +126,11 @@ export const HANDLERS: HandlerDefinition[] = [
         "mimetypes": ["application/pdf"]
     },
     {
+        "name": "SVG Viewer",
+        "handler": "svgviewer",
+        "mimetypes": ["image/svg+xml", { "filename": /\.svg$/i }]
+    },
+    {
         "name": "Browser",
         "handler": "browser",
         "mimetypes": [
