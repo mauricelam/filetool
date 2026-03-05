@@ -8,6 +8,7 @@
     "watch": "node build.mjs --dev"
   },
   "dependencies": {
+    "filemagic-common": "file:../filemagic-common",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-svg-pan-zoom": "^3.13.1"
