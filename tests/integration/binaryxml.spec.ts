@@ -87,7 +87,7 @@ test('should correctly detect standalone binary XML file and offer Android Binar
 test('should correctly process and display a binary XML file with multiple roots', async ({ page }) => {
     const fs = await import('fs');
     const path = await import('path');
-    const fixturePath = path.join(__dirname, '..', 'fixtures', 'multiple_roots.xml.bin');
+    const fixturePath = path.join(__dirname, '..', '..', 'android-xml-viewer', 'example', 'multiple_roots.xml.bin');
     const xmlContent = fs.readFileSync(fixturePath);
 
     const iframe = await runHandlerTest(page, {
