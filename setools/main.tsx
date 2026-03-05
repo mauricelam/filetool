@@ -154,7 +154,7 @@ function App({ file }: { file: File }) {
             </div>
 
             {/* Tabbed interface for different policy aspects */}
-            <Tabs style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <Tabs>
                 <TabList>
                     <Tab>Allow Rules ({rules.length})</Tab>
                     <Tab>Types ({filteredSymbols?.types.length || 0})</Tab>
@@ -167,8 +167,8 @@ function App({ file }: { file: File }) {
                 </TabList>
 
                 {/* Allow Rules Tab: uses AceEditor for large text display and search */}
-                <TabPanel style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px' }}>
+                <TabPanel>
+                    <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', minHeight: 0 }}>
                         <AceEditor
                             value={rules.join('\n')}
                             mode="lisp"
@@ -182,27 +182,27 @@ function App({ file }: { file: File }) {
                 </TabPanel>
 
                 {/* Symbol List Tabs */}
-                <TabPanel style={{ flex: 1, overflow: 'auto' }}>
+                <TabPanel style={{ overflow: 'auto' }}>
                     <SymbolList symbols={filteredSymbols?.types || []} />
                 </TabPanel>
-                <TabPanel style={{ flex: 1, overflow: 'auto' }}>
+                <TabPanel style={{ overflow: 'auto' }}>
                     <SymbolList symbols={filteredSymbols?.attributes || []} />
                 </TabPanel>
-                <TabPanel style={{ flex: 1, overflow: 'auto' }}>
+                <TabPanel style={{ overflow: 'auto' }}>
                     <SymbolList symbols={filteredSymbols?.roles || []} />
                 </TabPanel>
-                <TabPanel style={{ flex: 1, overflow: 'auto' }}>
+                <TabPanel style={{ overflow: 'auto' }}>
                     <SymbolList symbols={filteredSymbols?.bools || []} />
                 </TabPanel>
-                <TabPanel style={{ flex: 1, overflow: 'auto' }}>
+                <TabPanel style={{ overflow: 'auto' }}>
                     <SymbolList symbols={filteredSymbols?.users || []} />
                 </TabPanel>
-                <TabPanel style={{ flex: 1, overflow: 'auto' }}>
+                <TabPanel style={{ overflow: 'auto' }}>
                     <SymbolList symbols={filteredSymbols?.classes || []} />
                 </TabPanel>
 
                 {/* Metadata Summary Tab */}
-                <TabPanel style={{ flex: 1, overflow: 'auto' }}>
+                <TabPanel style={{ overflow: 'auto' }}>
                     <pre style={{ background: '#f5f5f5', padding: '15px' }}>{JSON.stringify(policyInfo.counts, null, 2)}</pre>
                 </TabPanel>
             </Tabs>
