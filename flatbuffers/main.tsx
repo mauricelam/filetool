@@ -9,6 +9,69 @@ import { StructuralDecoder, FBNode } from './decoder';
 import { AnnotatedDecoder } from './annotated';
 import { decodeReflectionSchema, decodeWithSchema } from './reflection';
 
+const Tab: React.FC<{ label: string; active: boolean; onClick: () => void }> = ({ label, active, onClick }) => (
+    <div
+        onClick={onClick}
+        style={{
+            padding: '8px 16px',
+            cursor: 'pointer',
+            borderBottom: active ? '2px solid #007bff' : '2px solid transparent',
+            color: active ? '#007bff' : '#666',
+            fontWeight: active ? 'bold' : 'normal',
+            transition: 'all 0.2s'
+        }}
+    >
+        {label}
+    </div>
+);
+
+const SchemaUpload: React.FC<{ onUpload: (file: File) => void }> = ({ onUpload }) => {
+    const fileInput = React.useRef<HTMLInputElement>(null);
+    const [isDropOver, setDropOver] = useState(false);
+
+    const handleDrop = async (e: React.DragEvent) => {
+        setDropOver(false);
+        e.preventDefault();
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.name.endsWith('.bfbs')) {
+            onUpload(file);
+        }
+    };
+
+    return (
+        <div
+            onClick={() => fileInput.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={(e) => { e.preventDefault(); setDropOver(true); }}
+            onDragLeave={() => setDropOver(false)}
+            style={{
+                border: `1px dashed ${isDropOver ? '#007bff' : '#ccc'}`,
+                borderRadius: '4px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: isDropOver ? '#f0f7ff' : '#f8f9fa',
+                fontSize: '13px',
+                transition: 'all 0.2s'
+            }}
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#666">
+                <path d="M440-320h80v-167l64 64 56-57-160-160-160 160 57 56 63-63v167ZM240-160q-33 0-56.5-23.5T160-240v-480q0-33 23.5-56.5T240-800h480q33 0 56.5 23.5T800-720v480q0 33-23.5 56.5T720-160H240Zm0-80h480v-480H240v480Zm0 0v-480 480Z" />
+            </svg>
+            <span style={{ color: '#444' }}>Drop .bfbs schema here</span>
+            <input
+                type="file"
+                accept=".bfbs"
+                ref={fileInput}
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+            />
+        </div>
+    );
+};
+
 const FlatBuffersViewer: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
     const [mainFileData, setMainFileData] = useState<Uint8Array | null>(null);
@@ -17,7 +80,8 @@ const FlatBuffersViewer: React.FC = () => {
     const [decodedData, setDecodedData] = useState<any>(null);
     const [structuralData, setStructuralData] = useState<FBNode | null>(null);
     const [annotatedText, setAnnotatedText] = useState<string | null>(null);
-    const [viewMode, setViewMode] = useState<'structural' | 'extended'>('structural');
+    type ViewMode = 'decoded' | 'structural' | 'extended' | 'stats' | 'source';
+    const [viewMode, setViewMode] = useState<ViewMode>('structural');
     const [error, setError] = useState<string | null>(null);
     const [fileType, setFileType] = useState<'data' | 'schema_text' | 'schema_binary' | null>(null);
 
@@ -36,10 +100,13 @@ const FlatBuffersViewer: React.FC = () => {
 
                 if (file.name.endsWith('.fbs')) {
                     setFileType('schema_text');
+                    setViewMode('source');
                 } else if (file.name.endsWith('.bfbs')) {
                     setFileType('schema_binary');
+                    setViewMode('decoded');
                 } else {
                     setFileType('data');
+                    setViewMode('structural');
                 }
             }
         };
@@ -48,14 +115,12 @@ const FlatBuffersViewer: React.FC = () => {
         return () => window.removeEventListener('message', handleMessage);
     }, []);
 
-    const handleSchemaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setSchemaFile(file);
-            const buffer = await file.arrayBuffer();
-            setSchemaData(new Uint8Array(buffer));
-            setError(null);
-        }
+    const handleSchemaUpload = async (file: File) => {
+        setSchemaFile(file);
+        const buffer = await file.arrayBuffer();
+        setSchemaData(new Uint8Array(buffer));
+        setViewMode('decoded');
+        setError(null);
     };
 
     const decodeFlatBuffer = useCallback(() => {
@@ -125,111 +190,108 @@ const FlatBuffersViewer: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', boxSizing: 'border-box', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ margin: 0 }}>FlatBuffers Viewer - {mainFile.name}</h2>
-                {fileType !== 'schema_text' && (
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <button
-                            onClick={() => setViewMode('structural')}
-                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'structural' ? '#007bff' : '#f8f9fa', color: viewMode === 'structural' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                            Structural Tree
-                        </button>
-                        <button
-                            onClick={() => setViewMode('extended')}
-                            style={{ padding: '5px 15px', backgroundColor: viewMode === 'extended' ? '#007bff' : '#f8f9fa', color: viewMode === 'extended' ? 'white' : 'black', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                            Extended View
-                        </button>
-                    </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '20px' }}>
+                <h2 style={{ margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    FlatBuffers Viewer - {mainFile.name}
+                </h2>
+                {fileType === 'data' && <SchemaUpload onUpload={handleSchemaUpload} />}
+            </div>
+
+            <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '20px' }}>
+                {fileType === 'schema_text' ? (
+                    <>
+                        <Tab label="Source" active={viewMode === 'source'} onClick={() => setViewMode('source')} />
+                        <Tab label="Raw Stats" active={viewMode === 'stats'} onClick={() => setViewMode('stats')} />
+                    </>
+                ) : (
+                    <>
+                        {(schemaData || fileType === 'schema_binary') && (
+                            <Tab label="Decoded" active={viewMode === 'decoded'} onClick={() => setViewMode('decoded')} />
+                        )}
+                        <Tab label="Structural Tree" active={viewMode === 'structural'} onClick={() => setViewMode('structural')} />
+                        <Tab label="Extended View" active={viewMode === 'extended'} onClick={() => setViewMode('extended')} />
+                        <Tab label="Raw Stats" active={viewMode === 'stats'} onClick={() => setViewMode('stats')} />
+                    </>
                 )}
             </div>
 
-            {fileType === 'schema_text' ? (
-                <div style={{ flex: 1, backgroundColor: '#f5f5f5', borderRadius: '4px', overflow: 'auto' }}>
-                    <h3 style={{ padding: '0 20px' }}>Schema (.fbs)</h3>
-                    <SyntaxHighlighter
-                        language="protobuf"
-                        style={docco}
-                        customStyle={{ padding: '20px' }}
-                    >
-                        {new TextDecoder().decode(mainFileData!)}
-                    </SyntaxHighlighter>
-                </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {fileType === 'data' && (
-                        <div style={{ padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }}>
-                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                                Upload Binary Schema (.bfbs) for decoding:
-                            </label>
-                            <input type="file" accept=".bfbs" onChange={handleSchemaUpload} />
-                        </div>
-                    )}
+            <div style={{ flex: 1, overflow: 'auto' }}>
+                {viewMode === 'source' && (
+                    <div style={{ backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                        <SyntaxHighlighter
+                            language="protobuf"
+                            style={docco}
+                            customStyle={{ padding: '20px' }}
+                        >
+                            {new TextDecoder().decode(mainFileData!)}
+                        </SyntaxHighlighter>
+                    </div>
+                )}
 
-                    {schemaData ? (
-                        <div style={{ flex: 1 }}>
-                            <h3>Decoded Content (with Schema)</h3>
-                            {decodedData ? (
-                                <ReactJson
-                                    src={decodedData}
-                                    theme="monokai"
-                                    collapsed={2}
-                                    displayDataTypes={false}
-                                    style={{ padding: '15px', borderRadius: '4px' }}
-                                />
-                            ) : (
-                                <pre>Processing...</pre>
-                            )}
-                        </div>
-                    ) : viewMode === 'structural' ? (
-                        <div style={{ flex: 1 }}>
-                            <h3>Structure (Schema-less)</h3>
-                            {structuralData ? (
-                                <ReactJson
-                                    src={structuralData}
-                                    theme="monokai"
-                                    collapsed={3}
-                                    displayDataTypes={false}
-                                    name="root"
-                                    style={{ padding: '15px', borderRadius: '4px' }}
-                                />
-                            ) : (
-                                <pre>Analyzing structure...</pre>
-                            )}
-                        </div>
-                    ) : (
-                        <div style={{ flex: 1 }}>
-                            <h3>Extended Structural View</h3>
-                            {annotatedText ? (
-                                <pre style={{
-                                    backgroundColor: '#f5f5f5',
-                                    padding: '20px',
-                                    borderRadius: '4px',
-                                    overflowX: 'auto',
-                                    fontFamily: 'monospace',
-                                    fontSize: '14px',
-                                    lineHeight: '1.4'
-                                }}>
-                                    {annotatedText}
-                                </pre>
-                            ) : (
-                                <pre>Generating extended view...</pre>
-                            )}
-                        </div>
-                    )}
+                {viewMode === 'decoded' && (
+                    <div style={{ flex: 1 }}>
+                        {decodedData ? (
+                            <ReactJson
+                                src={decodedData}
+                                theme="monokai"
+                                collapsed={2}
+                                displayDataTypes={false}
+                                style={{ padding: '15px', borderRadius: '4px' }}
+                            />
+                        ) : (
+                            <pre>Processing...</pre>
+                        )}
+                    </div>
+                )}
 
-                    <div style={{ marginTop: '20px' }}>
-                        <h3>Raw Data Stats</h3>
-                        <ul>
-                            <li>Size: {mainFileData?.length} bytes</li>
-                            <li>File Identifier: {mainFileData && mainFileData.length >= 8 ?
+                {viewMode === 'structural' && (
+                    <div style={{ flex: 1 }}>
+                        {structuralData ? (
+                            <ReactJson
+                                src={structuralData}
+                                theme="monokai"
+                                collapsed={3}
+                                displayDataTypes={false}
+                                name="root"
+                                style={{ padding: '15px', borderRadius: '4px' }}
+                            />
+                        ) : (
+                            <pre>Analyzing structure...</pre>
+                        )}
+                    </div>
+                )}
+
+                {viewMode === 'extended' && (
+                    <div style={{ flex: 1 }}>
+                        {annotatedText ? (
+                            <pre style={{
+                                backgroundColor: '#f5f5f5',
+                                padding: '20px',
+                                borderRadius: '4px',
+                                overflowX: 'auto',
+                                fontFamily: 'monospace',
+                                fontSize: '14px',
+                                lineHeight: '1.4'
+                            }}>
+                                {annotatedText}
+                            </pre>
+                        ) : (
+                            <pre>Generating extended view...</pre>
+                        )}
+                    </div>
+                )}
+
+                {viewMode === 'stats' && (
+                    <div style={{ padding: '0 20px' }}>
+                        <ul style={{ lineHeight: '2' }}>
+                            <li><strong>Size:</strong> {mainFileData?.length} bytes</li>
+                            <li><strong>File Identifier:</strong> {mainFileData && mainFileData.length >= 8 ?
                                 String.fromCharCode(mainFileData[4], mainFileData[5], mainFileData[6], mainFileData[7]) :
                                 "None"}</li>
                         </ul>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };
