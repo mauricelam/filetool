@@ -1,0 +1,21 @@
+{
+  "name": "svgviewer",
+  "version": "1.0.0",
+  "description": "SVG File Viewer with Pan and Zoom",
+  "main": "main.tsx",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --dev"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-svg-pan-zoom": "^3.13.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.27.3",
+    "esbuild-plugin-copy": "^2.1.1"
+  }
+}
