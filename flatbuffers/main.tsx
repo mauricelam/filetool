@@ -7,7 +7,7 @@ import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { RequestFileMessage, RespondFileMessage } from 'common/messages';
 import { StructuralDecoder, FBNode } from './decoder';
 import { AnnotatedDecoder } from './annotated';
-import { decodeReflectionSchema } from './reflection';
+import { decodeReflectionSchema, decodeWithSchema } from './reflection';
 
 const FlatBuffersViewer: React.FC = () => {
     const [mainFile, setMainFile] = useState<File | null>(null);
@@ -84,7 +84,12 @@ const FlatBuffersViewer: React.FC = () => {
             }
 
             if (schemaData) {
-                setDecodedData({ info: "A binary schema was provided. Generic reflection-based decoding is not yet implemented in this viewer." });
+                try {
+                    const result = decodeWithSchema(mainFileData, schemaData);
+                    setDecodedData(result);
+                } catch (e) {
+                    setDecodedData({ info: "A binary schema was provided, but decoding failed: " + e });
+                }
             } else {
                 // Basic heuristic: try to read the 4-byte identifier at offset 4.
                 const bb = new flatbuffers.ByteBuffer(mainFileData);

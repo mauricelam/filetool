@@ -158,6 +158,51 @@ test.describe('flatbuffers handler', () => {
         await expect(iframe.locator('body')).toContainText('Root Table Offset');
         await expect(iframe.locator('body')).toContainText('Root Table');
     });
+
+    test('should display real fixture (.bfbs)', async ({ page }) => {
+        const filePath = path.resolve(__dirname, '../fixtures/monster.bfbs');
+        const content = await fs.readFile(filePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'flatbuffers',
+            file: {
+                content,
+                name: 'monster.bfbs',
+                type: ''
+            },
+        });
+        await expect(iframe.locator('body')).toContainText('objects');
+        await expect(iframe.locator('body')).toContainText('Monster');
+    });
+
+    test('should decode real fixture (.bin) with uploaded schema (.bfbs)', async ({ page }) => {
+        const binPath = path.resolve(__dirname, '../fixtures/monster.bin');
+        const bfbsPath = path.resolve(__dirname, '../fixtures/monster.bfbs');
+        const binContent = await fs.readFile(binPath);
+        const bfbsContent = await fs.readFile(bfbsPath);
+
+        const iframe = await runHandlerTest(page, {
+            handler: 'flatbuffers',
+            file: {
+                content: binContent,
+                name: 'monster.bin',
+                type: ''
+            },
+        });
+
+        // Upload schema
+        const fileChooserPromise = page.waitForEvent('filechooser');
+        await iframe.locator('input[type="file"]').click();
+        const fileChooser = await fileChooserPromise;
+        await fileChooser.setFiles({
+            name: 'monster.bfbs',
+            buffer: bfbsContent,
+            mimeType: 'application/octet-stream'
+        });
+
+        await expect(iframe.locator('body')).toContainText('Decoded Content (with Schema)');
+        await expect(iframe.locator('body')).toContainText('Gorgon');
+        await expect(iframe.locator('body')).toContainText('300'); // health
+    });
 });
 
 test('should detect FlatBuffers file in main UI', async ({ page }) => {

@@ -17,6 +17,152 @@ export function decodeReflectionSchema(data: Uint8Array): any {
     return readSchema(schema);
 }
 
+export function decodeWithSchema(data: Uint8Array, schemaData: Uint8Array): any {
+    const dataBB = new flatbuffers.ByteBuffer(data);
+    const schemaBB = new flatbuffers.ByteBuffer(schemaData);
+    const schema = Schema.getRootAsSchema(schemaBB);
+
+    const rootTable = schema.rootTable();
+    if (!rootTable) {
+        throw new Error("Schema has no root table.");
+    }
+
+    const rootPos = dataBB.readInt32(dataBB.position()) + dataBB.position();
+    return decodeTable(dataBB, rootPos, rootTable, schema);
+}
+
+function decodeTable(bb: flatbuffers.ByteBuffer, pos: number, obj: Object_, schema: Schema): any {
+    const result: any = {};
+    const vtablePos = pos - bb.readInt32(pos);
+    const vtableSize = bb.readUint16(vtablePos);
+
+    for (let i = 0; i < obj.fieldsLength(); i++) {
+        const field = obj.fields(i)!;
+        if (field.deprecated()) continue;
+
+        const vtableOffset = field.offset();
+        if (vtableOffset >= vtableSize) continue;
+
+        const fieldOffset = bb.readUint16(vtablePos + vtableOffset);
+        if (fieldOffset === 0) {
+            // Field not present, use default if applicable
+            continue;
+        }
+
+        const absoluteFieldOffset = pos + fieldOffset;
+        result[field.name()!] = decodeField(bb, absoluteFieldOffset, field, schema);
+    }
+
+    return result;
+}
+
+function decodeField(bb: flatbuffers.ByteBuffer, pos: number, field: Field, schema: Schema): any {
+    const type = field.type()!;
+    return decodeType(bb, pos, type, schema);
+}
+
+function decodeType(bb: flatbuffers.ByteBuffer, pos: number, type: Type, schema: Schema): any {
+    const baseType = type.baseType();
+
+    switch (baseType) {
+        case BaseType.None: return null;
+        case BaseType.UType:
+        case BaseType.Bool:
+        case BaseType.Byte: return bb.readInt8(pos);
+        case BaseType.UByte: return bb.readUint8(pos);
+        case BaseType.Short: return bb.readInt16(pos);
+        case BaseType.UShort: return bb.readUint16(pos);
+        case BaseType.Int: return bb.readInt32(pos);
+        case BaseType.UInt: return bb.readUint32(pos);
+        case BaseType.Long: return bb.readInt64(pos).toString();
+        case BaseType.ULong: return bb.readUint64(pos).toString();
+        case BaseType.Float: return bb.readFloat32(pos);
+        case BaseType.Double: return bb.readFloat64(pos);
+        case BaseType.String: {
+            const stringOffset = pos + bb.readInt32(pos);
+            const length = bb.readInt32(stringOffset);
+            return new TextDecoder().decode(bb.bytes().slice(stringOffset + 4, stringOffset + 4 + length));
+        }
+        case BaseType.Vector: {
+            const vectorOffset = pos + bb.readInt32(pos);
+            const length = bb.readInt32(vectorOffset);
+            const elemType = type.element();
+            const elemSize = type.elementSize();
+            const result = [];
+            for (let i = 0; i < length; i++) {
+                const elemPos = vectorOffset + 4 + i * elemSize;
+                // Recursive call for elements
+                const tempType = new Type();
+                tempType.__init(type.bb_pos, type.bb!); // Copy type info
+                // This is a hack because we want to decode as the element type, not vector
+                // We should probably have a separate decodeValue function.
+                result.push(decodeElement(bb, elemPos, type, schema));
+            }
+            return result;
+        }
+        case BaseType.Obj: {
+            const objIndex = type.index();
+            const targetObj = schema.objects(objIndex)!;
+            const tableOffset = pos + bb.readInt32(pos);
+            if (targetObj.isStruct()) {
+                return decodeStruct(bb, pos, targetObj, schema);
+            } else {
+                return decodeTable(bb, tableOffset, targetObj, schema);
+            }
+        }
+        case BaseType.Union: {
+            // Unions are tricky. They consist of two fields: type and value.
+            // But here we are decoding a single field.
+            // FlatBuffers unions are actually two fields in the table.
+            return "Union decoding not fully implemented";
+        }
+        default: return "Unsupported type: " + BaseType[baseType];
+    }
+}
+
+function decodeElement(bb: flatbuffers.ByteBuffer, pos: number, type: Type, schema: Schema): any {
+    const elemType = type.element();
+    switch (elemType) {
+        case BaseType.Bool:
+        case BaseType.Byte: return bb.readInt8(pos);
+        case BaseType.UByte: return bb.readUint8(pos);
+        case BaseType.Short: return bb.readInt16(pos);
+        case BaseType.UShort: return bb.readUint16(pos);
+        case BaseType.Int: return bb.readInt32(pos);
+        case BaseType.UInt: return bb.readUint32(pos);
+        case BaseType.Long: return bb.readInt64(pos).toString();
+        case BaseType.ULong: return bb.readUint64(pos).toString();
+        case BaseType.Float: return bb.readFloat32(pos);
+        case BaseType.Double: return bb.readFloat64(pos);
+        case BaseType.String: {
+            const stringOffset = pos + bb.readInt32(pos);
+            const length = bb.readInt32(stringOffset);
+            return new TextDecoder().decode(bb.bytes().slice(stringOffset + 4, stringOffset + 4 + length));
+        }
+        case BaseType.Obj: {
+            const objIndex = type.index();
+            const targetObj = schema.objects(objIndex)!;
+            if (targetObj.isStruct()) {
+                return decodeStruct(bb, pos, targetObj, schema);
+            } else {
+                const tableOffset = pos + bb.readInt32(pos);
+                return decodeTable(bb, tableOffset, targetObj, schema);
+            }
+        }
+        default: return "Unsupported element type: " + BaseType[elemType];
+    }
+}
+
+function decodeStruct(bb: flatbuffers.ByteBuffer, pos: number, obj: Object_, schema: Schema): any {
+    const result: any = {};
+    for (let i = 0; i < obj.fieldsLength(); i++) {
+        const field = obj.fields(i)!;
+        const fieldPos = pos + field.offset();
+        result[field.name()!] = decodeField(bb, fieldPos, field, schema);
+    }
+    return result;
+}
+
 function readSchema(schema: Schema): any {
     const objects = [];
     for (let i = 0; i < schema.objectsLength(); i++) {
