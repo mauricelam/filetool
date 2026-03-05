@@ -441,13 +441,11 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                     </button>
                 )}
             </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-                <ColumnView
-                    initialContent={files}
-                    renderFileActions={renderFileActions}
-                    renderFilePreview={renderFilePreview}
-                />
-            </div>
+            <ColumnView
+                initialContent={files}
+                renderFileActions={renderFileActions}
+                renderFilePreview={renderFilePreview}
+            />
             <FormatDialog
                 isOpen={isFormatDialogOpen}
                 onClose={() => setIsFormatDialogOpen(false)}
