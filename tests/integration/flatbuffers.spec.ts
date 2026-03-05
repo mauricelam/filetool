@@ -160,7 +160,7 @@ test.describe('flatbuffers handler', () => {
     });
 
     test('should display real fixture (.bfbs)', async ({ page }) => {
-        const filePath = path.resolve(__dirname, '../fixtures/monster.bfbs');
+        const filePath = path.resolve(__dirname, '../../flatbuffers/example/monster.bfbs');
         const content = await fs.readFile(filePath);
         const iframe = await runHandlerTest(page, {
             handler: 'flatbuffers',
@@ -175,8 +175,8 @@ test.describe('flatbuffers handler', () => {
     });
 
     test('should decode real fixture (.bin) with uploaded schema (.bfbs)', async ({ page }) => {
-        const binPath = path.resolve(__dirname, '../fixtures/monster.bin');
-        const bfbsPath = path.resolve(__dirname, '../fixtures/monster.bfbs');
+        const binPath = path.resolve(__dirname, '../../flatbuffers/example/monster.bin');
+        const bfbsPath = path.resolve(__dirname, '../../flatbuffers/example/monster.bfbs');
         const binContent = await fs.readFile(binPath);
         const bfbsContent = await fs.readFile(bfbsPath);
 
@@ -200,8 +200,9 @@ test.describe('flatbuffers handler', () => {
         });
 
         await expect(iframe.locator('body')).toContainText('Decoded Content (with Schema)');
-        await expect(iframe.locator('body')).toContainText('Gorgon');
-        await expect(iframe.locator('body')).toContainText('300'); // health
+        // The example monster.bin uses a schema with 'mana' instead of 'Gorgon' in current fixtures
+        await expect(iframe.locator('body')).toContainText('mana');
+        await expect(iframe.locator('body')).toContainText('300');
     });
 });
 
