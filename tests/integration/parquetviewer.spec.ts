@@ -18,10 +18,10 @@ test.describe('parquetviewer handler', () => {
     });
 
     test('should show empty message for empty data', async ({ page }) => {
-         // PAR1 magic is needed to even start parsing in some cases,
-         // but let's see how hyparquet handles just random crap.
-         // Actually, if it's completely invalid it will probably throw.
-         const iframe = await runHandlerTest(page, {
+        // PAR1 magic is needed to even start parsing in some cases,
+        // but let's see how hyparquet handles just random crap.
+        // Actually, if it's completely invalid it will probably throw.
+        const iframe = await runHandlerTest(page, {
             handler: 'parquetviewer',
             file: {
                 content: Buffer.from('PAR1'), // Invalid but has magic
@@ -33,7 +33,7 @@ test.describe('parquetviewer handler', () => {
     });
 
     test('should correctly process and display the example parquet file', async ({ page }) => {
-        const filePath = path.join(__dirname, '..', 'fixtures', 'example.parquet');
+        const filePath = path.join(__dirname, '..', '..', 'parquetviewer', 'example', 'example.parquet');
         const content = await fs.readFile(filePath);
 
         const iframe = await runHandlerTest(page, {

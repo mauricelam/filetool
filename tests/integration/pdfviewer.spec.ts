@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { runHandlerTest } from './test-utils';
 
 test('PDF Viewer should correctly render a PDF file using PDF.js', async ({ page }) => {
-    const pdfPath = path.resolve(__dirname, '../fixtures/test.pdf');
+    const pdfPath = path.resolve(__dirname, '../../pdfjs/example/test.pdf');
     if (!fs.existsSync(pdfPath)) {
         throw new Error(`Test PDF fixture not found at ${pdfPath}`);
     }

@@ -9,7 +9,7 @@ test.describe('cborviewer handler', () => {
     let invalidFile: HandlerTestOptions['file'];
 
     test.beforeAll(async () => {
-        const validFilePath = path.join(__dirname, '..', 'fixtures', 'test.cbor');
+        const validFilePath = path.join(__dirname, '..', '..', 'cborviewer', 'example', 'test.cbor');
         const validContent = await fs.readFile(validFilePath);
         validFile = {
             content: validContent,

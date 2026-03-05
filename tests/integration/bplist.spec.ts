@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { runHandlerTest } from './test-utils';
 
 test('BplistViewer should display the content of a binary plist file', async ({ page }) => {
-    const filePath = path.resolve(__dirname, '../fixtures/sample1.bplist');
+    const filePath = path.resolve(__dirname, '../../bplistviewer/example/sample1.bplist');
     const fileContent = fs.readFileSync(filePath);
 
     const iframe = await runHandlerTest(page, {

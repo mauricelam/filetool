@@ -8,7 +8,7 @@ test.describe('der handler', () => {
     let validFile: HandlerTestOptions['file'];
 
     test.beforeAll(async () => {
-        const validFilePath = path.join(__dirname, '..', 'fixtures', 'test.der');
+        const validFilePath = path.join(__dirname, '..', '..', 'der', 'example', 'test.der');
         const validContent = await fs.readFile(validFilePath);
         validFile = {
             content: validContent,

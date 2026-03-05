@@ -110,7 +110,7 @@ test.describe('flatbuffers handler', () => {
     });
 
     test('should display real fixture (.fbs)', async ({ page }) => {
-        const filePath = path.resolve(__dirname, '../fixtures/monster.fbs');
+        const filePath = path.resolve(__dirname, '../../flatbuffers/example/monster.fbs');
         const content = await fs.readFile(filePath);
         const iframe = await runHandlerTest(page, {
             handler: 'flatbuffers',
@@ -125,7 +125,7 @@ test.describe('flatbuffers handler', () => {
     });
 
     test('should display real fixture (.bin)', async ({ page }) => {
-        const filePath = path.resolve(__dirname, '../fixtures/monster.bin');
+        const filePath = path.resolve(__dirname, '../../flatbuffers/example/monster.bin');
         const content = await fs.readFile(filePath);
         const iframe = await runHandlerTest(page, {
             handler: 'flatbuffers',

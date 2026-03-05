@@ -6,7 +6,7 @@ import { runHandlerTest } from './test-utils';
 
 test.describe('LZFSE Handler', () => {
     test('should decompress an LZFSE file and display the content', async ({ page }) => {
-        const filePath = path.join(__dirname, '../fixtures', 'test.lzfse');
+        const filePath = path.join(__dirname, '../../lzfse/example', 'test.lzfse');
         const fileBuffer = fs.readFileSync(filePath);
         await runHandlerTest(page, {
             handler: 'lzfse',
