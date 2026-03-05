@@ -251,7 +251,7 @@ export const HANDLERS: HandlerDefinition[] = [
         "mimetypes": [
             { "filename": /sepolicy/i },
             { "filename": /policy\.\d+$/i },
-            { "description": /SELinux policy/i }
+            { "description": /SE ?Linux policy/i }
         ]
     },
 ];
