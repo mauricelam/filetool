@@ -23,7 +23,7 @@ const SYM_USERS = 4;
 const SYM_BOOLS = 5;
 
 self.onmessage = async (e: MessageEvent) => {
-    const { action, buffer, query } = e.data;
+    const { action, buffer, query, isRegex } = e.data;
 
     if (action === 'parse') {
         try {
@@ -140,8 +140,9 @@ self.onmessage = async (e: MessageEvent) => {
         }
 
         // Query the C bridge which maps the avtab and filters by symbol names.
-        const actualCount = mod.ccall('api_get_rules', 'number', ['number', 'number', 'number', 'string'],
-                                    [policyPtr, resultsPtr, maxCollect, query || ""]);
+        // Pass isRegex flag to enable POSIX regex matching in the C logic.
+        const actualCount = mod.ccall('api_get_rules', 'number', ['number', 'number', 'number', 'string', 'number'],
+                                    [policyPtr, resultsPtr, maxCollect, query || "", isRegex ? 1 : 0]);
 
         const rules = [];
 

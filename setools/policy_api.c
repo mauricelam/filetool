@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <regex.h>
 #include <emscripten.h>
 
 /**
@@ -156,6 +157,8 @@ struct rule_collect_state {
     int index;
     int max;
     const char *query;
+    int is_regex;
+    regex_t *regex_compiled;
 };
 
 /**
@@ -175,15 +178,24 @@ static int collect_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
     if (state->query && strlen(state->query) > 0) {
         const char *src_name = api_get_symbol_name(state->handle, SYM_TYPES, k->source_type);
         const char *tgt_name = api_get_symbol_name(state->handle, SYM_TYPES, k->target_type);
+        const char *cls_name = api_get_symbol_name(state->handle, SYM_CLASSES, k->target_class);
 
         int match = 0;
-        if (src_name && strstr(src_name, state->query)) match = 1;
-        if (!match && tgt_name && strstr(tgt_name, state->query)) match = 1;
 
-        // Also check class name
-        if (!match) {
-            const char *cls_name = api_get_symbol_name(state->handle, SYM_CLASSES, k->target_class);
-            if (cls_name && strstr(cls_name, state->query)) match = 1;
+        /**
+         * Perform search using either POSIX regex or standard substring matching.
+         * The search is applied to source type, target type, and security class names.
+         */
+        if (state->is_regex && state->regex_compiled) {
+            // Regex matching: case-insensitive (based on regcomp flags in api_get_rules).
+            if (src_name && regexec(state->regex_compiled, src_name, 0, NULL, 0) == 0) match = 1;
+            if (!match && tgt_name && regexec(state->regex_compiled, tgt_name, 0, NULL, 0) == 0) match = 1;
+            if (!match && cls_name && regexec(state->regex_compiled, cls_name, 0, NULL, 0) == 0) match = 1;
+        } else {
+            // Standard substring matching (default).
+            if (src_name && strstr(src_name, state->query)) match = 1;
+            if (!match && tgt_name && strstr(tgt_name, state->query)) match = 1;
+            if (!match && cls_name && strstr(cls_name, state->query)) match = 1;
         }
 
         if (!match) return 0;
@@ -203,14 +215,40 @@ static int collect_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
  *
  * Iterates through the entire Access Vector Table and filters rules based on 'query'.
  * Matches are written to the 'out_rules' buffer up to 'max_rules'.
+ * Supports both plain-text substring and POSIX extended regex matching.
  */
 EMSCRIPTEN_KEEPALIVE
-int api_get_rules(policy_handle_t *h, rule_info_t *out_rules, int max_rules, const char *query) {
+int api_get_rules(policy_handle_t *h, rule_info_t *out_rules, int max_rules, const char *query, int is_regex) {
     policydb_t *db = &((struct sepol_policydb *)(h->db))->p;
-    struct rule_collect_state state = { h, out_rules, 0, max_rules, query };
+    regex_t regex;
+    regex_t *regex_ptr = NULL;
+
+    /**
+     * If regex search is requested, compile the pattern once for the entire traversal
+     * to ensure optimal performance when scanning thousands of rules.
+     */
+    if (is_regex && query && strlen(query) > 0) {
+        // REG_EXTENDED for modern regex syntax, REG_ICASE for case-insensitivity,
+        // and REG_NOSUB since we only care about a boolean match, not captures.
+        if (regcomp(&regex, query, REG_EXTENDED | REG_ICASE | REG_NOSUB) == 0) {
+            regex_ptr = &regex;
+        } else {
+            // If regex compilation fails (e.g. invalid syntax), fall back to standard
+            // string matching for this search request.
+            is_regex = 0;
+        }
+    }
+
+    struct rule_collect_state state = { h, out_rules, 0, max_rules, query, is_regex, regex_ptr };
 
     // avtab_map is an efficient way to visit every node in the policy's internal hash table.
     avtab_map(&db->te_avtab, collect_rules, &state);
+
+    // Clean up compiled regex resources if they were allocated.
+    if (regex_ptr) {
+        regfree(regex_ptr);
+    }
+
     return state.index;
 }
 
