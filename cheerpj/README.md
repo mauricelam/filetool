@@ -30,11 +30,11 @@ A handler that runs Java applications in the browser using CheerpJ technology.
 - Built with CheerpJ (Java to JavaScript compiler)
 - Runs Java applications entirely in the browser
 - Implements the standard `requestFile`/`respondFile` messaging protocol
-- No external dependencies or network requests for execution
+- **Internet Access**: Requires internet access to load the CheerpJ runtime from `https://cjrtnc.leaningtech.com`.
 
 ## Dependencies
 
-- **CheerpJ** - Java to JavaScript compiler and runtime
+- **CheerpJ** - Java to JavaScript compiler and runtime (loaded via CDN)
 
 ## Development
 

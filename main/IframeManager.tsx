@@ -107,6 +107,7 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                         src={frame.handler}
                         style={{ display: isActive ? 'block' : 'none' }}
                         title={frame.file.name}
+                        sandbox="allow-scripts allow-same-origin allow-forms"
                     />
                 );
             })}
