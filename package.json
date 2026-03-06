@@ -48,6 +48,7 @@
         "watch:workspaces": "npm pkg get name --ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch --silent -w {}",
         "serve": "run-p --silent \"watch:workspaces\" start",
         "build": "npm run build:workspaces",
+        "zip-dist": "cd dist && zip -r dist.zip . -x dist.zip",
         "test": "npm run test --workspaces --if-present",
         "test:integration": "npm run build && node tests/integration/build.mjs && playwright test"
     },
