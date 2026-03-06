@@ -7,3 +7,4 @@ test-results/
 playwright-report/
 *.log
 **/target/
+setools/build/
