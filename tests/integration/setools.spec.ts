@@ -37,6 +37,6 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
     await expect(iframe.locator('body')).toContainText('system_server');
 
     await iframe.getByRole('tab', { name: /Allow Rules/ }).click();
-    await iframe.getByPlaceholder(/Search symbols or rules/).fill('mosey_server');
-    await expect(iframe.locator('body')).toContainText('{ find }');
+    await iframe.getByPlaceholder(/Search symbols or rules/).fill('dumpstate');
+    await expect(iframe.locator('body')).toContainText('allow dumpstate uce_service:service_manager { find };');
 });
