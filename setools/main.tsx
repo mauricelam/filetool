@@ -45,6 +45,7 @@ function App({ file }: { file: File }) {
     const [rules, setRules] = useState<string[]>([])
     const [error, setError] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
+    const [isRegex, setIsRegex] = useState(false)
     const [loading, setLoading] = useState(true)
 
     // Effect to initialize the worker and load the policy file when the file prop changes.
@@ -89,20 +90,38 @@ function App({ file }: { file: File }) {
         }
     }, [file])
 
-    // Effect to update search results when search term changes.
+    // Effect to update search results when search term or regex mode changes.
     useEffect(() => {
         if (policyInfo) {
-            currentWorker?.postMessage({ action: 'search', query: searchTerm });
+            currentWorker?.postMessage({ action: 'search', query: searchTerm, isRegex });
         }
-    }, [searchTerm, policyInfo]);
+    }, [searchTerm, isRegex, policyInfo]);
 
     // Filter symbols locally for the list tabs.
     // useMemo prevents expensive re-filtering on every render.
     const filteredSymbols = useMemo(() => {
         if (!policyInfo || !searchTerm) return policyInfo?.symbols;
-        const low = searchTerm.toLowerCase();
+
+        let matcher: (x: string) => boolean;
+
+        if (isRegex) {
+            try {
+                // Case-insensitive regex matching for symbols.
+                const regex = new RegExp(searchTerm, 'i');
+                matcher = (x) => regex.test(x);
+            } catch (e) {
+                // Fallback to no results or everything if regex is invalid while typing.
+                return {
+                    types: [], attributes: [], roles: [], classes: [], users: [], bools: []
+                };
+            }
+        } else {
+            const low = searchTerm.toLowerCase();
+            matcher = (x) => x && x.toLowerCase().includes(low);
+        }
+
         const s = policyInfo.symbols;
-        const filter = (arr: string[]) => (arr || []).filter(x => x && x.toLowerCase().includes(low));
+        const filter = (arr: string[]) => (arr || []).filter(x => x && matcher(x));
 
         return {
             types: filter(s.types),
@@ -142,17 +161,25 @@ function App({ file }: { file: File }) {
             </div>
 
             {/* Global Search Bar */}
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input
                     type="text"
                     placeholder="Search symbols or rules (e.g. 'untrusted_app')..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     style={{
-                        width: '100%', padding: '12px', fontSize: '16px', borderRadius: '4px',
+                        flex: 1, padding: '12px', fontSize: '16px', borderRadius: '4px',
                         border: '1px solid #ddd', boxSizing: 'border-box'
                     }}
                 />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <input
+                        type="checkbox"
+                        checked={isRegex}
+                        onChange={(e) => setIsRegex(e.target.checked)}
+                    />
+                    Regex
+                </label>
             </div>
 
             {/* Tabbed interface for different policy aspects */}
