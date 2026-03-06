@@ -30,12 +30,12 @@ A handler for Android APK files that provides analysis of package structure and 
 - Uses ClassyShark library for APK analysis
 - Implements the standard `requestFile`/`respondFile` messaging protocol
 - Processes files entirely in the browser
-- No external dependencies or network requests
+- **Internet Access**: Requires internet access to load the CheerpJ runtime from `https://cjrtnc.leaningtech.com`.
 
 ## Dependencies
 
 - **ClassyShark** - Java APK analysis library
-- **CheerpJ** - Java to JavaScript compiler
+- **CheerpJ** - Java to JavaScript compiler (loaded via CDN)
 
 ## Development
 
