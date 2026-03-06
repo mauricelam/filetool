@@ -90,9 +90,8 @@ function App({ file }: { file: File }) {
     }, [file])
 
     // Effect to update search results when search term changes.
-    // We only trigger worker-side rule search for longer queries or empty queries for performance.
     useEffect(() => {
-        if (policyInfo && (searchTerm.length > 2 || searchTerm.length === 0)) {
+        if (policyInfo) {
             currentWorker?.postMessage({ action: 'search', query: searchTerm });
         }
     }, [searchTerm, policyInfo]);

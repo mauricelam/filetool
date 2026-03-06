@@ -180,6 +180,12 @@ static int collect_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
         if (src_name && strstr(src_name, state->query)) match = 1;
         if (!match && tgt_name && strstr(tgt_name, state->query)) match = 1;
 
+        // Also check class name
+        if (!match) {
+            const char *cls_name = api_get_symbol_name(state->handle, SYM_CLASSES, k->target_class);
+            if (cls_name && strstr(cls_name, state->query)) match = 1;
+        }
+
         if (!match) return 0;
     }
 
