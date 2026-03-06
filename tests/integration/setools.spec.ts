@@ -35,4 +35,8 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
 
     await iframe.getByPlaceholder(/Search symbols or rules/).fill('system_server');
     await expect(iframe.locator('body')).toContainText('system_server');
+
+    await iframe.getByRole('tab', { name: /Allow Rules/ }).click();
+    await iframe.getByPlaceholder(/Search symbols or rules/).fill('mosey_server');
+    await expect(iframe.locator('body')).toContainText('{ find }');
 });

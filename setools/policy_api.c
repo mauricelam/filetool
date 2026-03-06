@@ -207,3 +207,26 @@ int api_get_rules(policy_handle_t *h, rule_info_t *out_rules, int max_rules, con
     avtab_map(&db->te_avtab, collect_rules, &state);
     return state.index;
 }
+
+/**
+ * api_get_permissions: Resolves an access vector bitmask to a human-readable string.
+ *
+ * Uses libsepol's sepol_av_to_string to convert the numeric 'data' field of a rule
+ * into its constituent permission names for a given security class.
+ */
+EMSCRIPTEN_KEEPALIVE
+char* api_get_permissions(policy_handle_t *h, int class_val, uint32_t data) {
+    policydb_t *db = &((struct sepol_policydb *)(h->db))->p;
+    if (class_val <= 0 || (uint32_t)class_val > db->p_classes.nprim) return NULL;
+    return sepol_av_to_string(db, class_val, data);
+}
+
+/**
+ * api_free_string: Frees a string allocated by the C library.
+ *
+ * Required for cleaning up strings returned by sepol_av_to_string.
+ */
+EMSCRIPTEN_KEEPALIVE
+void api_free_string(char *s) {
+    if (s) free(s);
+}
