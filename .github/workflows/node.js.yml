@@ -55,6 +55,7 @@ jobs:
       - run: npm test
       - run: npx playwright install --with-deps
       - run: npm run test:integration
+      - run: npm run zip-dist
       - name: Upload artifact
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
