@@ -34,7 +34,8 @@ export const emscriptenWasm = (options) => {
         projectDir,
         command,
         artifacts = [],
-        watchFiles = []
+        watchFiles = [],
+        env = {}
       } = options;
 
       const outDir = build.initialOptions.outdir;
@@ -65,6 +66,10 @@ export const emscriptenWasm = (options) => {
           execSync(command, {
             cwd: projectDir,
             stdio: 'inherit',
+            env: {
+              ...process.env,
+              ...env
+            }
           });
 
           // Copy artifacts from projectDir to outDir if specified
