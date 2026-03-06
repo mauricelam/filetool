@@ -7,4 +7,4 @@ test-results/
 playwright-report/
 *.log
 **/target/
-setools/selinux/libsepol/src/libsepol.a
+setools/build/
