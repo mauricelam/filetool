@@ -155,7 +155,7 @@ function App({ file }: { file: File }) {
                 <div style={{ fontSize: '0.9em', color: '#666' }}>
                     <strong>Version:</strong> {policyInfo.version} |
                     <strong> Rules:</strong> {policyInfo.counts.rules} |
-                    <strong> Types:</strong> {policyInfo.counts.types} |
+                    <strong> Types:</strong> {policyInfo.symbols.types.length} |
                     <strong> Attributes:</strong> {policyInfo.symbols.attributes.length}
                 </div>
             </div>

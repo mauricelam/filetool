@@ -134,12 +134,25 @@ int api_get_boolean_state(policy_handle_t *h, int bool_val) {
 }
 
 /**
- * api_get_rule_count: Returns the total number of entries in the Access Vector Table.
+ * count_allow_rules: Traversal callback for counting allowed rules.
+ */
+static int count_allow_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
+    int *count = (int *)ptr;
+    if (k->specified & AVTAB_ALLOWED) {
+        (*count)++;
+    }
+    return 0;
+}
+
+/**
+ * api_get_rule_count: Returns the total number of 'allow' rules in the Access Vector Table.
  */
 EMSCRIPTEN_KEEPALIVE
 int api_get_rule_count(policy_handle_t *h) {
     policydb_t *db = &((struct sepol_policydb *)(h->db))->p;
-    return db->te_avtab.nel;
+    int count = 0;
+    avtab_map(&db->te_avtab, count_allow_rules, &count);
+    return count;
 }
 
 // Internal structure for returning rule information to the JS layer.
