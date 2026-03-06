@@ -10,6 +10,7 @@ import createSepolicyModule from './sepolicy.js';
 
 let mod: any = null;
 let policyPtr: number = 0;
+let ruleCount: number = 0;
 
 /**
  * Symbol types as defined in libsepol/include/sepol/policydb/policydb.h
@@ -72,6 +73,7 @@ self.onmessage = async (e: MessageEvent) => {
                 bools: mod.ccall('api_get_symbol_count', 'number', ['number', 'number'], [policyPtr, SYM_BOOLS]),
                 rules: mod.ccall('api_get_rule_count', 'number', ['number'], [policyPtr])
             };
+            ruleCount = counts.rules;
 
             // Extract symbols (limited for types to avoid UI lag on massive policies)
             const symbols: any = {
@@ -90,7 +92,6 @@ self.onmessage = async (e: MessageEvent) => {
                     if (isAttr === 1) symbols.attributes.push(name);
                     else symbols.types.push(name);
                 }
-                if (i > 10000) break; // Safety limit for symbol extraction
             }
 
             const extractNames = (symType: number, count: number, target: string[]) => {
@@ -128,7 +129,8 @@ self.onmessage = async (e: MessageEvent) => {
         // The search logic is moved to the C bridge for performance on large policies.
         if (!policyPtr || !mod) return;
 
-        const maxCollect = 20000; // Result set cap for the UI
+        // Use the total rule count as the limit for rule collection to ensure all matches are returned.
+        const maxCollect = ruleCount || 1000;
         const structSize = 16;   // 4 * uint32 (src_id, tgt_id, class_id, av_bits)
         const resultsPtr = mod._malloc(maxCollect * structSize);
         if (!resultsPtr) {
