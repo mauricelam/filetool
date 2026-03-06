@@ -16,7 +16,7 @@ test('SETools allow rules tab filters when search term changes', async ({ page }
         }
     });
 
-    await expect(iframe.locator('h1')).toContainText('SETools - Sepolicy Analyzer (WASM)', { timeout: 30000 });
+    await expect(iframe.locator('h1')).toContainText('SETools', { timeout: 30000 });
 
     // Initial rules count (should be all or a lot)
     let initialCount = 0;

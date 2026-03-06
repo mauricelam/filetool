@@ -117,7 +117,7 @@ function App({ file }: { file: File }) {
     // Error state display
     if (error) {
         return (
-            <div style={{ padding: '20px', color: 'red' }}>
+            <div style={{ padding: '0 20px', color: 'red' }}>
                 <h1>Error parsing {file.name}</h1>
                 <p>{error}</p>
             </div>
@@ -126,13 +126,13 @@ function App({ file }: { file: File }) {
 
     // Loading state display
     if (loading || !policyInfo) {
-        return <div style={{ padding: '20px' }}>Analyzing {file.name}... (Using WASM)</div>
+        return <div style={{ padding: '0 20px' }}>Analyzing {file.name}... (Using WASM)</div>
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '0 20px', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h1>SETools - Sepolicy Analyzer (WASM)</h1>
+                <h2>SETools</h2>
                 <div style={{ fontSize: '0.9em', color: '#666' }}>
                     <strong>Version:</strong> {policyInfo.version} |
                     <strong> Rules:</strong> {policyInfo.counts.rules} |
@@ -148,7 +148,10 @@ function App({ file }: { file: File }) {
                     placeholder="Search symbols or rules (e.g. 'untrusted_app')..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ width: '100%', padding: '12px', fontSize: '16px', borderRadius: '4px', border: '1px solid #ddd' }}
+                    style={{
+                        width: '100%', padding: '12px', fontSize: '16px', borderRadius: '4px',
+                        border: '1px solid #ddd', boxSizing: 'border-box'
+                    }}
                 />
             </div>
 

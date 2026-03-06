@@ -22,7 +22,7 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
     });
 
     // Verify UI header and analysis method
-    await expect(iframe.locator('h1')).toContainText('SETools - Sepolicy Analyzer (WASM)', { timeout: 30000 });
+    await expect(iframe.locator('h1')).toContainText('SETools', { timeout: 30000 });
 
     // Verify policy version and symbol counts from the binary
     await expect(iframe.locator('body')).toContainText('Version: 30');
