@@ -27,12 +27,8 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
     // Verify policy version and symbol counts from the binary
     await expect(iframe.locator('body')).toContainText('Version: 30');
 
-    // Check for some common Android SELinux types that should be in the example policy.
-    // They might not be in the first 1000 allow rules, so we check the Types tab and use search.
-    await iframe.getByRole('tab', { name: /Types/ }).click();
-    await iframe.getByPlaceholder(/Search symbols or rules/).fill('untrusted_app');
-    await expect(iframe.locator('body')).toContainText('untrusted_app');
-
-    await iframe.getByPlaceholder(/Search symbols or rules/).fill('system_server');
-    await expect(iframe.locator('body')).toContainText('system_server');
+    // Verify "Allow Rules" tab shows resolved permissions.
+    await iframe.getByRole('tab', { name: /Allow Rules/ }).click();
+    await iframe.getByPlaceholder(/Search symbols or rules/).fill('dumpstate');
+    await expect(iframe.locator('body')).toContainText('allow dumpstate uce_service:service_manager { find };');
 });

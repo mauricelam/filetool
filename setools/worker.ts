@@ -160,7 +160,19 @@ self.onmessage = async (e: MessageEvent) => {
             const tgtName = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_TYPES, tgt]);
             const clsName = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_CLASSES, cls]);
 
-            rules.push(`allow ${srcName} ${tgtName}:${clsName} { 0x${data.toString(16)} };`);
+            // Resolve access vector bits to human-readable permissions using libsepol's utility.
+            const permsPtr = mod.ccall('api_get_permissions', 'number', ['number', 'number', 'number'], [policyPtr, cls, data]);
+            let perms = permsPtr ? mod.UTF8ToString(permsPtr).trim() : `0x${data.toString(16)}`;
+
+            // sepol_av_to_string returns a space-separated list of permissions.
+            // If multiple permissions are present, it does NOT wrap them in braces,
+            // but we want our output to always have braces for consistency.
+            rules.push(`allow ${srcName} ${tgtName}:${clsName} { ${perms} };`);
+
+            // Free the string allocated by the C library (sepol_av_to_string uses realloc/malloc).
+            if (permsPtr) {
+                mod.ccall('api_free_string', 'void', ['number'], [permsPtr]);
+            }
         }
 
         mod._free(resultsPtr);
