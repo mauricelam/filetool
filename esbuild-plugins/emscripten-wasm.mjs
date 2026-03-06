@@ -33,7 +33,7 @@ export const emscriptenWasm = (options) => {
         name,
         projectDir,
         command,
-        artifacts = ['*.js', '*.wasm'],
+        artifacts = [],
         watchFiles = []
       } = options;
 
@@ -58,21 +58,24 @@ export const emscriptenWasm = (options) => {
         isBuilding = true;
         console.log(`[emscripten-wasm] Building ${name}...`);
         try {
+          // Ensure the output directory exists before running the command,
+          // in case the command wants to output directly into it.
+          ensureDir(outDir);
+
           execSync(command, {
             cwd: projectDir,
             stdio: 'inherit',
           });
 
-          // Ensure the output directory exists
-          ensureDir(outDir);
-
-          // Copy artifacts from projectDir to outDir
-          const files = glob.sync(artifacts, { cwd: projectDir });
-          files.forEach(file => {
-            const sourcePath = path.join(projectDir, file);
-            const destPath = path.join(outDir, file);
-            fs.copyFileSync(sourcePath, destPath);
-          });
+          // Copy artifacts from projectDir to outDir if specified
+          if (artifacts.length > 0) {
+            const files = glob.sync(artifacts, { cwd: projectDir });
+            files.forEach(file => {
+              const sourcePath = path.join(projectDir, file);
+              const destPath = path.join(outDir, file);
+              fs.copyFileSync(sourcePath, destPath);
+            });
+          }
         } catch (e) {
           console.error(`[emscripten-wasm] Build failed for ${name}:`, e);
         } finally {
