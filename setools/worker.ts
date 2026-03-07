@@ -22,8 +22,16 @@ const SYM_TYPES = 3;
 const SYM_USERS = 4;
 const SYM_BOOLS = 5;
 
+/**
+ * Access Vector Table specified bits as defined in libsepol/include/sepol/policydb/avtab.h
+ */
+const AVTAB_ALLOWED = 0x0001;
+const AVTAB_AUDITALLOW = 0x0002;
+const AVTAB_AUDITDENY = 0x0004; // Used for dontaudit
+const AVTAB_NEVERALLOW = 0x0080;
+
 self.onmessage = async (e: MessageEvent) => {
-    const { action, buffer, query, isRegex } = e.data;
+    const { action, buffer, query, isRegex, ruleType } = e.data;
 
     if (action === 'parse') {
         try {
@@ -71,7 +79,10 @@ self.onmessage = async (e: MessageEvent) => {
                 types: mod.ccall('api_get_symbol_count', 'number', ['number', 'number'], [policyPtr, SYM_TYPES]),
                 users: mod.ccall('api_get_symbol_count', 'number', ['number', 'number'], [policyPtr, SYM_USERS]),
                 bools: mod.ccall('api_get_symbol_count', 'number', ['number', 'number'], [policyPtr, SYM_BOOLS]),
-                rules: mod.ccall('api_get_rule_count', 'number', ['number'], [policyPtr])
+                rules: mod.ccall('api_get_rule_count', 'number', ['number', 'number'], [policyPtr, AVTAB_ALLOWED]),
+                auditallow: mod.ccall('api_get_rule_count', 'number', ['number', 'number'], [policyPtr, AVTAB_AUDITALLOW]),
+                dontaudit: mod.ccall('api_get_rule_count', 'number', ['number', 'number'], [policyPtr, AVTAB_AUDITDENY]),
+                neverallow: mod.ccall('api_get_rule_count', 'number', ['number', 'number'], [policyPtr, AVTAB_NEVERALLOW]),
             };
             ruleCount = counts.rules;
 
@@ -125,24 +136,42 @@ self.onmessage = async (e: MessageEvent) => {
             self.postMessage({ error: error.message });
         }
     } else if (action === 'search') {
-        // Perform search across all allow rules in the Access Vector Table.
+        // Perform search across rules in the Access Vector Table based on ruleType.
         // The search logic is moved to the C bridge for performance on large policies.
         if (!policyPtr || !mod) return;
 
-        // Use the total rule count as the limit for rule collection to ensure all matches are returned.
-        const maxCollect = ruleCount || 1000;
+        let mask = AVTAB_ALLOWED;
+        let prefix = "allow";
+        let countLimit = ruleCount;
+
+        if (ruleType === 'auditallow') {
+            mask = AVTAB_AUDITALLOW;
+            prefix = "auditallow";
+            countLimit = mod.ccall('api_get_rule_count', 'number', ['number', 'number'], [policyPtr, AVTAB_AUDITALLOW]);
+        } else if (ruleType === 'dontaudit') {
+            mask = AVTAB_AUDITDENY;
+            prefix = "dontaudit";
+            countLimit = mod.ccall('api_get_rule_count', 'number', ['number', 'number'], [policyPtr, AVTAB_AUDITDENY]);
+        } else if (ruleType === 'neverallow') {
+            mask = AVTAB_NEVERALLOW;
+            prefix = "neverallow";
+            countLimit = mod.ccall('api_get_rule_count', 'number', ['number', 'number'], [policyPtr, AVTAB_NEVERALLOW]);
+        }
+
+        // Use the rule count for the specific type as the limit for rule collection.
+        const maxCollect = countLimit || 1000;
         const structSize = 16;   // 4 * uint32 (src_id, tgt_id, class_id, av_bits)
         const resultsPtr = mod._malloc(maxCollect * structSize);
         if (!resultsPtr) {
             console.error("Failed to allocate memory for rules");
-            self.postMessage({ action: 'results', results: [] });
+            self.postMessage({ action: 'results', results: [], ruleType });
             return;
         }
 
-        // Query the C bridge which maps the avtab and filters by symbol names.
+        // Query the C bridge which maps the avtab and filters by symbol names and mask.
         // Pass isRegex flag to enable POSIX regex matching in the C logic.
-        const actualCount = mod.ccall('api_get_rules', 'number', ['number', 'number', 'number', 'string', 'number'],
-                                    [policyPtr, resultsPtr, maxCollect, query || "", isRegex ? 1 : 0]);
+        const actualCount = mod.ccall('api_get_rules', 'number', ['number', 'number', 'number', 'string', 'number', 'number'],
+                                    [policyPtr, resultsPtr, maxCollect, query || "", isRegex ? 1 : 0, mask]);
 
         const rules = [];
 
@@ -168,7 +197,7 @@ self.onmessage = async (e: MessageEvent) => {
             // sepol_av_to_string returns a space-separated list of permissions.
             // If multiple permissions are present, it does NOT wrap them in braces,
             // but we want our output to always have braces for consistency.
-            rules.push(`allow ${srcName} ${tgtName}:${clsName} { ${perms} };`);
+            rules.push(`${prefix} ${srcName} ${tgtName}:${clsName} { ${perms} };`);
 
             // Free the string allocated by the C library (sepol_av_to_string uses realloc/malloc).
             if (permsPtr) {
@@ -177,6 +206,6 @@ self.onmessage = async (e: MessageEvent) => {
         }
 
         mod._free(resultsPtr);
-        self.postMessage({ action: 'results', results: rules });
+        self.postMessage({ action: 'results', results: rules, ruleType });
     }
 }

@@ -21,7 +21,7 @@ test('SETools allow rules tab filters when search term changes', async ({ page }
     // Initial rules count (should be all or a lot)
     let initialCount = 0;
     await expect(async () => {
-        const initialRulesText = await iframe.getByRole('tab', { name: /Allow Rules/ }).textContent();
+        const initialRulesText = await iframe.getByRole('tab', { name: /^Allow \(/ }).textContent();
         initialCount = parseInt(initialRulesText?.match(/\((\d+)\)/)?.[1] || '0');
         expect(initialCount).toBeGreaterThan(0);
     }).toPass({ timeout: 15000 });
@@ -35,7 +35,7 @@ test('SETools allow rules tab filters when search term changes', async ({ page }
     // Wait for the count to change
     let filteredCount = 0;
     await expect(async () => {
-        const rulesText = await iframe.getByRole('tab', { name: /Allow Rules/ }).textContent();
+        const rulesText = await iframe.getByRole('tab', { name: /^Allow \(/ }).textContent();
         filteredCount = parseInt(rulesText?.match(/\((\d+)\)/)?.[1] || '0');
         expect(filteredCount).toBeLessThan(initialCount);
         expect(filteredCount).toBeGreaterThan(0);
@@ -49,7 +49,7 @@ test('SETools allow rules tab filters when search term changes', async ({ page }
     // We expect the count to increase from filteredCount because 'un' matches more than 'untrusted_app'
     // but should still be less than initialCount
     await expect(async () => {
-        const currentRulesText = await iframe.getByRole('tab', { name: /Allow Rules/ }).textContent();
+        const currentRulesText = await iframe.getByRole('tab', { name: /^Allow \(/ }).textContent();
         const currentCount = parseInt(currentRulesText?.match(/\((\d+)\)/)?.[1] || '0');
         console.log(`Current count for 'un': ${currentCount}`);
         expect(currentCount).toBeGreaterThan(filteredCount);
