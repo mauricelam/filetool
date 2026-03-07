@@ -7,6 +7,7 @@ export interface RenderState {
     selectionStart: number | null;
     selectionEnd: number | null;
     markers: Marker[];
+    previewMarker?: Marker | null;
     onMouseDown: (index: number) => void;
     onMouseEnter: (index: number) => void;
     onMouseLeave: () => void;
@@ -59,8 +60,15 @@ export function renderAscii(line: number, buffer: Uint8Array, state: RenderState
                         } else {
                             classList.push("marked_length");
                         }
+                        if (marker.start + marker.length > buffer.length) {
+                            classList.push("marked_overflow");
+                        }
                     }
                 }
+            }
+
+            if (state.previewMarker && i >= state.previewMarker.start && i < state.previewMarker.start + state.previewMarker.length) {
+                classList.push("preview_marked");
             }
 
             yield (
@@ -116,8 +124,15 @@ export function renderHex(line: number, buffer: Uint8Array, state: RenderState):
                         } else {
                             classList.push("marked_length");
                         }
+                        if (marker.start + marker.length > buffer.length) {
+                            classList.push("marked_overflow");
+                        }
                     }
                 }
+            }
+
+            if (state.previewMarker && i >= state.previewMarker.start && i < state.previewMarker.start + state.previewMarker.length) {
+                classList.push("preview_marked");
             }
 
             const space = i == line * 16 ? "" : " "

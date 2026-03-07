@@ -28,9 +28,8 @@ async function handleFile(file: File) {
     OUTPUT.render(<HexViewer buffer={buf} />)
 }
 
-function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void }) {
-    const [littleEndian, setLittleEndian] = useState(true);
-    const [format, setFormat] = useState('uint32');
+function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+    const [littleEndian, setLittleEndian] = useState(false);
 
     const targetIndex = index !== null ? index : (selection ? selection[0] : null);
 
@@ -44,22 +43,23 @@ function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint
     }
 
     const view = utils.getDataView(buffer);
-    const rows: { label: string, value: string, numericValue?: number | bigint }[] = [];
+    const rows: { label: string, value: string, numericValue?: number | bigint, size: number }[] = [];
 
     const safeRead = (label: string, size: number, fn: () => number | bigint) => {
         try {
             if (targetIndex + size > buffer.length) {
-                rows.push({ label, value: "N/A" });
+                rows.push({ label, value: "N/A", size });
                 return;
             }
             const val = fn();
             rows.push({
                 label,
                 value: typeof val === 'bigint' ? val.toString() : val.toLocaleString(),
-                numericValue: val
+                numericValue: val,
+                size
             });
         } catch (e) {
-            rows.push({ label, value: "Error" });
+            rows.push({ label, value: "Error", size });
         }
     };
 
@@ -78,10 +78,9 @@ function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint
     rows.push({
         label: "Varint",
         value: varint.value.toString() + ` (${varint.length} bytes)`,
-        numericValue: varint.value
+        numericValue: varint.value,
+        size: varint.length
     });
-
-    const currentFormatValue = rows.find(r => r.label.toLowerCase() === format.toLowerCase())?.numericValue;
 
     return (
         <div id="inspector">
@@ -104,46 +103,50 @@ function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint
             {rows.map(r => (
                 <div key={r.label} className="inspector-row">
                     <span className="inspector-label">{r.label}</span>
-                    <span className="inspector-value">{r.value}</span>
+                    <span className="inspector-value">
+                        {r.value}
+                        <button
+                            className="icon-button"
+                            title="Add Marker"
+                            onMouseEnter={() => setPreviewMarker({ start: targetIndex, length: r.size, format: r.label + (littleEndian ? 'le' : 'be') })}
+                            onMouseLeave={() => setPreviewMarker(null)}
+                            onClick={() => onAddMarker(r.label + (littleEndian ? 'le' : 'be'), r.size)}
+                        >
+                            M
+                        </button>
+                        <button
+                            className="icon-button"
+                            title="Treat as Length"
+                            disabled={r.numericValue === undefined || (typeof r.numericValue === 'number' && r.numericValue < 0) || (typeof r.numericValue === 'bigint' && r.numericValue < 0n)}
+                            onMouseEnter={() => {
+                                if (r.numericValue !== undefined) {
+                                    const dataLength = Number(r.numericValue);
+                                    setPreviewMarker({ start: targetIndex, length: r.size + dataLength, format: 'length', type: 'length', headerLength: r.size });
+                                }
+                            }}
+                            onMouseLeave={() => setPreviewMarker(null)}
+                            onClick={() => {
+                                if (r.numericValue !== undefined) {
+                                    const dataLength = Number(r.numericValue);
+                                    onAddMarker('length', r.size + dataLength, 'length', r.size);
+                                }
+                            }}
+                        >
+                            L
+                        </button>
+                    </span>
                 </div>
             ))}
 
             <h3>Markers</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <select value={format} onChange={(e) => setFormat(e.target.value)}>
-                    <option value="uint8">Uint8</option>
-                    <option value="uint16">Uint16</option>
-                    <option value="uint32">Uint32</option>
-                    <option value="uint64">Uint64</option>
-                    <option value="varint">Varint</option>
-                </select>
-                <button onClick={() => {
-                    let length = 0;
-                    if (format === 'uint8') length = 1;
-                    else if (format === 'uint16') length = 2;
-                    else if (format === 'uint32') length = 4;
-                    else if (format === 'uint64') length = 8;
-                    else if (format === 'varint') length = varint.length;
-                    onAddMarker(format + (littleEndian ? 'le' : 'be'), length);
-                }}>Add Marker at 0x{targetIndex.toString(16).toUpperCase()}</button>
-
-                <button
-                    disabled={currentFormatValue === undefined}
-                    onClick={() => {
-                        let headerLength = 0;
-                        if (format === 'uint8') headerLength = 1;
-                        else if (format === 'uint16') headerLength = 2;
-                        else if (format === 'uint32') headerLength = 4;
-                        else if (format === 'uint64') headerLength = 8;
-                        else if (format === 'varint') headerLength = varint.length;
-
-                        const dataLength = Number(currentFormatValue);
-                        onAddMarker('length', headerLength + dataLength, 'length', headerLength);
-                    }}
-                >
-                    Treat as Length
-                </button>
-            </div>
+            <ul className="marker-list">
+                {markers.map((m, i) => (
+                    <li key={i} className="marker-item">
+                        <span>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
+                        <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
+                    </li>
+                ))}
+            </ul>
         </div>
     )
 }
@@ -153,7 +156,10 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     const [selectionStart, setSelectionStart] = useState<number | null>(null);
     const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
     const [markers, setMarkers] = useState<Marker[]>([]);
+    const [previewMarker, setPreviewMarker] = useState<Marker | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
+
+    const selection: [number, number] | null = selectionStart !== null && selectionEnd !== null ? [Math.min(selectionStart, selectionEnd), Math.max(selectionStart, selectionEnd)] : null;
 
     const onMouseDown = useCallback((index: number) => {
         setSelectionStart(index);
@@ -173,11 +179,15 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     }, []);
 
     const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number) => {
-        const start = selectionStart !== null ? selectionStart : hoverIndex;
+        const start = selection !== null ? selection[0] : hoverIndex;
         if (start !== null) {
             setMarkers([...markers, { start, length, format, type, headerLength }]);
         }
-    }, [markers, selectionStart, hoverIndex]);
+    }, [markers, selection, hoverIndex]);
+
+    const onRemoveMarker = useCallback((index: number) => {
+        setMarkers(markers.filter((_, i) => i !== index));
+    }, [markers]);
 
     useEffect(() => {
         const onMouseUp = () => setIsSelecting(false);
@@ -186,7 +196,6 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     }, []);
 
     const lineCount = Math.ceil(buffer.length / 16)
-    const selection: [number, number] | null = selectionStart !== null && selectionEnd !== null ? [Math.min(selectionStart, selectionEnd), Math.max(selectionStart, selectionEnd)] : null;
 
     return (
         <div style={{ display: 'flex', height: '100%' }}>
@@ -196,12 +205,12 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                     render={(i) => <div key={i}>{offset(i, buffer)}</div>} />
                 <Column id="hex" lineCount={lineCount}
                     header="00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F"
-                    render={(i) => <div key={i}>{renderHex(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
+                    render={(i) => <div key={i}>{renderHex(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
                 <Column id="ascii" lineCount={lineCount}
                     header=" "
-                    render={(i) => <div key={i}>{renderAscii(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
+                    render={(i) => <div key={i}>{renderAscii(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
             </div>
-            <DataInspector buffer={buffer} index={hoverIndex} selection={selection} onAddMarker={onAddMarker} />
+            <DataInspector buffer={buffer} index={hoverIndex} selection={selection} markers={markers} onAddMarker={onAddMarker} onRemoveMarker={onRemoveMarker} setPreviewMarker={setPreviewMarker} />
         </div>
     )
 }
