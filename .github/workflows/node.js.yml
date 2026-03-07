@@ -2,6 +2,7 @@ name: Node.js CI
 
 env:
   CARGO_TERM_COLOR: always
+  TURBO_CACHE_DIR: .turbo
 
 on:
   push:
@@ -38,11 +39,18 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.23.4"
+          cache-dependency-path: |
+            protoscope/go.sum
+            dexviewer/godexviewer/go.sum
+            der/wasm/go.sum
 
       - name: Install wasm-pack
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo install wasm-pack
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -50,10 +58,36 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
 
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
       - run: npm ci
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(npx playwright --version | cut -d' ' -f2)" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - run: npm run build
       - run: npm test
       - run: npx playwright install --with-deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+
       - run: npm run test:integration
       - run: npm run zip-dist
       - name: Upload artifact
