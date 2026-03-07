@@ -57,8 +57,18 @@ describe('offset function', () => {
 });
 
 describe('renderAscii function', () => {
+  const mockState = {
+    hoverIndex: null,
+    selectionStart: null,
+    selectionEnd: null,
+    markers: [],
+    onMouseDown: () => { },
+    onMouseEnter: () => { },
+    onMouseLeave: () => { }
+  };
+
   const renderAndGetSpansForAscii = (line: number, buffer: Uint8Array) => {
-    const { container } = render(React.createElement(React.Fragment, null, renderAscii(line, buffer)));
+    const { container } = render(React.createElement(React.Fragment, null, renderAscii(line, buffer, mockState)));
     return container.querySelectorAll('span');
   };
 
@@ -187,8 +197,18 @@ describe('renderAscii function', () => {
 });
 
 describe('renderHex function', () => {
+  const mockState = {
+    hoverIndex: null,
+    selectionStart: null,
+    selectionEnd: null,
+    markers: [],
+    onMouseDown: () => { },
+    onMouseEnter: () => { },
+    onMouseLeave: () => { }
+  };
+
   const renderAndGetSpansForHex = (line: number, buffer: Uint8Array) => {
-    const { container } = render(React.createElement(React.Fragment, null, renderHex(line, buffer)));
+    const { container } = render(React.createElement(React.Fragment, null, renderHex(line, buffer, mockState)));
     return container.querySelectorAll('span');
   };
 
