@@ -8,6 +8,7 @@ export interface Marker {
     length: number;
     format: string;
     type?: 'data' | 'length';
+    headerLength?: number;
 }
 
 if (window.parent) {
@@ -27,7 +28,7 @@ async function handleFile(file: File) {
     OUTPUT.render(<HexViewer buffer={buf} />)
 }
 
-function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, onAddMarker: (format: string, length: number, type?: 'data' | 'length') => void }) {
+function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void }) {
     const [littleEndian, setLittleEndian] = useState(true);
     const [format, setFormat] = useState('uint32');
 
@@ -137,7 +138,7 @@ function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint
                         else if (format === 'varint') headerLength = varint.length;
 
                         const dataLength = Number(currentFormatValue);
-                        onAddMarker('length', headerLength + dataLength, 'length');
+                        onAddMarker('length', headerLength + dataLength, 'length', headerLength);
                     }}
                 >
                     Treat as Length
@@ -171,10 +172,10 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
         setHoverIndex(null);
     }, []);
 
-    const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data') => {
+    const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number) => {
         const start = selectionStart !== null ? selectionStart : hoverIndex;
         if (start !== null) {
-            setMarkers([...markers, { start, length, format, type }]);
+            setMarkers([...markers, { start, length, format, type, headerLength }]);
         }
     }, [markers, selectionStart, hoverIndex]);
 

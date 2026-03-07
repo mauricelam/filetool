@@ -54,7 +54,11 @@ export function renderAscii(line: number, buffer: Uint8Array, state: RenderState
                 if (i >= marker.start && i < marker.start + marker.length) {
                     classList.push("marked");
                     if (marker.type === 'length') {
-                        classList.push("marked_length");
+                        if (marker.headerLength !== undefined && i < marker.start + marker.headerLength) {
+                            // keep default marked style (yellow)
+                        } else {
+                            classList.push("marked_length");
+                        }
                     }
                 }
             }
@@ -107,7 +111,11 @@ export function renderHex(line: number, buffer: Uint8Array, state: RenderState):
                 if (i >= marker.start && i < marker.start + marker.length) {
                     classList.push("marked");
                     if (marker.type === 'length') {
-                        classList.push("marked_length");
+                        if (marker.headerLength !== undefined && i < marker.start + marker.headerLength) {
+                            // keep default marked style (yellow)
+                        } else {
+                            classList.push("marked_length");
+                        }
                     }
                 }
             }
