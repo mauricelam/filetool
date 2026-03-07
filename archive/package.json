@@ -14,5 +14,14 @@
     "wasmagic": "^1.0.7"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "turbo": {
+    "tasks": {
+      "build": {
+        "outputs": [
+          "../dist/archive/**"
+        ]
+      }
+    }
+  }
 }

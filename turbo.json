@@ -1,0 +1,212 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "tasks": {
+        "build": {
+            "dependsOn": [
+                "^build"
+            ],
+            "outputs": [
+                "dist/**",
+                "build/**"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**"
+            ]
+        },
+        "archive-viewer#build": {
+            "outputs": [
+                "../dist/archive/**"
+            ]
+        },
+        "android-xml-viewer#build": {
+            "outputs": [
+                "../dist/android-xml-viewer/**"
+            ]
+        },
+        "apk-viewer#build": {
+            "outputs": [
+                "../dist/apk-viewer/**"
+            ]
+        },
+        "binutils-viewer#build": {
+            "outputs": [
+                "../dist/binutils/**"
+            ]
+        },
+        "bplistviewer#build": {
+            "outputs": [
+                "../dist/bplistviewer/**"
+            ]
+        },
+        "browser-viewer#build": {
+            "outputs": [
+                "../dist/browser/**"
+            ]
+        },
+        "cborviewer#build": {
+            "outputs": [
+                "../dist/cborviewer/**"
+            ]
+        },
+        "cheerpj-viewer#build": {
+            "outputs": [
+                "../dist/cheerpj/**"
+            ]
+        },
+        "classfile-viewer#build": {
+            "outputs": [
+                "../dist/classfile/**"
+            ]
+        },
+        "classyshark#build": {
+            "outputs": [
+                "../dist/classyshark/**"
+            ]
+        },
+        "cyberchef#build": {
+            "outputs": [
+                "../dist/cyberchef/**"
+            ]
+        },
+        "der#build": {
+            "outputs": [
+                "../dist/der/**"
+            ]
+        },
+        "dexviewer#build": {
+            "outputs": [
+                "../dist/dexviewer/**"
+            ]
+        },
+        "dmg-viewer#build": {
+            "outputs": [
+                "../dist/dmg-viewer/**"
+            ]
+        },
+        "ffmpeg#build": {
+            "outputs": [
+                "../dist/ffmpeg/**"
+            ]
+        },
+        "flatbuffers#build": {
+            "outputs": [
+                "../dist/flatbuffers/**"
+            ]
+        },
+        "graphviz#build": {
+            "outputs": [
+                "../dist/graphviz/**"
+            ]
+        },
+        "hex-viewer#build": {
+            "outputs": [
+                "../dist/hex_viewer/**"
+            ]
+        },
+        "imagemagick#build": {
+            "outputs": [
+                "../dist/imagemagick/**"
+            ]
+        },
+        "img-viewer#build": {
+            "outputs": [
+                "../dist/img-viewer/**"
+            ]
+        },
+        "jqviewer#build": {
+            "outputs": [
+                "../dist/jqviewer/**"
+            ]
+        },
+        "lzfse#build": {
+            "outputs": [
+                "../dist/lzfse/**"
+            ]
+        },
+        "markdown-viewer#build": {
+            "outputs": [
+                "../dist/markdown/**"
+            ]
+        },
+        "mhtml-viewer#build": {
+            "outputs": [
+                "../dist/mhtml/**"
+            ]
+        },
+        "parquetviewer#build": {
+            "outputs": [
+                "../dist/parquetviewer/**"
+            ]
+        },
+        "pdfjs-viewer#build": {
+            "outputs": [
+                "../dist/pdfjs/**"
+            ]
+        },
+        "proguardviewer#build": {
+            "outputs": [
+                "../dist/proguardviewer/**"
+            ]
+        },
+        "protoscope#build": {
+            "outputs": [
+                "../dist/protoscope/**"
+            ]
+        },
+        "rstviewer#build": {
+            "outputs": [
+                "../dist/rstviewer/**"
+            ]
+        },
+        "setools-viewer#build": {
+            "outputs": [
+                "../dist/setools/**"
+            ]
+        },
+        "sqliteviewer#build": {
+            "outputs": [
+                "../dist/sqliteviewer/**"
+            ]
+        },
+        "svgviewer#build": {
+            "outputs": [
+                "../dist/svgviewer/**"
+            ]
+        },
+        "textviewer#build": {
+            "outputs": [
+                "../dist/textviewer/**"
+            ]
+        },
+        "wat_viewer#build": {
+            "outputs": [
+                "../dist/wat_viewer/**"
+            ]
+        },
+        "webgl-previewer#build": {
+            "outputs": [
+                "../dist/webgl_previewer/**"
+            ]
+        },
+        "filemagic#build": {
+            "outputs": [
+                "../dist/index.html",
+                "../dist/libmagic-wrapper.wasm",
+                "../dist/main.js",
+                "../dist/main.js.map",
+                "../dist/icons/**"
+            ]
+        },
+        "test": {
+            "dependsOn": [
+                "build"
+            ],
+            "outputs": []
+        },
+        "watch": {
+            "cache": false,
+            "persistent": true
+        }
+    }
+}

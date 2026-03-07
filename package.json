@@ -1,5 +1,6 @@
 {
     "name": "filemagic",
+    "packageManager": "npm@11.6.2",
     "workspaces": [
         "archive",
         "android-xml-viewer",
@@ -44,12 +45,11 @@
     ],
     "scripts": {
         "start": "node serve.mts",
-        "build:workspaces": "npm run build --workspaces",
-        "watch:workspaces": "npm pkg get name --ws | jq -c -r 'keys | .[]' | xargs -P 99 -I {} npm run watch --silent -w {}",
+        "watch:workspaces": "turbo watch build",
         "serve": "run-p --silent \"watch:workspaces\" start",
-        "build": "npm run build:workspaces",
+        "build": "turbo build",
         "zip-dist": "cd dist && zip -r dist.zip . -x dist.zip",
-        "test": "npm run test --workspaces --if-present",
+        "test": "turbo test",
         "test:integration": "npm run build && node tests/integration/build.mjs && playwright test"
     },
     "devDependencies": {
@@ -74,6 +74,7 @@
         "npm-run-all": "^4.1.5",
         "serve-static": "^1.16.2",
         "ts-jest": "^29.4.5",
+        "turbo": "^2.8.14",
         "typescript": "^5.5.4",
         "vitest": "4.0.16"
     },

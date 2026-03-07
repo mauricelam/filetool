@@ -100,42 +100,81 @@ When implementing modal dialogs in this repository, follow these UX and accessib
 Following these rules makes dialogs predictable and keyboard-friendly for all users. See `jqviewer/cheatsheet.tsx` and `jqviewer/main.tsx` for an example implementation in this project.
 
 
+## Development and Building
+
+This project is a monorepo managed with [Turborepo](https://turbo.build/).
+
+### Setup
+
+```sh
+# Install dependencies
+npm install
+```
+
+### Development
+
+To start the development server with live-reloading for all workspaces:
+
+```sh
+npm run serve
+```
+
+This runs `turbo watch` in parallel with the main development server.
+
+### Building
+
+To build all workspaces in parallel:
+
+```sh
+npm run build
+```
+
+The build artifacts are generally placed in the root `dist/` directory.
+
+#### Building specific handlers
+
+To build a single handler (workspace), use the `--filter` flag:
+
+```sh
+npx turbo build --filter=archive-viewer
+```
+
+Replace `archive-viewer` with the package name of the workspace (found in its `package.json`).
+
 ## Testing
 
-This project contains both unit tests and integration tests.
+This project contains both unit tests and integration tests, orchestrated by Turborepo.
 
 ### Unit Tests
 
-Unit tests are located within their respective workspaces and can be run individually.
+You can run unit tests for all workspaces:
+
+```sh
+npm run test
+```
+
+To run tests for a specific workspace:
+
+```sh
+npx turbo test --filter=proguardviewer
+```
 
 - **Rust/WASM Unit Tests**: For workspaces with Rust-based WebAssembly modules (e.g., `proguardviewer/proguard-wasm`), navigate to the module's directory and run `cargo test`.
 
-  ```sh
-  cd proguardviewer/proguard-wasm
-  cargo test
-  ```
-
-- **Frontend Unit Tests**: For workspaces with React components (e.g., `proguardviewer`), tests are run using `vitest`. Run the tests from the root directory using the `-w` flag to specify the workspace.
-
-  ```sh
-  npm test -w proguardviewer
-  ```
+- **Frontend Unit Tests**: React components use `vitest` or `jest`.
 
 ### Integration tests
 
-This repository includes Playwright-based integration tests under `tests/integration/`. The tests use a small test harness page (`tests/integration/driver.html` and `tests/integration/driver.js`) that loads a handler iframe and posts a file to it.
-
-The development server (`serve.mts`) is used to serve the application on port `8080` during testing.
+This repository includes Playwright-based integration tests under `tests/integration/`. The tests use a small test harness page that loads a handler iframe and posts a file to it.
 
 #### How to run
 
-From the project root run the integration test script used by this repo:
+From the project root:
 
 ```sh
 npm run test:integration
 ```
 
-This command will automatically start the development server and run the Playwright tests.
+This command will build the project, prepare the test harness, and run the Playwright tests.
 
-If you add or change handlers, update `tests/integration/driver.js` or the tests as needed.
 

@@ -16,5 +16,14 @@
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "turbo": {
+    "tasks": {
+      "build": {
+        "outputs": [
+          "../dist/setools/**"
+        ]
+      }
+    }
+  }
 }
