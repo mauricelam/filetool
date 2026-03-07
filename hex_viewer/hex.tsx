@@ -53,6 +53,9 @@ export function renderAscii(line: number, buffer: Uint8Array, state: RenderState
             for (const marker of state.markers) {
                 if (i >= marker.start && i < marker.start + marker.length) {
                     classList.push("marked");
+                    if (marker.type === 'length') {
+                        classList.push("marked_length");
+                    }
                 }
             }
 
@@ -103,20 +106,26 @@ export function renderHex(line: number, buffer: Uint8Array, state: RenderState):
             for (const marker of state.markers) {
                 if (i >= marker.start && i < marker.start + marker.length) {
                     classList.push("marked");
+                    if (marker.type === 'length') {
+                        classList.push("marked_length");
+                    }
                 }
             }
 
             const space = i == line * 16 ? "" : " "
+            const hex = zero(v, 2);
             yield (
-                <span
-                    key={i}
-                    className={classList.join(" ")}
-                    onMouseDown={() => state.onMouseDown(i)}
-                    onMouseEnter={() => state.onMouseEnter(i)}
-                    onMouseLeave={state.onMouseLeave}
-                >
-                    {space}{zero(v, 2)}
-                </span>
+                <React.Fragment key={i}>
+                    {space && <span>{space}</span>}
+                    <span
+                        className={classList.join(" ")}
+                        onMouseDown={() => state.onMouseDown(i)}
+                        onMouseEnter={() => state.onMouseEnter(i)}
+                        onMouseLeave={state.onMouseLeave}
+                    >
+                        {hex}
+                    </span>
+                </React.Fragment>
             )
         }
     }

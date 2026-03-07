@@ -7,6 +7,7 @@ export interface Marker {
     start: number;
     length: number;
     format: string;
+    type?: 'data' | 'length';
 }
 
 if (window.parent) {
@@ -26,7 +27,7 @@ async function handleFile(file: File) {
     OUTPUT.render(<HexViewer buffer={buf} />)
 }
 
-function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, onAddMarker: (format: string, length: number) => void }) {
+function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, onAddMarker: (format: string, length: number, type?: 'data' | 'length') => void }) {
     const [littleEndian, setLittleEndian] = useState(true);
     const [format, setFormat] = useState('uint32');
 
@@ -41,30 +42,45 @@ function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint
         )
     }
 
-    const rows = [];
-    const safeRead = (fn: Function, size: number) => {
+    const view = utils.getDataView(buffer);
+    const rows: { label: string, value: string, numericValue?: number | bigint }[] = [];
+
+    const safeRead = (label: string, size: number, fn: () => number | bigint) => {
         try {
-            if (targetIndex + size > buffer.length) return "N/A";
-            const val = fn(buffer, targetIndex, littleEndian);
-            return typeof val === 'bigint' ? val.toString() : val.toLocaleString();
+            if (targetIndex + size > buffer.length) {
+                rows.push({ label, value: "N/A" });
+                return;
+            }
+            const val = fn();
+            rows.push({
+                label,
+                value: typeof val === 'bigint' ? val.toString() : val.toLocaleString(),
+                numericValue: val
+            });
         } catch (e) {
-            return "Error";
+            rows.push({ label, value: "Error" });
         }
     };
 
-    rows.push({ label: "Int8", value: safeRead(utils.readInt8, 1) });
-    rows.push({ label: "Uint8", value: safeRead(utils.readUint8, 1) });
-    rows.push({ label: "Int16", value: safeRead(utils.readInt16, 2) });
-    rows.push({ label: "Uint16", value: safeRead(utils.readUint16, 2) });
-    rows.push({ label: "Int32", value: safeRead(utils.readInt32, 4) });
-    rows.push({ label: "Uint32", value: safeRead(utils.readUint32, 4) });
-    rows.push({ label: "Int64", value: safeRead(utils.readBigInt64, 8) });
-    rows.push({ label: "Uint64", value: safeRead(utils.readBigUint64, 8) });
-    rows.push({ label: "Float32", value: safeRead(utils.readFloat32, 4) });
-    rows.push({ label: "Float64", value: safeRead(utils.readFloat64, 8) });
+    safeRead("Int8", 1, () => view.getInt8(targetIndex));
+    safeRead("Uint8", 1, () => view.getUint8(targetIndex));
+    safeRead("Int16", 2, () => view.getInt16(targetIndex, littleEndian));
+    safeRead("Uint16", 2, () => view.getUint16(targetIndex, littleEndian));
+    safeRead("Int32", 4, () => view.getInt32(targetIndex, littleEndian));
+    safeRead("Uint32", 4, () => view.getUint32(targetIndex, littleEndian));
+    safeRead("Int64", 8, () => view.getBigInt64(targetIndex, littleEndian));
+    safeRead("Uint64", 8, () => view.getBigUint64(targetIndex, littleEndian));
+    safeRead("Float32", 4, () => view.getFloat32(targetIndex, littleEndian));
+    safeRead("Float64", 8, () => view.getFloat64(targetIndex, littleEndian));
 
     const varint = utils.readVarint(buffer, targetIndex);
-    rows.push({ label: "Varint", value: varint.value.toString() + ` (${varint.length} bytes)` });
+    rows.push({
+        label: "Varint",
+        value: varint.value.toString() + ` (${varint.length} bytes)`,
+        numericValue: varint.value
+    });
+
+    const currentFormatValue = rows.find(r => r.label.toLowerCase() === format.toLowerCase())?.numericValue;
 
     return (
         <div id="inspector">
@@ -76,10 +92,12 @@ function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint
             <div className="inspector-row">
                 <span className="inspector-label">Endian</span>
                 <span className="inspector-value">
-                    <select value={littleEndian ? "le" : "be"} onChange={(e) => setLittleEndian(e.target.value === "le")}>
-                        <option value="le">Little Endian</option>
-                        <option value="be">Big Endian</option>
-                    </select>
+                    <label style={{ marginRight: '8px' }}>
+                        <input type="radio" name="endian" value="le" checked={littleEndian} onChange={() => setLittleEndian(true)} /> LE
+                    </label>
+                    <label>
+                        <input type="radio" name="endian" value="be" checked={!littleEndian} onChange={() => setLittleEndian(false)} /> BE
+                    </label>
                 </span>
             </div>
             {rows.map(r => (
@@ -104,9 +122,26 @@ function DataInspector({ buffer, index, selection, onAddMarker }: { buffer: Uint
                     else if (format === 'uint16') length = 2;
                     else if (format === 'uint32') length = 4;
                     else if (format === 'uint64') length = 8;
-                    else if (format === 'varint') length = utils.readVarint(buffer, targetIndex).length;
+                    else if (format === 'varint') length = varint.length;
                     onAddMarker(format + (littleEndian ? 'le' : 'be'), length);
                 }}>Add Marker at 0x{targetIndex.toString(16).toUpperCase()}</button>
+
+                <button
+                    disabled={currentFormatValue === undefined}
+                    onClick={() => {
+                        let headerLength = 0;
+                        if (format === 'uint8') headerLength = 1;
+                        else if (format === 'uint16') headerLength = 2;
+                        else if (format === 'uint32') headerLength = 4;
+                        else if (format === 'uint64') headerLength = 8;
+                        else if (format === 'varint') headerLength = varint.length;
+
+                        const dataLength = Number(currentFormatValue);
+                        onAddMarker('length', headerLength + dataLength, 'length');
+                    }}
+                >
+                    Treat as Length
+                </button>
             </div>
         </div>
     )
@@ -136,11 +171,10 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
         setHoverIndex(null);
     }, []);
 
-    const onAddMarker = useCallback((format: string, length: number) => {
-        if (selectionStart !== null) {
-            setMarkers([...markers, { start: selectionStart, length, format }]);
-        } else if (hoverIndex !== null) {
-            setMarkers([...markers, { start: hoverIndex, length, format }]);
+    const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data') => {
+        const start = selectionStart !== null ? selectionStart : hoverIndex;
+        if (start !== null) {
+            setMarkers([...markers, { start, length, format, type }]);
         }
     }, [markers, selectionStart, hoverIndex]);
 
