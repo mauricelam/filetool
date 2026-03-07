@@ -209,7 +209,9 @@ describe('renderHex function', () => {
 
   const renderAndGetSpansForHex = (line: number, buffer: Uint8Array) => {
     const { container } = render(React.createElement(React.Fragment, null, renderHex(line, buffer, mockState)));
-    return container.querySelectorAll('span');
+    // In the new implementation, hex bytes and spaces are separate elements.
+    // We only want the spans that contain the hex values.
+    return Array.from(container.querySelectorAll('span')).filter(s => s.textContent && s.textContent.trim().length === 2);
   };
 
   it('should render various byte values with correct hex, spacing, and classes', () => {
@@ -219,15 +221,15 @@ describe('renderHex function', () => {
     const spans = renderAndGetSpansForHex(0, data);
     expect(spans.length).toBe(5);
 
-    expect(spans[0].textContent).toBe('48'); // No leading space
+    expect(spans[0].textContent).toBe('48');
     expect(spans[0]).toHaveClass('char_ascii');
-    expect(spans[1].textContent).toBe(' 00'); // Leading space
+    expect(spans[1].textContent).toBe('00');
     expect(spans[1]).toHaveClass('char_null');
-    expect(spans[2].textContent).toBe(' 05');
+    expect(spans[2].textContent).toBe('05');
     expect(spans[2]).toHaveClass('char_unknown');
-    expect(spans[3].textContent).toBe(' FF');
+    expect(spans[3].textContent).toBe('FF');
     expect(spans[3]).toHaveClass('char_ascii'); // 0xFF > 159
-    expect(spans[4].textContent).toBe(' A1');
+    expect(spans[4].textContent).toBe('A1');
     expect(spans[4]).toHaveClass('char_ascii'); // 0xA1 > 159
   });
 
@@ -243,9 +245,9 @@ describe('renderHex function', () => {
     expect(spans.length).toBe(3);
     expect(spans[0].textContent).toBe('01');
     expect(spans[0]).toHaveClass('char_unknown');
-    expect(spans[1].textContent).toBe(' 02');
+    expect(spans[1].textContent).toBe('02');
     expect(spans[1]).toHaveClass('char_unknown');
-    expect(spans[2].textContent).toBe(' 03');
+    expect(spans[2].textContent).toBe('03');
     expect(spans[2]).toHaveClass('char_unknown');
   });
 
@@ -257,9 +259,9 @@ describe('renderHex function', () => {
     expect(spans.length).toBe(16);
     expect(spans[0].textContent).toBe('00');
     expect(spans[0]).toHaveClass('char_null');
-    expect(spans[1].textContent).toBe(' 01');
+    expect(spans[1].textContent).toBe('01');
     expect(spans[1]).toHaveClass('char_unknown');
-    expect(spans[15].textContent).toBe(' 0F'); // 15 = 0F
+    expect(spans[15].textContent).toBe('0F'); // 15 = 0F
     expect(spans[15]).toHaveClass('char_unknown');
   });
 
@@ -276,11 +278,11 @@ describe('renderHex function', () => {
 
     expect(spans[0].textContent).toBe('AA'); // 0xAA > 159 -> char_ascii
     expect(spans[0]).toHaveClass('char_ascii');
-    expect(spans[1].textContent).toBe(' BB'); // 0xBB > 159 -> char_ascii
+    expect(spans[1].textContent).toBe('BB'); // 0xBB > 159 -> char_ascii
     expect(spans[1]).toHaveClass('char_ascii');
-    expect(spans[2].textContent).toBe(' CC'); // 0xCC > 159 -> char_ascii
+    expect(spans[2].textContent).toBe('CC'); // 0xCC > 159 -> char_ascii
     expect(spans[2]).toHaveClass('char_ascii');
-    expect(spans[3].textContent).toBe(' DD'); // 0xDD > 159 -> char_ascii
+    expect(spans[3].textContent).toBe('DD'); // 0xDD > 159 -> char_ascii
     expect(spans[3]).toHaveClass('char_ascii');
   });
 
@@ -289,8 +291,8 @@ describe('renderHex function', () => {
     const spans = renderAndGetSpansForHex(0, data);
     expect(spans.length).toBe(4);
     expect(spans[0].textContent).toBe('0A');
-    expect(spans[1].textContent).toBe(' 0F');
-    expect(spans[2].textContent).toBe(' A1');
-    expect(spans[3].textContent).toBe(' F0');
+    expect(spans[1].textContent).toBe('0F');
+    expect(spans[2].textContent).toBe('A1');
+    expect(spans[3].textContent).toBe('F0');
   });
 });
