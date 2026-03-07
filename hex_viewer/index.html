@@ -36,6 +36,83 @@
         .char_unknown {
             color: #b05279;
         }
+
+        .hovered {
+            background-color: #444;
+        }
+
+        .selected {
+            background-color: #264f78;
+        }
+
+        .marked {
+            text-decoration: underline;
+            text-decoration-color: #f0ad4e;
+            text-decoration-thickness: 2px;
+        }
+
+        .marked_length {
+            text-decoration-color: #5bc0de;
+        }
+
+        #inspector {
+            width: 300px;
+            background-color: #1e1e1e;
+            border-left: 1px solid #333;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        #inspector h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .inspector-row {
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d2d;
+        }
+
+        .inspector-label {
+            color: #aaa;
+        }
+
+        .inspector-value {
+            color: #fff;
+            word-break: break-all;
+            text-align: right;
+            margin-left: 8px;
+        }
+
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        button:hover {
+            background-color: #1177bb;
+        }
+
+        select, input {
+            background-color: #3c3c3c;
+            color: white;
+            border: 1px solid #3c3c3c;
+            padding: 2px;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
