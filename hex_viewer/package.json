@@ -12,5 +12,14 @@
     "react-dom": "^18.3.1"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "turbo": {
+    "tasks": {
+      "build": {
+        "outputs": [
+          "../dist/hex_viewer/**"
+        ]
+      }
+    }
+  }
 }

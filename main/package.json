@@ -17,5 +17,18 @@
     "typescript": "^5.3.3"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "turbo": {
+    "tasks": {
+      "build": {
+        "outputs": [
+          "../dist/index.html",
+          "../dist/libmagic-wrapper.wasm",
+          "../dist/main.js",
+          "../dist/main.js.map",
+          "../dist/icons/**"
+        ]
+      }
+    }
+  }
 }
