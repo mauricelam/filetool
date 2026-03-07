@@ -4,10 +4,9 @@ import fs from 'fs';
 import path from 'path';
 
 test('img-viewer should list files in an ext4 image', async ({ page }) => {
-    const filePath = path.join(process.cwd(), 'test_ext4.img');
+    const filePath = path.resolve(__dirname, '../../img-viewer/example/test_ext4.img');
     if (!fs.existsSync(filePath)) {
-        console.warn('test_ext4.img not found, skipping test');
-        return;
+        throw new Error(`test_ext4.img fixture not found at ${filePath}`);
     }
 
     const fileBuffer = fs.readFileSync(filePath);
