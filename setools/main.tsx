@@ -127,7 +127,7 @@ function App({ file }: { file: File }) {
             }
         } else {
             const low = searchTerm.toLowerCase();
-            matcher = (x) => x && x.toLowerCase().includes(low);
+            matcher = (x) => !!x && x.toLowerCase().includes(low);
         }
 
         const s = policyInfo.symbols;
