@@ -27,8 +27,8 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
     // Verify policy version and symbol counts from the binary
     await expect(iframe.locator('body')).toContainText('Version: 30');
 
-    // Verify "Allow Rules" tab shows resolved permissions.
-    await iframe.getByRole('tab', { name: /Allow Rules/ }).click();
+    // Verify "Allow" tab shows resolved permissions.
+    await iframe.getByRole('tab', { name: /Allow \(/ }).click();
     await iframe.getByPlaceholder(/Search symbols or rules/).fill('dumpstate');
     await expect(iframe.locator('body')).toContainText('allow dumpstate uce_service:service_manager { find };');
 
@@ -43,7 +43,7 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
     await expect(iframe.locator('body')).toContainText('allow surfaceflinger');
 
     // Test Regex for symbols
-    await iframe.getByRole('tab', { name: /Types/ }).click();
+    await iframe.getByRole('tab', { name: /Types \(/ }).click();
     await iframe.getByPlaceholder(/Search symbols or rules/).fill('^shell$');
     await expect(iframe.locator('body')).toContainText('shell');
     await expect(iframe.locator('body')).not.toContainText('adbd_shell'); // Should be excluded by ^ and $

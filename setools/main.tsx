@@ -19,6 +19,9 @@ interface PolicyInfo {
         types: number;
         roles: number;
         rules: number;
+        auditallow: number;
+        dontaudit: number;
+        neverallow: number;
         classes: number;
         users: number;
         bools: number;
@@ -43,6 +46,9 @@ let currentWorker: Worker | null = null;
 function App({ file }: { file: File }) {
     const [policyInfo, setPolicyInfo] = useState<PolicyInfo | null>(null)
     const [rules, setRules] = useState<string[]>([])
+    const [auditAllowRules, setAuditAllowRules] = useState<string[]>([])
+    const [dontAuditRules, setDontAuditRules] = useState<string[]>([])
+    const [neverAllowRules, setNeverAllowRules] = useState<string[]>([])
     const [error, setError] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [isRegex, setIsRegex] = useState(false)
@@ -69,11 +75,12 @@ function App({ file }: { file: File }) {
                     } else if (e.data.action === 'parsed') {
                         // Metadata and initial symbols extracted
                         setPolicyInfo(e.data);
-                        // Trigger initial empty search to fetch a sample of allow rules
-                        currentWorker?.postMessage({ action: 'search', query: '' });
                     } else if (e.data.action === 'results') {
-                        // Allow rules search results
-                        setRules(e.data.results);
+                        // Handle search results for different rule categories
+                        if (e.data.ruleType === 'auditallow') setAuditAllowRules(e.data.results);
+                        else if (e.data.ruleType === 'dontaudit') setDontAuditRules(e.data.results);
+                        else if (e.data.ruleType === 'neverallow') setNeverAllowRules(e.data.results);
+                        else setRules(e.data.results);
                     }
                     setLoading(false);
                 }
@@ -93,7 +100,10 @@ function App({ file }: { file: File }) {
     // Effect to update search results when search term or regex mode changes.
     useEffect(() => {
         if (policyInfo) {
-            currentWorker?.postMessage({ action: 'search', query: searchTerm, isRegex });
+            currentWorker?.postMessage({ action: 'search', query: searchTerm, isRegex, ruleType: 'allow' });
+            currentWorker?.postMessage({ action: 'search', query: searchTerm, isRegex, ruleType: 'auditallow' });
+            currentWorker?.postMessage({ action: 'search', query: searchTerm, isRegex, ruleType: 'dontaudit' });
+            currentWorker?.postMessage({ action: 'search', query: searchTerm, isRegex, ruleType: 'neverallow' });
         }
     }, [searchTerm, isRegex, policyInfo]);
 
@@ -185,7 +195,10 @@ function App({ file }: { file: File }) {
             {/* Tabbed interface for different policy aspects */}
             <Tabs>
                 <TabList>
-                    <Tab>Allow Rules ({rules.length})</Tab>
+                    <Tab>Allow ({rules.length})</Tab>
+                    <Tab>Auditallow ({auditAllowRules.length})</Tab>
+                    <Tab>Dontaudit ({dontAuditRules.length})</Tab>
+                    <Tab>Neverallow ({neverAllowRules.length})</Tab>
                     <Tab>Types ({filteredSymbols?.types.length || 0})</Tab>
                     <Tab>Attributes ({filteredSymbols?.attributes.length || 0})</Tab>
                     <Tab>Roles ({filteredSymbols?.roles.length || 0})</Tab>
@@ -195,7 +208,7 @@ function App({ file }: { file: File }) {
                     <Tab>Summary</Tab>
                 </TabList>
 
-                {/* Allow Rules Tab: uses AceEditor for large text display and search */}
+                {/* Rules Tabs: use AceEditor for large text display and search */}
                 <TabPanel>
                     <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', minHeight: 0 }}>
                         <AceEditor
@@ -203,6 +216,45 @@ function App({ file }: { file: File }) {
                             mode="lisp"
                             theme="twilight"
                             name="rules-editor"
+                            readOnly={true}
+                            style={{ width: '100%', height: '100%' }}
+                            setOptions={{ useWorker: false }}
+                        />
+                    </div>
+                </TabPanel>
+                <TabPanel>
+                    <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', minHeight: 0 }}>
+                        <AceEditor
+                            value={auditAllowRules.join('\n')}
+                            mode="lisp"
+                            theme="twilight"
+                            name="auditallow-editor"
+                            readOnly={true}
+                            style={{ width: '100%', height: '100%' }}
+                            setOptions={{ useWorker: false }}
+                        />
+                    </div>
+                </TabPanel>
+                <TabPanel>
+                    <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', minHeight: 0 }}>
+                        <AceEditor
+                            value={dontAuditRules.join('\n')}
+                            mode="lisp"
+                            theme="twilight"
+                            name="dontaudit-editor"
+                            readOnly={true}
+                            style={{ width: '100%', height: '100%' }}
+                            setOptions={{ useWorker: false }}
+                        />
+                    </div>
+                </TabPanel>
+                <TabPanel>
+                    <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '4px', minHeight: 0 }}>
+                        <AceEditor
+                            value={neverAllowRules.join('\n')}
+                            mode="lisp"
+                            theme="twilight"
+                            name="neverallow-editor"
                             readOnly={true}
                             style={{ width: '100%', height: '100%' }}
                             setOptions={{ useWorker: false }}

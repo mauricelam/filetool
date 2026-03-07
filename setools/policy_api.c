@@ -133,26 +133,32 @@ int api_get_boolean_state(policy_handle_t *h, int bool_val) {
     return b->state;
 }
 
+// State for rule counting traversal.
+struct rule_count_state {
+    uint16_t mask;
+    int count;
+};
+
 /**
- * count_allow_rules: Traversal callback for counting allowed rules.
+ * count_rules_by_mask: Traversal callback for counting rules matching a mask.
  */
-static int count_allow_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
-    int *count = (int *)ptr;
-    if (k->specified & AVTAB_ALLOWED) {
-        (*count)++;
+static int count_rules_by_mask(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
+    struct rule_count_state *state = (struct rule_count_state *)ptr;
+    if (k->specified & state->mask) {
+        state->count++;
     }
     return 0;
 }
 
 /**
- * api_get_rule_count: Returns the total number of 'allow' rules in the Access Vector Table.
+ * api_get_rule_count: Returns the number of rules matching the specified mask.
  */
 EMSCRIPTEN_KEEPALIVE
-int api_get_rule_count(policy_handle_t *h) {
+int api_get_rule_count(policy_handle_t *h, uint16_t specified_mask) {
     policydb_t *db = &((struct sepol_policydb *)(h->db))->p;
-    int count = 0;
-    avtab_map(&db->te_avtab, count_allow_rules, &count);
-    return count;
+    struct rule_count_state state = { specified_mask, 0 };
+    avtab_map(&db->te_avtab, count_rules_by_mask, &state);
+    return state.count;
 }
 
 // Internal structure for returning rule information to the JS layer.
@@ -172,6 +178,7 @@ struct rule_collect_state {
     const char *query;
     int is_regex;
     regex_t *regex_compiled;
+    uint16_t specified_mask;
 };
 
 /**
@@ -183,8 +190,8 @@ struct rule_collect_state {
 static int collect_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
     struct rule_collect_state *state = (struct rule_collect_state *)ptr;
 
-    // We are primarily interested in 'allow' rules for this viewer.
-    if (!(k->specified & AVTAB_ALLOWED)) return 0;
+    // Filter rules by the requested mask (Allow, Auditallow, etc.)
+    if (!(k->specified & state->specified_mask)) return 0;
     if (state->index >= state->max) return 0;
 
     // If a search query is provided, check if either the source or target type names contain it.
@@ -226,12 +233,12 @@ static int collect_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
 /**
  * api_get_rules: Searches and collects rules from the policy.
  *
- * Iterates through the entire Access Vector Table and filters rules based on 'query'.
- * Matches are written to the 'out_rules' buffer up to 'max_rules'.
+ * Iterates through the entire Access Vector Table and filters rules based on 'query'
+ * and 'specified_mask'. Matches are written to the 'out_rules' buffer up to 'max_rules'.
  * Supports both plain-text substring and POSIX extended regex matching.
  */
 EMSCRIPTEN_KEEPALIVE
-int api_get_rules(policy_handle_t *h, rule_info_t *out_rules, int max_rules, const char *query, int is_regex) {
+int api_get_rules(policy_handle_t *h, rule_info_t *out_rules, int max_rules, const char *query, int is_regex, uint16_t specified_mask) {
     policydb_t *db = &((struct sepol_policydb *)(h->db))->p;
     regex_t regex;
     regex_t *regex_ptr = NULL;
@@ -252,7 +259,7 @@ int api_get_rules(policy_handle_t *h, rule_info_t *out_rules, int max_rules, con
         }
     }
 
-    struct rule_collect_state state = { h, out_rules, 0, max_rules, query, is_regex, regex_ptr };
+    struct rule_collect_state state = { h, out_rules, 0, max_rules, query, is_regex, regex_ptr, specified_mask };
 
     // avtab_map is an efficient way to visit every node in the policy's internal hash table.
     avtab_map(&db->te_avtab, collect_rules, &state);
