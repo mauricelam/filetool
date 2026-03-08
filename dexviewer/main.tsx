@@ -16,6 +16,7 @@ type ExtendedJClass = JClass & Partial<{
     super_name: string | null;
     interfaces: string[];
     annotations: string[];
+    method_names: string[];
 }>;
 
 // Expand the package tree path so the target class node is rendered
@@ -76,11 +77,11 @@ function getTotalClassCount(node: PackageNode): number {
     return count;
 }
 
-window.onmessage = (e) => {
+window.addEventListener('message', (e) => {
     if (e.data.action === 'respondFile') {
         handleFile(e.data.file)
     }
-}
+});
 
 // Generate a stable unique key for a method element
 function getMethodKey(method: ExtendedJMethod): string {
@@ -97,6 +98,7 @@ const OUTPUT = createRoot(document.getElementById('output')!)
 function App({ file }: { file: File }) {
     const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
     const [classes, setClasses] = useState<JClass[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         async function setup() {
@@ -119,15 +121,42 @@ function App({ file }: { file: File }) {
     }
 
     if (classes.length === 0) {
-        return <div>Loading...</div>
+        return <div className="loading">Loading...</div>
     }
+
+    const filteredClasses = classes.filter(c => {
+        const search = searchTerm.toLowerCase();
+        if (!search) return true;
+        const jc = c as ExtendedJClass;
+        return jc.original_name.toLowerCase().includes(search) ||
+               (jc.method_names || []).some(m => m.toLowerCase().includes(search));
+    });
 
     return (
         <>
-            <ProguardUploader onUpload={handleProguardUpload} />
-            <ClassTree classes={classes} dexfile={fileBytes!} />
+            <Header onSearch={setSearchTerm} onProguardUpload={handleProguardUpload} />
+            <ClassTree classes={filteredClasses} dexfile={fileBytes!} />
         </>
     )
+}
+
+function Header({ onSearch, onProguardUpload }: {
+    onSearch: (term: string) => void,
+    onProguardUpload: (content: string) => void
+}) {
+    return (
+        <div className="header">
+            <div className="search-container">
+                <input
+                    type="text"
+                    className="search-input"
+                    placeholder="Search classes or methods..."
+                    onChange={(e) => onSearch(e.target.value)}
+                />
+            </div>
+            <ProguardUploader onUpload={onProguardUpload} />
+        </div>
+    );
 }
 
 function ProguardUploader({ onUpload }: { onUpload: (content: string) => void }) {
@@ -141,9 +170,9 @@ function ProguardUploader({ onUpload }: { onUpload: (content: string) => void })
     };
 
     return (
-        <div>
+        <div className="proguard-uploader-compact">
             <label>
-                Proguard mapping.txt:
+                Upload Proguard mapping.txt
                 <input type="file" onChange={handleFileChange} />
             </label>
         </div>
@@ -243,7 +272,7 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
     }
 
     return (
-        <div className="package-node">
+        <div className={`package-node ${isExpanded ? 'expanded' : ''}`}>
             <div
                 className="package-header"
                 onClick={() => setIsExpanded(!isExpanded)}
@@ -296,12 +325,15 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
 
 function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, dexfile: Uint8Array, level: number }) {
     const [expanded, setExpanded] = useState(false)
+    const [showMembers, setShowMembers] = useState(false)
     const [methods, setMethods] = useState<JMethod[]>([])
     const [fields, setFields] = useState<JField[]>([])
     const [loading, setLoading] = useState(false)
 
-    const loadMembers = async () => {
-        if (!expanded || (methods.length > 0 && fields.length > 0)) return
+    const loadMembers = async (e?: React.MouseEvent) => {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
+        setShowMembers(true);
+        if (methods.length > 0 || fields.length > 0) return;
 
         setLoading(true)
         try {
@@ -318,8 +350,6 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
         }
     }
 
-    useEffect(() => { loadMembers() }, [expanded])
-
     const navigateToClass = async (className: string) => {
         const dotted = className.replace(/\//g, '.')
         await expandPackagePathForClass(dotted)
@@ -328,8 +358,8 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
         const el = document.getElementById(classId)
         if (el) {
             const header = el.querySelector('.class-header') as HTMLElement | null
-            const content = el.querySelector(':scope > div[style]') as HTMLElement | null
-            if (header && content && content.style.display === 'none') {
+            const content = el.querySelector(':scope > .class-content') as HTMLElement | null
+            if (header && (!content || content.style.display === 'none')) {
                 header.click()
                 await new Promise(r => requestAnimationFrame(() => r(null)))
             }
@@ -337,58 +367,51 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
         }
     }
 
-    const renderClassMeta = () => {
+    const renderClassSignature = () => {
         const flags = javaClass.access_flags || ''
         const superName = javaClass.super_name || null
         const ifaces = javaClass.interfaces || []
-        const annos = javaClass.annotations || []
-
-        if (!flags && !superName && ifaces.length === 0 && annos.length === 0) return null
-
-        const annoChips = annos.map((a, i) => {
-            const simple = a.split('.').pop() || a
-            return <code key={i} title={a} className="annotation">@{simple}</code>
-        })
+        const simpleName = javaClass.original_name.split('.').pop();
 
         const ifaceNodes = ifaces.map((i, idx) => (
-            <span
-                key={idx}
-                className="class-link"
-                style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(i) }}
-                title={i}
-            >
-                {i}
-            </span>
+            <React.Fragment key={idx}>
+                {idx > 0 && ', '}
+                <span
+                    className="class-link type-name"
+                    style={{ textDecoration: 'underline', cursor: 'pointer' }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(i) }}
+                    title={i}
+                >
+                    {i.split('.').pop()}
+                </span>
+            </React.Fragment>
         ))
 
         return (
-            <div className="class-meta" style={{ fontSize: '0.9em', color: '#555', margin: '4px 0 8px' }}>
-                {flags && (
-                    <div><span style={{ opacity: 0.8 }}>flags:</span> <code className="access-flags">{flags}</code></div>
-                )}
+            <div className="class-signature">
+                {flags.split(' ').map((f, i) => <span key={i} className="keyword">{f} </span>)}
+                <span className="keyword">class </span>
+                <span className="type-name" title={javaClass.original_name}>{simpleName}</span>
                 {superName && (
-                    <div>
-                        <span style={{ opacity: 0.8 }}>extends:</span>{' '}
+                    <>
+                        <span className="keyword"> extends </span>
                         <span
-                            className="class-link"
-                            style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
+                            className="class-link type-name"
+                            style={{ textDecoration: 'underline', cursor: 'pointer' }}
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(superName) }}
                             title={superName}
                         >
-                            {superName}
+                            {superName.split('.').pop()}
                         </span>
-                    </div>
+                    </>
                 )}
                 {ifaceNodes.length > 0 && (
-                    <div><span style={{ opacity: 0.8 }}>implements:</span> <span style={{ display: 'inline-flex', gap: 6 }}>{ifaceNodes}</span></div>
+                    <>
+                        <span className="keyword"> implements </span>
+                        {ifaceNodes}
+                    </>
                 )}
-                {annoChips.length > 0 && (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ opacity: 0.8 }}>annotations:</span>
-                        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>{annoChips}</span>
-                    </div>
-                )}
+                <span className="brace"> {'{'}</span>
             </div>
         )
     }
@@ -398,37 +421,42 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
             "dexclass", expanded ? "expanded" : ""
         ].join(" ")}>
             <div className="class-header" onClick={() => setExpanded(current => !current)}>
-                <span className="membername">{javaClass.original_name}</span>
-                <span className="method-count">{(methods.length > 0 || fields.length > 0) && `(${fields.length} fields, ${methods.length} methods)`}</span>
+                {javaClass.annotations?.map((a, i) => (
+                    <div key={i} className="annotation">@{a.split('.').pop()}</div>
+                ))}
+                {renderClassSignature()}
+                {expanded && !showMembers && !loading && (
+                    <button className="dots-button" onClick={loadMembers}>...</button>
+                )}
             </div>
-            <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }}>
+            <div style={{ display: expanded && showMembers ? 'block' : 'none', paddingLeft: 16 }} className="class-content">
                 {loading ? (
                     <div className="loading">Loading members...</div>
                 ) : (
                     <>
-                        {renderClassMeta()}
                         {/* Fields */}
                         {fields.length > 0 && (
                             <div className="fields">
                                 {fields.map((field) => {
                                     const isPrimitive = /^(void|boolean|byte|short|char|int|long|float|double)(\[\])*$/.test(field.type_name)
+                                    const typeSimple = field.type_name.split('.').pop()
                                     const typeNode = isPrimitive ? (
-                                        <code className="type-name">{field.type_name}</code>
+                                        <span className="type-name">{field.type_name}</span>
                                     ) : (
                                         <span
-                                            className="class-link"
-                                            style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
+                                            className="class-link type-name"
+                                            style={{ textDecoration: 'underline', cursor: 'pointer' }}
                                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(field.type_name) }}
                                             title={field.type_name}
                                         >
-                                            {field.type_name}
+                                            {typeSimple}
                                         </span>
                                     )
                                     return (
                                         <div key={field.name} id={generateFieldId(javaClass.original_name, field.name)} className="field">
                                             <div className="field-header">
-                                                {field.access_flags && (<code className="access-flags">{field.access_flags}</code>)}{' '}
-                                                <span className="field-name">{typeNode} {field.name}</span>
+                                                {field.access_flags && field.access_flags.split(' ').map((f, i) => <span key={i} className="keyword">{f} </span>)}
+                                                {typeNode} <span className="field-name">{field.name}</span>
                                             </div>
                                         </div>
                                     )
@@ -441,6 +469,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                         ))}
                     </>
                 )}
+                <div className="brace" style={{ marginLeft: -16 }}>{'}'}</div>
             </div>
         </div>
     )
@@ -474,15 +503,23 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
     useEffect(() => { loadInstructions() }, [expanded])
 
     const formatMethodSignature = () => {
-        const params = method.parameters?.length > 0 ? method.parameters.join(', ') : ''
-        return `${method.return_type} ${method.name}(${params})`
+        const params = method.parameters?.length > 0 ? method.parameters.map(p => p.split('.').pop()).join(', ') : ''
+        return (
+            <div className="method-signature">
+                {method.access_flags && method.access_flags.split(' ').map((f, i) => <span key={i} className="keyword">{f} </span>)}
+                <span className="type-name">{method.return_type.split('.').pop()} </span>
+                <span className="method-name">{method.name}</span>
+                <span className="brace">(</span>
+                {params}
+                <span className="brace">)</span>
+            </div>
+        )
     }
 
     return (
         <div className={["method", expanded ? "expanded" : ""].join(" ")}>
             <div className="method-header" onClick={() => setExpanded(current => !current)}>
-                {method.access_flags && (<span className="access-flags">{method.access_flags} </span>)}
-                <span className="method-name">{formatMethodSignature()}</span>
+                {formatMethodSignature()}
             </div>
             <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }} ref={containerRef} className="method-content">
                 {loading ? (
@@ -564,8 +601,8 @@ function InstructionLine({ instruction }: { instruction: string }) {
                     const el = document.getElementById(classId)
                     if (el) {
                         const header = el.querySelector('.class-header') as HTMLElement | null
-                        const content = el.querySelector(':scope > div[style]') as HTMLElement | null
-                        if (header && content && content.style.display === 'none') {
+                        const content = el.querySelector(':scope > .class-content') as HTMLElement | null
+                        if (header && (!content || content.style.display === 'none')) {
                             header.click()
                             await new Promise(r => requestAnimationFrame(() => r(null)))
                         }

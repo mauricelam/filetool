@@ -87,6 +87,8 @@ pub struct JClass {
     pub interfaces: Vec<String>,
     /// Annotation type names present on the class (e.g., "Lcom/example/Anno;" -> "com.example.Anno").
     pub annotations: Vec<String>,
+    /// Method names of this class.
+    pub method_names: Vec<String>,
 }
 
 #[wasm_bindgen]
@@ -158,6 +160,10 @@ fn dex_classes_impl(bytes: Vec<u8>) -> Result<Vec<JClass>, anyhow::Error> {
                     .map(|ann| ann.jtype().to_java_type())
                     .collect();
 
+                let method_names: Vec<String> = c.methods()
+                    .map(|m| m.name().to_string())
+                    .collect();
+
                 JClass {
                     name: obfuscated_name,
                     original_name,
@@ -167,6 +173,7 @@ fn dex_classes_impl(bytes: Vec<u8>) -> Result<Vec<JClass>, anyhow::Error> {
                     super_name,
                     interfaces,
                     annotations,
+                    method_names,
                 }
             })
         })

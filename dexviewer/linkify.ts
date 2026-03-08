@@ -339,7 +339,7 @@ export function linkifySmaliInstruction(
     
     while ((classMatch = classPattern.exec(searchText)) !== null) {
         const fullMatch = classMatch[0];
-        const className = classMatch[1];
+        const className = classMatch[1].replace(/\//g, '.');
         
         // Add any text before the match
         if (classMatch.index > lastIndex2) {
