@@ -719,15 +719,7 @@ function TranscodeControls({
                     id="format-select"
                     onChange={(e) => {
                         const newFormat = e.target.value as Format;
-                        const oldFormat = current;
                         setCurrent(newFormat);
-                        const formatSupported = isFormatWebCodecSupported(newFormat);
-                        const codecSupported = isWebCodecSupported(newFormat, videoCodec);
-                        if (useWebCodecs && !codecSupported) {
-                            setUseWebCodecs(false);
-                        } else if (!useWebCodecs && codecSupported && !isWebCodecSupported(oldFormat, videoCodec)) {
-                            setUseWebCodecs(true);
-                        }
                     }}
                     value={current}
                     style={{
@@ -757,7 +749,14 @@ function TranscodeControls({
                         <input
                             type="checkbox"
                             checked={useWebCodecs}
-                            onChange={(e) => setUseWebCodecs(e.target.checked)}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseWebCodecs(checked);
+                                if (checked && !isWebCodecSupported(current, videoCodec)) {
+                                    // Auto-switch to H.264 if current codec isn't supported by WebCodecs
+                                    setVideoCodec(VideoCodec.H264);
+                                }
+                            }}
                             disabled={isEditingCommand || !isWebCodecSupportedFormat}
                             style={{ marginRight: '10px' }}
                         />
@@ -770,73 +769,69 @@ function TranscodeControls({
                             WebCodecs does not support this container format.
                         </div>
                     )}
-                    {isWebCodecSupportedFormat && !isWebCodecSupportedCodec && (
-                        <div style={{ fontSize: '12px', color: '#d9534f', marginTop: '4px' }}>
-                            Selected video codec is not supported by WebCodecs for this container.
-                        </div>
-                    )}
                 </div>
             )}
 
             {current !== Format.WebP && current !== Format.Gif && (
                 <div style={{ marginBottom: '20px' }}>
-                    <label htmlFor="audio-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio Codec:</label>
-                    <select
-                        id="audio-codec-select"
-                        onChange={(e) => setAudioCodec(e.target.value as AudioCodec)}
-                        value={audioCodec}
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            borderRadius: '4px',
-                            border: '1px solid #ced4da',
-                            fontSize: '14px'
-                        }}
-                        disabled={isEditingCommand}
-                    >
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio Codec:</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {Object.values(AudioCodec).map(codec => (
-                            <option key={codec} value={codec}>{codec === 'copy' ? 'Original' : codec.toUpperCase()}</option>
+                            <label key={codec} style={{ display: 'flex', alignItems: 'center', fontSize: '14px', cursor: 'pointer' }}>
+                                <input
+                                    type="radio"
+                                    name="audioCodec"
+                                    value={codec}
+                                    checked={audioCodec === codec}
+                                    onChange={(e) => setAudioCodec(e.target.value as AudioCodec)}
+                                    disabled={isEditingCommand}
+                                    style={{ marginRight: '4px' }}
+                                />
+                                {codec === 'copy' ? 'Original' : codec.toUpperCase()}
+                            </label>
                         ))}
-                    </select>
+                    </div>
                 </div>
             )}
 
             {current !== Format.Gif && current !== Format.WebP && (
                 <div style={{ marginBottom: '20px' }}>
-                    <label htmlFor="video-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Video Codec:</label>
-                    <select
-                        id="video-codec-select"
-                        onChange={(e) => {
-                            const newCodec = e.target.value as VideoCodec;
-                            const oldCodec = videoCodec;
-                            setVideoCodec(newCodec);
-                            const webSupported = isWebCodecSupported(current, newCodec);
-                            if (useWebCodecs && !webSupported) {
-                                setUseWebCodecs(false);
-                            } else if (!useWebCodecs && webSupported && !isWebCodecSupported(current, oldCodec)) {
-                                setUseWebCodecs(true);
-                            }
-                        }}
-                        value={videoCodec}
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            borderRadius: '4px',
-                            border: '1px solid #ced4da',
-                            fontSize: '14px'
-                        }}
-                        disabled={isEditingCommand}
-                    >
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Video Codec:</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {Object.values(VideoCodec).map(codec => {
                             const webSupported = isWebCodecSupported(current, codec);
+                            const isDisabled = isEditingCommand || (useWebCodecs && !webSupported);
                             return (
-                                <option key={codec} value={codec} style={{ color: (useWebCodecs && !webSupported) ? '#aaa' : 'inherit' }}>
+                                <label
+                                    key={codec}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        fontSize: '14px',
+                                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                        color: (useWebCodecs && !webSupported) ? '#aaa' : 'inherit'
+                                    }}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="videoCodec"
+                                        value={codec}
+                                        checked={videoCodec === codec}
+                                        onChange={(e) => setVideoCodec(e.target.value as VideoCodec)}
+                                        disabled={isDisabled}
+                                        style={{ marginRight: '4px' }}
+                                    />
                                     {codec === 'copy' ? 'Original' : codec.toUpperCase()}
-                                    {useWebCodecs && !webSupported ? ' (FFmpeg only)' : ''}
-                                </option>
+                                    {useWebCodecs && !webSupported ? ' (FFmpeg)' : ''}
+                                </label>
                             );
                         })}
-                    </select>
+                    </div>
+                    {useWebCodecs && !isWebCodecSupportedCodec && (
+                        <div style={{ fontSize: '12px', color: '#d9534f', marginTop: '4px' }}>
+                            Selected video codec is not supported by WebCodecs for this container.
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1165,8 +1160,8 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
                 {
                     codec: webCodecStr,
                     bitrate: config.rateMode === 'bitrate' ? config.bitrate : undefined,
-                    // Chromium supports 'constant-quality'
-                    bitrateMode: config.rateMode === 'crf' ? 'constant-quality' : 'variable',
+                    // Use 'quantizer' for CRF mode
+                    bitrateMode: config.rateMode === 'crf' ? 'quantizer' : 'variable',
                     latencyMode: 'quality',
                     width: 0, // Will be set by transcode function
                     height: 0, // Will be set by transcode function
