@@ -271,13 +271,12 @@ interface VideoInfo {
 
 interface VideoPreviewProps {
     file: File;
-    error: string | null;
     videoInfo: VideoInfo;
     setVideoInfo: Dispatch<SetStateAction<VideoInfo>>;
     onSaveMetadata: (newMetadata: { [key: string]: string }) => void;
 }
 
-function VideoPreview({ file, error, videoInfo, setVideoInfo, onSaveMetadata }: VideoPreviewProps) {
+function VideoPreview({ file, videoInfo, setVideoInfo, onSaveMetadata }: VideoPreviewProps) {
     const [videoUrl, setVideoUrl] = useState<string>('');
     const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [rawFFmpegOutput, setRawFFmpegOutput] = useState<string>('');
@@ -486,19 +485,6 @@ function VideoPreview({ file, error, videoInfo, setVideoInfo, onSaveMetadata }: 
                     )}
                 </div>
             </div>
-
-            {error && (
-                <div style={{
-                    color: '#dc3545',
-                    background: '#f8d7da',
-                    padding: '10px',
-                    borderRadius: '4px',
-                    marginTop: '15px',
-                    fontSize: '14px'
-                }}>
-                    <strong>Error:</strong> {error}
-                </div>
-            )}
             {isEditingMetadata && (
                 <MetadataEditorModal
                     metadata={videoInfo.metadata || {}}
@@ -623,6 +609,7 @@ interface TranscodeControlsProps {
     setUseWebCodecs: (value: boolean) => void;
     progress: number;
     status: string;
+    error: string | null;
 }
 
 function TranscodeControls({
@@ -653,6 +640,7 @@ function TranscodeControls({
     setUseWebCodecs,
     progress,
     status,
+    error,
 }: TranscodeControlsProps) {
     const [customCommand, setCustomCommand] = useState('');
     const [isEditingCommand, setIsEditingCommand] = useState(false);
@@ -1016,6 +1004,21 @@ function TranscodeControls({
                             transition: 'width 0.3s ease'
                         }} />
                     </div>
+                </div>
+            )}
+
+            {error && (
+                <div style={{
+                    background: '#f8d7da',
+                    color: '#721c24',
+                    padding: '12px',
+                    borderRadius: '4px',
+                    marginBottom: '20px',
+                    border: '1px solid #f5c6cb',
+                    fontSize: '14px',
+                    wordBreak: 'break-all'
+                }}>
+                    <strong>Error:</strong> {error}
                 </div>
             )}
 
@@ -1519,7 +1522,6 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         }}>
             <VideoPreview
                 file={file}
-                error={error}
                 videoInfo={videoInfo}
                 setVideoInfo={setVideoInfo}
                 onSaveMetadata={handleSaveMetadata}
@@ -1563,6 +1565,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
                     setUseWebCodecs={setUseWebCodecs}
                     progress={useWebCodecs ? webCodecsProgress : (typeof results[current] === 'number' ? results[current] as number : 0)}
                     status={useWebCodecs ? status : ''}
+                    error={error}
                 />
             </div>
         </div>
