@@ -172,7 +172,10 @@ function ProguardUploader({ onUpload }: { onUpload: (content: string) => void })
     return (
         <div className="proguard-uploader-compact">
             <label>
-                Upload Proguard mapping.txt
+                <svg className="proguard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                </svg>
+                Proguard map
                 <input type="file" onChange={handleFileChange} />
             </label>
         </div>
@@ -330,25 +333,29 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
     const [fields, setFields] = useState<JField[]>([])
     const [loading, setLoading] = useState(false)
 
-    const loadMembers = async (e?: React.MouseEvent) => {
-        if (e) { e.stopPropagation(); e.preventDefault(); }
-        setShowMembers(true);
-        if (methods.length > 0 || fields.length > 0) return;
+    const toggleExpansion = async () => {
+        const nextExpanded = !expanded;
+        setExpanded(nextExpanded);
 
-        setLoading(true)
-        try {
-            const [m, f] = await Promise.all([
-                Promise.resolve(dex_methods(dexfile, javaClass.id)),
-                Promise.resolve(dex_fields(dexfile, javaClass.id)),
-            ])
-            setMethods(m)
-            setFields(f)
-        } catch (error) {
-            console.error('Error loading class members:', error)
-        } finally {
-            setLoading(false)
+        if (nextExpanded && !showMembers) {
+            setShowMembers(true);
+            if (methods.length === 0 && fields.length === 0) {
+                setLoading(true);
+                try {
+                    const [m, f] = await Promise.all([
+                        Promise.resolve(dex_methods(dexfile, javaClass.id)),
+                        Promise.resolve(dex_fields(dexfile, javaClass.id)),
+                    ]);
+                    setMethods(m);
+                    setFields(f);
+                } catch (error) {
+                    console.error('Error loading class members:', error);
+                } finally {
+                    setLoading(false);
+                }
+            }
         }
-    }
+    };
 
     const navigateToClass = async (className: string) => {
         const dotted = className.replace(/\//g, '.')
@@ -412,6 +419,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                     </>
                 )}
                 <span className="brace"> {'{'}</span>
+                {!expanded && <span className="brace"> ... {'}'}</span>}
             </div>
         )
     }
@@ -420,14 +428,15 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
         <div id={generateClassId(javaClass.original_name)} className={[
             "dexclass", expanded ? "expanded" : ""
         ].join(" ")}>
-            <div className="class-header" onClick={() => setExpanded(current => !current)}>
-                {javaClass.annotations?.map((a, i) => (
-                    <div key={i} className="annotation">@{a.split('.').pop()}</div>
-                ))}
-                {renderClassSignature()}
-                {expanded && !showMembers && !loading && (
-                    <button className="dots-button" onClick={loadMembers}>...</button>
+            <div className="class-header" onClick={toggleExpansion}>
+                {javaClass.annotations && javaClass.annotations.length > 0 && (
+                    <div className="class-annotations">
+                        {javaClass.annotations.map((a, i) => (
+                            <div key={i} className="annotation">@{a.split('.').pop()}</div>
+                        ))}
+                    </div>
                 )}
+                {renderClassSignature()}
             </div>
             <div style={{ display: expanded && showMembers ? 'block' : 'none', paddingLeft: 16 }} className="class-content">
                 {loading ? (
@@ -511,7 +520,9 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
                 <span className="method-name">{method.name}</span>
                 <span className="brace">(</span>
                 {params}
-                <span className="brace">)</span>
+                <span className="brace">) </span>
+                {!expanded && <span className="brace">{'{ ... }'}</span>}
+                {expanded && <span className="brace">{'{'}</span>}
             </div>
         )
     }
@@ -521,9 +532,9 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
             <div className="method-header" onClick={() => setExpanded(current => !current)}>
                 {formatMethodSignature()}
             </div>
-            <div style={{ display: expanded ? 'block' : 'none', paddingLeft: 16 }} ref={containerRef} className="method-content">
+            <div style={{ display: expanded ? 'block' : 'none' }} ref={containerRef} className="method-content">
                 {loading ? (
-                    <div>Loading instructions...</div>
+                    <div className="loading">Loading instructions...</div>
                 ) : instructions.length > 0 ? (
                     instructions.map((instruction, i) => (
                         <div key={i} className="instruction-line">
@@ -531,8 +542,9 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
                         </div>
                     ))
                 ) : (
-                    <div>No instructions found</div>
+                    <div className="loading">No instructions found</div>
                 )}
+                <div className="brace" style={{ marginLeft: -16 }}>{'}'}</div>
             </div>
         </div>
     )
