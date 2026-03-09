@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "node build.mjs"
+    "build": "cd binwalk-rs && (patch -p1 -N --dry-run < ../binwalk-wasm-compatibility.patch > /dev/null 2>&1 && patch -p1 -N < ../binwalk-wasm-compatibility.patch || true) && cd .. && node build.mjs"
   }
 }
