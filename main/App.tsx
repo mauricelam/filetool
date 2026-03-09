@@ -22,6 +22,11 @@ export function App() {
     // Global paste handler
     useEffect(() => {
         const handlePaste = async (e: ClipboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+
             const files = Array.from(e.clipboardData?.items || [])
                 .filter(item => item.kind === 'file')
                 .map(item => item.getAsFile())

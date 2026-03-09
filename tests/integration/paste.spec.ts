@@ -60,7 +60,7 @@ test.describe('Paste functionality', () => {
         }, hexText);
 
         const modal = page.locator('.modal-content');
-        await modal.locator('#mode-select').selectOption('hex');
+        await modal.locator('label:has-text("Hex")').click();
         await modal.locator('#filename-input').fill('test.txt'); // Use .txt so it might auto-open text viewer or something easier
         await modal.locator('button:has-text("Add File")').click();
 
@@ -90,7 +90,7 @@ test.describe('Paste functionality', () => {
         }, b64Text);
 
         const modal = page.locator('.modal-content');
-        await modal.locator('#mode-select').selectOption('base64');
+        await modal.locator('label:has-text("Base64")').click();
         await modal.locator('#filename-input').fill('b64.txt');
         await modal.locator('button:has-text("Add File")').click();
 
@@ -118,11 +118,9 @@ test.describe('Paste functionality', () => {
         }, invalidHex);
 
         const modal = page.locator('.modal-content');
-        await modal.locator('#mode-select').selectOption('hex');
-        await modal.locator('button:has-text("Add File")').click();
-
-        await expect(modal.locator('.error-message')).toBeVisible();
-        await expect(modal.locator('.error-message')).toContainText('length must be even');
+        const hexOption = modal.locator('label:has-text("Hex")');
+        await expect(hexOption).toHaveClass(/disabled/);
+        await expect(hexOption.locator('input')).toBeDisabled();
     });
 
     test('should show error for invalid base64', async ({ page }) => {
@@ -140,11 +138,9 @@ test.describe('Paste functionality', () => {
         }, invalidB64);
 
         const modal = page.locator('.modal-content');
-        await modal.locator('#mode-select').selectOption('base64');
-        await modal.locator('button:has-text("Add File")').click();
-
-        await expect(modal.locator('.error-message')).toBeVisible();
-        await expect(modal.locator('.error-message')).toContainText('Invalid Base64');
+        const b64Option = modal.locator('label:has-text("Base64")');
+        await expect(b64Option).toHaveClass(/disabled/);
+        await expect(b64Option.locator('input')).toBeDisabled();
     });
 
     test('should close on Esc key', async ({ page }) => {

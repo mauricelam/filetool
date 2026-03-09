@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 export type PasteMode = 'raw' | 'hex' | 'base64';
@@ -13,6 +13,34 @@ export function PasteModal({ text, onClose, onComplete }: PasteModalProps) {
     const [filename, setFilename] = useState('pasted.txt');
     const [mode, setMode] = useState<PasteMode>('raw');
     const [error, setError] = useState<string | null>(null);
+
+    const validation = useMemo(() => {
+        const results = {
+            raw: { valid: true, error: null as string | null },
+            hex: { valid: false, error: null as string | null },
+            base64: { valid: false, error: null as string | null }
+        };
+
+        // Hex validation
+        const cleanHex = text.replace(/[^0-9a-fA-F]/g, '');
+        if (cleanHex.length > 0 && cleanHex.length % 2 === 0) {
+            results.hex.valid = true;
+        } else if (cleanHex.length === 0) {
+            results.hex.error = "No hex characters found";
+        } else {
+            results.hex.error = "Invalid Hex: length must be even";
+        }
+
+        // Base64 validation
+        try {
+            atob(text.replace(/\s/g, ''));
+            results.base64.valid = true;
+        } catch (e) {
+            results.base64.error = "Invalid Base64 format";
+        }
+
+        return results;
+    }, [text]);
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -111,16 +139,48 @@ export function PasteModal({ text, onClose, onComplete }: PasteModalProps) {
                     </div>
 
                     <div className="input-group">
-                        <label htmlFor="mode-select">Treat as</label>
-                        <select
-                            id="mode-select"
-                            value={mode}
-                            onChange={(e) => setMode(e.target.value as PasteMode)}
-                        >
-                            <option value="raw">Raw Text</option>
-                            <option value="hex">Hex</option>
-                            <option value="base64">Base64</option>
-                        </select>
+                        <label>Treat as</label>
+                        <div className="radio-group" role="radiogroup" aria-labelledby="paste-modal-title">
+                            <label className={`radio-option ${!validation.raw.valid ? 'disabled' : ''}`}>
+                                <input
+                                    type="radio"
+                                    name="paste-mode"
+                                    value="raw"
+                                    checked={mode === 'raw'}
+                                    onChange={() => setMode('raw')}
+                                    disabled={!validation.raw.valid}
+                                />
+                                Raw Text
+                            </label>
+                            <label
+                                className={`radio-option ${!validation.hex.valid ? 'disabled' : ''}`}
+                                title={validation.hex.error || ''}
+                            >
+                                <input
+                                    type="radio"
+                                    name="paste-mode"
+                                    value="hex"
+                                    checked={mode === 'hex'}
+                                    onChange={() => setMode('hex')}
+                                    disabled={!validation.hex.valid}
+                                />
+                                Hex
+                            </label>
+                            <label
+                                className={`radio-option ${!validation.base64.valid ? 'disabled' : ''}`}
+                                title={validation.base64.error || ''}
+                            >
+                                <input
+                                    type="radio"
+                                    name="paste-mode"
+                                    value="base64"
+                                    checked={mode === 'base64'}
+                                    onChange={() => setMode('base64')}
+                                    disabled={!validation.base64.valid}
+                                />
+                                Base64
+                            </label>
+                        </div>
                     </div>
 
                     {error && <div className="error-message">{error}</div>}
