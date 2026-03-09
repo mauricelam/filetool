@@ -5,6 +5,7 @@ import { TopBar } from './TopBar';
 import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { IframeManager } from './IframeManager';
 import { FileList } from './FileList';
+import { PasteModal } from './PasteModal';
 
 export type HandlerConfig = {
     file: File,
@@ -16,25 +17,31 @@ export function App() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
     const [activeHandlers, setActiveHandlers] = useState<(HandlerConfig | undefined)[]>([]);
+    const [pastedText, setPastedText] = useState<string | null>(null);
 
     // Global paste handler
     useEffect(() => {
         const handlePaste = async (e: ClipboardEvent) => {
-            e.preventDefault();
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+
             const files = Array.from(e.clipboardData?.items || [])
                 .filter(item => item.kind === 'file')
                 .map(item => item.getAsFile())
                 .filter((file): file is File => file !== null);
 
             if (files.length > 0) {
+                e.preventDefault();
                 handleAddFiles(files);
                 return;
             }
 
             const text = e.clipboardData?.getData('text/plain');
             if (text) {
-                const file = new File([text], 'pasted.txt', { type: 'text/plain' });
-                handleAddFiles([file]);
+                e.preventDefault();
+                setPastedText(text);
                 return;
             }
         };
@@ -91,6 +98,16 @@ export function App() {
     return (
         <>
             <TopBar showToggle={files.length > 0} />
+            {pastedText && (
+                <PasteModal
+                    text={pastedText}
+                    onClose={() => setPastedText(null)}
+                    onComplete={(file) => {
+                        handleAddFiles([file]);
+                        setPastedText(null);
+                    }}
+                />
+            )}
             <div id="basicinfo">
                 <div style={{ display: 'flex', height: '100%', width: '100%' }}>
                     <FileList
