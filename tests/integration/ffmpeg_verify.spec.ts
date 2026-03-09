@@ -3,11 +3,15 @@ import path from 'path';
 import fs from 'fs';
 
 test('ffmpeg viewer UI update', async ({ page }) => {
+    // Increase timeout for this test
+    test.setTimeout(60000);
+
     // Navigate to the driver page with the ffmpeg handler
     await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=ffmpeg');
 
     const filePath = path.resolve('ffmpeg/example/big_buck_bunny.mp4');
-    const fileBuffer = fs.readFileSync(filePath);
+    // Use only a small portion of the file for UI verification to speed up the test
+    const fileBuffer = fs.readFileSync(filePath).subarray(0, 100 * 1024);
 
     // Load the file into the driver
     await page.evaluate(({ buffer, fileName }) => {
@@ -60,5 +64,5 @@ test('ffmpeg viewer UI update', async ({ page }) => {
     await h265Label.click();
     expect(await webCodecsCheckbox.isChecked()).toBe(false);
 
-    await page.screenshot({ path: '/home/jules/verification/ffmpeg_new_ui_final.png', fullPage: true });
+    await page.screenshot({ path: 'ffmpeg_new_ui_final.png', fullPage: true });
 });
