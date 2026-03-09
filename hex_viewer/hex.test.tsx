@@ -62,6 +62,9 @@ describe('renderAscii function', () => {
     selectionStart: null,
     selectionEnd: null,
     markers: [],
+    searchResultOffsets: new Set<number>(),
+    currentMatchOffset: null,
+    matchLength: 0,
     onMouseDown: () => { },
     onMouseEnter: () => { },
     onMouseLeave: () => { }
@@ -202,6 +205,9 @@ describe('renderHex function', () => {
     selectionStart: null,
     selectionEnd: null,
     markers: [],
+    searchResultOffsets: new Set<number>(),
+    currentMatchOffset: null,
+    matchLength: 0,
     onMouseDown: () => { },
     onMouseEnter: () => { },
     onMouseLeave: () => { }

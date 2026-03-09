@@ -1,6 +1,7 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -8,7 +9,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path'],
+  external: ['require', 'fs', 'path', './md5-wasm.js'],
   plugins: [
     copy({
       assets: [
@@ -18,7 +19,11 @@ const SETTINGS = {
           watch: process.env['BUILD_MODE'] === 'dev',
         },
       ]
-    })
+    }),
+    rustWasm({
+      projectDir: 'md5-wasm',
+      outName: 'md5-wasm',
+    }),
   ],
 }
 

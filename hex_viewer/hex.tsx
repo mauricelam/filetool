@@ -8,6 +8,9 @@ export interface RenderState {
     selectionEnd: number | null;
     markers: Marker[];
     previewMarker?: Marker | null;
+    searchResultOffsets: Set<number>;
+    currentMatchOffset: number | null;
+    matchLength: number;
     onMouseDown: (index: number) => void;
     onMouseEnter: (index: number) => void;
     onMouseLeave: () => void;
@@ -69,6 +72,13 @@ export function renderAscii(line: number, buffer: Uint8Array, state: RenderState
 
             if (state.previewMarker && i >= state.previewMarker.start && i < state.previewMarker.start + state.previewMarker.length) {
                 classList.push("preview_marked");
+            }
+
+            if (state.searchResultOffsets.has(i)) {
+                classList.push("search-match");
+            }
+            if (state.currentMatchOffset !== null && i >= state.currentMatchOffset && i < state.currentMatchOffset + state.matchLength) {
+                classList.push("current-match");
             }
 
             yield (
@@ -133,6 +143,13 @@ export function renderHex(line: number, buffer: Uint8Array, state: RenderState):
 
             if (state.previewMarker && i >= state.previewMarker.start && i < state.previewMarker.start + state.previewMarker.length) {
                 classList.push("preview_marked");
+            }
+
+            if (state.searchResultOffsets.has(i)) {
+                classList.push("search-match");
+            }
+            if (state.currentMatchOffset !== null && i >= state.currentMatchOffset && i < state.currentMatchOffset + state.matchLength) {
+                classList.push("current-match");
             }
 
             const space = i == line * 16 ? "" : " "

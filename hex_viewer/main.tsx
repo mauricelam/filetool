@@ -28,17 +28,348 @@ async function handleFile(file: File) {
     OUTPUT.render(<HexViewer buffer={buf} />)
 }
 
-function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void }) {
+    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing'>('inspector');
+
+    return (
+        <div id="inspector">
+            <div className="tab-header">
+                <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')}>Inspector</button>
+                <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')}>Search</button>
+                <button className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')}>Analysis</button>
+                <button className={`tab-button ${activeTab === 'hashing' ? 'active' : ''}`} onClick={() => setActiveTab('hashing')}>Hashing</button>
+            </div>
+            <div className="tab-content">
+                {activeTab === 'inspector' && (
+                    <InspectorTab
+                        buffer={buffer}
+                        index={index}
+                        selection={selection}
+                        markers={markers}
+                        onAddMarker={onAddMarker}
+                        onRemoveMarker={onRemoveMarker}
+                        setPreviewMarker={setPreviewMarker}
+                    />
+                )}
+                {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
+                {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={onJumpToOffset} />}
+                {activeTab === 'hashing' && <HashingTab buffer={buffer} selection={selection} />}
+            </div>
+        </div>
+    );
+}
+
+function SearchTab({ buffer, results, currentIndex, onSearch, onJumpToOffset }: { buffer: Uint8Array, results: number[], currentIndex: number | null, onSearch: (results: number[], index: number | null, matchLength: number) => void, onJumpToOffset: (offset: number) => void }) {
+    const [query, setQuery] = useState('');
+    const [searchType, setSearchType] = useState<'hex' | 'utf8' | 'utf16' | 'regex'>('hex');
+    const [currentMatchLength, setCurrentMatchLength] = useState(0);
+
+    const performSearch = () => {
+        if (!query) {
+            onSearch([], null, 0);
+            return;
+        }
+
+        const matches: number[] = [];
+        let matchLen = 0;
+        try {
+            if (searchType === 'hex') {
+                const hexQuery = query.replace(/\s+/g, '');
+                if (hexQuery.length % 2 !== 0) return;
+                const pattern = new Uint8Array(hexQuery.length / 2);
+                for (let i = 0; i < hexQuery.length; i += 2) {
+                    pattern[i / 2] = parseInt(hexQuery.substr(i, 2), 16);
+                }
+                matchLen = pattern.length;
+                for (let i = 0; i <= buffer.length - pattern.length; i++) {
+                    let match = true;
+                    for (let j = 0; j < pattern.length; j++) {
+                        if (buffer[i + j] !== pattern[j]) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) matches.push(i);
+                }
+            } else if (searchType === 'utf8') {
+                const pattern = new TextEncoder().encode(query);
+                matchLen = pattern.length;
+                for (let i = 0; i <= buffer.length - pattern.length; i++) {
+                    let match = true;
+                    for (let j = 0; j < pattern.length; j++) {
+                        if (buffer[i + j] !== pattern[j]) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) matches.push(i);
+                }
+            } else if (searchType === 'utf16') {
+                const pattern = new Uint8Array(query.length * 2);
+                for (let i = 0; i < query.length; i++) {
+                    const code = query.charCodeAt(i);
+                    pattern[i * 2] = code & 0xFF;
+                    pattern[i * 2 + 1] = (code >> 8) & 0xFF;
+                }
+                matchLen = pattern.length;
+                for (let i = 0; i <= buffer.length - pattern.length; i++) {
+                    let match = true;
+                    for (let j = 0; j < pattern.length; j++) {
+                        if (buffer[i + j] !== pattern[j]) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) matches.push(i);
+                }
+            } else if (searchType === 'regex') {
+                const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+                const re = new RegExp(query, 'g');
+                let match;
+                while ((match = re.exec(text)) !== null) {
+                    matches.push(match.index);
+                    // Simplify: assume 1 char = 1 byte for length in regex for now
+                    if (matchLen === 0) matchLen = match[0].length;
+                }
+            }
+        } catch (e) {
+            console.error("Search error", e);
+        }
+
+        setCurrentMatchLength(matchLen);
+        onSearch(matches, matches.length > 0 ? 0 : null, matchLen);
+        if (matches.length > 0) {
+            onJumpToOffset(matches[0]);
+        }
+    };
+
+    const nextMatch = () => {
+        if (results.length === 0) return;
+        const nextIndex = currentIndex === null ? 0 : (currentIndex + 1) % results.length;
+        onSearch(results, nextIndex, currentMatchLength);
+        onJumpToOffset(results[nextIndex]);
+    };
+
+    const prevMatch = () => {
+        if (results.length === 0) return;
+        const prevIndex = currentIndex === null ? results.length - 1 : (currentIndex - 1 + results.length) % results.length;
+        onSearch(results, prevIndex, currentMatchLength);
+        onJumpToOffset(results[prevIndex]);
+    };
+
+    return (
+        <div className="search-controls">
+            <h3>Advanced Find</h3>
+            <div className="search-row">
+                <select value={searchType} onChange={(e) => setSearchType(e.target.value as any)}>
+                    <option value="hex">Hex</option>
+                    <option value="utf8">UTF-8</option>
+                    <option value="utf16">UTF-16 LE</option>
+                    <option value="regex">Regex (Text)</option>
+                </select>
+            </div>
+            <div className="search-row">
+                <input
+                    type="text"
+                    placeholder="Search query..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && performSearch()}
+                />
+                <button onClick={performSearch}>Find</button>
+            </div>
+            {results.length > 0 && (
+                <div className="search-row">
+                    <span>{currentIndex !== null ? currentIndex + 1 : 0} / {results.length} matches</span>
+                    <button onClick={prevMatch}>Prev</button>
+                    <button onClick={nextMatch}>Next</button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, onJumpToOffset: (offset: number) => void }) {
+    const byteMapRef = React.useRef<HTMLCanvasElement>(null);
+    const entropyRef = React.useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = byteMapRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const imageData = ctx.createImageData(width, height);
+        const totalPixels = width * height;
+
+        for (let i = 0; i < totalPixels; i++) {
+            const offset = Math.floor(i * buffer.length / totalPixels);
+            const byte = buffer[offset];
+            const idx = i * 4;
+            imageData.data[idx] = byte;     // R
+            imageData.data[idx + 1] = byte; // G
+            imageData.data[idx + 2] = byte; // B
+            imageData.data[idx + 3] = 255;  // A
+        }
+        ctx.putImageData(imageData, 0, 0);
+    }, [buffer]);
+
+    useEffect(() => {
+        const canvas = entropyRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.clearRect(0, 0, width, height);
+        ctx.strokeStyle = '#0e639c';
+        ctx.beginPath();
+
+        const windowSize = 256;
+        const step = Math.max(1, Math.floor(buffer.length / width));
+
+        for (let x = 0; x < width; x++) {
+            const offset = Math.floor(x * buffer.length / width);
+            const slice = buffer.slice(offset, offset + windowSize);
+            const entropy = computeEntropy(slice);
+            const y = height - (entropy / 8) * height;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }, [buffer]);
+
+    const computeEntropy = (data: Uint8Array) => {
+        if (data.length === 0) return 0;
+        const counts = new Array(256).fill(0);
+        for (const b of data) counts[b]++;
+        let entropy = 0;
+        for (const count of counts) {
+            if (count > 0) {
+                const p = count / data.length;
+                entropy -= p * Math.log2(p);
+            }
+        }
+        return entropy;
+    };
+
+    const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>, ref: React.RefObject<HTMLCanvasElement>) => {
+        const canvas = ref.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const offset = Math.floor((x / rect.width) * buffer.length);
+        onJumpToOffset(offset);
+    };
+
+    return (
+        <>
+            <h3>Analysis</h3>
+            <div className="analysis-label">Byte Map</div>
+            <canvas
+                ref={byteMapRef}
+                className="analysis-canvas"
+                width={260}
+                height={100}
+                onClick={(e) => handleCanvasClick(e, byteMapRef)}
+                title="Click to jump to offset"
+            />
+            <div className="analysis-label" style={{ marginTop: '16px' }}>Entropy Graph</div>
+            <canvas
+                ref={entropyRef}
+                className="analysis-canvas"
+                width={260}
+                height={100}
+                onClick={(e) => handleCanvasClick(e, entropyRef)}
+                title="Click to jump to offset"
+            />
+        </>
+    );
+}
+
+function HashingTab({ buffer, selection }: { buffer: Uint8Array, selection: [number, number] | null }) {
+    const [hashes, setHashes] = useState<{ label: string, value: string }[]>([]);
+    const [isComputing, setIsComputing] = useState(false);
+    const [md5Ready, setMd5Ready] = useState(false);
+    const [md5Compute, setMd5Compute] = useState<((data: Uint8Array) => string) | null>(null);
+
+    useEffect(() => {
+        // @ts-ignore
+        import('./md5-wasm.js').then(async (m) => {
+            await m.default();
+            setMd5Compute(() => m.compute_md5);
+            setMd5Ready(true);
+        }).catch(e => console.error("Failed to load MD5 WASM", e));
+    }, []);
+
+    const computeHashes = async () => {
+        setIsComputing(true);
+        const data = selection ? buffer.slice(selection[0], selection[1] + 1) : buffer;
+        const results: { label: string, value: string }[] = [];
+
+        if (md5Compute) {
+            results.push({ label: 'MD5', value: md5Compute(data) });
+        }
+
+        const algorithms = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
+        for (const algo of algorithms) {
+            try {
+                const hashBuffer = await crypto.subtle.digest(algo, data);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                results.push({ label: algo, value: hashHex });
+            } catch (e) {
+                results.push({ label: algo, value: 'Error' });
+            }
+        }
+
+        setHashes(results);
+        setIsComputing(false);
+    };
+
+    return (
+        <>
+            <h3>Hashing</h3>
+            <div className="inspector-row">
+                <span className="inspector-label">Target</span>
+                <span className="inspector-value">{selection ? `Selection (0x${selection[0].toString(16)} - 0x${selection[1].toString(16)})` : 'Full File'}</span>
+            </div>
+            <button onClick={computeHashes} disabled={isComputing || (!md5Ready && !selection)}>
+                {isComputing ? 'Computing...' : 'Compute Hashes'}
+            </button>
+            {hashes.map(h => (
+                <div key={h.label} className="inspector-row">
+                    <span className="inspector-label">{h.label}</span>
+                    <span className="inspector-value" style={{ fontSize: '10px', fontFamily: 'monospace' }}>{h.value}</span>
+                </div>
+            ))}
+        </>
+    );
+}
+
+function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
     const [littleEndian, setLittleEndian] = useState(false);
 
     const targetIndex = index !== null ? index : (selection ? selection[0] : null);
 
     if (targetIndex === null) {
         return (
-            <div id="inspector">
+            <>
                 <h3>Data Inspector</h3>
                 <div className="inspector-row">Select a byte to see details</div>
-            </div>
+                <h3>Markers</h3>
+                <ul className="marker-list">
+                    {markers.map((m, i) => (
+                        <li key={i} className="marker-item">
+                            <span>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
+                            <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
+                        </li>
+                    ))}
+                </ul>
+            </>
         )
     }
 
@@ -83,7 +414,7 @@ function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemov
     });
 
     return (
-        <div id="inspector">
+        <>
             <h3>Data Inspector</h3>
             <div className="inspector-row">
                 <span className="inspector-label">Offset</span>
@@ -147,17 +478,36 @@ function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemov
                     </li>
                 ))}
             </ul>
-        </div>
+        </>
     )
 }
 
 function HexViewer({ buffer }: { buffer: Uint8Array }) {
+    const [targetOffset, setTargetOffset] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (targetOffset !== null) {
+            const viewer = document.getElementById('hexviewer');
+            if (viewer) {
+                const line = Math.floor(targetOffset / 16);
+                const LINE_HEIGHT = 16;
+                viewer.scrollTop = line * LINE_HEIGHT;
+            }
+            setTargetOffset(null);
+        }
+    }, [targetOffset]);
+
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [selectionStart, setSelectionStart] = useState<number | null>(null);
     const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
     const [markers, setMarkers] = useState<Marker[]>([]);
     const [previewMarker, setPreviewMarker] = useState<Marker | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
+    const [searchResults, setSearchResults] = useState<number[]>([]);
+    const [currentMatchIndex, setCurrentMatchIndex] = useState<number | null>(null);
+    const [matchLength, setMatchLength] = useState(0);
+
+    const searchResultOffsets = React.useMemo(() => new Set(searchResults), [searchResults]);
 
     const selection: [number, number] | null = selectionStart !== null && selectionEnd !== null ? [Math.min(selectionStart, selectionEnd), Math.max(selectionStart, selectionEnd)] : null;
 
@@ -205,12 +555,29 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                     render={(i) => <div key={i}>{offset(i, buffer)}</div>} />
                 <Column id="hex" lineCount={lineCount}
                     header="00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F"
-                    render={(i) => <div key={i}>{renderHex(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
+                    render={(i) => <div key={i}>{renderHex(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, searchResultOffsets, currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null, matchLength, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
                 <Column id="ascii" lineCount={lineCount}
                     header=" "
-                    render={(i) => <div key={i}>{renderAscii(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
+                    render={(i) => <div key={i}>{renderAscii(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, searchResultOffsets, currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null, matchLength, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
             </div>
-            <DataInspector buffer={buffer} index={hoverIndex} selection={selection} markers={markers} onAddMarker={onAddMarker} onRemoveMarker={onRemoveMarker} setPreviewMarker={setPreviewMarker} />
+            <DataInspector
+                buffer={buffer}
+                index={hoverIndex}
+                selection={selection}
+                markers={markers}
+                onAddMarker={onAddMarker}
+                onRemoveMarker={onRemoveMarker}
+                setPreviewMarker={setPreviewMarker}
+                onJumpToOffset={setTargetOffset}
+                searchResults={searchResults}
+                currentMatchIndex={currentMatchIndex}
+                matchLength={matchLength}
+                onSearch={(results, index, length) => {
+                    setSearchResults(results);
+                    setCurrentMatchIndex(index);
+                    setMatchLength(length);
+                }}
+            />
         </div>
     )
 }
