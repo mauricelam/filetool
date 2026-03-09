@@ -103,7 +103,7 @@ test.describe('Paste functionality', () => {
         await expect(iframe.locator('body')).toContainText('Hello', { timeout: 15000 });
     });
 
-    test('should show error for invalid hex', async ({ page }) => {
+    test('should show error for invalid hex (odd length)', async ({ page }) => {
         const invalidHex = '48 65 6c 6c 6'; // Odd length
 
         await page.evaluate((text) => {
@@ -121,6 +121,28 @@ test.describe('Paste functionality', () => {
         const hexOption = modal.locator('label:has-text("Hex")');
         await expect(hexOption).toHaveClass(/disabled/);
         await expect(hexOption.locator('input')).toBeDisabled();
+        await expect(hexOption).toHaveAttribute('title', /length must be even/);
+    });
+
+    test('should show error for invalid hex (invalid characters)', async ({ page }) => {
+        const invalidHex = '48 65 6c 6c 6f X'; // 'X' is invalid
+
+        await page.evaluate((text) => {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.setData('text/plain', text);
+            const event = new ClipboardEvent('paste', {
+                clipboardData: dataTransfer,
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(event);
+        }, invalidHex);
+
+        const modal = page.locator('.modal-content');
+        const hexOption = modal.locator('label:has-text("Hex")');
+        await expect(hexOption).toHaveClass(/disabled/);
+        await expect(hexOption.locator('input')).toBeDisabled();
+        await expect(hexOption).toHaveAttribute('title', /non-hex and non-punctuation/);
     });
 
     test('should show error for invalid base64', async ({ page }) => {
@@ -141,6 +163,7 @@ test.describe('Paste functionality', () => {
         const b64Option = modal.locator('label:has-text("Base64")');
         await expect(b64Option).toHaveClass(/disabled/);
         await expect(b64Option.locator('input')).toBeDisabled();
+        await expect(b64Option).toHaveAttribute('title', /Invalid Base64/);
     });
 
     test('should close on Esc key', async ({ page }) => {

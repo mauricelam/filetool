@@ -23,12 +23,16 @@ export function PasteModal({ text, onClose, onComplete }: PasteModalProps) {
 
         // Hex validation
         const cleanHex = text.replace(/[^0-9a-fA-F]/g, '');
-        if (cleanHex.length > 0 && cleanHex.length % 2 === 0) {
-            results.hex.valid = true;
+        const hasInvalidChars = /[^0-9a-fA-F\s\.,:;\-_]/.test(text);
+
+        if (hasInvalidChars) {
+            results.hex.error = "Contains non-hex and non-punctuation characters";
         } else if (cleanHex.length === 0) {
             results.hex.error = "No hex characters found";
-        } else {
+        } else if (cleanHex.length % 2 !== 0) {
             results.hex.error = "Invalid Hex: length must be even";
+        } else {
+            results.hex.valid = true;
         }
 
         // Base64 validation
