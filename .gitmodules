@@ -4,3 +4,6 @@
 [submodule "setools/selinux"]
 	path = setools/selinux
 	url = https://github.com/mauricelam/selinux.git
+[submodule "binwalk/binwalk-rs"]
+	path = binwalk/binwalk-rs
+	url = https://github.com/ReFirmLabs/binwalk.git

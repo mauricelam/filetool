@@ -41,7 +41,8 @@
         "img-viewer",
         "parquetviewer",
         "setools",
-        "svgviewer"
+        "svgviewer",
+        "binwalk"
     ],
     "scripts": {
         "start": "node serve.mts",

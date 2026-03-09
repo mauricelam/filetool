@@ -1,0 +1,1057 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 8f42ce8..342b373 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -9,32 +9,42 @@ repository = "https://github.com/ReFirmLabs/binwalk"
+ description = "Analyzes data for embedded file types"
+ keywords = ["binwalk", "firmware", "analysis"]
+
++[features]
++default = ["lzma", "bzip2", "entropy", "cli", "crypto"]
++lzma = ["dep:liblzma"]
++bzip2 = ["dep:bzip2"]
++entropy = ["dep:entropy", "dep:plotly"]
++cli = ["dep:env_logger", "dep:threadpool", "dep:clap", "dep:colored", "dep:termsize"]
++crypto = ["dep:delink"]
++
+ [dependencies]
+ log = "0.4.22"
+ base64 = "0.22.1"
+ chrono = "0.4.38"
+ walkdir = "2.5.0"
+-entropy = "0.4.2"
+-colored = "3.0.0"
+-termsize = "0.1"
+ crc32-v2 = "0.0.5"
+ crc32c = "0.6.8"
+-liblzma = "0.4.2"
+-bzip2 = "0.6.0"
+-threadpool = "1.8.1"
+ serde_json = "1.0"
+-env_logger = "0.11.5"
+ flate2 = "1.1.2"
+ adler32 = "1.2.0"
+ md5 = "0.8.0"
+ miniz_oxide = "0.8.0"
+ aho-corasick = "1.1.3"
+ serde = { version = "1.0", features = ["derive"] }
+-clap = { version = "4.5.16", features = ["derive"] }
+ xxhash-rust = { version = "0.8.12", features = ["xxh32"] }
+ hex = "0.4.3"
+-delink = { git = "https://github.com/devttys0/delink" }
+-plotly = { version = "0.13.1", features = ["kaleido", "kaleido_download"] }
++delink = { git = "https://github.com/devttys0/delink", optional = true }
++
++# Optional dependencies for features
++liblzma = { version = "0.4.2", optional = true }
++bzip2 = { version = "0.6.0", optional = true }
++entropy = { version = "0.4.2", optional = true }
++plotly = { version = "0.13.1", features = ["kaleido", "kaleido_download"], optional = true }
++env_logger = { version = "0.11.5", optional = true }
++threadpool = { version = "1.8.1", optional = true }
++clap = { version = "4.5.16", features = ["derive"], optional = true }
++colored = { version = "3.0.0", optional = true }
++termsize = { version = "0.1", optional = true }
+
+ [dependencies.uuid]
+ version = "1.17.0"
+@@ -42,6 +52,7 @@ features = [
+     "v4",                # Lets you generate random UUIDs
+     "fast-rng",          # Use a faster (but still sufficiently random) RNG
+     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
++    "js",
+ ]
+
+ [profile.release]
+diff --git a/src/binwalk.rs b/src/binwalk.rs
+index 1c02eb8..a870645 100644
+--- a/src/binwalk.rs
++++ b/src/binwalk.rs
+@@ -155,6 +155,7 @@ impl Binwalk {
+             }
+
+             // If an output extraction directory was also specified, initialize it
++            #[cfg(not(target_family = "wasm"))]
+             if let Some(extraction_directory) = output_directory {
+                 // Make the extraction directory an absolute path
+                 match path::absolute(&extraction_directory) {
+@@ -751,6 +752,7 @@ impl Binwalk {
+     /// Analyze a file on disk and optionally extract its contents.
+     ///
+     /// ## Example
++    #[cfg(not(target_family = "wasm"))]
+     ///
+     /// ```
+     /// # fn main() { #[allow(non_snake_case)] fn _doctest_main_src_binwalk_rs_745_0() -> Result<binwalk::Binwalk, binwalk::BinwalkError> {
+@@ -789,6 +791,7 @@ impl Binwalk {
+     /// # } _doctest_main_src_binwalk_rs_745_0(); }
+     /// ```
+     #[allow(dead_code)]
++    #[cfg(not(target_family = "wasm"))]
+     pub fn analyze(&self, target_file: impl Into<String>, do_extraction: bool) -> AnalysisResults {
+         let file_path = target_file.into();
+
+@@ -805,6 +808,7 @@ impl Binwalk {
+ }
+
+ /// Initializes the extraction output directory
++#[cfg(not(target_family = "wasm"))]
+ fn init_extraction_directory(
+     target_file: &str,
+     extraction_directory: &str,
+@@ -845,7 +849,7 @@ fn init_extraction_directory(
+     );
+
+     // Create a symlink from inside the extraction directory to the specified target file
+-    #[cfg(unix)]
++    #[cfg(all(unix, not(target_family = "wasm")))]
+     {
+         match unix::fs::symlink(target_path, link_path) {
+             Ok(_) => Ok(link_target_path_str),
+diff --git a/src/entropy.rs b/src/entropy.rs
+index 9c75d8f..df3bf10 100644
+--- a/src/entropy.rs
++++ b/src/entropy.rs
+@@ -1,6 +1,9 @@
+ use crate::common::read_input;
++#[cfg(feature = "entropy")]
+ use entropy::shannon_entropy;
++#[cfg(feature = "entropy")]
+ use plotly::layout::{Axis, Layout};
++#[cfg(feature = "entropy")]
+ use plotly::{ImageFormat, Plot, Scatter};
+ use serde::{Deserialize, Serialize};
+
+@@ -21,6 +24,7 @@ pub struct FileEntropy {
+ }
+
+ /// Splits the supplied data up into blocks and calculates the entropy of each block.
++#[cfg(feature = "entropy")]
+ fn blocks(data: &[u8]) -> Vec<BlockEntropy> {
+     const BLOCK_COUNT: usize = 2048;
+
+@@ -56,6 +60,7 @@ fn blocks(data: &[u8]) -> Vec<BlockEntropy> {
+     entropy_blocks
+ }
+
++#[cfg(feature = "entropy")]
+ pub fn plot(
+     file_path: impl Into<String>,
+     stdin: bool,
+diff --git a/src/extractors/bzip2.rs b/src/extractors/bzip2.rs
+index 8ac18fb..4766bc5 100644
+--- a/src/extractors/bzip2.rs
++++ b/src/extractors/bzip2.rs
+@@ -1,5 +1,6 @@
+ use crate::common::is_offset_safe;
+ use crate::extractors::common::{Chroot, ExtractionResult, Extractor, ExtractorType};
++#[cfg(feature = "bzip2")]
+ use bzip2::{Decompress, Status};
+
+ /// Defines the internal extractor function for decompressing BZIP2 files
+@@ -33,81 +34,90 @@ pub fn bzip2_extractor() -> Extractor {
+
+ /// Internal extractor for decompressing BZIP2 data
+ pub fn bzip2_decompressor(
+-    file_data: &[u8],
+-    offset: usize,
+-    output_directory: Option<&str>,
++    _file_data: &[u8],
++    _offset: usize,
++    _output_directory: Option<&str>,
+ ) -> ExtractionResult {
+-    // Size of decompression buffer
+-    const BLOCK_SIZE: usize = 900 * 1024;
+-    // Output file for decompressed data
+-    const OUTPUT_FILE_NAME: &str = "decompressed.bin";
++    #[cfg(feature = "bzip2")]
++    {
++        // Size of decompression buffer
++        const BLOCK_SIZE: usize = 900 * 1024;
++        // Output file for decompressed data
++        const OUTPUT_FILE_NAME: &str = "decompressed.bin";
+
+-    let mut result = ExtractionResult {
+-        ..Default::default()
+-    };
++        let mut result = ExtractionResult {
++            ..Default::default()
++        };
+
+-    let mut bytes_written: usize = 0;
+-    let mut stream_offset: usize = 0;
+-    let bzip2_data = &file_data[offset..];
+-    let mut decompressed_buffer = [0; BLOCK_SIZE];
+-    let mut decompressor = Decompress::new(false);
+-    let available_data = bzip2_data.len();
+-    let mut previous_offset = None;
++        let mut bytes_written: usize = 0;
++        let mut stream_offset: usize = 0;
++        let bzip2_data = &_file_data[_offset..];
++        let mut decompressed_buffer = [0; BLOCK_SIZE];
++        let mut decompressor = Decompress::new(false);
++        let available_data = bzip2_data.len();
++        let mut previous_offset = None;
+
+-    /*
+-     * Loop through all compressed data and decompress it.
+-     *
+-     * This has a significant performance hit since 1) decompression takes time, and 2) data is
+-     * decompressed once during signature validation and a second time during extraction (if extraction
+-     * was requested).
+-     *
+-     * The advantage is that not only are we 100% sure that this data is valid BZIP2 data, but we
+-     * can also determine the exact size of the BZIP2 data.
+-     */
+-    while is_offset_safe(available_data, stream_offset, previous_offset) {
+-        previous_offset = Some(stream_offset);
++        /*
++         * Loop through all compressed data and decompress it.
++         *
++         * This has a significant performance hit since 1) decompression takes time, and 2) data is
++         * decompressed once during signature validation and a second time during extraction (if extraction
++         * was requested).
++         *
++         * The advantage is that not only are we 100% sure that this data is valid BZIP2 data, but we
++         * can also determine the exact size of the BZIP2 data.
++         */
++        while is_offset_safe(available_data, stream_offset, previous_offset) {
++            previous_offset = Some(stream_offset);
+
+-        // Decompress a block of data
+-        match decompressor.decompress(&bzip2_data[stream_offset..], &mut decompressed_buffer) {
+-            Err(_) => {
+-                // Break on decompression error
+-                break;
+-            }
+-            Ok(status) => {
+-                match status {
+-                    Status::RunOk => break,
+-                    Status::FlushOk => break,
+-                    Status::FinishOk => break,
+-                    Status::MemNeeded => break,
+-                    Status::Ok => {
+-                        stream_offset = decompressor.total_in() as usize;
+-                    }
+-                    Status::StreamEnd => {
+-                        result.success = true;
+-                        result.size = Some(decompressor.total_in() as usize);
+-                    }
++            // Decompress a block of data
++            match decompressor.decompress(&bzip2_data[stream_offset..], &mut decompressed_buffer) {
++                Err(_) => {
++                    // Break on decompression error
++                    break;
+                 }
++                Ok(status) => {
++                    match status {
++                        Status::RunOk => break,
++                        Status::FlushOk => break,
++                        Status::FinishOk => break,
++                        Status::MemNeeded => break,
++                        Status::Ok => {
++                            stream_offset = decompressor.total_in() as usize;
++                        }
++                        Status::StreamEnd => {
++                            result.success = true;
++                            result.size = Some(decompressor.total_in() as usize);
++                        }
++                    }
+
+-                // Decompressed a block of data, if extraction was requested write the decompressed block to the output file
+-                if output_directory.is_some() {
+-                    let n: usize = (decompressor.total_out() as usize) - bytes_written;
++                    // Decompressed a block of data, if extraction was requested write the decompressed block to the output file
++                    if _output_directory.is_some() {
++                        let n: usize = (decompressor.total_out() as usize) - bytes_written;
+
+-                    let chroot = Chroot::new(output_directory);
+-                    if !chroot.append_to_file(OUTPUT_FILE_NAME, &decompressed_buffer[0..n]) {
+-                        // If writing data to file fails, break
+-                        break;
+-                    }
++                        let chroot = Chroot::new(_output_directory);
++                        if !chroot.append_to_file(OUTPUT_FILE_NAME, &decompressed_buffer[0..n]) {
++                            // If writing data to file fails, break
++                            break;
++                        }
+
+-                    bytes_written += n;
+-                }
++                        bytes_written += n;
++                    }
+
+-                // If everything has been processed successfully, we're done; break.
+-                if result.success {
+-                    break;
++                    // If everything has been processed successfully, we're done; break.
++                    if result.success {
++                        break;
++                    }
+                 }
+             }
+         }
+-    }
+
+-    result
++        result
++    }
++    #[cfg(not(feature = "bzip2"))]
++    {
++        ExtractionResult {
++            ..Default::default()
++        }
++    }
+ }
+diff --git a/src/extractors/common.rs b/src/extractors/common.rs
+index 934b386..74f7efc 100644
+--- a/src/extractors/common.rs
++++ b/src/extractors/common.rs
+@@ -69,6 +69,7 @@ pub struct ExtractionResult {
+ /// Stores information about external extractor processes. For internal use only.
+ #[derive(Debug)]
+ pub struct ProcInfo {
++    #[cfg(not(target_family = "wasm"))]
+     pub child: process::Child,
+     pub exit_codes: Vec<i32>,
+     pub carved_file: String,
+@@ -317,18 +318,26 @@ impl Chroot {
+         start: usize,
+         size: usize,
+     ) -> bool {
+-        let mut retval: bool = false;
++        #[cfg(not(target_family = "wasm"))]
++        {
++            let mut retval: bool = false;
+
+-        if let Some(file_data) = data.get(start..start + size) {
+-            retval = self.create_file(file_path, file_data);
+-        } else {
+-            error!(
+-                "Failed to create file {}: data offset/size are invalid",
+-                file_path.into()
+-            );
+-        }
++            if let Some(file_data) = data.get(start..start + size) {
++                retval = self.create_file(file_path, file_data);
++            } else {
++                error!(
++                    "Failed to create file {}: data offset/size are invalid",
++                    file_path.into()
++                );
++            }
+
+-        retval
++            retval
++        }
++        #[cfg(target_family = "wasm")]
++        {
++            let _ = (file_path, data, start, size);
++            false
++        }
+     }
+
+     /// Creates a device file in the chroot directory.
+@@ -713,7 +722,9 @@ impl Chroot {
+         symlink_path: impl Into<String>,
+         target_path: impl Into<String>,
+     ) -> bool {
+-        let target = target_path.into();
++        #[cfg(not(target_family = "wasm"))]
++        {
++            let target = target_path.into();
+         let symlink = symlink_path.into();
+
+         // Chroot the symlink file path and create a Path object
+@@ -791,26 +802,32 @@ impl Chroot {
+                 }
+             }
+         }
+-        #[cfg(windows)]
+-        {
+-            // let sym = match safe_target_path.is_dir() {
+-            //     true => windows::fs::symlink_dir(safe_target_path, safe_symlink_path),
+-            //     false => windows::fs::symlink_file(safe_target_path, safe_symlink_path),
+-            // };
++            #[cfg(windows)]
++            {
++                // let sym = match safe_target_path.is_dir() {
++                //     true => windows::fs::symlink_dir(safe_target_path, safe_symlink_path),
++                //     false => windows::fs::symlink_file(safe_target_path, safe_symlink_path),
++                // };
+
+-            match windows::fs::symlink_dir(safe_target_path, safe_symlink_path) {
+-                Ok(_) => {
+-                    return true;
+-                }
+-                Err(e) => {
+-                    error!(
+-                        "Failed to create symlink from {} -> {}: {}",
+-                        symlink, target, e
+-                    );
+-                    return false;
++                match windows::fs::symlink_dir(safe_target_path, safe_symlink_path) {
++                    Ok(_) => {
++                        return true;
++                    }
++                    Err(e) => {
++                        error!(
++                            "Failed to create symlink from {} -> {}: {}",
++                            symlink, target, e
++                        );
++                        return false;
++                    }
+                 }
+             }
+         }
++        #[cfg(target_family = "wasm")]
++        {
++            let _ = (symlink_path, target_path);
++            false
++        }
+     }
+
+     /// Returns true if the file path is a symlink.
+@@ -1029,143 +1046,158 @@ fn spawn(
+     signature: &SignatureResult,
+     mut extractor: Extractor,
+ ) -> Result<ProcInfo, std::io::Error> {
+-    let chroot = Chroot::new(None);
+-
+-    // This function *only* handles execution of external extraction utilities; internal extractors must be invoked directly
+-    let command = match &extractor.utility {
+-        ExtractorType::External(cmd) => cmd.clone(),
+-        ExtractorType::Internal(_ext) => {
+-            error!("Tried to run an internal extractor as an external command!");
+-            return Err(std::io::Error::other(
+-                "attempt to execute an internal extractor as an external command",
+-            ));
+-        }
+-        ExtractorType::None => {
+-            error!("An extractor command was defined, but is set to None!");
+-            return Err(std::io::Error::other(
+-                "invalid external command of type None",
+-            ));
+-        }
+-    };
++    #[cfg(not(target_family = "wasm"))]
++    {
++        let chroot = Chroot::new(None);
++
++        // This function *only* handles execution of external extraction utilities; internal extractors must be invoked directly
++        let command = match &extractor.utility {
++            ExtractorType::External(cmd) => cmd.clone(),
++            ExtractorType::Internal(_ext) => {
++                error!("Tried to run an internal extractor as an external command!");
++                return Err(std::io::Error::other(
++                    "attempt to execute an internal extractor as an external command",
++                ));
++            }
++            ExtractorType::None => {
++                error!("An extractor command was defined, but is set to None!");
++                return Err(std::io::Error::other(
++                    "invalid external command of type None",
++                ));
++            }
++        };
+
+-    // Carved file path will be <output directory>/<signature.name>_<hex offset>.<extractor.extension>
+-    let carved_file = format!(
+-        "{}{}{}_{:X}.{}",
+-        output_directory,
+-        path::MAIN_SEPARATOR,
+-        signature.name,
+-        signature.offset,
+-        extractor.extension
+-    );
+-    info!(
+-        "Carving data from {} {:#X}..{:#X} to {}",
+-        file_path,
+-        signature.offset,
+-        signature.offset + signature.size,
+-        carved_file
+-    );
++        // Carved file path will be <output directory>/<signature.name>_<hex offset>.<extractor.extension>
++        let carved_file = format!(
++            "{}{}{}_{:X}.{}",
++            output_directory,
++            path::MAIN_SEPARATOR,
++            signature.name,
++            signature.offset,
++            extractor.extension
++        );
++        info!(
++            "Carving data from {} {:#X}..{:#X} to {}",
++            file_path,
++            signature.offset,
++            signature.offset + signature.size,
++            carved_file
++        );
+
+-    // If the entirety of the source file is this one file type, no need to carve a copy of it, just create a symlink
+-    if signature.offset == 0 && signature.size == file_data.len() {
+-        if !chroot.create_symlink(&carved_file, file_path) {
+-            return Err(std::io::Error::other(
+-                "Failed to create carved file symlink",
+-            ));
+-        }
+-    } else {
+-        // Copy file data to carved file path
+-        if !chroot.carve_file(&carved_file, file_data, signature.offset, signature.size) {
+-            return Err(std::io::Error::other("Failed to carve data to disk"));
++        // If the entirety of the source file is this one file type, no need to carve a copy of it, just create a symlink
++        if signature.offset == 0 && signature.size == file_data.len() {
++            if !chroot.create_symlink(&carved_file, file_path) {
++                return Err(std::io::Error::other(
++                    "Failed to create carved file symlink",
++                ));
++            }
++        } else {
++            // Copy file data to carved file path
++            if !chroot.carve_file(&carved_file, file_data, signature.offset, signature.size) {
++                return Err(std::io::Error::other("Failed to carve data to disk"));
++            }
+         }
+-    }
+
+-    // Replace all "%e" command arguments with the path to the carved file
+-    for i in 0..extractor.arguments.len() {
+-        if extractor.arguments[i] == SOURCE_FILE_PLACEHOLDER {
+-            extractor.arguments[i] = carved_file.clone();
++        // Replace all "%e" command arguments with the path to the carved file
++        for i in 0..extractor.arguments.len() {
++            if extractor.arguments[i] == SOURCE_FILE_PLACEHOLDER {
++                extractor.arguments[i] = carved_file.clone();
++            }
+         }
+-    }
+
+-    info!("Spawning process {} {:?}", command, extractor.arguments);
+-    match process::Command::new(&command)
+-        .args(&extractor.arguments)
+-        .stdout(process::Stdio::null())
+-        .stderr(process::Stdio::null())
+-        .current_dir(output_directory)
+-        .spawn()
+-    {
+-        Err(e) => {
+-            error!(
+-                "Failed to execute command {}{:?}: {}",
+-                command, extractor.arguments, e
+-            );
+-            Err(e)
+-        }
++        info!("Spawning process {} {:?}", command, extractor.arguments);
++        match process::Command::new(&command)
++            .args(&extractor.arguments)
++            .stdout(process::Stdio::null())
++            .stderr(process::Stdio::null())
++            .current_dir(output_directory)
++            .spawn()
++        {
++            Err(e) => {
++                error!(
++                    "Failed to execute command {}{:?}: {}",
++                    command, extractor.arguments, e
++                );
++                Err(e)
++            }
+
+-        Ok(child) => {
+-            // If the process was spawned successfully, return some information about the process
+-            let proc_info = ProcInfo {
+-                child,
+-                carved_file: carved_file.clone(),
+-                exit_codes: extractor.exit_codes,
+-            };
++            Ok(child) => {
++                // If the process was spawned successfully, return some information about the process
++                let proc_info = ProcInfo {
++                    child,
++                    carved_file: carved_file.clone(),
++                    exit_codes: extractor.exit_codes,
++                };
+
+-            Ok(proc_info)
++                Ok(proc_info)
++            }
+         }
+     }
++    #[cfg(target_family = "wasm")]
++    {
++        let _ = (file_data, file_path, output_directory, signature, extractor);
++        Err(std::io::Error::other("External extractors not supported on WASM"))
++    }
+ }
+
+ /// Waits for an extraction process to complete.
+ /// Returns ExtractionError if the extractor was prematurely terminated, else returns an ExtractionResult.
+-fn proc_wait(mut worker_info: ProcInfo) -> Result<ExtractionResult, ExtractionError> {
+-    // The standard exit success value is 0
+-    const EXIT_SUCCESS: i32 = 0;
+-
+-    // Block until child process has terminated
+-    match worker_info.child.wait() {
+-        // Child was terminated from an external signal, status unknown, assume failure but do nothing else
+-        Err(e) => {
+-            error!("Failed to retreive child process status: {e}");
+-            Err(ExtractionError)
+-        }
++fn proc_wait(mut _worker_info: ProcInfo) -> Result<ExtractionResult, ExtractionError> {
++    #[cfg(not(target_family = "wasm"))]
++    {
++        // The standard exit success value is 0
++        const EXIT_SUCCESS: i32 = 0;
+
+-        // Child terminated with an exit status
+-        Ok(status) => {
+-            // Assume failure until proven otherwise
+-            let mut extraction_success: bool = false;
++        // Block until child process has terminated
++        match _worker_info.child.wait() {
++            // Child was terminated from an external signal, status unknown, assume failure but do nothing else
++            Err(e) => {
++                error!("Failed to retreive child process status: {e}");
++                Err(ExtractionError)
++            }
+
+-            // Clean up the carved file used as input to the extractor
+-            debug!("Deleting carved file {}", worker_info.carved_file);
+-            if let Err(e) = fs::remove_file(worker_info.carved_file.clone()) {
+-                warn!(
+-                    "Failed to remove carved file '{}': {}",
+-                    worker_info.carved_file, e
+-                );
+-            };
++            // Child terminated with an exit status
++            Ok(status) => {
++                // Assume failure until proven otherwise
++                let mut extraction_success: bool = false;
++
++                // Clean up the carved file used as input to the extractor
++                debug!("Deleting carved file {}", _worker_info.carved_file);
++                if let Err(e) = fs::remove_file(_worker_info.carved_file.clone()) {
++                    warn!(
++                        "Failed to remove carved file '{}': {}",
++                        _worker_info.carved_file, e
++                    );
++                };
+
+-            // Check the extractor's exit status
+-            match status.code() {
+-                None => {
+-                    extraction_success = false;
+-                }
++                // Check the extractor's exit status
++                match status.code() {
++                    None => {
++                        extraction_success = false;
++                    }
+
+-                Some(code) => {
+-                    // Make sure the extractor's exit code is an expected one
+-                    if code == EXIT_SUCCESS || worker_info.exit_codes.contains(&code) {
+-                        extraction_success = true;
+-                    } else {
+-                        warn!("Child process exited with unexpected code: {code}");
++                    Some(code) => {
++                        // Make sure the extractor's exit code is an expected one
++                        if code == EXIT_SUCCESS || _worker_info.exit_codes.contains(&code) {
++                            extraction_success = true;
++                        } else {
++                            warn!("Child process exited with unexpected code: {code}");
++                        }
+                     }
+                 }
+-            }
+
+-            // Return an ExtractionResult with the appropriate success status
+-            Ok(ExtractionResult {
+-                success: extraction_success,
+-                ..Default::default()
+-            })
++                // Return an ExtractionResult with the appropriate success status
++                Ok(ExtractionResult {
++                    success: extraction_success,
++                    ..Default::default()
++                })
++            }
+         }
+     }
++    #[cfg(target_family = "wasm")]
++    {
++        Err(ExtractionError)
++    }
+ }
+
+ // Create an output directory in which to place extraction results
+diff --git a/src/extractors/encfw.rs b/src/extractors/encfw.rs
+index 1d4c76c..d6ad407 100644
+--- a/src/extractors/encfw.rs
++++ b/src/extractors/encfw.rs
+@@ -31,25 +31,34 @@ pub fn encfw_extractor() -> Extractor {
+
+ /// Attempts to decrypt known encrypted firmware images
+ pub fn encfw_decrypt(
+-    file_data: &[u8],
+-    offset: usize,
+-    output_directory: Option<&str>,
++    _file_data: &[u8],
++    _offset: usize,
++    _output_directory: Option<&str>,
+ ) -> ExtractionResult {
+-    const OUTPUT_FILE_NAME: &str = "decrypted.bin";
++    #[cfg(feature = "crypto")]
++    {
++        const OUTPUT_FILE_NAME: &str = "decrypted.bin";
+
+-    let mut result = ExtractionResult {
+-        ..Default::default()
+-    };
++        let mut result = ExtractionResult {
++            ..Default::default()
++        };
+
+-    if let Ok(decrypted_data) = delink::decrypt(&file_data[offset..]) {
+-        result.success = true;
++        if let Ok(decrypted_data) = delink::decrypt(&_file_data[_offset..]) {
++            result.success = true;
+
+-        // Write to file, if requested
+-        if output_directory.is_some() {
+-            let chroot = Chroot::new(output_directory);
+-            result.success = chroot.create_file(OUTPUT_FILE_NAME, &decrypted_data);
++            // Write to file, if requested
++            if _output_directory.is_some() {
++                let chroot = Chroot::new(_output_directory);
++                result.success = chroot.create_file(OUTPUT_FILE_NAME, &decrypted_data);
++            }
+         }
+-    }
+
+-    result
++        result
++    }
++    #[cfg(not(feature = "crypto"))]
++    {
++        ExtractionResult {
++            ..Default::default()
++        }
++    }
+ }
+diff --git a/src/extractors/lzma.rs b/src/extractors/lzma.rs
+index 5049371..dc529f2 100644
+--- a/src/extractors/lzma.rs
++++ b/src/extractors/lzma.rs
+@@ -1,4 +1,5 @@
+ use crate::extractors::common::{Chroot, ExtractionResult, Extractor, ExtractorType};
++#[cfg(feature = "lzma")]
+ use liblzma::stream::{Action, Status, Stream};
+
+ /// Defines the internal extractor function for decompressing LZMA/XZ data
+@@ -32,99 +33,108 @@ pub fn lzma_extractor() -> Extractor {
+
+ /// Internal extractor for decompressing LZMA/XZ data streams
+ pub fn lzma_decompress(
+-    file_data: &[u8],
+-    offset: usize,
+-    output_directory: Option<&str>,
++    _file_data: &[u8],
++    _offset: usize,
++    _output_directory: Option<&str>,
+ ) -> ExtractionResult {
+-    // Output file name
+-    const OUTPUT_FILE_NAME: &str = "decompressed.bin";
+-    // Output buffer size
+-    const BLOCK_SIZE: usize = 8192;
+-    // Maximum memory limit: 4GB
+-    const MEM_LIMIT: u64 = 4 * 1024 * 1024 * 1024;
++    #[cfg(feature = "lzma")]
++    {
++        // Output file name
++        const OUTPUT_FILE_NAME: &str = "decompressed.bin";
++        // Output buffer size
++        const BLOCK_SIZE: usize = 8192;
++        // Maximum memory limit: 4GB
++        const MEM_LIMIT: u64 = 4 * 1024 * 1024 * 1024;
+
+-    let mut result = ExtractionResult {
+-        ..Default::default()
+-    };
++        let mut result = ExtractionResult {
++            ..Default::default()
++        };
+
+-    // Output buffer
+-    let mut output_buf = [0; BLOCK_SIZE];
++        // Output buffer
++        let mut output_buf = [0; BLOCK_SIZE];
+
+-    // Input compression stream
+-    let lzma_stream = &file_data[offset..];
++        // Input compression stream
++        let lzma_stream = &_file_data[_offset..];
+
+-    // Instantiate a new decoder, auto-detect LZMA or XZ
+-    if let Ok(mut decompressor) = Stream::new_auto_decoder(MEM_LIMIT, 0) {
+-        // Tracks number of bytes written to disk
+-        let mut bytes_written: usize = 0;
+-        // Tracks current position of bytes consumed from input stream
+-        let mut stream_position: usize = 0;
++        // Instantiate a new decoder, auto-detect LZMA or XZ
++        if let Ok(mut decompressor) = Stream::new_auto_decoder(MEM_LIMIT, 0) {
++            // Tracks number of bytes written to disk
++            let mut bytes_written: usize = 0;
++            // Tracks current position of bytes consumed from input stream
++            let mut stream_position: usize = 0;
+
+-        /*
+-         * Loop through all compressed data and decompress it.
+-         *
+-         * This has a significant performance hit since 1) decompression takes time, and 2) data is
+-         * decompressed once during signature validation and a second time during extraction (if extraction
+-         * was requested).
+-         *
+-         * The advantage is that not only are we 100% sure that this data is a valid LZMA stream, but we
+-         * can also determine the exact size of the LZMA data.
+-         */
+-        loop {
+-            // Decompress data into output_buf
+-            match decompressor.process(
+-                &lzma_stream[stream_position..],
+-                &mut output_buf,
+-                Action::Run,
+-            ) {
+-                Err(_) => {
+-                    // Decompression error, break
+-                    break;
+-                }
+-                Ok(status) => {
+-                    // Check reported status
+-                    match status {
+-                        Status::GetCheck => break,
+-                        Status::MemNeeded => break,
+-                        Status::Ok => {
+-                            // Decompression OK, but there is still more data to decompress
+-                            stream_position = decompressor.total_in() as usize;
++            /*
++             * Loop through all compressed data and decompress it.
++             *
++             * This has a significant performance hit since 1) decompression takes time, and 2) data is
++             * decompressed once during signature validation and a second time during extraction (if extraction
++             * was requested).
++             *
++             * The advantage is that not only are we 100% sure that this data is a valid LZMA stream, but we
++             * can also determine the exact size of the LZMA data.
++             */
++            loop {
++                // Decompress data into output_buf
++                match decompressor.process(
++                    &lzma_stream[stream_position..],
++                    &mut output_buf,
++                    Action::Run,
++                ) {
++                    Err(_) => {
++                        // Decompression error, break
++                        break;
++                    }
++                    Ok(status) => {
++                        // Check reported status
++                        match status {
++                            Status::GetCheck => break,
++                            Status::MemNeeded => break,
++                            Status::Ok => {
++                                // Decompression OK, but there is still more data to decompress
++                                stream_position = decompressor.total_in() as usize;
++                            }
++                            Status::StreamEnd => {
++                                // Decompression complete. If some data was decompressed, report success, else break.
++                                if decompressor.total_out() > 0 {
++                                    result.success = true;
++                                    result.size = Some(decompressor.total_in() as usize);
++                                } else {
++                                    break;
++                                }
++                            }
+                         }
+-                        Status::StreamEnd => {
+-                            // Decompression complete. If some data was decompressed, report success, else break.
+-                            if decompressor.total_out() > 0 {
+-                                result.success = true;
+-                                result.size = Some(decompressor.total_in() as usize);
+-                            } else {
++
++                        // Some data was decompressed successfully; if extraction was requested, write the data to disk.
++                        if _output_directory.is_some() {
++                            // Number of decompressed bytes in the output buffer
++                            let n = (decompressor.total_out() as usize) - bytes_written;
++
++                            let chroot = Chroot::new(_output_directory);
++                            if !chroot.append_to_file(OUTPUT_FILE_NAME, &output_buf[0..n]) {
++                                // If writing data to disk fails, report failure and break
++                                result.success = false;
+                                 break;
+                             }
+-                        }
+-                    }
+
+-                    // Some data was decompressed successfully; if extraction was requested, write the data to disk.
+-                    if output_directory.is_some() {
+-                        // Number of decompressed bytes in the output buffer
+-                        let n = (decompressor.total_out() as usize) - bytes_written;
++                            // Remember how much data has been written to disk
++                            bytes_written += n;
++                        }
+
+-                        let chroot = Chroot::new(output_directory);
+-                        if !chroot.append_to_file(OUTPUT_FILE_NAME, &output_buf[0..n]) {
+-                            // If writing data to disk fails, report failure and break
+-                            result.success = false;
++                        // If result.success is true, then everything has been processed and written to disk successfully.
++                        if result.success {
+                             break;
+                         }
+-
+-                        // Remember how much data has been written to disk
+-                        bytes_written += n;
+-                    }
+-
+-                    // If result.success is true, then everything has been processed and written to disk successfully.
+-                    if result.success {
+-                        break;
+                     }
+                 }
+             }
+         }
+-    }
+
+-    result
++        result
++    }
++    #[cfg(not(feature = "lzma"))]
++    {
++        ExtractionResult {
++            ..Default::default()
++        }
++    }
+ }
+diff --git a/src/extractors/mh01.rs b/src/extractors/mh01.rs
+index ce7ed01..0851962 100644
+--- a/src/extractors/mh01.rs
++++ b/src/extractors/mh01.rs
+@@ -56,6 +56,7 @@ pub fn extract_mh01_image(
+             if output_directory.is_some() {
+                 let chroot = Chroot::new(output_directory);
+
++                #[cfg(feature = "crypto")]
+                 // Try to decrypt the firmware
+                 match delink::mh01::decrypt(mh01_data) {
+                     Ok(decrypted_data) => {
+@@ -65,6 +66,35 @@ pub fn extract_mh01_image(
+                     }
+                     Err(_) => {
+                         // Decryption failture; extract each part of the firmware image, ensuring that each one extracts without error
++                        #[cfg(not(target_family = "wasm"))]
++                        {
++                            result.success = chroot.carve_file(
++                                IV_FILE_NAME,
++                                mh01_data,
++                                mh01_header.iv_offset,
++                                mh01_header.iv_size,
++                            ) && chroot.carve_file(
++                                SIGNATURE_FILE_NAME,
++                                mh01_data,
++                                mh01_header.signature_offset,
++                                mh01_header.signature_size,
++                            ) && chroot.carve_file(
++                                ENCRYPTED_DATA_FILE_NAME,
++                                mh01_data,
++                                mh01_header.encrypted_data_offset,
++                                mh01_header.encrypted_data_size,
++                            );
++                        }
++                        #[cfg(target_family = "wasm")]
++                        {
++                            result.success = false;
++                        }
++                    }
++                }
++                #[cfg(not(feature = "crypto"))]
++                {
++                    #[cfg(not(target_family = "wasm"))]
++                    {
+                         result.success = chroot.carve_file(
+                             IV_FILE_NAME,
+                             mh01_data,
+@@ -82,6 +112,10 @@ pub fn extract_mh01_image(
+                             mh01_header.encrypted_data_size,
+                         );
+                     }
++                    #[cfg(target_family = "wasm")]
++                    {
++                        result.success = false;
++                    }
+                 }
+             // No extraction requested, just return success
+             } else {
+diff --git a/src/structures/common.rs b/src/structures/common.rs
+index f3b3d9c..3c1ca84 100644
+--- a/src/structures/common.rs
++++ b/src/structures/common.rs
+@@ -6,7 +6,7 @@ use std::collections::HashMap;
+  * Returning usize types makes the calling code much cleaner, but that means that u64 fields won't fit into the return value on 32-bit systems.
+  * Thus, only 64-bit systems are supported. This requirement is enforced here.
+  */
+-#[cfg(not(target_pointer_width = "64"))]
++#[cfg(all(not(target_pointer_width = "64"), not(target_family = "wasm")))]
+ compile_error!("compilation is only allowed for 64-bit targets");
+
+ /// Error return value of structure parsers
+diff --git a/src/structures/linux.rs b/src/structures/linux.rs
+index 136d76a..6bb1c31 100644
+--- a/src/structures/linux.rs
++++ b/src/structures/linux.rs
+@@ -63,8 +63,11 @@ pub fn parse_linux_arm64_boot_image_header(
+     img_data: &[u8],
+ ) -> Result<LinuxARM64BootHeader, StructureError> {
+     const PE: &[u8] = b"PE";
++    #[cfg(target_pointer_width = "64")]
+     const FLAGS_RESERVED_MASK: usize =
+         0b11111111_11111111_11111111_11111111_11111111_11111111_11111111_11110000;
++    #[cfg(not(target_pointer_width = "64"))]
++    const FLAGS_RESERVED_MASK: usize = 0b11111111_11111111_11111111_11110000;
+     const FLAGS_ENDIAN_MASK: usize = 1;
+     const BIG_ENDIAN: usize = 1;
+
+diff --git a/src/structures/lzfse.rs b/src/structures/lzfse.rs
+index 51e2727..8b5c573 100644
+--- a/src/structures/lzfse.rs
++++ b/src/structures/lzfse.rs
+@@ -117,8 +117,12 @@ fn parse_compressedv2_block_header(lzfse_data: &[u8]) -> Result<LZFSEBlock, Stru
+     ];
+
+     if let Ok(block_header) = parse(lzfse_data, &block_structure, "little") {
++        #[cfg(target_pointer_width = "64")]
+         let n_lmd_payload_bytes =
+             (block_header["packed_field_2"] >> LMD_PAYLOAD_SHIFT) & PAYLOAD_MASK;
++        #[cfg(not(target_pointer_width = "64"))]
++        let n_lmd_payload_bytes = 0;
++
+         let n_literal_payload_bytes =
+             (block_header["packed_field_1"] >> N_PAYLOAD_SHIFT) & PAYLOAD_MASK;
+
+diff --git a/src/structures/lzma.rs b/src/structures/lzma.rs
+index cbf7a89..628f42c 100644
+--- a/src/structures/lzma.rs
++++ b/src/structures/lzma.rs
+@@ -11,7 +11,10 @@ pub struct LZMAHeader {
+ /// Parse an LZMA header
+ pub fn parse_lzma_header(lzma_data: &[u8]) -> Result<LZMAHeader, StructureError> {
+     // Streamed data has a reported size of -1
++    #[cfg(target_pointer_width = "64")]
+     const LZMA_STREAM_SIZE: usize = 0xFFFFFFFFFFFFFFFF;
++    #[cfg(not(target_pointer_width = "64"))]
++    const LZMA_STREAM_SIZE: usize = 0xFFFFFFFF;
+
+     // Some sane min and max values on the reported decompressed data size
+     const MIN_SUPPORTED_DECOMPRESSED_SIZE: usize = 256;

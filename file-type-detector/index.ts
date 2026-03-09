@@ -259,6 +259,7 @@ export const HANDLERS: HandlerDefinition[] = [
             { "description": /SE ?Linux policy/i }
         ]
     },
+    { "name": "Binwalk", "handler": "binwalk", "mimetypes": [MIME_MATCH_ANY] },
 ];
 
 export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {
