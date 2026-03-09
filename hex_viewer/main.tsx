@@ -32,7 +32,7 @@ function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemov
     const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing'>('inspector');
 
     return (
-        <div id="inspector">
+        <div id="inspector" style={{ width: '100%' }}>
             <div className="tab-header">
                 <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')}>Inspector</button>
                 <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')}>Search</button>
@@ -51,7 +51,7 @@ function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemov
                         setPreviewMarker={setPreviewMarker}
                     />
                 )}
-                {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
+                {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} matchLength={matchLength} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'hashing' && <HashingTab buffer={buffer} selection={selection} />}
             </div>
@@ -59,10 +59,9 @@ function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemov
     );
 }
 
-function SearchTab({ buffer, results, currentIndex, onSearch, onJumpToOffset }: { buffer: Uint8Array, results: number[], currentIndex: number | null, onSearch: (results: number[], index: number | null, matchLength: number) => void, onJumpToOffset: (offset: number) => void }) {
+function SearchTab({ buffer, results, currentIndex, matchLength, onSearch, onJumpToOffset }: { buffer: Uint8Array, results: number[], currentIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onJumpToOffset: (offset: number) => void }) {
     const [query, setQuery] = useState('');
     const [searchType, setSearchType] = useState<'hex' | 'utf8' | 'utf16' | 'regex'>('hex');
-    const [currentMatchLength, setCurrentMatchLength] = useState(0);
 
     const performSearch = () => {
         if (!query) {
@@ -136,7 +135,6 @@ function SearchTab({ buffer, results, currentIndex, onSearch, onJumpToOffset }: 
             console.error("Search error", e);
         }
 
-        setCurrentMatchLength(matchLen);
         onSearch(matches, matches.length > 0 ? 0 : null, matchLen);
         if (matches.length > 0) {
             onJumpToOffset(matches[0]);
@@ -146,15 +144,46 @@ function SearchTab({ buffer, results, currentIndex, onSearch, onJumpToOffset }: 
     const nextMatch = () => {
         if (results.length === 0) return;
         const nextIndex = currentIndex === null ? 0 : (currentIndex + 1) % results.length;
-        onSearch(results, nextIndex, currentMatchLength);
+        onSearch(results, nextIndex, matchLength);
         onJumpToOffset(results[nextIndex]);
     };
 
     const prevMatch = () => {
         if (results.length === 0) return;
         const prevIndex = currentIndex === null ? results.length - 1 : (currentIndex - 1 + results.length) % results.length;
-        onSearch(results, prevIndex, currentMatchLength);
+        onSearch(results, prevIndex, matchLength);
         onJumpToOffset(results[prevIndex]);
+    };
+
+    const renderMatchPreview = () => {
+        if (currentIndex === null || results.length === 0) return null;
+        const offset = results[currentIndex];
+        const startLine = Math.floor(offset / 16);
+        const previewLines = [];
+
+        for (let l = startLine - 1; l <= startLine + 1; l++) {
+            if (l < 0 || l * 16 >= buffer.length) continue;
+            const lineOffset = l * 16;
+            const lineBytes = buffer.slice(lineOffset, lineOffset + 16);
+            const lineHex = [];
+            for (let i = 0; i < 16; i++) {
+                if (i >= lineBytes.length) {
+                    lineHex.push("  ");
+                    continue;
+                }
+                const byteOffset = lineOffset + i;
+                const isMatch = byteOffset >= offset && byteOffset < offset + matchLength;
+                const hex = lineBytes[i].toString(16).padStart(2, '0').toUpperCase();
+                lineHex.push(isMatch ? <span className="match-highlight">{hex}</span> : hex);
+            }
+            previewLines.push(
+                <div key={l} className={l === startLine ? "match-line" : ""}>
+                    {l.toString(16).padStart(6, '0').toUpperCase()}  {lineHex.reduce((prev, curr, i) => [prev, i > 0 ? " " : "", curr], [] as any)}
+                </div>
+            );
+        }
+
+        return <div className="match-preview">{previewLines}</div>;
     };
 
     return (
@@ -179,11 +208,14 @@ function SearchTab({ buffer, results, currentIndex, onSearch, onJumpToOffset }: 
                 <button onClick={performSearch}>Find</button>
             </div>
             {results.length > 0 && (
-                <div className="search-row">
-                    <span>{currentIndex !== null ? currentIndex + 1 : 0} / {results.length} matches</span>
-                    <button onClick={prevMatch}>Prev</button>
-                    <button onClick={nextMatch}>Next</button>
-                </div>
+                <>
+                    <div className="search-row">
+                        <span>{currentIndex !== null ? currentIndex + 1 : 0} / {results.length} matches</span>
+                        <button onClick={prevMatch}>Prev</button>
+                        <button onClick={nextMatch}>Next</button>
+                    </div>
+                    {renderMatchPreview()}
+                </>
             )}
         </div>
     );
@@ -298,7 +330,7 @@ function HashingTab({ buffer, selection }: { buffer: Uint8Array, selection: [num
 
     useEffect(() => {
         // @ts-ignore
-        import('./md5-wasm.js').then(async (m) => {
+        import('./hex-viewer-wasm.js').then(async (m) => {
             await m.default();
             setMd5Compute(() => m.compute_md5);
             setMd5Ready(true);
@@ -483,19 +515,21 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
 }
 
 function HexViewer({ buffer }: { buffer: Uint8Array }) {
-    const [targetOffset, setTargetOffset] = useState<number | null>(null);
+    const [scrollTop, setScrollTop] = useState(0);
 
-    useEffect(() => {
-        if (targetOffset !== null) {
-            const viewer = document.getElementById('hexviewer');
-            if (viewer) {
-                const line = Math.floor(targetOffset / 16);
-                const LINE_HEIGHT = 16;
-                viewer.scrollTop = line * LINE_HEIGHT;
-            }
-            setTargetOffset(null);
+    const onJumpToOffset = useCallback((offset: number) => {
+        const viewer = document.getElementById('hexviewer');
+        if (viewer) {
+            const line = Math.floor(offset / 16);
+            const LINE_HEIGHT = 16;
+            viewer.scrollTop = line * LINE_HEIGHT;
+            setScrollTop(viewer.scrollTop);
         }
-    }, [targetOffset]);
+    }, []);
+
+    const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        setScrollTop(e.currentTarget.scrollTop);
+    }, []);
 
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [selectionStart, setSelectionStart] = useState<number | null>(null);
@@ -507,7 +541,15 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     const [currentMatchIndex, setCurrentMatchIndex] = useState<number | null>(null);
     const [matchLength, setMatchLength] = useState(0);
 
-    const searchResultOffsets = React.useMemo(() => new Set(searchResults), [searchResults]);
+    const searchResultOffsets = React.useMemo(() => {
+        const set = new Set<number>();
+        for (const start of searchResults) {
+            for (let i = 0; i < matchLength; i++) {
+                set.add(start + i);
+            }
+        }
+        return set;
+    }, [searchResults, matchLength]);
 
     const selection: [number, number] | null = selectionStart !== null && selectionEnd !== null ? [Math.min(selectionStart, selectionEnd), Math.max(selectionStart, selectionEnd)] : null;
 
@@ -547,19 +589,50 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
 
     const lineCount = Math.ceil(buffer.length / 16)
 
+    const [sidebarWidth, setSidebarWidth] = useState(300);
+    const [isResizing, setIsResizing] = useState(false);
+
+    const startResizing = useCallback(() => {
+        setIsResizing(true);
+    }, []);
+
+    const stopResizing = useCallback(() => {
+        setIsResizing(false);
+    }, []);
+
+    const resize = useCallback((e: MouseEvent) => {
+        if (isResizing) {
+            const newWidth = window.innerWidth - e.clientX;
+            if (newWidth >= 200 && newWidth <= window.innerWidth * 0.7) {
+                setSidebarWidth(newWidth);
+            }
+        }
+    }, [isResizing]);
+
+    useEffect(() => {
+        window.addEventListener('mousemove', resize);
+        window.addEventListener('mouseup', stopResizing);
+        return () => {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [resize, stopResizing]);
+
     return (
-        <div style={{ display: 'flex', height: '100%' }}>
-            <div id="hexviewer" style={{ flex: 1, overflowY: 'auto' }}>
-                <Column id="offset" lineCount={lineCount}
+        <div style={{ display: 'flex', height: '100%', userSelect: isResizing ? 'none' : 'auto' }}>
+            <div id="hexviewer" style={{ flex: 1, overflowY: 'auto' }} onScroll={onScroll}>
+                <Column id="offset" lineCount={lineCount} scrollTop={scrollTop}
                     header="Offset"
                     render={(i) => <div key={i}>{offset(i, buffer)}</div>} />
-                <Column id="hex" lineCount={lineCount}
+                <Column id="hex" lineCount={lineCount} scrollTop={scrollTop}
                     header="00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F"
                     render={(i) => <div key={i}>{renderHex(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, searchResultOffsets, currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null, matchLength, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
-                <Column id="ascii" lineCount={lineCount}
+                <Column id="ascii" lineCount={lineCount} scrollTop={scrollTop}
                     header=" "
                     render={(i) => <div key={i}>{renderAscii(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, searchResultOffsets, currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null, matchLength, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
             </div>
+            <div id="resize-handle" onMouseDown={startResizing} />
+            <div id="inspector-container" style={{ width: sidebarWidth, display: 'flex' }}>
             <DataInspector
                 buffer={buffer}
                 index={hoverIndex}
@@ -568,7 +641,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                 onAddMarker={onAddMarker}
                 onRemoveMarker={onRemoveMarker}
                 setPreviewMarker={setPreviewMarker}
-                onJumpToOffset={setTargetOffset}
+                onJumpToOffset={onJumpToOffset}
                 searchResults={searchResults}
                 currentMatchIndex={currentMatchIndex}
                 matchLength={matchLength}
@@ -578,23 +651,27 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                     setMatchLength(length);
                 }}
             />
+            </div>
         </div>
     )
 }
 
-function Column({ id, render, lineCount, header }: { id: string, render: (i: number) => ReactNode, lineCount: number, header: string }) {
-    const [offset, setOffset] = useState(0);
+function Column({ id, render, lineCount, header, scrollTop }: { id: string, render: (i: number) => ReactNode, lineCount: number, header: string, scrollTop: number }) {
+    const [height, setHeight] = useState(window.innerHeight);
 
     useEffect(() => {
-        const onScroll = () => { setOffset(window.scrollY) }
-        window.removeEventListener('scroll', onScroll)
-        window.addEventListener('scroll', onScroll, { passive: true })
-        return () => window.removeEventListener('scroll', onScroll)
+        const viewer = document.getElementById('hexviewer');
+        if (viewer) {
+            setHeight(viewer.clientHeight);
+            const ro = new ResizeObserver(() => setHeight(viewer.clientHeight));
+            ro.observe(viewer);
+            return () => ro.disconnect();
+        }
     }, []);
 
     const LINE_HEIGHT = 16;
-    const adjustedOffset = offset - LINE_HEIGHT * 2; // for the header row
-    let visibleRange = [Math.floor(adjustedOffset / LINE_HEIGHT), Math.ceil((adjustedOffset + window.innerHeight + 16) / LINE_HEIGHT)]
+    const adjustedOffset = scrollTop - LINE_HEIGHT * 2; // for the header row
+    let visibleRange = [Math.floor(adjustedOffset / LINE_HEIGHT), Math.ceil((adjustedOffset + height + 16) / LINE_HEIGHT)]
     const OFF_SCREEN_RENDER = 50;
     visibleRange = [Math.max(0, visibleRange[0] - OFF_SCREEN_RENDER), Math.min(lineCount, visibleRange[1] + OFF_SCREEN_RENDER)]
 

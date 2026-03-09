@@ -9,7 +9,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path', './md5-wasm.js'],
+  external: ['require', 'fs', 'path'],
   plugins: [
     copy({
       assets: [
@@ -21,8 +21,8 @@ const SETTINGS = {
       ]
     }),
     rustWasm({
-      projectDir: 'md5-wasm',
-      outName: 'md5-wasm',
+      projectDir: 'wasm',
+      outName: 'hex-viewer-wasm',
     }),
   ],
 }
