@@ -1,0 +1,64 @@
+import { test, expect } from '@playwright/test';
+import path from 'path';
+import fs from 'fs';
+
+test('ffmpeg viewer UI update', async ({ page }) => {
+    // Navigate to the driver page with the ffmpeg handler
+    await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=ffmpeg');
+
+    const filePath = path.resolve('ffmpeg/example/big_buck_bunny.mp4');
+    const fileBuffer = fs.readFileSync(filePath);
+
+    // Load the file into the driver
+    await page.evaluate(({ buffer, fileName }) => {
+        const fileContent = new Uint8Array(buffer);
+        window.postMessage({
+            action: 'setFile',
+            file: {
+                content: fileContent,
+                name: fileName,
+                type: 'video/mp4'
+            }
+        }, '*');
+    }, { buffer: Array.from(fileBuffer), fileName: 'big_buck_bunny.mp4' });
+
+    const iframe = page.frameLocator('iframe');
+
+    // Wait for the UI to load - increase timeout
+    await expect(iframe.locator('h3').first()).toBeVisible({ timeout: 40000 });
+
+    // Verify container format options
+    const select = iframe.locator('#format-select');
+    await expect(select).toBeVisible();
+
+    // Select MP4 to enable WebCodecs checkbox
+    await select.selectOption('mp4');
+
+    // Check if (FFmpeg only) is present in the select options
+    const options = await select.locator('option').allTextContents();
+    console.log('Options:', options);
+    expect(options.some(opt => opt.includes('(FFmpeg only)'))).toBe(true);
+
+    // Verify WebCodecs checkbox position
+    const webCodecsCheckboxLabel = iframe.locator('label', { hasText: 'Use WebCodecs API for transcoding' });
+    await expect(webCodecsCheckboxLabel).toBeVisible();
+    const webCodecsCheckbox = webCodecsCheckboxLabel.locator('input');
+
+    // Verify Video Codec radio buttons
+    const h264Label = iframe.locator('label', { hasText: 'LIBX264' });
+    await expect(h264Label).toBeVisible();
+
+    const h265Label = iframe.locator('label', { hasText: 'LIBX265' });
+    await expect(h265Label).toBeVisible();
+    expect(await h265Label.innerText()).toContain('(FFmpeg only)');
+
+    // Test automatic unchecking
+    await webCodecsCheckbox.check();
+    expect(await webCodecsCheckbox.isChecked()).toBe(true);
+
+    // Select an FFmpeg-only codec
+    await h265Label.click();
+    expect(await webCodecsCheckbox.isChecked()).toBe(false);
+
+    await page.screenshot({ path: '/home/jules/verification/ffmpeg_new_ui_final.png', fullPage: true });
+});

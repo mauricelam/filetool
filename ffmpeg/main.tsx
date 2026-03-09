@@ -722,7 +722,7 @@ function TranscodeControls({
                     {Object.values(Format).map(format => {
                         const formatSupported = isFormatWebCodecSupported(format);
                         return (
-                            <option key={format} value={format} style={{ color: !formatSupported ? '#aaa' : 'inherit' }}>
+                            <option key={format} value={format}>
                                 {format.toUpperCase()}
                                 {!formatSupported ? ' (FFmpeg only)' : ''}
                             </option>
@@ -730,35 +730,6 @@ function TranscodeControls({
                     })}
                 </select>
             </div>
-
-            {supportsWebCodecs && (
-                <div style={{ marginBottom: '20px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: isWebCodecSupportedFormat ? 'pointer' : 'not-allowed' }}>
-                        <input
-                            type="checkbox"
-                            checked={useWebCodecs}
-                            onChange={(e) => {
-                                const checked = e.target.checked;
-                                setUseWebCodecs(checked);
-                                if (checked && !isWebCodecSupported(current, videoCodec)) {
-                                    // Auto-switch to H.264 if current codec isn't supported by WebCodecs
-                                    setVideoCodec(VideoCodec.H264);
-                                }
-                            }}
-                            disabled={isEditingCommand || !isWebCodecSupportedFormat}
-                            style={{ marginRight: '10px' }}
-                        />
-                        <span style={{ color: isWebCodecSupportedFormat ? 'inherit' : '#aaa' }}>
-                            Use WebCodecs API for transcoding
-                        </span>
-                    </label>
-                    {!isWebCodecSupportedFormat && (
-                        <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                            WebCodecs does not support this container format.
-                        </div>
-                    )}
-                </div>
-            )}
 
             {current !== Format.WebP && current !== Format.Gif && (
                 <div style={{ marginBottom: '20px' }}>
@@ -788,7 +759,6 @@ function TranscodeControls({
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {Object.values(VideoCodec).map(codec => {
                             const webSupported = isWebCodecSupported(current, codec);
-                            const isDisabled = isEditingCommand || (useWebCodecs && !webSupported);
                             return (
                                 <label
                                     key={codec}
@@ -796,8 +766,7 @@ function TranscodeControls({
                                         display: 'flex',
                                         alignItems: 'center',
                                         fontSize: '14px',
-                                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                        color: (useWebCodecs && !webSupported) ? '#aaa' : 'inherit'
+                                        cursor: isEditingCommand ? 'not-allowed' : 'pointer',
                                     }}
                                 >
                                     <input
@@ -806,20 +775,15 @@ function TranscodeControls({
                                         value={codec}
                                         checked={videoCodec === codec}
                                         onChange={(e) => setVideoCodec(e.target.value as VideoCodec)}
-                                        disabled={isDisabled}
+                                        disabled={isEditingCommand}
                                         style={{ marginRight: '4px' }}
                                     />
                                     {codec === 'copy' ? 'Original' : codec.toUpperCase()}
-                                    {useWebCodecs && !webSupported ? ' (FFmpeg)' : ''}
+                                    {!webSupported ? ' (FFmpeg only)' : ''}
                                 </label>
                             );
                         })}
                     </div>
-                    {useWebCodecs && !isWebCodecSupportedCodec && (
-                        <div style={{ fontSize: '12px', color: '#d9534f', marginTop: '4px' }}>
-                            Selected video codec is not supported by WebCodecs for this container.
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -956,6 +920,35 @@ function TranscodeControls({
                         <code style={{ fontSize: '12px', wordBreak: 'break-all' }}>
                             {isEditingCommand && customCommand ? `ffmpeg ${customCommand}` : commandString}
                         </code>
+                    )}
+                </div>
+            )}
+
+            {supportsWebCodecs && (
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={useWebCodecs}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseWebCodecs(checked);
+                                if (checked && !isWebCodecSupported(current, videoCodec)) {
+                                    // Auto-switch to H.264 if current codec isn't supported by WebCodecs
+                                    setVideoCodec(VideoCodec.H264);
+                                }
+                            }}
+                            disabled={isEditingCommand || !isWebCodecSupportedFormat}
+                            style={{ marginRight: '10px' }}
+                        />
+                        <span style={{ color: isWebCodecSupportedFormat ? 'inherit' : '#aaa' }}>
+                            Use WebCodecs API for transcoding
+                        </span>
+                    </label>
+                    {!isWebCodecSupportedFormat && (
+                        <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                            WebCodecs does not support this container format.
+                        </div>
                     )}
                 </div>
             )}
@@ -1328,6 +1321,12 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         clearResults();
     }, [current, audioCodec, videoCodec, bitrate, crf, rateMode, useWebCodecs, keepAudio]);
 
+    useEffect(() => {
+        if (useWebCodecs && !isWebCodecSupported(current, videoCodec)) {
+            setUseWebCodecs(false);
+        }
+    }, [current, videoCodec, useWebCodecs]);
+
     const loadFFmpegInstance = async () => {
         setIsFFmpegLoading(true)
         const ffmpeg = await loadFFmpeg()
@@ -1431,11 +1430,18 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         }
     }
 
-    const download = (file: File) => {
-        const url = URL.createObjectURL(file)
+    const download = (downloadFile: File) => {
+        const url = URL.createObjectURL(downloadFile)
         const anchor = document.createElement('a')
         anchor.href = url
-        anchor.download = file.name
+
+        // Use original filename but replace extension with current container format
+        const lastDotIndex = file.name.lastIndexOf('.');
+        const baseName = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+        const extension = current === Format.Original ? (lastDotIndex !== -1 ? file.name.substring(lastDotIndex + 1) : '') : current;
+
+        anchor.download = extension ? `${baseName}.${extension}` : baseName;
+
         document.body.appendChild(anchor)
         anchor.click()
         document.body.removeChild(anchor)
