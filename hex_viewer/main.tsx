@@ -29,13 +29,83 @@ async function handleFile(file: File) {
     OUTPUT?.render(<HexViewer buffer={buf} />)
 }
 
-export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void }) {
-    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing'>('inspector');
+function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void }) {
+    const start = selection ? selection[0] : 0;
+    const end = selection ? selection[1] : 0;
+    const length = selection ? end - start + 1 : 0;
+
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    const onOffsetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const offset = parseInt(e.target.value, 10);
+        if (!isNaN(offset)) {
+            onSetSelection(offset, offset + Math.max(0, length - 1));
+        }
+    };
+
+    const onLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const len = parseInt(e.target.value, 10);
+        if (!isNaN(len)) {
+            onSetSelection(start, start + Math.max(0, len - 1));
+        }
+    };
+
+    const renderSelectedData = () => {
+        if (!selection) return "No selection";
+        const data = buffer.slice(start, end + 1);
+
+        if (!isExpanded) {
+            const hex = Array.from(data.slice(0, 1024)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            return (
+                <div className="data-preview single-line" onClick={() => setIsExpanded(true)}>
+                    {hex}
+                </div>
+            );
+        } else {
+            const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            return (
+                <div className="data-preview expanded" onClick={() => setIsExpanded(false)}>
+                    {hex}
+                </div>
+            );
+        }
+    };
+
+    return (
+        <div className="selection-info">
+            <div className="selection-info-row">
+                <span className="inspector-label">Offset</span>
+                <input type="number" value={start} onChange={onOffsetChange} min={0} max={buffer.length - 1} />
+            </div>
+            <div className="selection-info-row">
+                <span className="inspector-label">Hex Range</span>
+                <span className="inspector-value">
+                    <span className="clickable-offset" onClick={() => onJumpToOffset(start)}>0x{start.toString(16).toUpperCase()}</span>
+                    {' - '}
+                    <span className="clickable-offset" onClick={() => onJumpToOffset(end)}>0x{end.toString(16).toUpperCase()}</span>
+                </span>
+            </div>
+            <div className="selection-info-row">
+                <span className="inspector-label">Length</span>
+                <input type="number" value={length} onChange={onLengthChange} min={0} max={buffer.length} />
+            </div>
+            <div className="selection-info-row data-row">
+                <span className="inspector-label">Data</span>
+                <div className="inspector-value data-container">{renderSelectedData()}</div>
+            </div>
+        </div>
+    );
+}
+
+export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void }) {
+    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing' | 'markers'>('inspector');
 
     return (
         <div id="inspector" style={{ width: '100%' }}>
+            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} />
             <div className="tab-header">
                 <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')}>Inspector</button>
+                <button className={`tab-button ${activeTab === 'markers' ? 'active' : ''}`} onClick={() => setActiveTab('markers')}>Markers</button>
                 <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')}>Search</button>
                 <button className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')}>Analysis</button>
                 <button className={`tab-button ${activeTab === 'hashing' ? 'active' : ''}`} onClick={() => setActiveTab('hashing')}>Hashing</button>
@@ -53,10 +123,26 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                     />
                 )}
                 {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} matchLength={matchLength} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
+                {activeTab === 'markers' && <MarkersTab markers={markers} onRemoveMarker={onRemoveMarker} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'hashing' && <HashingTab buffer={buffer} selection={selection} />}
             </div>
         </div>
+    );
+}
+
+function MarkersTab({ markers, onRemoveMarker, onJumpToOffset }: { markers: Marker[], onRemoveMarker: (index: number) => void, onJumpToOffset: (offset: number) => void }) {
+    return (
+        <>
+            <ul className="marker-list">
+                {markers.map((m, i) => (
+                    <li key={i} className="marker-item">
+                        <span className="clickable-offset" onClick={() => onJumpToOffset(m.start)}>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
+                        <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
+                    </li>
+                ))}
+            </ul>
+        </>
     );
 }
 
@@ -189,7 +275,6 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
 
     return (
         <div className="search-controls">
-            <h3>Advanced Find</h3>
             <div className="search-row">
                 <select value={searchType} onChange={(e) => setSearchType(e.target.value as any)}>
                     <option value="hex">Hex</option>
@@ -300,7 +385,6 @@ export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, on
 
     return (
         <>
-            <h3>Analysis</h3>
             <div className="analysis-label">Byte Map</div>
             <canvas
                 ref={byteMapRef}
@@ -338,7 +422,7 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
         }).catch(e => console.error("Failed to load MD5 WASM", e));
     }, []);
 
-    const computeHashes = async () => {
+    const computeHashes = useCallback(async (signal?: AbortSignal) => {
         setIsComputing(true);
         const data = selection ? buffer.slice(selection[0], selection[1] + 1) : buffer;
         const results: { label: string, value: string }[] = [];
@@ -349,8 +433,10 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
 
         const algorithms = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         for (const algo of algorithms) {
+            if (signal?.aborted) return;
             try {
                 const hashBuffer = await crypto.subtle.digest(algo, (data as Uint8Array).buffer as ArrayBuffer);
+                if (signal?.aborted) return;
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
                 results.push({ label: algo, value: hashHex });
@@ -361,18 +447,20 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
 
         setHashes(results);
         setIsComputing(false);
-    };
+    }, [buffer, selection, md5Compute]);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        computeHashes(controller.signal);
+        return () => controller.abort();
+    }, [computeHashes]);
 
     return (
         <>
-            <h3>Hashing</h3>
             <div className="inspector-row">
                 <span className="inspector-label">Target</span>
                 <span className="inspector-value">{selection ? `Selection (0x${selection[0].toString(16)} - 0x${selection[1].toString(16)})` : 'Full File'}</span>
             </div>
-            <button onClick={computeHashes} disabled={isComputing || (!md5Ready && !selection)}>
-                {isComputing ? 'Computing...' : 'Compute Hashes'}
-            </button>
             {hashes.map(h => (
                 <div key={h.label} className="inspector-row">
                     <span className="inspector-label">{h.label}</span>
@@ -390,19 +478,7 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
 
     if (targetIndex === null) {
         return (
-            <>
-                <h3>Data Inspector</h3>
-                <div className="inspector-row">Select a byte to see details</div>
-                <h3>Markers</h3>
-                <ul className="marker-list">
-                    {markers.map((m, i) => (
-                        <li key={i} className="marker-item">
-                            <span>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
-                            <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
-                        </li>
-                    ))}
-                </ul>
-            </>
+            <div className="inspector-row">Select a byte to see details</div>
         )
     }
 
@@ -427,16 +503,26 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
         }
     };
 
-    safeRead("Int8", 1, () => view.getInt8(targetIndex));
-    safeRead("Uint8", 1, () => view.getUint8(targetIndex));
-    safeRead("Int16", 2, () => view.getInt16(targetIndex, littleEndian));
-    safeRead("Uint16", 2, () => view.getUint16(targetIndex, littleEndian));
-    safeRead("Int32", 4, () => view.getInt32(targetIndex, littleEndian));
-    safeRead("Uint32", 4, () => view.getUint32(targetIndex, littleEndian));
-    safeRead("Int64", 8, () => view.getBigInt64(targetIndex, littleEndian));
-    safeRead("Uint64", 8, () => view.getBigUint64(targetIndex, littleEndian));
-    safeRead("Float32", 4, () => view.getFloat32(targetIndex, littleEndian));
-    safeRead("Float64", 8, () => view.getFloat64(targetIndex, littleEndian));
+    const selectionLength = selection ? selection[1] - selection[0] + 1 : 1;
+
+    if (selectionLength === 1) {
+        safeRead("Int8", 1, () => view.getInt8(targetIndex));
+        safeRead("Uint8", 1, () => view.getUint8(targetIndex));
+    }
+    if (selectionLength === 2) {
+        safeRead("Int16", 2, () => view.getInt16(targetIndex, littleEndian));
+        safeRead("Uint16", 2, () => view.getUint16(targetIndex, littleEndian));
+    }
+    if (selectionLength === 4) {
+        safeRead("Int32", 4, () => view.getInt32(targetIndex, littleEndian));
+        safeRead("Uint32", 4, () => view.getUint32(targetIndex, littleEndian));
+        safeRead("Float32", 4, () => view.getFloat32(targetIndex, littleEndian));
+    }
+    if (selectionLength === 8) {
+        safeRead("Int64", 8, () => view.getBigInt64(targetIndex, littleEndian));
+        safeRead("Uint64", 8, () => view.getBigUint64(targetIndex, littleEndian));
+        safeRead("Float64", 8, () => view.getFloat64(targetIndex, littleEndian));
+    }
 
     const varint = utils.readVarint(buffer, targetIndex);
     rows.push({
@@ -448,7 +534,6 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
 
     return (
         <>
-            <h3>Data Inspector</h3>
             <div className="inspector-row">
                 <span className="inspector-label">Offset</span>
                 <span className="inspector-value">0x{targetIndex.toString(16).toUpperCase()}</span>
@@ -502,15 +587,6 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
                 </div>
             ))}
 
-            <h3>Markers</h3>
-            <ul className="marker-list">
-                {markers.map((m, i) => (
-                    <li key={i} className="marker-item">
-                        <span>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
-                        <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
-                    </li>
-                ))}
-            </ul>
         </>
     )
 }
@@ -570,6 +646,12 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     const onMouseLeave = useCallback(() => {
         setHoverIndex(null);
     }, []);
+
+    const onSetSelection = useCallback((start: number, end: number) => {
+        setSelectionStart(start);
+        setSelectionEnd(end);
+        onJumpToOffset(start);
+    }, [onJumpToOffset]);
 
     const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number) => {
         const start = selection !== null ? selection[0] : hoverIndex;
@@ -634,24 +716,25 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
             </div>
             <div id="resize-handle" onMouseDown={startResizing} />
             <div id="inspector-container" style={{ width: sidebarWidth, display: 'flex' }}>
-            <DataInspector
-                buffer={buffer}
-                index={hoverIndex}
-                selection={selection}
-                markers={markers}
-                onAddMarker={onAddMarker}
-                onRemoveMarker={onRemoveMarker}
-                setPreviewMarker={setPreviewMarker}
-                onJumpToOffset={onJumpToOffset}
-                searchResults={searchResults}
-                currentMatchIndex={currentMatchIndex}
-                matchLength={matchLength}
-                onSearch={(results, index, length) => {
-                    setSearchResults(results);
-                    setCurrentMatchIndex(index);
-                    setMatchLength(length);
-                }}
-            />
+                <DataInspector
+                    buffer={buffer}
+                    index={hoverIndex}
+                    selection={selection}
+                    markers={markers}
+                    onAddMarker={onAddMarker}
+                    onRemoveMarker={onRemoveMarker}
+                    setPreviewMarker={setPreviewMarker}
+                    onJumpToOffset={onJumpToOffset}
+                    searchResults={searchResults}
+                    currentMatchIndex={currentMatchIndex}
+                    matchLength={matchLength}
+                    onSearch={(results, index, length) => {
+                        setSearchResults(results);
+                        setCurrentMatchIndex(index);
+                        setMatchLength(length);
+                    }}
+                    onSetSelection={onSetSelection}
+                />
             </div>
         </div>
     )

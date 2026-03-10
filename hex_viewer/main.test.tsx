@@ -102,7 +102,7 @@ describe('HashingTab', () => {
     expect(screen.getByText('Selection (0x0 - 0x1)')).toBeInTheDocument();
   });
 
-  it('computes Web Crypto hashes', async () => {
+  it('computes Web Crypto hashes automatically', async () => {
     // Mock crypto.subtle.digest
     const mockDigest = jest.fn().mockResolvedValue(new Uint8Array([0xAA, 0xBB]).buffer);
     Object.defineProperty(global, 'crypto', {
@@ -112,10 +112,6 @@ describe('HashingTab', () => {
 
     // Mock selection to avoid waiting for MD5 WASM which is hard to mock dynamically in HashingTab
     render(<HashingTab buffer={buffer} selection={[0, 3]} />);
-
-    const button = screen.getByText('Compute Hashes');
-    expect(button).not.toBeDisabled();
-    fireEvent.click(button);
 
     await waitFor(() => {
       expect(screen.getByText('SHA-256')).toBeInTheDocument();

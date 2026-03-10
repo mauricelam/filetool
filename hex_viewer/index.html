@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Hex viewer</title>
     <style>
-        html, body, #output, #hexviewer {
+        html,
+        body,
+        #output,
+        #hexviewer {
             height: 100%;
         }
 
         body {
             background-color: black;
             margin: 0;
+            font-family: sans-serif;
         }
 
         #hexviewer {
@@ -121,6 +126,69 @@
             gap: 16px;
         }
 
+        .selection-info {
+            padding: 16px;
+            background-color: #252526;
+            border-bottom: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .selection-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .selection-info-row input {
+            width: 120px;
+            text-align: right;
+        }
+
+        .data-row {
+            align-items: flex-start;
+            gap: 4px;
+        }
+
+        .data-container {
+            width: 100%;
+            text-align: left;
+            margin-left: 0;
+            font-family: monospace;
+            font-size: 11px;
+            background-color: #1a1a1a;
+            padding: 4px;
+            border-radius: 2px;
+            cursor: pointer;
+            min-width: 0;
+            flex: 1 1 0;
+        }
+
+        .data-preview.expanded {
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+
+        .data-preview.single-line {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .clickable-offset {
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-color: #555;
+        }
+
+        .clickable-offset:hover {
+            color: #fff;
+            text-decoration-color: #0e639c;
+        }
+
         .tab-content h3 {
             margin: 0 0 8px 0;
             font-size: 14px;
@@ -161,7 +229,8 @@
             background-color: #1177bb;
         }
 
-        select, input {
+        select,
+        input {
             background-color: #3c3c3c;
             color: white;
             border: 1px solid #3c3c3c;
@@ -256,8 +325,10 @@
         }
     </style>
 </head>
+
 <body>
     <div id="output"></div>
 </body>
 <script type="module" src="main.js"></script>
+
 </html>
