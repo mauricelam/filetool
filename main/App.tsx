@@ -17,6 +17,7 @@ export function App() {
     const [selected, setSelected] = useState(0)
     const [files, setFiles] = useState<File[]>([])
     const [activeHandlers, setActiveHandlers] = useState<(HandlerConfig | undefined)[]>([]);
+    const [pinnedHandlers, setPinnedHandlers] = useState<string[][]>([]);
     const [pastedText, setPastedText] = useState<string | null>(null);
 
     // Global paste handler
@@ -52,6 +53,7 @@ export function App() {
     const handleAddFiles = (newFiles: File[]) => {
         setFiles(cur => [...cur, ...newFiles]);
         setActiveHandlers(cur => [...cur, ...Array(newFiles.length)])
+        setPinnedHandlers(cur => [...cur, ...newFiles.map(() => [])]);
     }
 
     const removeFile = (index: number) => {
@@ -65,7 +67,12 @@ export function App() {
             const newHandlers = [...cur];
             newHandlers.splice(index, 1);
             return newHandlers;
-        })
+        });
+        setPinnedHandlers(cur => {
+            const newPinned = [...cur];
+            newPinned.splice(index, 1);
+            return newPinned;
+        });
     };
 
     useEffect(() => {
@@ -130,6 +137,16 @@ export function App() {
                                     });
                                 }}
                                 initialActiveHandler={activeHandlers[selected]}
+                                pinnedHandlers={pinnedHandlers[selected] || []}
+                                onAddPinnedHandler={(handlerId: string) => {
+                                    setPinnedHandlers(cur => {
+                                        const updatedPinned = [...cur];
+                                        if (!updatedPinned[selected].includes(handlerId)) {
+                                            updatedPinned[selected] = [...updatedPinned[selected], handlerId];
+                                        }
+                                        return updatedPinned;
+                                    });
+                                }}
                             />
                         }
                     </div>
@@ -144,13 +161,15 @@ interface LoadFileItemProps {
     file: File;
     openHandler: (handlerConfig: HandlerConfig) => void;
     initialActiveHandler?: HandlerConfig;
+    pinnedHandlers: string[];
+    onAddPinnedHandler: (handlerId: string) => void;
 }
 
-function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemProps): ReactNode {
+function LoadFileItem({ file, openHandler, initialActiveHandler, pinnedHandlers, onAddPinnedHandler }: LoadFileItemProps): ReactNode {
     const [handlers, setHandlers] = useState<any[]>([]);
     const [mime, setMime] = useState("");
     const [description, setDescription] = useState("Loading...");
-    const [activeHandler, setActiveHandler] = useState<HandlerConfig | undefined>(initialActiveHandler) ?? getDefaultHandler(mime, file.name);
+    const [activeHandler, setActiveHandler] = useState<HandlerConfig | undefined>(initialActiveHandler);
 
     const magicPromise = WASMagic.create({
         flags: WASMagicFlags.NONE,
@@ -177,13 +196,15 @@ function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemP
                 window.history.pushState({ fileName: file.name }, file.name);
             }
 
-            const defaultHandlerId = getDefaultHandler(mime, file.name);
-            if (defaultHandlerId) {
-                const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
-                if (defaultHandlerConfig) {
-                    const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
-                    if (isMatch) {
-                        setTimeout(() => openHandler({ handler: defaultHandlerConfig.handler, file, magicMime: mime }), 0);
+            if (!initialActiveHandler) {
+                const defaultHandlerId = getDefaultHandler(mime, file.name);
+                if (defaultHandlerId) {
+                    const defaultHandlerConfig = HANDLERS.find(h => h.handler === defaultHandlerId);
+                    if (defaultHandlerConfig) {
+                        const isMatch = defaultHandlerConfig.mimetypes.some(m => matchMimetype(m, mime, file.name));
+                        if (isMatch) {
+                            setTimeout(() => openHandler({ handler: defaultHandlerConfig.handler, file, magicMime: mime }), 0);
+                        }
                     }
                 }
             }
@@ -194,6 +215,7 @@ function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemP
     const onOpenFile = (handlerConfig: HandlerConfig) => {
         openHandler(handlerConfig);
         setActiveHandler(handlerConfig);
+        onAddPinnedHandler(handlerConfig.handler);
     }
 
     return (
@@ -206,6 +228,7 @@ function LoadFileItem({ file, openHandler, initialActiveHandler }: LoadFileItemP
             matchedHandlers={handlers}
             allHandlers={HANDLERS}
             initialActiveHandler={activeHandler?.handler}
+            pinnedHandlers={pinnedHandlers}
             onOpenHandler={onOpenFile}
         />
     )
