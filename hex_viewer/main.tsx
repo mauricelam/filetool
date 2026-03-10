@@ -55,29 +55,20 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
         const data = buffer.slice(start, end + 1);
 
         if (!isExpanded) {
-            const hex = Array.from(data.slice(0, 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            const hex = Array.from(data.slice(0, 1024)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
             return (
                 <div className="data-preview single-line" onClick={() => setIsExpanded(true)}>
-                    {hex}{data.length > 16 ? "..." : ""}
+                    {hex}
+                </div>
+            );
+        } else {
+            const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            return (
+                <div className="data-preview expanded" onClick={() => setIsExpanded(false)}>
+                    {hex}
                 </div>
             );
         }
-
-        const maxLines = 1000;
-        const lines = [];
-        for (let i = 0; i < Math.min(data.length, maxLines * 16); i += 16) {
-            const line = Array.from(data.slice(i, i + 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
-            lines.push(<div key={i}>{line}</div>);
-        }
-        if (data.length > maxLines * 16) {
-            lines.push(<div key="more">...</div>);
-        }
-
-        return (
-            <div className="data-preview expanded" onClick={() => setIsExpanded(false)}>
-                {lines}
-            </div>
-        );
     };
 
     return (
@@ -143,7 +134,6 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
 function MarkersTab({ markers, onRemoveMarker, onJumpToOffset }: { markers: Marker[], onRemoveMarker: (index: number) => void, onJumpToOffset: (offset: number) => void }) {
     return (
         <>
-            <h3>Markers</h3>
             <ul className="marker-list">
                 {markers.map((m, i) => (
                     <li key={i} className="marker-item">
@@ -285,7 +275,6 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
 
     return (
         <div className="search-controls">
-            <h3>Advanced Find</h3>
             <div className="search-row">
                 <select value={searchType} onChange={(e) => setSearchType(e.target.value as any)}>
                     <option value="hex">Hex</option>
@@ -396,7 +385,6 @@ export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, on
 
     return (
         <>
-            <h3>Analysis</h3>
             <div className="analysis-label">Byte Map</div>
             <canvas
                 ref={byteMapRef}
@@ -469,7 +457,6 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
 
     return (
         <>
-            <h3>Hashing {isComputing && <span style={{ fontSize: '10px', textTransform: 'none', marginLeft: '8px', verticalAlign: 'middle' }}>(Computing...)</span>}</h3>
             <div className="inspector-row">
                 <span className="inspector-label">Target</span>
                 <span className="inspector-value">{selection ? `Selection (0x${selection[0].toString(16)} - 0x${selection[1].toString(16)})` : 'Full File'}</span>
@@ -491,10 +478,7 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
 
     if (targetIndex === null) {
         return (
-            <>
-                <h3>Data Inspector</h3>
-                <div className="inspector-row">Select a byte to see details</div>
-            </>
+            <div className="inspector-row">Select a byte to see details</div>
         )
     }
 
@@ -550,7 +534,6 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
 
     return (
         <>
-            <h3>Data Inspector</h3>
             <div className="inspector-row">
                 <span className="inspector-label">Offset</span>
                 <span className="inspector-value">0x{targetIndex.toString(16).toUpperCase()}</span>
@@ -733,25 +716,25 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
             </div>
             <div id="resize-handle" onMouseDown={startResizing} />
             <div id="inspector-container" style={{ width: sidebarWidth, display: 'flex' }}>
-            <DataInspector
-                buffer={buffer}
-                index={hoverIndex}
-                selection={selection}
-                markers={markers}
-                onAddMarker={onAddMarker}
-                onRemoveMarker={onRemoveMarker}
-                setPreviewMarker={setPreviewMarker}
-                onJumpToOffset={onJumpToOffset}
-                searchResults={searchResults}
-                currentMatchIndex={currentMatchIndex}
-                matchLength={matchLength}
-                onSearch={(results, index, length) => {
-                    setSearchResults(results);
-                    setCurrentMatchIndex(index);
-                    setMatchLength(length);
-                }}
-                onSetSelection={onSetSelection}
-            />
+                <DataInspector
+                    buffer={buffer}
+                    index={hoverIndex}
+                    selection={selection}
+                    markers={markers}
+                    onAddMarker={onAddMarker}
+                    onRemoveMarker={onRemoveMarker}
+                    setPreviewMarker={setPreviewMarker}
+                    onJumpToOffset={onJumpToOffset}
+                    searchResults={searchResults}
+                    currentMatchIndex={currentMatchIndex}
+                    matchLength={matchLength}
+                    onSearch={(results, index, length) => {
+                        setSearchResults(results);
+                        setCurrentMatchIndex(index);
+                        setMatchLength(length);
+                    }}
+                    onSetSelection={onSetSelection}
+                />
             </div>
         </div>
     )
