@@ -17,7 +17,7 @@ test('should focus search box and select first match with Enter in All Handlers 
     await expect(page.locator('.filename')).toHaveText('test.txt');
 
     // Click "Other" to open the "All Handlers" dialog
-    const otherButton = page.getByTitle('Show all handlers');
+    const otherButton = page.getByTitle('Other handlers');
     await otherButton.click();
 
     // Check that the search box is focused

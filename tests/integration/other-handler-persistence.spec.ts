@@ -15,7 +15,7 @@ test('other handler should persist in button bar and when switching files', asyn
     await expect(page.locator('.filename')).toHaveText('file1.bin');
 
     // 2. Select Hex from "Other"
-    await page.getByTitle('Show all handlers').click();
+    await page.getByTitle('Other handlers').click();
     const searchBox = page.getByPlaceholder('Filter by name, mime, or extension');
     await searchBox.fill('Hex');
     await searchBox.press('Enter');
@@ -23,11 +23,11 @@ test('other handler should persist in button bar and when switching files', asyn
     // Verify Hex is active (it's a universal handler, so it should be visible now)
     const hexButton = page.locator('.buttonBar button', { hasText: 'Hex' });
     await expect(hexButton).toBeVisible();
-    // It should have the active style (e6f3ff background)
-    await expect(hexButton).toHaveCSS('background-color', 'rgb(230, 243, 255)');
+    // It should have the active style (0066cc background)
+    await expect(hexButton).toHaveCSS('background-color', 'rgb(0, 102, 204)');
 
     // 3. Select CyberChef from "Other"
-    await page.getByTitle('Show all handlers').click();
+    await page.getByTitle('Other handlers').click();
     await searchBox.fill('CyberChef');
     await searchBox.press('Enter');
 
@@ -35,7 +35,7 @@ test('other handler should persist in button bar and when switching files', asyn
     const cyberChefButton = page.locator('.buttonBar button', { hasText: 'CyberChef' });
     await expect(cyberChefButton).toBeVisible();
     await expect(hexButton).toBeVisible();
-    await expect(cyberChefButton).toHaveCSS('background-color', 'rgb(230, 243, 255)');
+    await expect(cyberChefButton).toHaveCSS('background-color', 'rgb(0, 102, 204)');
 
     // 4. Open second file
     await page.evaluate(() => {
@@ -53,5 +53,5 @@ test('other handler should persist in button bar and when switching files', asyn
     // Verify CyberChef is still active and both buttons are still there
     await expect(page.locator('.buttonBar button', { hasText: 'CyberChef' })).toBeVisible();
     await expect(page.locator('.buttonBar button', { hasText: 'Hex' })).toBeVisible();
-    await expect(page.locator('.buttonBar button', { hasText: 'CyberChef' })).toHaveCSS('background-color', 'rgb(230, 243, 255)');
+    await expect(page.locator('.buttonBar button', { hasText: 'CyberChef' })).toHaveCSS('background-color', 'rgb(0, 102, 204)');
 });
