@@ -29,11 +29,71 @@ async function handleFile(file: File) {
     OUTPUT?.render(<HexViewer buffer={buf} />)
 }
 
-export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void }) {
+function SelectionInfo({ selection, buffer, onSetSelection }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void }) {
+    const start = selection ? selection[0] : 0;
+    const end = selection ? selection[1] : 0;
+    const length = selection ? end - start + 1 : 0;
+
+    const [offsetText, setOffsetText] = useState(`0x${start.toString(16).toUpperCase()}`);
+    const [lengthText, setLengthText] = useState(length.toString());
+
+    useEffect(() => {
+        setOffsetText(`0x${start.toString(16).toUpperCase()}`);
+    }, [start]);
+
+    useEffect(() => {
+        setLengthText(length.toString());
+    }, [length]);
+
+    const onOffsetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setOffsetText(val);
+        const offset = val.startsWith('0x') ? parseInt(val.slice(2), 16) : parseInt(val, 10);
+        if (!isNaN(offset)) {
+            onSetSelection(offset, offset + Math.max(0, length - 1));
+        }
+    };
+
+    const onLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setLengthText(val);
+        const len = parseInt(val, 10);
+        if (!isNaN(len)) {
+            onSetSelection(start, start + Math.max(0, len - 1));
+        }
+    };
+
+    const renderSelectedData = () => {
+        if (!selection) return "No selection";
+        const data = buffer.slice(start, end + 1);
+        const hex = Array.from(data.slice(0, 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        return hex + (data.length > 16 ? "..." : "");
+    };
+
+    return (
+        <div className="selection-info">
+            <div className="selection-info-row">
+                <span className="inspector-label">Offset</span>
+                <input type="text" value={offsetText} onChange={onOffsetChange} />
+            </div>
+            <div className="selection-info-row">
+                <span className="inspector-label">Length</span>
+                <input type="text" value={lengthText} onChange={onLengthChange} />
+            </div>
+            <div className="selection-info-row">
+                <span className="inspector-label">Data</span>
+                <div className="inspector-value" style={{ fontFamily: 'monospace', fontSize: '11px' }}>{renderSelectedData()}</div>
+            </div>
+        </div>
+    );
+}
+
+export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void }) {
     const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing'>('inspector');
 
     return (
         <div id="inspector" style={{ width: '100%' }}>
+            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} />
             <div className="tab-header">
                 <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')}>Inspector</button>
                 <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')}>Search</button>
@@ -338,7 +398,7 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
         }).catch(e => console.error("Failed to load MD5 WASM", e));
     }, []);
 
-    const computeHashes = async () => {
+    const computeHashes = useCallback(async (signal?: AbortSignal) => {
         setIsComputing(true);
         const data = selection ? buffer.slice(selection[0], selection[1] + 1) : buffer;
         const results: { label: string, value: string }[] = [];
@@ -349,8 +409,10 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
 
         const algorithms = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         for (const algo of algorithms) {
+            if (signal?.aborted) return;
             try {
                 const hashBuffer = await crypto.subtle.digest(algo, (data as Uint8Array).buffer as ArrayBuffer);
+                if (signal?.aborted) return;
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
                 results.push({ label: algo, value: hashHex });
@@ -361,18 +423,21 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
 
         setHashes(results);
         setIsComputing(false);
-    };
+    }, [buffer, selection, md5Compute]);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        computeHashes(controller.signal);
+        return () => controller.abort();
+    }, [computeHashes]);
 
     return (
         <>
-            <h3>Hashing</h3>
+            <h3>Hashing {isComputing && <span style={{ fontSize: '10px', textTransform: 'none', marginLeft: '8px', verticalAlign: 'middle' }}>(Computing...)</span>}</h3>
             <div className="inspector-row">
                 <span className="inspector-label">Target</span>
                 <span className="inspector-value">{selection ? `Selection (0x${selection[0].toString(16)} - 0x${selection[1].toString(16)})` : 'Full File'}</span>
             </div>
-            <button onClick={computeHashes} disabled={isComputing || (!md5Ready && !selection)}>
-                {isComputing ? 'Computing...' : 'Compute Hashes'}
-            </button>
             {hashes.map(h => (
                 <div key={h.label} className="inspector-row">
                     <span className="inspector-label">{h.label}</span>
@@ -571,6 +636,12 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
         setHoverIndex(null);
     }, []);
 
+    const onSetSelection = useCallback((start: number, end: number) => {
+        setSelectionStart(start);
+        setSelectionEnd(end);
+        onJumpToOffset(start);
+    }, [onJumpToOffset]);
+
     const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number) => {
         const start = selection !== null ? selection[0] : hoverIndex;
         if (start !== null) {
@@ -651,6 +722,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                     setCurrentMatchIndex(index);
                     setMatchLength(length);
                 }}
+                onSetSelection={onSetSelection}
             />
             </div>
         </div>
