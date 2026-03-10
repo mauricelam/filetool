@@ -19,7 +19,7 @@ test.describe('Hex Viewer', () => {
     await expect(page.locator('.tab-header')).toBeVisible();
 
     // 1. Search
-    await page.click('button:has-text("Search")');
+    await page.click('button[title="Search"]');
     await page.fill('input[placeholder="Search query..."]', '0A 0B 0C');
     await page.click('button:has-text("Find")');
 
@@ -30,7 +30,7 @@ test.describe('Hex Viewer', () => {
     await expect(page.locator('.match-highlight').first()).toHaveText('0A');
 
     // 2. Analysis
-    await page.click('button:has-text("Analysis")');
+    await page.click('button[title="Analysis"]');
     await expect(page.locator('canvas').first()).toBeVisible();
 
     // Click on canvas to jump
@@ -43,7 +43,7 @@ test.describe('Hex Viewer', () => {
     await expect(page.locator('#hexviewer')).toBeVisible();
 
     // 3. Hashing
-    await page.click('button:has-text("Hashing")');
+    await page.click('button[title="Hashing"]');
     // Hashing should start automatically
     // SHA-256 should eventually appear
     await expect(page.locator('.inspector-row:has(span:has-text("SHA-256"))')).toBeVisible({ timeout: 10000 });
