@@ -1,6 +1,7 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -18,7 +19,11 @@ const SETTINGS = {
           watch: process.env['BUILD_MODE'] === 'dev',
         },
       ]
-    })
+    }),
+    rustWasm({
+      projectDir: 'wasm',
+      outName: 'hex-viewer-wasm',
+    }),
   ],
 }
 
