@@ -30,12 +30,13 @@ interface FileItemProps {
     description: string;
     matchedHandlers: HandlerDefinition[];
     allHandlers: HandlerDefinition[];
+    pinnedHandlers: string[];
     onOpenHandler: (handlerConfig: HandlerConfig) => void;
     initialActiveHandler?: string;
 }
 
 export function FileItem(
-    { file, name, mimetype, description, matchedHandlers, allHandlers, onOpenHandler, initialActiveHandler }: FileItemProps
+    { file, name, mimetype, description, matchedHandlers, allHandlers, pinnedHandlers, onOpenHandler, initialActiveHandler }: FileItemProps
 ) {
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
@@ -78,10 +79,10 @@ export function FileItem(
 
     // Set initial active handler if provided
     useEffect(() => {
-        if (activeHandlerId === null && initialActiveHandler) {
+        if (initialActiveHandler) {
             setActiveHandlerId(initialActiveHandler);
         }
-    }, [activeHandlerId, initialActiveHandler]);
+    }, [initialActiveHandler]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -218,8 +219,11 @@ export function FileItem(
                 <div className="buttonBar" style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
                     <label style={labelStyle}>Open with</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {matchedHandlers
-                            .filter(handler => !isUniversal(handler))
+                        {[...matchedHandlers.filter(h => !isUniversal(h)),
+                        ...allHandlers.filter(h => pinnedHandlers.includes(h.handler) || h.handler === activeHandlerId)]
+                            .filter((handler, index, self) =>
+                                index === self.findIndex((t) => t.handler === handler.handler)
+                            )
                             .sort((a, b) => {
                                 // Sort active handler to the front
                                 if (a.handler === activeHandlerId) return -1;
