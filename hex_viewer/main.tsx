@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { offset, renderAscii, renderHex, renderHexRange } from './hex'
+import { offset, renderAscii, renderHex } from './hex'
 import React, { ReactNode, useCallback, useEffect, useState } from 'react'
 import * as utils from './data-utils'
 
@@ -29,7 +29,7 @@ async function handleFile(file: File) {
     OUTPUT?.render(<HexViewer buffer={buf} />)
 }
 
-function SelectionInfo({ selection, buffer, onSetSelection }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void }) {
+function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void }) {
     const start = selection ? selection[0] : 0;
     const end = selection ? selection[1] : 0;
     const length = selection ? end - start + 1 : 0;
@@ -52,20 +52,32 @@ function SelectionInfo({ selection, buffer, onSetSelection }: { selection: [numb
 
     const renderSelectedData = () => {
         if (!selection) return "No selection";
+        const data = buffer.slice(start, end + 1);
 
         if (!isExpanded) {
+            const hex = Array.from(data.slice(0, 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
             return (
                 <div className="data-preview single-line" onClick={() => setIsExpanded(true)}>
-                    {renderHexRange(start, Math.min(start + 1000, end + 1), buffer, {})}
-                </div>
-            );
-        } else {
-            return (
-                <div className="data-preview expanded" onClick={() => setIsExpanded(false)}>
-                    {renderHexRange(start, Math.min(start + 65536, end + 1), buffer, {})}
+                    {hex}{data.length > 16 ? "..." : ""}
                 </div>
             );
         }
+
+        const maxLines = 1000;
+        const lines = [];
+        for (let i = 0; i < Math.min(data.length, maxLines * 16); i += 16) {
+            const line = Array.from(data.slice(i, i + 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            lines.push(<div key={i}>{line}</div>);
+        }
+        if (data.length > maxLines * 16) {
+            lines.push(<div key="more">...</div>);
+        }
+
+        return (
+            <div className="data-preview expanded" onClick={() => setIsExpanded(false)}>
+                {lines}
+            </div>
+        );
     };
 
     return (
@@ -73,6 +85,14 @@ function SelectionInfo({ selection, buffer, onSetSelection }: { selection: [numb
             <div className="selection-info-row">
                 <span className="inspector-label">Offset</span>
                 <input type="number" value={start} onChange={onOffsetChange} min={0} max={buffer.length - 1} />
+            </div>
+            <div className="selection-info-row">
+                <span className="inspector-label">Hex Range</span>
+                <span className="inspector-value">
+                    <span className="clickable-offset" onClick={() => onJumpToOffset(start)}>0x{start.toString(16).toUpperCase()}</span>
+                    {' - '}
+                    <span className="clickable-offset" onClick={() => onJumpToOffset(end)}>0x{end.toString(16).toUpperCase()}</span>
+                </span>
             </div>
             <div className="selection-info-row">
                 <span className="inspector-label">Length</span>
@@ -87,13 +107,14 @@ function SelectionInfo({ selection, buffer, onSetSelection }: { selection: [numb
 }
 
 export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void }) {
-    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing'>('inspector');
+    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing' | 'markers'>('inspector');
 
     return (
         <div id="inspector" style={{ width: '100%' }}>
-            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} />
+            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} />
             <div className="tab-header">
                 <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')}>Inspector</button>
+                <button className={`tab-button ${activeTab === 'markers' ? 'active' : ''}`} onClick={() => setActiveTab('markers')}>Markers</button>
                 <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')}>Search</button>
                 <button className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')}>Analysis</button>
                 <button className={`tab-button ${activeTab === 'hashing' ? 'active' : ''}`} onClick={() => setActiveTab('hashing')}>Hashing</button>
@@ -111,10 +132,27 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                     />
                 )}
                 {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} matchLength={matchLength} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
+                {activeTab === 'markers' && <MarkersTab markers={markers} onRemoveMarker={onRemoveMarker} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'hashing' && <HashingTab buffer={buffer} selection={selection} />}
             </div>
         </div>
+    );
+}
+
+function MarkersTab({ markers, onRemoveMarker, onJumpToOffset }: { markers: Marker[], onRemoveMarker: (index: number) => void, onJumpToOffset: (offset: number) => void }) {
+    return (
+        <>
+            <h3>Markers</h3>
+            <ul className="marker-list">
+                {markers.map((m, i) => (
+                    <li key={i} className="marker-item">
+                        <span className="clickable-offset" onClick={() => onJumpToOffset(m.start)}>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
+                        <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
+                    </li>
+                ))}
+            </ul>
+        </>
     );
 }
 
@@ -247,6 +285,7 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
 
     return (
         <div className="search-controls">
+            <h3>Advanced Find</h3>
             <div className="search-row">
                 <select value={searchType} onChange={(e) => setSearchType(e.target.value as any)}>
                     <option value="hex">Hex</option>
@@ -357,6 +396,7 @@ export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, on
 
     return (
         <>
+            <h3>Analysis</h3>
             <div className="analysis-label">Byte Map</div>
             <canvas
                 ref={byteMapRef}
@@ -429,6 +469,11 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
 
     return (
         <>
+            <h3>Hashing {isComputing && <span style={{ fontSize: '10px', textTransform: 'none', marginLeft: '8px', verticalAlign: 'middle' }}>(Computing...)</span>}</h3>
+            <div className="inspector-row">
+                <span className="inspector-label">Target</span>
+                <span className="inspector-value">{selection ? `Selection (0x${selection[0].toString(16)} - 0x${selection[1].toString(16)})` : 'Full File'}</span>
+            </div>
             {hashes.map(h => (
                 <div key={h.label} className="inspector-row">
                     <span className="inspector-label">{h.label}</span>
@@ -447,16 +492,8 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
     if (targetIndex === null) {
         return (
             <>
+                <h3>Data Inspector</h3>
                 <div className="inspector-row">Select a byte to see details</div>
-                <h3>Markers</h3>
-                <ul className="marker-list">
-                    {markers.map((m, i) => (
-                        <li key={i} className="marker-item">
-                            <span>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
-                            <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
-                        </li>
-                    ))}
-                </ul>
             </>
         )
     }
@@ -482,16 +519,26 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
         }
     };
 
-    safeRead("Int8", 1, () => view.getInt8(targetIndex));
-    safeRead("Uint8", 1, () => view.getUint8(targetIndex));
-    safeRead("Int16", 2, () => view.getInt16(targetIndex, littleEndian));
-    safeRead("Uint16", 2, () => view.getUint16(targetIndex, littleEndian));
-    safeRead("Int32", 4, () => view.getInt32(targetIndex, littleEndian));
-    safeRead("Uint32", 4, () => view.getUint32(targetIndex, littleEndian));
-    safeRead("Int64", 8, () => view.getBigInt64(targetIndex, littleEndian));
-    safeRead("Uint64", 8, () => view.getBigUint64(targetIndex, littleEndian));
-    safeRead("Float32", 4, () => view.getFloat32(targetIndex, littleEndian));
-    safeRead("Float64", 8, () => view.getFloat64(targetIndex, littleEndian));
+    const selectionLength = selection ? selection[1] - selection[0] + 1 : 1;
+
+    if (selectionLength === 1) {
+        safeRead("Int8", 1, () => view.getInt8(targetIndex));
+        safeRead("Uint8", 1, () => view.getUint8(targetIndex));
+    }
+    if (selectionLength === 2) {
+        safeRead("Int16", 2, () => view.getInt16(targetIndex, littleEndian));
+        safeRead("Uint16", 2, () => view.getUint16(targetIndex, littleEndian));
+    }
+    if (selectionLength === 4) {
+        safeRead("Int32", 4, () => view.getInt32(targetIndex, littleEndian));
+        safeRead("Uint32", 4, () => view.getUint32(targetIndex, littleEndian));
+        safeRead("Float32", 4, () => view.getFloat32(targetIndex, littleEndian));
+    }
+    if (selectionLength === 8) {
+        safeRead("Int64", 8, () => view.getBigInt64(targetIndex, littleEndian));
+        safeRead("Uint64", 8, () => view.getBigUint64(targetIndex, littleEndian));
+        safeRead("Float64", 8, () => view.getFloat64(targetIndex, littleEndian));
+    }
 
     const varint = utils.readVarint(buffer, targetIndex);
     rows.push({
@@ -503,6 +550,7 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
 
     return (
         <>
+            <h3>Data Inspector</h3>
             <div className="inspector-row">
                 <span className="inspector-label">Offset</span>
                 <span className="inspector-value">0x{targetIndex.toString(16).toUpperCase()}</span>
@@ -556,15 +604,6 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
                 </div>
             ))}
 
-            <h3>Markers</h3>
-            <ul className="marker-list">
-                {markers.map((m, i) => (
-                    <li key={i} className="marker-item">
-                        <span>0x{m.start.toString(16).toUpperCase()}: {m.format} ({m.length})</span>
-                        <button className="icon-button" onClick={() => onRemoveMarker(i)}>X</button>
-                    </li>
-                ))}
-            </ul>
         </>
     )
 }
@@ -650,7 +689,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
 
     const lineCount = Math.ceil(buffer.length / 16)
 
-    const [sidebarWidth, setSidebarWidth] = useState(350);
+    const [sidebarWidth, setSidebarWidth] = useState(300);
     const [isResizing, setIsResizing] = useState(false);
 
     const startResizing = useCallback(() => {
@@ -694,25 +733,25 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
             </div>
             <div id="resize-handle" onMouseDown={startResizing} />
             <div id="inspector-container" style={{ width: sidebarWidth, display: 'flex' }}>
-                <DataInspector
-                    buffer={buffer}
-                    index={hoverIndex}
-                    selection={selection}
-                    markers={markers}
-                    onAddMarker={onAddMarker}
-                    onRemoveMarker={onRemoveMarker}
-                    setPreviewMarker={setPreviewMarker}
-                    onJumpToOffset={onJumpToOffset}
-                    searchResults={searchResults}
-                    currentMatchIndex={currentMatchIndex}
-                    matchLength={matchLength}
-                    onSearch={(results, index, length) => {
-                        setSearchResults(results);
-                        setCurrentMatchIndex(index);
-                        setMatchLength(length);
-                    }}
-                    onSetSelection={onSetSelection}
-                />
+            <DataInspector
+                buffer={buffer}
+                index={hoverIndex}
+                selection={selection}
+                markers={markers}
+                onAddMarker={onAddMarker}
+                onRemoveMarker={onRemoveMarker}
+                setPreviewMarker={setPreviewMarker}
+                onJumpToOffset={onJumpToOffset}
+                searchResults={searchResults}
+                currentMatchIndex={currentMatchIndex}
+                matchLength={matchLength}
+                onSearch={(results, index, length) => {
+                    setSearchResults(results);
+                    setCurrentMatchIndex(index);
+                    setMatchLength(length);
+                }}
+                onSetSelection={onSetSelection}
+            />
             </div>
         </div>
     )

@@ -16,7 +16,7 @@ export interface RenderState {
     onMouseLeave: () => void;
 }
 
-export function zero(n: number, max: number) {
+function zero(n: number, max: number) {
     let padded = n.toString(16).toUpperCase();
     while (padded.length < max) {
         padded = '0' + padded;
@@ -29,25 +29,8 @@ export function offset(line: number, buffer: Uint8Array): string {
 }
 
 export function renderAscii(line: number, buffer: Uint8Array, state: RenderState): ReactNode {
-    return renderAsciiRange(line * 16, line * 16 + 16, buffer, state);
-}
-
-export function renderAsciiRange(start: number, end: number, buffer: Uint8Array, state: Partial<RenderState>): ReactNode {
-    const fullState: RenderState = {
-        hoverIndex: null,
-        selectionStart: null,
-        selectionEnd: null,
-        markers: [],
-        searchResultOffsets: new Set(),
-        currentMatchOffset: null,
-        matchLength: 0,
-        onMouseDown: () => { },
-        onMouseEnter: () => { },
-        onMouseLeave: () => { },
-        ...state
-    };
     const gen = function* () {
-        for (let i = start; i < Math.min(end, buffer.length); i++) {
+        for (let i = line * 16; i < Math.min(line * 16 + 16, buffer.length); i++) {
             const v = buffer[i];
             const isAscii = (v > 31 && v < 127) || v > 159;
             const classList = [];
@@ -59,19 +42,19 @@ export function renderAsciiRange(start: number, end: number, buffer: Uint8Array,
                 classList.push("char_unknown");
             }
 
-            if (fullState.hoverIndex === i) {
+            if (state.hoverIndex === i) {
                 classList.push("hovered");
             }
 
-            if (fullState.selectionStart !== null && fullState.selectionEnd !== null) {
-                const s = Math.min(fullState.selectionStart, fullState.selectionEnd);
-                const e = Math.max(fullState.selectionStart, fullState.selectionEnd);
-                if (i >= s && i <= e) {
+            if (state.selectionStart !== null && state.selectionEnd !== null) {
+                const start = Math.min(state.selectionStart, state.selectionEnd);
+                const end = Math.max(state.selectionStart, state.selectionEnd);
+                if (i >= start && i <= end) {
                     classList.push("selected");
                 }
             }
 
-            for (const marker of fullState.markers) {
+            for (const marker of state.markers) {
                 if (i >= marker.start && i < marker.start + marker.length) {
                     classList.push("marked");
                     if (marker.type === 'length') {
@@ -87,14 +70,14 @@ export function renderAsciiRange(start: number, end: number, buffer: Uint8Array,
                 }
             }
 
-            if (fullState.previewMarker && i >= fullState.previewMarker.start && i < fullState.previewMarker.start + fullState.previewMarker.length) {
+            if (state.previewMarker && i >= state.previewMarker.start && i < state.previewMarker.start + state.previewMarker.length) {
                 classList.push("preview_marked");
             }
 
-            if (fullState.searchResultOffsets.has(i)) {
+            if (state.searchResultOffsets.has(i)) {
                 classList.push("search-match");
             }
-            if (fullState.currentMatchOffset !== null && i >= fullState.currentMatchOffset && i < fullState.currentMatchOffset + fullState.matchLength) {
+            if (state.currentMatchOffset !== null && i >= state.currentMatchOffset && i < state.currentMatchOffset + state.matchLength) {
                 classList.push("current-match");
             }
 
@@ -102,9 +85,9 @@ export function renderAsciiRange(start: number, end: number, buffer: Uint8Array,
                 <span
                     key={i}
                     className={classList.join(" ")}
-                    onMouseDown={() => fullState.onMouseDown(i)}
-                    onMouseEnter={() => fullState.onMouseEnter(i)}
-                    onMouseLeave={fullState.onMouseLeave}
+                    onMouseDown={() => state.onMouseDown(i)}
+                    onMouseEnter={() => state.onMouseEnter(i)}
+                    onMouseLeave={state.onMouseLeave}
                 >
                     {isAscii ? String.fromCharCode(v) : '.'}
                 </span>
@@ -117,25 +100,8 @@ export function renderAsciiRange(start: number, end: number, buffer: Uint8Array,
 }
 
 export function renderHex(line: number, buffer: Uint8Array, state: RenderState): ReactNode {
-    return renderHexRange(line * 16, line * 16 + 16, buffer, state);
-}
-
-export function renderHexRange(start: number, end: number, buffer: Uint8Array, state: Partial<RenderState>): ReactNode {
-    const fullState: RenderState = {
-        hoverIndex: null,
-        selectionStart: null,
-        selectionEnd: null,
-        markers: [],
-        searchResultOffsets: new Set(),
-        currentMatchOffset: null,
-        matchLength: 0,
-        onMouseDown: () => { },
-        onMouseEnter: () => { },
-        onMouseLeave: () => { },
-        ...state
-    };
     const gen = function* () {
-        for (let i = start; i < Math.min(end, buffer.length); i++) {
+        for (let i = line * 16; i < Math.min(line * 16 + 16, buffer.length); i++) {
             const v = buffer[i];
             const isAscii = (v > 31 && v < 127) || v > 159;
             const classList = [];
@@ -147,19 +113,19 @@ export function renderHexRange(start: number, end: number, buffer: Uint8Array, s
                 classList.push("char_unknown");
             }
 
-            if (fullState.hoverIndex === i) {
+            if (state.hoverIndex === i) {
                 classList.push("hovered");
             }
 
-            if (fullState.selectionStart !== null && fullState.selectionEnd !== null) {
-                const s = Math.min(fullState.selectionStart, fullState.selectionEnd);
-                const e = Math.max(fullState.selectionStart, fullState.selectionEnd);
-                if (i >= s && i <= e) {
+            if (state.selectionStart !== null && state.selectionEnd !== null) {
+                const start = Math.min(state.selectionStart, state.selectionEnd);
+                const end = Math.max(state.selectionStart, state.selectionEnd);
+                if (i >= start && i <= end) {
                     classList.push("selected");
                 }
             }
 
-            for (const marker of fullState.markers) {
+            for (const marker of state.markers) {
                 if (i >= marker.start && i < marker.start + marker.length) {
                     classList.push("marked");
                     if (marker.type === 'length') {
@@ -175,27 +141,27 @@ export function renderHexRange(start: number, end: number, buffer: Uint8Array, s
                 }
             }
 
-            if (fullState.previewMarker && i >= fullState.previewMarker.start && i < fullState.previewMarker.start + fullState.previewMarker.length) {
+            if (state.previewMarker && i >= state.previewMarker.start && i < state.previewMarker.start + state.previewMarker.length) {
                 classList.push("preview_marked");
             }
 
-            if (fullState.searchResultOffsets.has(i)) {
+            if (state.searchResultOffsets.has(i)) {
                 classList.push("search-match");
             }
-            if (fullState.currentMatchOffset !== null && i >= fullState.currentMatchOffset && i < fullState.currentMatchOffset + fullState.matchLength) {
+            if (state.currentMatchOffset !== null && i >= state.currentMatchOffset && i < state.currentMatchOffset + state.matchLength) {
                 classList.push("current-match");
             }
 
-            const space = i == start ? "" : " "
+            const space = i == line * 16 ? "" : " "
             const hex = zero(v, 2);
             yield (
                 <React.Fragment key={i}>
                     {space && <span>{space}</span>}
                     <span
                         className={classList.join(" ")}
-                        onMouseDown={() => fullState.onMouseDown(i)}
-                        onMouseEnter={() => fullState.onMouseEnter(i)}
-                        onMouseLeave={fullState.onMouseLeave}
+                        onMouseDown={() => state.onMouseDown(i)}
+                        onMouseEnter={() => state.onMouseEnter(i)}
+                        onMouseLeave={state.onMouseLeave}
                     >
                         {hex}
                     </span>
