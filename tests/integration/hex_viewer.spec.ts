@@ -44,7 +44,7 @@ test.describe('Hex Viewer', () => {
 
     // 3. Hashing
     await page.click('button:has-text("Hashing")');
-    await page.click('button:has-text("Compute Hashes")');
+    // Hashing should start automatically
     // SHA-256 should eventually appear
     await expect(page.locator('.inspector-row:has(span:has-text("SHA-256"))')).toBeVisible({ timeout: 10000 });
     const shaValue = page.locator('.inspector-row:has(span:has-text("SHA-256")) .inspector-value');

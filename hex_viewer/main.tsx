@@ -34,30 +34,17 @@ function SelectionInfo({ selection, buffer, onSetSelection }: { selection: [numb
     const end = selection ? selection[1] : 0;
     const length = selection ? end - start + 1 : 0;
 
-    const [offsetText, setOffsetText] = useState(`0x${start.toString(16).toUpperCase()}`);
-    const [lengthText, setLengthText] = useState(length.toString());
-
-    useEffect(() => {
-        setOffsetText(`0x${start.toString(16).toUpperCase()}`);
-    }, [start]);
-
-    useEffect(() => {
-        setLengthText(length.toString());
-    }, [length]);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     const onOffsetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setOffsetText(val);
-        const offset = val.startsWith('0x') ? parseInt(val.slice(2), 16) : parseInt(val, 10);
+        const offset = parseInt(e.target.value, 10);
         if (!isNaN(offset)) {
             onSetSelection(offset, offset + Math.max(0, length - 1));
         }
     };
 
     const onLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setLengthText(val);
-        const len = parseInt(val, 10);
+        const len = parseInt(e.target.value, 10);
         if (!isNaN(len)) {
             onSetSelection(start, start + Math.max(0, len - 1));
         }
@@ -66,23 +53,46 @@ function SelectionInfo({ selection, buffer, onSetSelection }: { selection: [numb
     const renderSelectedData = () => {
         if (!selection) return "No selection";
         const data = buffer.slice(start, end + 1);
-        const hex = Array.from(data.slice(0, 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
-        return hex + (data.length > 16 ? "..." : "");
+
+        if (!isExpanded) {
+            const hex = Array.from(data.slice(0, 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            return (
+                <div className="data-preview single-line" onClick={() => setIsExpanded(true)}>
+                    {hex}{data.length > 16 ? "..." : ""}
+                </div>
+            );
+        }
+
+        const maxLines = 1000;
+        const lines = [];
+        for (let i = 0; i < Math.min(data.length, maxLines * 16); i += 16) {
+            const line = Array.from(data.slice(i, i + 16)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            lines.push(<div key={i}>{line}</div>);
+        }
+        if (data.length > maxLines * 16) {
+            lines.push(<div key="more">...</div>);
+        }
+
+        return (
+            <div className="data-preview expanded" onClick={() => setIsExpanded(false)}>
+                {lines}
+            </div>
+        );
     };
 
     return (
         <div className="selection-info">
             <div className="selection-info-row">
                 <span className="inspector-label">Offset</span>
-                <input type="text" value={offsetText} onChange={onOffsetChange} />
+                <input type="number" value={start} onChange={onOffsetChange} min={0} max={buffer.length - 1} />
             </div>
             <div className="selection-info-row">
                 <span className="inspector-label">Length</span>
-                <input type="text" value={lengthText} onChange={onLengthChange} />
+                <input type="number" value={length} onChange={onLengthChange} min={0} max={buffer.length} />
             </div>
-            <div className="selection-info-row">
+            <div className="selection-info-row data-row">
                 <span className="inspector-label">Data</span>
-                <div className="inspector-value" style={{ fontFamily: 'monospace', fontSize: '11px' }}>{renderSelectedData()}</div>
+                <div className="inspector-value data-container">{renderSelectedData()}</div>
             </div>
         </div>
     );

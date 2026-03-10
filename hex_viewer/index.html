@@ -141,6 +141,37 @@
             text-align: right;
         }
 
+        .data-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+        }
+
+        .data-container {
+            width: 100%;
+            text-align: left;
+            margin-left: 0;
+            font-family: monospace;
+            font-size: 11px;
+            background-color: #1a1a1a;
+            padding: 4px;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        .data-preview.expanded {
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .data-preview.single-line {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .tab-content h3 {
             margin: 0 0 8px 0;
             font-size: 14px;
