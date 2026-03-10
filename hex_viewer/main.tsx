@@ -11,8 +11,8 @@ export interface Marker {
     headerLength?: number;
 }
 
-if (window.parent) {
-    window.parent.postMessage({ 'action': 'requestFile' })
+if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ 'action': 'requestFile' }, '*')
 }
 
 window.onmessage = (e) => {
@@ -21,14 +21,15 @@ window.onmessage = (e) => {
     }
 }
 
-const OUTPUT = createRoot(document.getElementById('output'))
+const outputElement = document.getElementById('output');
+const OUTPUT = outputElement ? createRoot(outputElement) : null
 
 async function handleFile(file: File) {
     const buf = new Uint8Array(await file.arrayBuffer())
-    OUTPUT.render(<HexViewer buffer={buf} />)
+    OUTPUT?.render(<HexViewer buffer={buf} />)
 }
 
-function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void }) {
+export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void }) {
     const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing'>('inspector');
 
     return (
@@ -59,7 +60,7 @@ function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemov
     );
 }
 
-function SearchTab({ buffer, results, currentIndex, matchLength, onSearch, onJumpToOffset }: { buffer: Uint8Array, results: number[], currentIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onJumpToOffset: (offset: number) => void }) {
+export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch, onJumpToOffset }: { buffer: Uint8Array, results: number[], currentIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onJumpToOffset: (offset: number) => void }) {
     const [query, setQuery] = useState('');
     const [searchType, setSearchType] = useState<'hex' | 'utf8' | 'utf16' | 'regex'>('hex');
 
@@ -178,7 +179,7 @@ function SearchTab({ buffer, results, currentIndex, matchLength, onSearch, onJum
             }
             previewLines.push(
                 <div key={l} className={l === startLine ? "match-line" : ""}>
-                    {l.toString(16).padStart(6, '0').toUpperCase()}  {lineHex.reduce((prev, curr, i) => [prev, i > 0 ? " " : "", curr], [] as any)}
+                    {l.toString(16).padStart(6, '0').toUpperCase()}  {lineHex.map((curr, i) => <React.Fragment key={i}>{i > 0 ? " " : ""}{curr}</React.Fragment>)}
                 </div>
             );
         }
@@ -221,7 +222,7 @@ function SearchTab({ buffer, results, currentIndex, matchLength, onSearch, onJum
     );
 }
 
-function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, onJumpToOffset: (offset: number) => void }) {
+export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, onJumpToOffset: (offset: number) => void }) {
     const byteMapRef = React.useRef<HTMLCanvasElement>(null);
     const entropyRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -322,7 +323,7 @@ function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, onJumpToO
     );
 }
 
-function HashingTab({ buffer, selection }: { buffer: Uint8Array, selection: [number, number] | null }) {
+export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selection: [number, number] | null }) {
     const [hashes, setHashes] = useState<{ label: string, value: string }[]>([]);
     const [isComputing, setIsComputing] = useState(false);
     const [md5Ready, setMd5Ready] = useState(false);
@@ -349,7 +350,7 @@ function HashingTab({ buffer, selection }: { buffer: Uint8Array, selection: [num
         const algorithms = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         for (const algo of algorithms) {
             try {
-                const hashBuffer = await crypto.subtle.digest(algo, data);
+                const hashBuffer = await crypto.subtle.digest(algo, (data as Uint8Array).buffer as ArrayBuffer);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
                 results.push({ label: algo, value: hashHex });
