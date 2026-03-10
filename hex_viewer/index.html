@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Hex viewer</title>
     <style>
-        html, body, #output, #hexviewer {
+        html,
+        body,
+        #output,
+        #hexviewer {
             height: 100%;
         }
 
         body {
             background-color: black;
             margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
         }
 
         #hexviewer {
@@ -142,7 +147,6 @@
         }
 
         .data-row {
-            flex-direction: column;
             align-items: flex-start;
             gap: 4px;
         }
@@ -156,14 +160,16 @@
             background-color: #1a1a1a;
             padding: 4px;
             border-radius: 2px;
-            cursor: pointer;
+            flex: 1 1 0;
+            min-width: 0;
         }
 
         .data-preview.expanded {
             max-height: 200px;
             overflow-y: auto;
             white-space: pre-wrap;
-            word-break: break-all;
+            word-break: keep-all;
+            text-align: left;
         }
 
         .data-preview.single-line {
@@ -212,7 +218,8 @@
             background-color: #1177bb;
         }
 
-        select, input {
+        select,
+        input {
             background-color: #3c3c3c;
             color: white;
             border: 1px solid #3c3c3c;
@@ -307,8 +314,10 @@
         }
     </style>
 </head>
+
 <body>
     <div id="output"></div>
 </body>
 <script type="module" src="main.js"></script>
+
 </html>
