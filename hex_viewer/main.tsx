@@ -24,6 +24,14 @@ window.onmessage = (e) => {
 const outputElement = document.getElementById('output');
 const OUTPUT = outputElement ? createRoot(outputElement) : null
 
+const ICONS = {
+    inspector: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>,
+    markers: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>,
+    search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+    analysis: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>,
+    hashing: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+};
+
 async function handleFile(file: File) {
     const buf = new Uint8Array(await file.arrayBuffer())
     OUTPUT?.render(<HexViewer buffer={buf} />)
@@ -71,11 +79,36 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
         }
     };
 
+    const handleOpen = () => {
+        if (!selection) return;
+        const selectedData = buffer.slice(start, end + 1);
+        const file = new File([selectedData], `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`);
+        window.parent.postMessage({ action: 'openFile', file }, '*');
+    };
+
+    const handleCopyRaw = () => {
+        if (!selection) return;
+        const selectedData = buffer.slice(start, end + 1);
+        const text = new TextDecoder('latin1').decode(selectedData);
+        navigator.clipboard.writeText(text);
+    };
+
+    const handleCopyHex = () => {
+        if (!selection) return;
+        const selectedData = buffer.slice(start, end + 1);
+        const hex = Array.from(selectedData).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        navigator.clipboard.writeText(hex);
+    };
+
     return (
         <div className="selection-info">
             <div className="selection-info-row">
                 <span className="inspector-label">Offset</span>
                 <input type="number" value={start} onChange={onOffsetChange} min={0} max={buffer.length - 1} />
+            </div>
+            <div className="selection-info-row">
+                <span className="inspector-label">Length</span>
+                <input type="number" value={length} onChange={onLengthChange} min={0} max={buffer.length} />
             </div>
             <div className="selection-info-row">
                 <span className="inspector-label">Hex Range</span>
@@ -85,13 +118,14 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
                     <span className="clickable-offset" onClick={() => onJumpToOffset(end)}>0x{end.toString(16).toUpperCase()}</span>
                 </span>
             </div>
-            <div className="selection-info-row">
-                <span className="inspector-label">Length</span>
-                <input type="number" value={length} onChange={onLengthChange} min={0} max={buffer.length} />
-            </div>
             <div className="selection-info-row data-row">
                 <span className="inspector-label">Data</span>
                 <div className="inspector-value data-container">{renderSelectedData()}</div>
+            </div>
+            <div className="selection-actions">
+                <button onClick={handleOpen} disabled={!selection} title="Open selection in new tab">Open</button>
+                <button onClick={handleCopyRaw} disabled={!selection} title="Copy as raw bytes">Raw</button>
+                <button onClick={handleCopyHex} disabled={!selection} title="Copy as hex string">Hex</button>
             </div>
         </div>
     );
@@ -104,11 +138,14 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
         <div id="inspector" style={{ width: '100%' }}>
             <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} />
             <div className="tab-header">
-                <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')}>Inspector</button>
-                <button className={`tab-button ${activeTab === 'markers' ? 'active' : ''}`} onClick={() => setActiveTab('markers')}>Markers</button>
-                <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')}>Search</button>
-                <button className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')}>Analysis</button>
-                <button className={`tab-button ${activeTab === 'hashing' ? 'active' : ''}`} onClick={() => setActiveTab('hashing')}>Hashing</button>
+                <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')} title="Inspector">{ICONS.inspector}</button>
+                <button className={`tab-button ${activeTab === 'markers' ? 'active' : ''}`} onClick={() => setActiveTab('markers')} title="Markers">
+                    {ICONS.markers}
+                    {markers.length > 0 && <span className="tab-badge">{markers.length}</span>}
+                </button>
+                <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')} title="Search">{ICONS.search}</button>
+                <button className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')} title="Analysis">{ICONS.analysis}</button>
+                <button className={`tab-button ${activeTab === 'hashing' ? 'active' : ''}`} onClick={() => setActiveTab('hashing')} title="Hashing">{ICONS.hashing}</button>
             </div>
             <div className="tab-content">
                 {activeTab === 'inspector' && (
@@ -556,15 +593,6 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
                         {r.value}
                         <button
                             className="icon-button"
-                            title="Add Marker"
-                            onMouseEnter={() => setPreviewMarker({ start: targetIndex, length: r.size, format: r.label + (littleEndian ? 'le' : 'be') })}
-                            onMouseLeave={() => setPreviewMarker(null)}
-                            onClick={() => onAddMarker(r.label + (littleEndian ? 'le' : 'be'), r.size)}
-                        >
-                            M
-                        </button>
-                        <button
-                            className="icon-button"
                             title="Treat as Length"
                             disabled={r.numericValue === undefined || (typeof r.numericValue === 'number' && r.numericValue < 0) || (typeof r.numericValue === 'bigint' && r.numericValue < 0n)}
                             onMouseEnter={() => {
@@ -586,6 +614,17 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
                     </span>
                 </div>
             ))}
+
+            <div className="marker-actions">
+                <button
+                    onMouseEnter={() => setPreviewMarker({ start: targetIndex, length: selectionLength, format: 'marker' })}
+                    onMouseLeave={() => setPreviewMarker(null)}
+                    onClick={() => onAddMarker('marker', selectionLength)}
+                    title="Add marker for selected range"
+                >
+                    Add Marker
+                </button>
+            </div>
 
         </>
     )

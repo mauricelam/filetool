@@ -94,6 +94,13 @@
             display: flex;
             background-color: #252526;
             border-bottom: 1px solid #333;
+            overflow-x: auto;
+            scrollbar-width: none;
+            white-space: nowrap;
+        }
+
+        .tab-header::-webkit-scrollbar {
+            display: none;
         }
 
         .tab-button {
@@ -102,9 +109,27 @@
             color: #888;
             padding: 8px 12px;
             cursor: pointer;
-            font-size: 11px;
-            text-transform: uppercase;
             outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            position: relative;
+        }
+
+        .tab-badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background-color: #0e639c;
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .tab-button:hover {
@@ -322,6 +347,18 @@
         .match-preview .match-highlight {
             background-color: #9b4d1c;
             color: #fff;
+        }
+
+        .selection-actions,
+        .marker-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .selection-actions button,
+        .marker-actions button {
+            flex: 1;
         }
     </style>
 </head>
