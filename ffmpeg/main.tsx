@@ -934,8 +934,12 @@ function TranscodeControls({
                                 const checked = e.target.checked;
                                 setUseWebCodecs(checked);
                                 if (checked && !isWebCodecSupported(current, videoCodec)) {
-                                    // Auto-switch to H.264 if current codec isn't supported by WebCodecs
-                                    setVideoCodec(VideoCodec.H264);
+                                    // Auto-switch to a compatible codec if current codec isn't supported by WebCodecs
+                                    if (current === Format.WebM) {
+                                        setVideoCodec(VideoCodec.VP8);
+                                    } else {
+                                        setVideoCodec(VideoCodec.H264);
+                                    }
                                 }
                             }}
                             disabled={isEditingCommand || !isWebCodecSupportedFormat}
@@ -1321,11 +1325,19 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         clearResults();
     }, [current, audioCodec, videoCodec, bitrate, crf, rateMode, useWebCodecs, keepAudio]);
 
+    const prevCurrentRef = useRef(current);
+    const prevVideoCodecRef = useRef(videoCodec);
+
     useEffect(() => {
         if (useWebCodecs && !isWebCodecSupported(current, videoCodec)) {
-            setUseWebCodecs(false);
+            // Only uncheck if the change was in container or codec, not when we just enabled useWebCodecs
+            if (current !== prevCurrentRef.current || videoCodec !== prevVideoCodecRef.current) {
+                setUseWebCodecs(false);
+            }
         }
-    }, [current, videoCodec, useWebCodecs]);
+        prevCurrentRef.current = current;
+        prevVideoCodecRef.current = videoCodec;
+    }, [current, videoCodec]);
 
     const loadFFmpegInstance = async () => {
         setIsFFmpegLoading(true)
