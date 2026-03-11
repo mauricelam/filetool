@@ -13,10 +13,6 @@ interface MimeDbItem {
     sources?: string[],
 }
 
-function cleanHandlerName(name: string) {
-    return name.replace(/^Open with /i, '').replace(/^Open in /i, '');
-}
-
 function getIcon(name: string) {
     for (const ext in ICON_LOOKUP) {
         const key = ext as keyof typeof ICON_LOOKUP
@@ -101,9 +97,14 @@ export function FileItem(
 
     const allVisibleHandlers = [...filteredUniversalHandlers, ...filteredTypeSpecificHandlers];
 
-    const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
-    const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
+    const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const defaultHandler = getDefaultHandler(mimetype, name) || null;
+        setLocalDefaultHandlerId(defaultHandler)
+        setActiveHandlerId(defaultHandler)
+    }, [mimetype, name])
 
     // Set initial active handler if provided
     useEffect(() => {
@@ -163,48 +164,6 @@ export function FileItem(
         userSelect: 'none',
     }
 
-    const buttonStyle: CSSProperties = {
-        marginRight: '5px',
-        padding: '6px 12px',
-        borderRadius: '4px',
-        border: '1px solid #ccc',
-        backgroundColor: '#fff',
-        cursor: 'pointer',
-        fontSize: '14px',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        transition: 'all 0.2s ease',
-    }
-
-    const promotedButtonStyle: CSSProperties = {
-        ...buttonStyle,
-        border: '1px solid #0066cc',
-        color: '#0066cc',
-    }
-
-    const demotedButtonStyle: CSSProperties = {
-        ...buttonStyle,
-        backgroundColor: '#f0f0f0',
-        color: '#555',
-        border: '1px solid #ccc',
-    }
-
-    const activeButtonStyle: CSSProperties = {
-        ...promotedButtonStyle,
-        backgroundColor: '#0066cc',
-        border: '1px solid #0066cc',
-        color: '#fff',
-    }
-
-    const defaultIndicatorStyle: CSSProperties = {
-        fontSize: '11px',
-        color: '#666',
-        textAlign: 'center',
-        marginTop: '2px',
-        fontStyle: 'italic',
-    }
-
     const icon = getIcon(name)
     const [mimeDetails, setMimeDetails] = useState<ReactElement>()
     async function showMimeDetails() {
@@ -238,7 +197,6 @@ export function FileItem(
                         <svg style={{ margin: '0 4px' }} xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#434343"><path d="M200-800v241-1 400-640 200-200Zm80 400h140q9-23 22-43t30-37H280v80Zm0 160h127q-5-20-6.5-40t.5-40H280v80ZM200-80q-33 0-56.5-23.5T120-160v-640q0-33 23.5-56.5T200-880h320l240 240v100q-19-8-39-12.5t-41-6.5v-41H480v-200H200v640h241q16 24 36 44.5T521-80H200Zm460-120q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29ZM864-40 756-148q-21 14-45.5 21t-50.5 7q-75 0-127.5-52.5T480-300q0-75 52.5-127.5T660-480q75 0 127.5 52.5T840-300q0 26-7 50.5T812-204L920-96l-56 56Z" /></svg>
                     </a>
                     {mimeDetails}
-                    <div></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'start' }}>
                     <label style={labelStyle}>description</label>
@@ -259,37 +217,24 @@ export function FileItem(
                                 return 0;
                             })
                             .map(handlerConfig => {
-                                const isCurrentDefault = handlerConfig.handler === localDefaultHandlerId;
-                                const isActive = handlerConfig.handler === activeHandlerId;
-                                let style = isAnyMimeMatch(handlerConfig.mimetypes) ? demotedButtonStyle : promotedButtonStyle;
-                                if (isActive) {
-                                    style = activeButtonStyle;
-                                }
-
                                 return (
-                                    <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
-                                        <button
-                                            onClick={() => {
-                                                setActiveHandlerId(handlerConfig.handler);
-                                                onOpenHandler({ handler: handlerConfig.handler, file, magicMime: mimetype });
-                                            }}
-                                            style={style}
-                                        >
-                                            <span
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const newDefault = isCurrentDefault ? null : handlerConfig.handler;
-                                                    setDefaultHandler(mimetype, name, newDefault);
-                                                    setLocalDefaultHandlerId(newDefault);
-                                                }}
-                                                style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', marginRight: '6px' }}
-                                                title={isCurrentDefault ? "Remove as default handler" : "Set as default handler"}
-                                            >
-                                                {isCurrentDefault ? <StarFilled /> : <StarOutline />}
-                                            </span>
-                                            {cleanHandlerName(handlerConfig.name)}
-                                        </button>
-                                    </div>
+                                    <HandlerButton
+                                        key={handlerConfig.handler}
+                                        handlerConfig={handlerConfig}
+                                        isActive={handlerConfig.handler === activeHandlerId}
+                                        isAnyMimeMatch={isAnyMimeMatch(handlerConfig.mimetypes)}
+                                        isCurrentDefault={handlerConfig.handler === localDefaultHandlerId}
+                                        onClick={() => {
+                                            setActiveHandlerId(handlerConfig.handler);
+                                            onOpenHandler({ handler: handlerConfig.handler, file, magicMime: mimetype });
+                                        }}
+                                        onStar={(starred) => {
+                                            console.log('onStarChange', starred)
+                                            const newDefault = starred ? handlerConfig.handler : null;
+                                            setDefaultHandler(mimetype, name, newDefault);
+                                            setLocalDefaultHandlerId(newDefault);
+                                        }}
+                                    />
                                 );
                             })}
                         <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
@@ -462,6 +407,47 @@ export function FileItem(
     )
 }
 
+function HandlerButton({
+    handlerConfig,
+    isActive,
+    isAnyMimeMatch,
+    isCurrentDefault,
+    onClick,
+    onStar,
+}: {
+    handlerConfig: HandlerDefinition,
+    isActive: boolean,
+    isAnyMimeMatch: boolean,
+    isCurrentDefault: boolean,
+    onClick: () => void,
+    onStar: (starred: boolean) => void
+}) {
+    let style = isAnyMimeMatch ? demotedButtonStyle : promotedButtonStyle;
+    if (isActive) {
+        style = activeButtonStyle;
+    }
+    return (
+        <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+            <button
+                onClick={onClick}
+                style={style}
+            >
+                <span
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onStar(!isCurrentDefault);
+                    }}
+                    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', marginRight: '6px' }}
+                    title={isCurrentDefault ? "Remove as default handler" : "Set as default handler"}
+                >
+                    {isCurrentDefault ? <StarFilled /> : <StarOutline />}
+                </span>
+                {handlerConfig.name}
+            </button>
+        </div>
+    )
+}
+
 export function FileListItem(
     { file, selected, onClick, onRemove }: { file: File, selected: boolean, onClick: () => void, onRemove: () => void }
 ) {
@@ -504,4 +490,38 @@ export function FileListItem(
             </div>
         </div>
     );
+}
+
+const buttonStyle: CSSProperties = {
+    marginRight: '5px',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    border: '1px solid #ccc',
+    backgroundColor: '#fff',
+    cursor: 'pointer',
+    fontSize: '14px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    transition: 'all 0.2s ease',
+}
+
+const promotedButtonStyle: CSSProperties = {
+    ...buttonStyle,
+    border: '1px solid #0066cc',
+    color: '#0066cc',
+}
+
+const demotedButtonStyle: CSSProperties = {
+    ...buttonStyle,
+    backgroundColor: '#f0f0f0',
+    color: '#555',
+    border: '1px solid #ccc',
+}
+
+const activeButtonStyle: CSSProperties = {
+    ...promotedButtonStyle,
+    backgroundColor: '#0066cc',
+    border: '1px solid #0066cc',
+    color: '#fff',
 }
