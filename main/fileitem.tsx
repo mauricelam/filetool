@@ -13,6 +13,10 @@ interface MimeDbItem {
     sources?: string[],
 }
 
+function cleanHandlerName(name: string) {
+    return name.replace(/^Open with /i, '').replace(/^Open in /i, '');
+}
+
 function getIcon(name: string) {
     for (const ext in ICON_LOOKUP) {
         const key = ext as keyof typeof ICON_LOOKUP
@@ -22,6 +26,30 @@ function getIcon(name: string) {
     }
     return `icons/default_file.svg`
 }
+
+const StarFilled = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#FFC107">
+        <path d="m233-120 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Z" />
+    </svg>
+);
+
+const StarOutline = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor">
+        <path d="m354-287 126-76 126 77-33-144 111-96-146-13-58-135-58 135-146 13 111 97-33 142ZM233-120l65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-350Z" />
+    </svg>
+);
+
+const MoreIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+        <path d="M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z" />
+    </svg>
+);
+
+const DownloadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+        <path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z" />
+    </svg>
+);
 
 interface FileItemProps {
     file: File;
@@ -74,7 +102,7 @@ export function FileItem(
     const allVisibleHandlers = [...filteredUniversalHandlers, ...filteredTypeSpecificHandlers];
 
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
-    const [activeHandlerId, setActiveHandlerId] = useState<string | null>(null);
+    const [activeHandlerId, setActiveHandlerId] = useState<string | null>(initialActiveHandler || null);
     const [localDefaultHandlerId, setLocalDefaultHandlerId] = useState<string | null>(currentDefaultHandlerId);
 
     // Set initial active handler if provided
@@ -164,9 +192,9 @@ export function FileItem(
 
     const activeButtonStyle: CSSProperties = {
         ...promotedButtonStyle,
-        backgroundColor: '#e6f3ff',
+        backgroundColor: '#0066cc',
         border: '1px solid #0066cc',
-        color: '#0066cc',
+        color: '#fff',
     }
 
     const defaultIndicatorStyle: CSSProperties = {
@@ -217,7 +245,7 @@ export function FileItem(
                     <span className="filedescription" style={{ fontSize: '14px' }}>{description}</span>
                 </div>
                 <div className="buttonBar" style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
-                    <label style={labelStyle}>Open with</label>
+                    <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8px' }}>Open with:</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                         {[...matchedHandlers.filter(h => !isUniversal(h)),
                         ...allHandlers.filter(h => pinnedHandlers.includes(h.handler) || h.handler === activeHandlerId)]
@@ -231,7 +259,7 @@ export function FileItem(
                                 return 0;
                             })
                             .map(handlerConfig => {
-                                const isCurrentDefault = handlerConfig.handler === currentDefaultHandlerId;
+                                const isCurrentDefault = handlerConfig.handler === localDefaultHandlerId;
                                 const isActive = handlerConfig.handler === activeHandlerId;
                                 let style = isAnyMimeMatch(handlerConfig.mimetypes) ? demotedButtonStyle : promotedButtonStyle;
                                 if (isActive) {
@@ -247,23 +275,20 @@ export function FileItem(
                                             }}
                                             style={style}
                                         >
-                                            {handlerConfig.name}
-                                        </button>
-                                        {isCurrentDefault && (
-                                            <div style={defaultIndicatorStyle}>Default</div>
-                                        )}
-                                        {isActive && !isCurrentDefault && localDefaultHandlerId !== handlerConfig.handler && (
-                                            <div
-                                                onClick={() => {
-                                                    setDefaultHandler(mimetype, name, handlerConfig.handler);
-                                                    setLocalDefaultHandlerId(handlerConfig.handler);
-                                                    console.log(`Set ${handlerConfig.name} (id: ${handlerConfig.handler}) as default for mimetype: ${mimetype}`);
+                                            <span
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const newDefault = isCurrentDefault ? null : handlerConfig.handler;
+                                                    setDefaultHandler(mimetype, name, newDefault);
+                                                    setLocalDefaultHandlerId(newDefault);
                                                 }}
-                                                title="Set as default"
-                                                className="circle-container"
-                                                style={defaultIndicatorStyle}
-                                            >Default</div>
-                                        )}
+                                                style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', marginRight: '6px' }}
+                                                title={isCurrentDefault ? "Remove as default handler" : "Set as default handler"}
+                                            >
+                                                {isCurrentDefault ? <StarFilled /> : <StarOutline />}
+                                            </span>
+                                            {cleanHandlerName(handlerConfig.name)}
+                                        </button>
                                     </div>
                                 );
                             })}
@@ -272,10 +297,9 @@ export function FileItem(
                                 ref={otherButtonRef}
                                 onClick={() => setOtherHandlersDialogOpen(true)}
                                 style={demotedButtonStyle}
-                                title="Show all handlers"
+                                title="Other handlers"
                             >
-                                Other
-                                <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z" /></svg>
+                                <MoreIcon />
                             </button>
                         </div>
                         <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
@@ -291,8 +315,9 @@ export function FileItem(
                                     URL.revokeObjectURL(url);
                                 }}
                                 style={demotedButtonStyle}
+                                title="Download"
                             >
-                                Download
+                                <DownloadIcon />
                             </button>
                         </div>
                     </div>
