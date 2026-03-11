@@ -1,5 +1,5 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { getFFmpegCoreURL, getFFmpegWasmURL, getFFmpegWorkerURL } from './ffmpegUtils';
@@ -37,6 +37,7 @@ enum Format {
     Mp4 = 'mp4',
     Mkv = 'mkv',
     WebM = 'webm',
+    Mov = 'mov',
     Gif = 'gif',
     WebP = 'webp',
     Ogv = 'ogv',
@@ -66,11 +67,36 @@ const FORMAT_MIME: Record<string, string> = {
     'mp4': 'video/mp4',
     'mkv': 'video/matroska',
     'webm': 'video/webm',
+    'mov': 'video/quicktime',
     'gif': 'image/gif',
     'webp': 'image/webp',
     'ogv': 'video/ogg',
     'mpeg1': 'video/mpeg',
     'mpeg2': 'video/mpeg',
+}
+
+// Map VideoCodec to WebCodecs strings
+const WEBCODEC_VIDEO_CODEC: Partial<Record<VideoCodec, string>> = {
+    [VideoCodec.H264]: 'avc1.42E033',
+    [VideoCodec.VP8]: 'vp8',
+    [VideoCodec.VP9]: 'vp09.00.51.08',
+    [VideoCodec.AV1]: 'av01.0.04M.08',
+}
+
+function isFormatWebCodecSupported(format: Format): boolean {
+    if (!('VideoEncoder' in window)) return false;
+    return [Format.Mp4, Format.Mov, Format.Mkv, Format.WebM].includes(format);
+}
+
+function isWebCodecSupported(format: Format, videoCodec: VideoCodec): boolean {
+    if (!isFormatWebCodecSupported(format)) return false;
+    const isCodecSupported = !!WEBCODEC_VIDEO_CODEC[videoCodec];
+    if (!isCodecSupported) return false;
+
+    if (format === Format.WebM) {
+        return videoCodec === VideoCodec.VP8 || videoCodec === VideoCodec.VP9 || videoCodec === VideoCodec.AV1;
+    }
+    return true;
 }
 
 type TranscodeResults = { [format: string]: undefined | number | File }
@@ -245,13 +271,12 @@ interface VideoInfo {
 
 interface VideoPreviewProps {
     file: File;
-    error: string | null;
     videoInfo: VideoInfo;
     setVideoInfo: Dispatch<SetStateAction<VideoInfo>>;
     onSaveMetadata: (newMetadata: { [key: string]: string }) => void;
 }
 
-function VideoPreview({ file, error, videoInfo, setVideoInfo, onSaveMetadata }: VideoPreviewProps) {
+function VideoPreview({ file, videoInfo, setVideoInfo, onSaveMetadata }: VideoPreviewProps) {
     const [videoUrl, setVideoUrl] = useState<string>('');
     const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [rawFFmpegOutput, setRawFFmpegOutput] = useState<string>('');
@@ -460,19 +485,6 @@ function VideoPreview({ file, error, videoInfo, setVideoInfo, onSaveMetadata }: 
                     )}
                 </div>
             </div>
-
-            {error && (
-                <div style={{
-                    color: '#dc3545',
-                    background: '#f8d7da',
-                    padding: '10px',
-                    borderRadius: '4px',
-                    marginTop: '15px',
-                    fontSize: '14px'
-                }}>
-                    <strong>Error:</strong> {error}
-                </div>
-            )}
             {isEditingMetadata && (
                 <MetadataEditorModal
                     metadata={videoInfo.metadata || {}}
@@ -577,16 +589,27 @@ interface TranscodeControlsProps {
     setAudioCodec: (codec: AudioCodec) => void;
     videoCodec: VideoCodec;
     setVideoCodec: (codec: VideoCodec) => void;
+    bitrate: number;
+    setBitrate: (bitrate: number) => void;
+    crf: number;
+    setCrf: (crf: number) => void;
+    rateMode: 'bitrate' | 'crf';
+    setRateMode: (mode: 'bitrate' | 'crf') => void;
+    keepAudio: boolean;
+    setKeepAudio: (value: boolean) => void;
     results: TranscodeResults;
     isFFmpegLoading: boolean;
     running: boolean;
     commandString: string;
-    onTranscode: (format: Format) => void;
+    onTranscode: () => void;
     onStop: () => void;
     onDownload: (file: File) => void;
     onCustomCommand: (command: string) => void;
     useWebCodecs: boolean;
     setUseWebCodecs: (value: boolean) => void;
+    progress: number;
+    status: string;
+    error: string | null;
 }
 
 function TranscodeControls({
@@ -597,6 +620,14 @@ function TranscodeControls({
     setAudioCodec,
     videoCodec,
     setVideoCodec,
+    bitrate,
+    setBitrate,
+    crf,
+    setCrf,
+    rateMode,
+    setRateMode,
+    keepAudio,
+    setKeepAudio,
     results,
     isFFmpegLoading,
     running,
@@ -607,35 +638,44 @@ function TranscodeControls({
     onCustomCommand,
     useWebCodecs,
     setUseWebCodecs,
+    progress,
+    status,
+    error,
 }: TranscodeControlsProps) {
     const [customCommand, setCustomCommand] = useState('');
     const [isEditingCommand, setIsEditingCommand] = useState(false);
     const [transcodedUrl, setTranscodedUrl] = useState<string>('');
 
+    const transcodedFile = useMemo(() => {
+        if (useWebCodecs) {
+            const webCodecResults = Object.entries(results)
+                .filter(([key, value]) => key.startsWith('webcodecs-') && value instanceof File)
+                .map(([, value]) => value as File);
+            return webCodecResults.length > 0 ? webCodecResults[webCodecResults.length - 1] : null;
+        } else {
+            return results[current] instanceof File ? results[current] as File : null;
+        }
+    }, [results, current, useWebCodecs]);
+
     useEffect(() => {
-        if (transcodedUrl) {
-            URL.revokeObjectURL(transcodedUrl);
+        if (!transcodedFile) {
+            setTranscodedUrl('');
+            return;
         }
 
-        let newUrl = '';
-        if (current !== Format.Original && results[current] instanceof Blob) {
-            newUrl = URL.createObjectURL(results[current] as Blob);
-        }
-
-        setTranscodedUrl(newUrl);
+        const url = URL.createObjectURL(transcodedFile);
+        setTranscodedUrl(url);
 
         return () => {
-            if (newUrl) {
-                URL.revokeObjectURL(newUrl);
-            }
+            URL.revokeObjectURL(url);
         };
-    }, [current, results]);
+    }, [transcodedFile]);
 
     const handleTranscode = () => {
         if (isEditingCommand && customCommand.trim()) {
             onCustomCommand(customCommand.trim());
         } else {
-            onTranscode(current);
+            onTranscode();
         }
     };
 
@@ -653,46 +693,22 @@ function TranscodeControls({
         setIsEditingCommand(false);
     };
 
+    const supportsWebCodecs = 'VideoEncoder' in window;
+    const isWebCodecSupportedFormat = isFormatWebCodecSupported(current);
+    const isWebCodecSupportedCodec = isWebCodecSupported(current, videoCodec);
+
     return (
         <div style={{ flex: 1, padding: '20px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#333' }}>Transcode Options</h3>
-
-            {current !== Format.Original && results[current] instanceof File && (
-                <div style={{ marginBottom: '20px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#495057' }}>Transcoded Preview</h4>
-                    <div style={{ marginBottom: '15px' }}>
-                        {(current === Format.Gif || current === Format.WebP) ? (
-                            <img
-                                src={transcodedUrl}
-                                style={{
-                                    maxWidth: '100%',
-                                    maxHeight: '200px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '8px'
-                                }}
-                                alt="Transcoded Preview"
-                            />
-                        ) : (
-                            <video
-                                src={transcodedUrl}
-                                controls
-                                style={{
-                                    width: '100%',
-                                    maxHeight: '200px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '8px'
-                                }}
-                            />
-                        )}
-                    </div>
-                </div>
-            )}
 
             <div style={{ marginBottom: '20px' }}>
                 <label htmlFor="format-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Container Format:</label>
                 <select
                     id="format-select"
-                    onChange={(e) => setCurrent(e.target.value as Format)}
+                    onChange={(e) => {
+                        const newFormat = e.target.value as Format;
+                        setCurrent(newFormat);
+                    }}
                     value={current}
                     style={{
                         width: '100%',
@@ -703,59 +719,126 @@ function TranscodeControls({
                     }}
                     disabled={isEditingCommand}
                 >
-                    {Object.values(Format).map(format => (
-                        <option key={format} value={format}>{format.toUpperCase()}</option>
-                    ))}
+                    {Object.values(Format).map(format => {
+                        const formatSupported = isFormatWebCodecSupported(format);
+                        return (
+                            <option key={format} value={format}>
+                                {format.toUpperCase()}
+                                {!formatSupported ? ' (FFmpeg only)' : ''}
+                            </option>
+                        );
+                    })}
                 </select>
             </div>
 
             {current !== Format.WebP && current !== Format.Gif && (
                 <div style={{ marginBottom: '20px' }}>
-                    <label htmlFor="audio-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio Codec:</label>
-                    <select
-                        id="audio-codec-select"
-                        onChange={(e) => setAudioCodec(e.target.value as AudioCodec)}
-                        value={audioCodec}
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            borderRadius: '4px',
-                            border: '1px solid #ced4da',
-                            fontSize: '14px'
-                        }}
-                        disabled={isEditingCommand}
-                    >
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Audio Codec:</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {Object.values(AudioCodec).map(codec => (
-                            <option key={codec} value={codec}>{codec === 'copy' ? 'Original' : codec.toUpperCase()}</option>
+                            <label key={codec} style={{ display: 'flex', alignItems: 'center', fontSize: '14px', cursor: 'pointer' }}>
+                                <input
+                                    type="radio"
+                                    name="audioCodec"
+                                    value={codec}
+                                    checked={audioCodec === codec}
+                                    onChange={(e) => setAudioCodec(e.target.value as AudioCodec)}
+                                    disabled={isEditingCommand}
+                                    style={{ marginRight: '4px' }}
+                                />
+                                {codec === 'copy' ? 'Original' : codec.toUpperCase()}
+                            </label>
                         ))}
-                    </select>
+                    </div>
                 </div>
             )}
 
             {current !== Format.Gif && current !== Format.WebP && (
                 <div style={{ marginBottom: '20px' }}>
-                    <label htmlFor="video-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Video Codec:</label>
-                    <select
-                        id="video-codec-select"
-                        onChange={(e) => setVideoCodec(e.target.value as VideoCodec)}
-                        value={videoCodec}
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            borderRadius: '4px',
-                            border: '1px solid #ced4da',
-                            fontSize: '14px'
-                        }}
-                        disabled={isEditingCommand}
-                    >
-                        {Object.values(VideoCodec).map(codec => (
-                            <option key={codec} value={codec}>{codec === 'copy' ? 'Original' : codec.toUpperCase()}</option>
-                        ))}
-                    </select>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Video Codec:</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        {Object.values(VideoCodec).map(codec => {
+                            const webSupported = isWebCodecSupported(current, codec);
+                            return (
+                                <label
+                                    key={codec}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        fontSize: '14px',
+                                        cursor: isEditingCommand ? 'not-allowed' : 'pointer',
+                                    }}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="videoCodec"
+                                        value={codec}
+                                        checked={videoCodec === codec}
+                                        onChange={(e) => setVideoCodec(e.target.value as VideoCodec)}
+                                        disabled={isEditingCommand}
+                                        style={{ marginRight: '4px' }}
+                                    />
+                                    {codec === 'copy' ? 'Original' : codec.toUpperCase()}
+                                    {!webSupported ? ' (FFmpeg only)' : ''}
+                                </label>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
-            {commandString && (
+            <div style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                    <label style={{ fontWeight: 'bold' }}>Rate Control Mode:</label>
+                    <label style={{ cursor: 'pointer' }}>
+                        <input type="radio" name="rateMode" value="bitrate" checked={rateMode === 'bitrate'} onChange={() => setRateMode('bitrate')} /> Bitrate
+                    </label>
+                    <label style={{ cursor: 'pointer' }}>
+                        <input type="radio" name="rateMode" value="crf" checked={rateMode === 'crf'} onChange={() => setRateMode('crf')} /> Quality (CRF)
+                    </label>
+                </div>
+                {rateMode === 'bitrate' ? (
+                    <>
+                        <label htmlFor="bitrate-input" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Bitrate (bps):</label>
+                        <input id="bitrate-input" type="number" value={bitrate} onChange={e => setBitrate(parseInt(e.target.value, 10))}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                border: '1px solid #ced4da',
+                                fontSize: '14px'
+                            }}
+                        />
+                    </>
+                ) : (
+                    <>
+                        <label htmlFor="crf-input" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>CRF (0-51, lower is better):</label>
+                        <input id="crf-input" type="number" value={crf} min="0" max="51" onChange={e => setCrf(parseInt(e.target.value, 10))}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                border: '1px solid #ced4da',
+                                fontSize: '14px'
+                            }}
+                        />
+                    </>
+                )}
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={keepAudio}
+                        onChange={(e) => setKeepAudio(e.target.checked)}
+                        style={{ marginRight: '10px' }}
+                    />
+                    Keep audio track
+                </label>
+            </div>
+
+            {!useWebCodecs && commandString && (
                 <div style={{
                     background: '#f8f9fa',
                     padding: '15px',
@@ -841,11 +924,44 @@ function TranscodeControls({
                 </div>
             )}
 
+            {supportsWebCodecs && (
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={useWebCodecs}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseWebCodecs(checked);
+                                if (checked && !isWebCodecSupported(current, videoCodec)) {
+                                    // Auto-switch to a compatible codec if current codec isn't supported by WebCodecs
+                                    if (current === Format.WebM) {
+                                        setVideoCodec(VideoCodec.VP8);
+                                    } else {
+                                        setVideoCodec(VideoCodec.H264);
+                                    }
+                                }
+                            }}
+                            disabled={isEditingCommand || !isWebCodecSupportedFormat}
+                            style={{ marginRight: '10px' }}
+                        />
+                        <span style={{ color: isWebCodecSupportedFormat ? 'inherit' : '#aaa' }}>
+                            Use WebCodecs API for transcoding
+                        </span>
+                    </label>
+                    {!isWebCodecSupportedFormat && (
+                        <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                            WebCodecs does not support this container format.
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div style={{ marginBottom: '20px' }}>
                 <button
                     className="button"
                     onClick={running ? onStop : handleTranscode}
-                    disabled={isFFmpegLoading || (!running && results[current] instanceof File) || (isEditingCommand && !customCommand.trim())}
+                    disabled={isFFmpegLoading || (!running && !!transcodedFile) || (isEditingCommand && !customCommand.trim())}
                     style={{
                         width: '100%',
                         padding: '12px',
@@ -853,7 +969,7 @@ function TranscodeControls({
                         fontWeight: 'bold',
                         borderRadius: '6px',
                         border: 'none',
-                        cursor: isFFmpegLoading || (!running && results[current] instanceof File) ? 'not-allowed' : 'pointer',
+                        cursor: isFFmpegLoading || (!running && !!transcodedFile) ? 'not-allowed' : 'pointer',
                         background: running ? '#dc3545' : '#28a745',
                         color: 'white'
                     }}
@@ -862,203 +978,15 @@ function TranscodeControls({
                 </button>
             </div>
 
-            {results[current] instanceof File && (
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                        className="button"
-                        onClick={() => onDownload(results[current] as File)}
-                        style={{
-                            flex: 1,
-                            padding: '10px',
-                            borderRadius: '4px',
-                            border: '1px solid #007bff',
-                            background: '#007bff',
-                            color: 'white',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Download
-                    </button>
-                </div>
-            )}
-
-            {typeof results[current] === 'number' && (
-                <div style={{
-                    background: '#e7f3ff',
-                    padding: '10px',
-                    borderRadius: '4px',
-                    marginTop: '10px'
-                }}>
-                    <div style={{ fontSize: '14px', marginBottom: '5px' }}>Progress: {Math.round(results[current] as number * 100)}%</div>
-                    <div style={{
-                        width: '100%',
-                        height: '8px',
-                        background: '#ddd',
-                        borderRadius: '4px',
-                        overflow: 'hidden'
-                    }}>
-                        <div style={{
-                            width: `${(results[current] as number) * 100}%`,
-                            height: '100%',
-                            background: '#007bff',
-                            transition: 'width 0.3s ease'
-                        }} />
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function WebCodecsControls({
-    file,
-    onTranscode,
-    running,
-    results,
-    onDownload,
-    progress,
-    status,
-}: {
-    file: File;
-    onTranscode: (config: any) => void;
-    running: boolean;
-    results: TranscodeResults;
-    onDownload: (file: File) => void;
-    progress: number;
-    status: string;
-}) {
-    const [videoCodec, setVideoCodec] = useState('vp09.00.51.08');
-    const [bitrate, setBitrate] = useState(2_000_000);
-    const [keepAudio, setKeepAudio] = useState(true);
-    const [container, setContainer] = useState('mp4');
-    const [transcodedFile, setTranscodedFile] = useState<File | null>(null);
-    const [transcodedUrl, setTranscodedUrl] = useState<string>('');
-
-    useEffect(() => {
-        if (videoCodec.startsWith('avc1')) {
-            setContainer('mp4');
-        } else if (videoCodec.startsWith('vp')) {
-            setContainer('webm');
-        }
-    }, [videoCodec]);
-
-    useEffect(() => {
-        if (results) {
-            const webCodecResults = Object.entries(results)
-                .filter(([key, value]) => key.startsWith('webcodecs-') && value instanceof File)
-                .map(([, value]) => value as File);
-
-            if (webCodecResults.length > 0) {
-                const lastTranscoded = webCodecResults[webCodecResults.length - 1];
-                setTranscodedFile(lastTranscoded);
-                const newUrl = URL.createObjectURL(lastTranscoded);
-                setTranscodedUrl(newUrl);
-                return () => URL.revokeObjectURL(newUrl);
-            }
-        }
-    }, [results]);
-
-    const handleTranscode = () => {
-        const config = {
-            codec: videoCodec,
-            bitrate: bitrate,
-            keepAudio: keepAudio,
-            container: container,
-        };
-        onTranscode(config);
-    };
-
-    return (
-        <div style={{ flex: 1, padding: '20px' }}>
-            {transcodedFile && (
-                <div style={{ marginBottom: '20px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#495057' }}>Transcoded Preview</h4>
-                    <div style={{ marginBottom: '15px' }}>
-                        <video
-                            src={transcodedUrl}
-                            controls
-                            style={{
-                                width: '100%',
-                                maxHeight: '200px',
-                                border: '1px solid #ddd',
-                                borderRadius: '8px'
-                            }}
-                        />
-                    </div>
-                </div>
-            )}
-            <div style={{ marginBottom: '20px' }}>
-                <label htmlFor="video-codec-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Video Codec:</label>
-                <select id="video-codec-select" value={videoCodec} onChange={e => setVideoCodec(e.target.value)}
-                    style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: '4px',
-                        border: '1px solid #ced4da',
-                        fontSize: '14px'
-                    }}
-                >
-                    <option value="vp8">VP8</option>
-                    <option value="vp09.00.51.08">VP9</option>
-                    <option value="avc1.42E033">H.264</option>
-                </select>
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-                <label htmlFor="container-select" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Container Format:</label>
-                <select id="container-select" value={container} onChange={e => setContainer(e.target.value)}
-                    style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: '4px',
-                        border: '1px solid #ced4da',
-                        fontSize: '14px'
-                    }}
-                >
-                    {videoCodec.startsWith('avc1') ? (
-                        <>
-                            <option value="mp4">MP4</option>
-                            <option value="mov">MOV (QuickTime)</option>
-                            <option value="mkv">MKV (Matroska)</option>
-                        </>
-                    ) : (
-                        <>
-                            <option value="webm">WebM</option>
-                            <option value="mkv">MKV (Matroska)</option>
-                        </>
-                    )}
-                </select>
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-                <label htmlFor="bitrate-input" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Bitrate:</label>
-                <input id="bitrate-input" type="number" value={bitrate} onChange={e => setBitrate(parseInt(e.target.value, 10))}
-                    style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: '4px',
-                        border: '1px solid #ced4da',
-                        fontSize: '14px'
-                    }}
-                />
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                    <input
-                        type="checkbox"
-                        checked={keepAudio}
-                        onChange={(e) => setKeepAudio(e.target.checked)}
-                        style={{ marginRight: '10px' }}
-                    />
-                    Keep audio track
-                </label>
-            </div>
             {running && (
                 <div style={{
                     background: '#e7f3ff',
                     padding: '10px',
                     borderRadius: '4px',
-                    marginTop: '10px'
+                    marginTop: '10px',
+                    marginBottom: '20px'
                 }}>
-                    <div style={{ fontSize: '14px', marginBottom: '5px' }}>{status} {Math.round(progress * 100)}%</div>
+                    <div style={{ fontSize: '14px', marginBottom: '5px' }}>{status || 'Progress'}: {Math.round(progress * 100)}%</div>
                     <div style={{
                         width: '100%',
                         height: '8px',
@@ -1075,51 +1003,86 @@ function WebCodecsControls({
                     </div>
                 </div>
             )}
-            <div style={{ marginBottom: '20px', marginTop: '10px' }}>
-                <button onClick={handleTranscode} disabled={running}
-                    style={{
-                        width: '100%',
-                        padding: '12px',
-                        fontSize: '16px',
-                        fontWeight: 'bold',
-                        borderRadius: '6px',
-                        border: 'none',
-                        cursor: running ? 'not-allowed' : 'pointer',
-                        background: running ? '#dc3545' : '#28a745',
-                        color: 'white'
-                    }}
-                >
-                    {running ? 'Transcoding...' : 'Transcode'}
-                </button>
-            </div>
-            {transcodedFile && (
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                        className="button"
-                        onClick={() => onDownload(transcodedFile)}
-                        style={{
-                            flex: 1,
-                            padding: '10px',
-                            borderRadius: '4px',
-                            border: '1px solid #007bff',
-                            background: '#007bff',
-                            color: 'white',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Download
-                    </button>
+
+            {error && (
+                <div style={{
+                    background: '#f8d7da',
+                    color: '#721c24',
+                    padding: '12px',
+                    borderRadius: '4px',
+                    marginBottom: '20px',
+                    border: '1px solid #f5c6cb',
+                    fontSize: '14px',
+                    wordBreak: 'break-all'
+                }}>
+                    <strong>Error:</strong> {error}
                 </div>
+            )}
+
+            {transcodedFile && (
+                <>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                        <button
+                            className="button"
+                            onClick={() => onDownload(transcodedFile)}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                borderRadius: '4px',
+                                border: '1px solid #007bff',
+                                background: '#007bff',
+                                color: 'white',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Download
+                        </button>
+                    </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#495057' }}>Transcoded Preview</h4>
+                        <div style={{ marginBottom: '15px' }}>
+                            {(current === Format.Gif || current === Format.WebP) ? (
+                                <img
+                                    src={transcodedUrl}
+                                    style={{
+                                        maxWidth: '100%',
+                                        maxHeight: '200px',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '8px'
+                                    }}
+                                    alt="Transcoded Preview"
+                                />
+                            ) : (
+                                <video
+                                    src={transcodedUrl}
+                                    controls
+                                    style={{
+                                        width: '100%',
+                                        maxHeight: '200px',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </>
             )}
         </div>
     );
 }
+
 
 function TranscodeVideo({ file: initialFile }: { file: File }) {
     const [file, setFile] = useState(initialFile);
     const [current, setCurrent] = useState<Format>(Format.Original)
     const [audioCodec, setAudioCodec] = useState<AudioCodec>(AudioCodec.Original)
     const [videoCodec, setVideoCodec] = useState<VideoCodec>(VideoCodec.Original)
+    const [bitrate, setBitrate] = useState<number>(2_000_000);
+    const [crf, setCrf] = useState<number>(23);
+    const [rateMode, setRateMode] = useState<'bitrate' | 'crf'>('bitrate');
+    const [keepAudio, setKeepAudio] = useState<boolean>(true);
     const [results, setResults] = useState<TranscodeResults>({ [Format.Original]: initialFile })
     const [isFFmpegLoading, setIsFFmpegLoading] = useState<boolean>(false)
     const [running, setRunning] = useState<boolean>(false)
@@ -1149,13 +1112,20 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         return parseFloat(framerate) || 0;
     };
 
-    const handleWebCodecsTranscode = async (config: any) => {
+    const handleWebCodecsTranscode = async (config: { videoCodec: VideoCodec, bitrate: number, rateMode: 'bitrate' | 'crf', crf: number, keepAudio: boolean, container: Format }) => {
         setRunning(true);
         setWebCodecsProgress(0);
         setError(null);
         const ffmpeg = await loadFFmpegInstance();
         if (!ffmpeg) {
             setError("Failed to load ffmpeg");
+            setRunning(false);
+            return;
+        }
+
+        const webCodecStr = WEBCODEC_VIDEO_CODEC[config.videoCodec];
+        if (!webCodecStr) {
+            setError(`Codec ${config.videoCodec} not supported by WebCodecs`);
             setRunning(false);
             return;
         }
@@ -1188,19 +1158,24 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             const encodedBlob = await transcodeWithWebCodecs(
                 file,
                 {
-                    ...config,
-                    format: getContainerForCodec(config.codec),
-                },
+                    codec: webCodecStr,
+                    bitrate: config.rateMode === 'bitrate' ? config.bitrate : undefined,
+                    // Use 'quantizer' for CRF mode
+                    bitrateMode: config.rateMode === 'crf' ? 'quantizer' : 'variable',
+                    latencyMode: 'quality',
+                    width: 0, // Will be set by transcode function
+                    height: 0, // Will be set by transcode function
+                } as any,
                 totalFrames,
                 (p) => setWebCodecsProgress(p),
                 abortControllerRef.current.signal
             );
 
-            const videoInputFile = `video-temp.${getExtensionForCodec(config.codec)}`;
+            const videoInputFile = `video-temp.${getExtensionForCodec(webCodecStr)}`;
             await ffmpeg.writeFile(videoInputFile, new Uint8Array(await encodedBlob.arrayBuffer()));
 
-            const outputFileName = `output-webcodecs.${config.container || getContainerForCodec(config.codec)}`;
-            const inputFormat = config.codec.startsWith('avc1') ? 'h264' : 'ivf';
+            const outputFileName = `output-webcodecs.${config.container}`;
+            const inputFormat = webCodecStr.startsWith('avc1') ? 'h264' : 'ivf';
             const inputFramerate = parseFramerate(videoInfo.framerate) || 30;
 
             const muxerArgs = [
@@ -1219,9 +1194,9 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             const result = await ffmpeg.exec(muxerArgs);
             if (result !== 0) {
                 let hint = "";
-                if (config.codec.startsWith('vp') && config.container === 'mp4') {
+                if (webCodecStr.startsWith('vp') && config.container === Format.Mp4) {
                     hint = " Note: VP8/VP9 are not natively supported in MP4 containers. Try using WebM or MKV instead.";
-                } else if (config.codec.startsWith('avc1') && config.container === 'webm') {
+                } else if (webCodecStr.startsWith('avc1') && config.container === Format.WebM) {
                     hint = " Note: H.264 is not natively supported in WebM containers. Try using MP4 or MOV instead.";
                 }
                 throw new Error(`FFmpeg muxing failed (code ${result}).${hint}`);
@@ -1229,8 +1204,8 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
 
             setStatus('Reading output...');
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
-            const finalExtension = config.container || getContainerForCodec(config.codec);
-            const resultFile = new File([data.buffer as ArrayBuffer], outputFileName, { type: `video/${finalExtension}` });
+            const finalExtension = config.container || getContainerForCodec(webCodecStr);
+            const resultFile = new File([data.slice().buffer], outputFileName, { type: `video/${finalExtension}` });
             setResults(f => ({ ...f, [`webcodecs-${Date.now()}`]: resultFile }));
 
             // Cleanup
@@ -1271,7 +1246,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         return 'webm';
     }
 
-    const generateFfmpegCommand = (format: Format, audioCodec: AudioCodec, fileName: string, outputFileName: string) => {
+    const generateFfmpegCommand = (format: Format, audioCodec: AudioCodec, videoCodec: VideoCodec, bitrate: number, crf: number, rateMode: 'bitrate' | 'crf', fileName: string, outputFileName: string) => {
         let ffmpegCommand: string[] = [
             '-i', fileName,
         ]
@@ -1285,7 +1260,11 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         }
 
         if (format !== Format.Gif) {
-            ffmpegCommand.push("-crf", "23")
+            if (rateMode === 'crf') {
+                ffmpegCommand.push("-crf", `${crf}`)
+            } else {
+                ffmpegCommand.push("-b:v", `${bitrate}`)
+            }
             ffmpegCommand.push('-c:v', videoCodec)
         }
 
@@ -1333,9 +1312,32 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
     useEffect(() => {
         if (file) {
             const outputFileName = `output.${current}`
-            setCommandString(generateFfmpegCommand(current, audioCodec, file.name, outputFileName))
+            setCommandString(generateFfmpegCommand(current, audioCodec, videoCodec, bitrate, crf, rateMode, file.name, outputFileName))
         }
-    }, [current, audioCodec, file])
+    }, [current, audioCodec, videoCodec, bitrate, crf, rateMode, file])
+
+    const clearResults = () => {
+        setResults(prev => ({ [Format.Original]: prev[Format.Original] }));
+    };
+
+    useEffect(() => {
+        // Clear previous results when settings change to avoid showing outdated preview
+        clearResults();
+    }, [current, audioCodec, videoCodec, bitrate, crf, rateMode, useWebCodecs, keepAudio]);
+
+    const prevCurrentRef = useRef(current);
+    const prevVideoCodecRef = useRef(videoCodec);
+
+    useEffect(() => {
+        if (useWebCodecs && !isWebCodecSupported(current, videoCodec)) {
+            // Only uncheck if the change was in container or codec, not when we just enabled useWebCodecs
+            if (current !== prevCurrentRef.current || videoCodec !== prevVideoCodecRef.current) {
+                setUseWebCodecs(false);
+            }
+        }
+        prevCurrentRef.current = current;
+        prevVideoCodecRef.current = videoCodec;
+    }, [current, videoCodec]);
 
     const loadFFmpegInstance = async () => {
         setIsFFmpegLoading(true)
@@ -1383,7 +1385,11 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             }
 
             if (format !== Format.Gif) {
-                ffmpegCommand.push("-crf", "23")
+                if (rateMode === 'crf') {
+                    ffmpegCommand.push("-crf", `${crf}`)
+                } else {
+                    ffmpegCommand.push("-b:v", `${bitrate}`)
+                }
                 ffmpegCommand.push('-c:v', videoCodec)
             }
 
@@ -1428,7 +1434,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()))
             await ffmpeg.exec(ffmpegCommand)
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array
-            setResults(f => ({ ...f, [format]: new File([data.buffer as ArrayBuffer], outputFileName, { type: FORMAT_MIME[format] }) }))
+            setResults(f => ({ ...f, [format]: new File([data.slice().buffer], outputFileName, { type: FORMAT_MIME[format] }) }))
             ffmpeg.off('progress', onprogress)
             setRunning(false)
         } catch (e: any) {
@@ -1436,12 +1442,22 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         }
     }
 
-    const download = (file: File) => {
-        const url = URL.createObjectURL(file)
+    const download = (downloadFile: File) => {
+        const url = URL.createObjectURL(downloadFile)
         const anchor = document.createElement('a')
         anchor.href = url
-        anchor.download = file.name
+
+        // Use original filename but replace extension with current container format
+        const lastDotIndex = file.name.lastIndexOf('.');
+        const baseName = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+        const extension = current === Format.Original ? (lastDotIndex !== -1 ? file.name.substring(lastDotIndex + 1) : '') : current;
+
+        anchor.download = extension ? `${baseName}.${extension}` : baseName;
+
+        document.body.appendChild(anchor)
         anchor.click()
+        document.body.removeChild(anchor)
+        setTimeout(() => URL.revokeObjectURL(url), 10000)
     }
 
     function url(): string {
@@ -1471,7 +1487,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
                 const data = await ffmpeg.readFile(outputFile.name) as Uint8Array
                 const outputFormat = outputFile.name.split('.').pop() || 'output'
                 const mimeType = FORMAT_MIME[outputFormat] || 'application/octet-stream'
-                setResults(f => ({ ...f, [current]: new File([data.buffer as ArrayBuffer], outputFile.name, { type: mimeType }) }))
+                setResults(f => ({ ...f, [current]: new File([data.slice().buffer], outputFile.name, { type: mimeType }) }))
             }
 
             ffmpeg.off('progress', onprogress)
@@ -1501,9 +1517,7 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             await ffmpeg.exec(command);
 
             const data = await ffmpeg.readFile(outputFileName) as Uint8Array;
-            // Create a new Uint8Array to ensure we have a regular ArrayBuffer
-            const buffer = new Uint8Array(data).buffer;
-            const newFile = new File([buffer], file.name, { type: file.type });
+            const newFile = new File([data.slice().buffer], file.name, { type: file.type });
 
             setFile(newFile); // Update the file state
             setResults(prev => ({ ...prev, [Format.Original]: newFile })); // Update results
@@ -1514,8 +1528,6 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
             setError(e instanceof Error ? e.message : String(e));
         }
     };
-
-    const supportsWebCodecs = 'VideoEncoder' in window;
 
     return (
         <div style={{
@@ -1528,56 +1540,51 @@ function TranscodeVideo({ file: initialFile }: { file: File }) {
         }}>
             <VideoPreview
                 file={file}
-                error={error}
                 videoInfo={videoInfo}
                 setVideoInfo={setVideoInfo}
                 onSaveMetadata={handleSaveMetadata}
             />
             <div style={{ flex: 1, padding: '20px' }}>
-                {supportsWebCodecs && (
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input
-                                type="checkbox"
-                                checked={useWebCodecs}
-                                onChange={(e) => setUseWebCodecs(e.target.checked)}
-                                style={{ marginRight: '10px' }}
-                            />
-                            Use WebCodecs API for transcoding
-                        </label>
-                    </div>
-                )}
-                {useWebCodecs && supportsWebCodecs ? (
-                    <WebCodecsControls
-                        file={file}
-                        onTranscode={handleWebCodecsTranscode}
-                        running={running}
-                        results={results}
-                        onDownload={download}
-                        progress={webCodecsProgress}
-                        status={status}
-                    />
-                ) : (
-                    <TranscodeControls
-                        file={file}
-                        current={current}
-                        setCurrent={setCurrent}
-                        audioCodec={audioCodec}
-                        setAudioCodec={setAudioCodec}
-                        videoCodec={videoCodec}
-                        setVideoCodec={setVideoCodec}
-                        results={results}
-                        isFFmpegLoading={isFFmpegLoading}
-                        running={running}
-                        commandString={commandString}
-                        onTranscode={transcode}
-                        onStop={stopTranscoding}
-                        onDownload={download}
-                        onCustomCommand={handleCustomCommand}
-                        useWebCodecs={useWebCodecs}
-                        setUseWebCodecs={setUseWebCodecs}
-                    />
-                )}
+                <TranscodeControls
+                    file={file}
+                    current={current}
+                    setCurrent={setCurrent}
+                    audioCodec={audioCodec}
+                    setAudioCodec={setAudioCodec}
+                    videoCodec={videoCodec}
+                    setVideoCodec={setVideoCodec}
+                    bitrate={bitrate}
+                    setBitrate={setBitrate}
+                    keepAudio={keepAudio}
+                    setKeepAudio={setKeepAudio}
+                    results={results}
+                    isFFmpegLoading={isFFmpegLoading}
+                    running={running}
+                    commandString={commandString}
+                    onTranscode={useWebCodecs ?
+                        () => handleWebCodecsTranscode({
+                            videoCodec: videoCodec,
+                            bitrate: bitrate,
+                            rateMode: rateMode,
+                            crf: crf,
+                            keepAudio: keepAudio,
+                            container: current
+                        }) :
+                        () => transcode(current)
+                    }
+                    crf={crf}
+                    setCrf={setCrf}
+                    rateMode={rateMode}
+                    setRateMode={setRateMode}
+                    onStop={stopTranscoding}
+                    onDownload={download}
+                    onCustomCommand={handleCustomCommand}
+                    useWebCodecs={useWebCodecs}
+                    setUseWebCodecs={setUseWebCodecs}
+                    progress={useWebCodecs ? webCodecsProgress : (typeof results[current] === 'number' ? results[current] as number : 0)}
+                    status={useWebCodecs ? status : ''}
+                    error={error}
+                />
             </div>
         </div>
     )

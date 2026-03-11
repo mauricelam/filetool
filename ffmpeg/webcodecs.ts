@@ -84,7 +84,16 @@ export async function transcode(
                 encoderConfig.width = video.videoWidth;
                 encoderConfig.height = video.videoHeight;
 
-                const support = await VideoEncoder.isConfigSupported(encoderConfig);
+                let support = await VideoEncoder.isConfigSupported(encoderConfig);
+                if (!support.supported && encoderConfig.bitrateMode === 'quantizer') {
+                    console.warn('quantizer bitrateMode not supported, falling back to variable');
+                    encoderConfig.bitrateMode = 'variable';
+                    if (!encoderConfig.bitrate) {
+                        encoderConfig.bitrate = 2_000_000; // Fallback default 2Mbps
+                    }
+                    support = await VideoEncoder.isConfigSupported(encoderConfig);
+                }
+
                 if (!support.supported) {
                     throw new Error(`Codec configuration not supported: ${JSON.stringify(encoderConfig)}`);
                 }
