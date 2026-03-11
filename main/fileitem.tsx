@@ -278,11 +278,12 @@ export function FileItem(
                                             <span
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setDefaultHandler(mimetype, name, handlerConfig.handler);
-                                                    setLocalDefaultHandlerId(handlerConfig.handler);
+                                                    const newDefault = isCurrentDefault ? null : handlerConfig.handler;
+                                                    setDefaultHandler(mimetype, name, newDefault);
+                                                    setLocalDefaultHandlerId(newDefault);
                                                 }}
                                                 style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', marginRight: '6px' }}
-                                                title={isCurrentDefault ? "Default handler" : "Set as default"}
+                                                title={isCurrentDefault ? "Remove as default handler" : "Set as default handler"}
                                             >
                                                 {isCurrentDefault ? <StarFilled /> : <StarOutline />}
                                             </span>

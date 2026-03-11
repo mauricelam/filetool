@@ -32,9 +32,13 @@ export function getDefaultHandler(mimetype: string, filename: string): string | 
     return prefs[mimetype] || undefined;
 }
 
-export function setDefaultHandler(mimetype: string, filename: string, handlerId: string): void {
+export function setDefaultHandler(mimetype: string, filename: string, handlerId: string | null): void {
     const prefs = getPreferences();
-    prefs[mimetype] = handlerId;
+    if (handlerId === null) {
+        delete prefs[mimetype];
+    } else {
+        prefs[mimetype] = handlerId;
+    }
     savePreferences(prefs);
 }
 
