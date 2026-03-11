@@ -101,7 +101,7 @@ export interface HandlerDefinition {
 
 export const HANDLERS: HandlerDefinition[] = [
     { "name": "CyberChef", "handler": "cyberchef", "mimetypes": [MIME_MATCH_ANY] },
-    // ... (Handlers remain the same as before)
+    { "name": "Binwalk", "handler": "binwalk", "mimetypes": [] },
     {
         "name": "reStructuredText Viewer",
         "handler": "rstviewer",
