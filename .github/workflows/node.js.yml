@@ -44,10 +44,9 @@ jobs:
             dexviewer/godexviewer/go.sum
             der/wasm/go.sum
 
-      - name: Install wasm-pack
+      - name: Rust Target
         run: |
           rustup target add wasm32-unknown-unknown
-          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Rust Cache
         uses: swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
