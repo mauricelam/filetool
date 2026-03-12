@@ -63,6 +63,4 @@ test('ffmpeg viewer UI update', async ({ page }) => {
     // Select an FFmpeg-only codec
     await h265Label.click();
     expect(await webCodecsCheckbox.isChecked()).toBe(false);
-
-    await page.screenshot({ path: 'ffmpeg_new_ui_final.png', fullPage: true });
 });
