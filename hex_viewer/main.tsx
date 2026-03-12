@@ -528,7 +528,8 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
     const requestIdRef = React.useRef(0);
 
     useEffect(() => {
-        workerRef.current = new Worker(new URL('./hash-worker.js', import.meta.url), { type: 'module' });
+        const workerUrl = new URL('./hash-worker.js', window.location.href);
+        workerRef.current = new Worker(workerUrl, { type: 'module' });
         workerRef.current.onmessage = (e) => {
             if (e.data.id === requestIdRef.current) {
                 setHashes(e.data.results);
