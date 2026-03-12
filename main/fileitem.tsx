@@ -247,51 +247,58 @@ export function FileItem(
                 <div className="buttonBar" style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
                     <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8px' }}>Open with:</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {[...matchedHandlers.filter(h => !isUniversal(h)),
-                        ...allHandlers.filter(h => pinnedHandlers.includes(h.handler) || h.handler === activeHandlerId)]
-                            .filter((handler, index, self) =>
-                                index === self.findIndex((t) => t.handler === handler.handler)
-                            )
-                            .sort((a, b) => {
-                                // Sort active handler to the front
-                                if (a.handler === activeHandlerId) return -1;
-                                if (b.handler === activeHandlerId) return 1;
-                                return 0;
-                            })
-                            .map(handlerConfig => {
-                                const isCurrentDefault = handlerConfig.handler === localDefaultHandlerId;
-                                const isActive = handlerConfig.handler === activeHandlerId;
-                                let style = isAnyMimeMatch(handlerConfig.mimetypes) ? demotedButtonStyle : promotedButtonStyle;
-                                if (isActive) {
-                                    style = activeButtonStyle;
-                                }
+                        {(() => {
+                            const specificHandlers = matchedHandlers.filter(h => !isUniversal(h));
+                            const baseHandlers = specificHandlers.length > 0
+                                ? specificHandlers
+                                : allHandlers.filter(h => h.handler === 'hex_viewer');
 
-                                return (
-                                    <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
-                                        <button
-                                            onClick={() => {
-                                                setActiveHandlerId(handlerConfig.handler);
-                                                onOpenHandler({ handler: handlerConfig.handler, file, magicMime: mimetype });
-                                            }}
-                                            style={style}
-                                        >
-                                            <span
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const newDefault = isCurrentDefault ? null : handlerConfig.handler;
-                                                    setDefaultHandler(mimetype, name, newDefault);
-                                                    setLocalDefaultHandlerId(newDefault);
+                            return [...baseHandlers,
+                            ...allHandlers.filter(h => pinnedHandlers.includes(h.handler) || h.handler === activeHandlerId)]
+                                .filter((handler, index, self) =>
+                                    index === self.findIndex((t) => t.handler === handler.handler)
+                                )
+                                .sort((a, b) => {
+                                    // Sort active handler to the front
+                                    if (a.handler === activeHandlerId) return -1;
+                                    if (b.handler === activeHandlerId) return 1;
+                                    return 0;
+                                })
+                                .map(handlerConfig => {
+                                    const isCurrentDefault = handlerConfig.handler === localDefaultHandlerId;
+                                    const isActive = handlerConfig.handler === activeHandlerId;
+                                    let style = isAnyMimeMatch(handlerConfig.mimetypes) ? demotedButtonStyle : promotedButtonStyle;
+                                    if (isActive) {
+                                        style = activeButtonStyle;
+                                    }
+
+                                    return (
+                                        <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
+                                            <button
+                                                onClick={() => {
+                                                    setActiveHandlerId(handlerConfig.handler);
+                                                    onOpenHandler({ handler: handlerConfig.handler, file, magicMime: mimetype });
                                                 }}
-                                                style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', marginRight: '6px' }}
-                                                title={isCurrentDefault ? "Remove as default handler" : "Set as default handler"}
+                                                style={style}
                                             >
-                                                {isCurrentDefault ? <StarFilled /> : <StarOutline />}
-                                            </span>
-                                            {cleanHandlerName(handlerConfig.name)}
-                                        </button>
-                                    </div>
-                                );
-                            })}
+                                                <span
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const newDefault = isCurrentDefault ? null : handlerConfig.handler;
+                                                        setDefaultHandler(mimetype, name, newDefault);
+                                                        setLocalDefaultHandlerId(newDefault);
+                                                    }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', marginRight: '6px' }}
+                                                    title={isCurrentDefault ? "Remove as default handler" : "Set as default handler"}
+                                                >
+                                                    {isCurrentDefault ? <StarFilled /> : <StarOutline />}
+                                                </span>
+                                                {cleanHandlerName(handlerConfig.name)}
+                                            </button>
+                                        </div>
+                                    );
+                                });
+                        })()}
                         <div style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
                             <button
                                 ref={otherButtonRef}
