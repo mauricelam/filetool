@@ -4,11 +4,11 @@ import * as fs from 'fs';
 import { runHandlerTest } from './test-utils';
 
 test('SquashFS Viewer should display image contents', async ({ page }) => {
-    const filePath = path.resolve(__dirname, '../../squashfs-viewer/example/example.squashfs');
+    const filePath = path.resolve(__dirname, '../../squashfs/example/example.squashfs');
     const fileContent = fs.readFileSync(filePath);
 
     const iframe = await runHandlerTest(page, {
-        handler: 'squashfs-viewer',
+        handler: 'squashfs',
         file: {
             content: fileContent,
             name: 'example.squashfs',
