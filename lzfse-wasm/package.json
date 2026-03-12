@@ -1,5 +1,5 @@
 {
-  "name": "lzfse-wasm",
+  "name": "@filetool/lzfse-wasm",
   "version": "1.0.0",
   "description": "LZFSE decompressor",
   "main": "./dist/lzfse.js",

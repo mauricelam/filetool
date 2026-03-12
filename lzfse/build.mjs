@@ -21,12 +21,12 @@ const SETTINGS = {
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: '../node_modules/lzfse-wasm/dist/lzfse.wasm',
+                    from: '../lzfse-wasm/dist/lzfse.wasm',
                     to: 'lzfse.wasm',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: '../node_modules/lzfse-wasm/dist/lzfse.js',
+                    from: '../lzfse-wasm/dist/lzfse.js',
                     to: 'lzfse.js',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
