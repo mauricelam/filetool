@@ -38,7 +38,7 @@ async function handleFile(file: File) {
     OUTPUT?.render(<HexViewer buffer={buf} />)
 }
 
-function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void }) {
+function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOpen }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void, onOpen: () => void }) {
     const start = selection ? selection[0] : 0;
     const end = selection ? selection[1] : 0;
     const length = selection ? end - start + 1 : 0;
@@ -80,14 +80,6 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
         }
     };
 
-    const handleOpen = useCallback((customBuffer?: Uint8Array, customName?: string) => {
-        const data = customBuffer || (selection ? buffer.slice(start, end + 1) : null);
-        if (!data) return;
-        const name = customName || `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`;
-        const file = new File([data], name);
-        window.parent.postMessage({ action: 'openFile', file }, '*');
-    }, [selection, buffer, start, end]);
-
     const handleCopyRaw = () => {
         if (!selection) return;
         const selectedData = buffer.slice(start, end + 1);
@@ -125,7 +117,7 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
                 <div className="inspector-value data-container">{renderSelectedData()}</div>
             </div>
             <div className="selection-actions">
-                <button onClick={handleOpen} disabled={!selection} title="Open selection in new tab">Open</button>
+                <button onClick={() => onOpen()} disabled={!selection} title="Open selection in new tab">Open</button>
                 <button onClick={handleCopyRaw} disabled={!selection} title="Copy as raw bytes">Raw</button>
                 <button onClick={handleCopyHex} disabled={!selection} title="Copy as hex string">Hex</button>
             </div>
@@ -133,12 +125,12 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
     );
 }
 
-export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void }) {
+export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (buffer?: Uint8Array, name?: string) => void }) {
     const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing' | 'markers' | 'binwalk'>('inspector');
 
     return (
         <div id="inspector" style={{ width: '100%' }}>
-            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} />
+            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} onOpen={() => onOpen()} />
             <div className="tab-header">
                 <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')} title="Inspector">{ICONS.inspector}</button>
                 <button className={`tab-button ${activeTab === 'markers' ? 'active' : ''}`} onClick={() => setActiveTab('markers')} title="Markers">
@@ -166,7 +158,7 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                 {activeTab === 'markers' && <MarkersTab markers={markers} onRemoveMarker={onRemoveMarker} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'hashing' && <HashingTab buffer={buffer} selection={selection} />}
-                {activeTab === 'binwalk' && <BinwalkTab buffer={buffer} onJumpToOffset={onJumpToOffset} onAddMarker={onAddMarker} onOpen={(buf, name) => handleOpen(buf, name)} />}
+                {activeTab === 'binwalk' && <BinwalkTab buffer={buffer} onJumpToOffset={onJumpToOffset} onAddMarker={onAddMarker} onOpen={(buf, name) => onOpen(buf, name)} />}
             </div>
         </div>
     );
@@ -179,7 +171,7 @@ interface BinwalkResult {
     confidence: number;
 }
 
-function BinwalkTab({ buffer, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, onJumpToOffset: (offset: number) => void, onAddMarker: (format: string, length: number) => void, onOpen: (buffer: Uint8Array, name: string) => void }) {
+function BinwalkTab({ buffer, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, onJumpToOffset: (offset: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (buffer: Uint8Array, name: string) => void }) {
     const [results, setResults] = useState<BinwalkResult[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -222,7 +214,7 @@ function BinwalkTab({ buffer, onJumpToOffset, onAddMarker, onOpen }: { buffer: U
                             <div className="binwalk-description">{r.description}</div>
                             <div className="binwalk-actions">
                                 {r.length > 0 && (
-                                    <button onClick={(e) => { e.stopPropagation(); onAddMarker(r.description.split(',')[0], r.length); }}>Marker</button>
+                                    <button onClick={(e) => { e.stopPropagation(); onAddMarker(r.description.split(',')[0], r.length, 'data', undefined, r.offset); }}>Marker</button>
                                 )}
                                 <button onClick={(e) => {
                                     e.stopPropagation();
@@ -579,7 +571,7 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
     );
 }
 
-function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
     const [littleEndian, setLittleEndian] = useState(false);
 
     const targetIndex = index !== null ? index : (selection ? selection[0] : null);
@@ -763,8 +755,19 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
         onJumpToOffset(start);
     }, [onJumpToOffset]);
 
-    const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number) => {
-        const start = selection !== null ? selection[0] : hoverIndex;
+    const handleOpen = useCallback((customBuffer?: Uint8Array, customName?: string) => {
+        const start = selection ? selection[0] : 0;
+        const end = selection ? selection[1] : 0;
+        const data = customBuffer || (selection ? buffer.slice(start, end + 1) : null);
+        if (!data) return;
+        const name = customName || `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`;
+        // Use slice().buffer to ensure the buffer is unshared for Blob/File creation
+        const file = new File([data.slice().buffer], name);
+        window.parent.postMessage({ action: 'openFile', file }, '*');
+    }, [selection, buffer]);
+
+    const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number, forcedStart?: number) => {
+        const start = forcedStart !== undefined ? forcedStart : (selection !== null ? selection[0] : hoverIndex);
         if (start !== null) {
             setMarkers([...markers, { start, length, format, type, headerLength }]);
         }
@@ -844,6 +847,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                         setMatchLength(length);
                     }}
                     onSetSelection={onSetSelection}
+                    onOpen={handleOpen}
                 />
             </div>
         </div>
