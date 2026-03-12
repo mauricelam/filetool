@@ -122,6 +122,14 @@ export const HANDLERS: HandlerDefinition[] = [
         "handler": "img-viewer",
         "mimetypes": [{ "filename": /\.img$/i }]
     },
+    {
+        "name": "SquashFS Viewer",
+        "handler": "squashfs-viewer",
+        "mimetypes": [
+            { "description": /Squashfs/i },
+            { "filename": /\.(squashfs|sqfs)$/i }
+        ]
+    },
     { "name": "Hex", "handler": "hex_viewer", "mimetypes": [MIME_MATCH_ANY] },
     { "name": "EML/MHTML", "handler": "mhtml", "mimetypes": ["message/rfc822"] },
     {
