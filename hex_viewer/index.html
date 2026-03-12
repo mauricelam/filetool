@@ -109,26 +109,34 @@
             background: none;
             border: none;
             color: #888;
-            padding: 8px 12px;
+            padding: 4px 8px;
             cursor: pointer;
             outline: none;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             min-width: 48px;
+            gap: 2px;
             position: relative;
+        }
+
+        .tab-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            opacity: 0.8;
         }
 
         .tab-badge {
             position: absolute;
-            top: 4px;
-            right: 4px;
+            top: 2px;
+            right: 8px;
             background-color: #0e639c;
             color: white;
             border-radius: 50%;
-            width: 16px;
-            height: 16px;
-            font-size: 10px;
+            width: 14px;
+            height: 14px;
+            font-size: 9px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -357,11 +365,21 @@
             display: flex;
             gap: 8px;
             margin-top: 8px;
+            flex-wrap: wrap;
         }
 
         .selection-actions button,
         .marker-actions button {
             flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            min-width: 60px;
+        }
+
+        .selection-actions button svg {
+            flex-shrink: 0;
         }
     </style>
 </head>
