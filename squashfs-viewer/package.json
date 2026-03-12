@@ -1,0 +1,28 @@
+{
+  "name": "squashfs-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.27.2",
+    "esbuild-plugin-copy": "^2.1.1"
+  },
+  "turbo": {
+    "tasks": {
+      "build": {
+        "outputs": [
+          "../dist/squashfs-viewer/**"
+        ]
+      }
+    }
+  }
+}
