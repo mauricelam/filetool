@@ -3,7 +3,7 @@
 // It loads the compiled WebAssembly module, receives a file,
 // decompresses it, and sends the result back to the main thread.
 
-import createLzfseModule, { MainModule } from 'lzfse-wasm';
+import createLzfseModule, { MainModule } from '@filetool/lzfse-wasm';
 
 class LzfseModuleWrapper {
     constructor(public module: MainModule, public decodeBuffer: (
