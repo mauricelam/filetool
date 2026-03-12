@@ -1,5 +1,5 @@
 {
-  "name": "file-type-detector",
+  "name": "@filetool/file-type-detector",
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {

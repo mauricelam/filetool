@@ -2,7 +2,7 @@ import { ColorSpace, CompressionMethod, DensityUnit, ImageMagick, initializeImag
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import wasm from "@imagemagick/magick-wasm/magick.wasm";
-import { RespondFileMessage } from "filemagic-common/messages";
+import { RespondFileMessage } from "filetool-common/messages";
 import { extractMotionPhotoInfo, MotionPhotoInfo } from "./motion-photo";
 import { extractLivePhotoInfo, LivePhotoInfo, getAppleMakerNoteTags, AppleMakerNoteTag } from "./live-photo";
 

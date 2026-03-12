@@ -1,5 +1,5 @@
 {
-    "name": "@filemagic/esbuild-plugins",
+    "name": "@filetool/esbuild-plugins",
     "version": "1.0.0",
     "description": "ESBuild plugins for WebAssembly compilation",
     "type": "module",

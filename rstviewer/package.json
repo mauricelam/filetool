@@ -1,6 +1,6 @@
 {
-  "name": "rstviewer",
-  "version": "0.0.1",
+  "name": "@filetool/rstviewer",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "source": "main.tsx",

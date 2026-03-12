@@ -1,5 +1,5 @@
 {
-  "name": "cyberchef",
+  "name": "@filetool/cyberchef",
   "version": "1.0.0",
   "description": "CyberChef file viewer",
   "main": "index.js",

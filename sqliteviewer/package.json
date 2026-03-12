@@ -1,5 +1,5 @@
 {
-  "name": "sqliteviewer",
+  "name": "@filetool/sqlite",
   "version": "1.0.0",
   "description": "SQLite file viewer",
   "main": "index.js",

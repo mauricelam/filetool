@@ -1,6 +1,6 @@
 {
-  "name": "graphviz",
-  "version": "0.0.0",
+  "name": "@filetool/graphviz",
+  "version": "1.0.0",
   "description": "Graphviz File Viewer",
   "main": "main.tsx",
   "scripts": {

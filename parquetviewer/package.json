@@ -1,5 +1,5 @@
 {
-  "name": "parquetviewer",
+  "name": "@filetool/parquet",
   "version": "1.0.0",
   "description": "Apache Parquet file viewer",
   "main": "index.js",

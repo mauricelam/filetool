@@ -1,5 +1,5 @@
 {
-  "name": "der",
+  "name": "@filetool/der",
   "version": "1.0.0",
   "description": "DER viewer using Google's der-ascii tool",
   "main": "dist/index.js",

@@ -1,5 +1,5 @@
 {
-  "name": "lzfse",
+  "name": "@filetool/lzfse",
   "version": "1.0.0",
   "description": "LZFSE decompressor",
   "main": "index.js",
@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "filemagic-common": "*",
+    "@filetool/common": "file:../filetool-common",
     "lzfse-wasm": "*"
   },
   "devDependencies": {

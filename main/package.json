@@ -1,5 +1,5 @@
 {
-  "name": "filemagic",
+  "name": "@filetool/filetool",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {

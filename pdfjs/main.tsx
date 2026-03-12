@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as pdfjsLib from 'pdfjs-dist';
-import { RespondFileMessage } from '../filemagic-common/messages';
+import { RespondFileMessage } from '../filetool-common/messages';
 
 // Set worker source
 // @ts-ignore

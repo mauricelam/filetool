@@ -122,8 +122,8 @@ export const HANDLERS: HandlerDefinition[] = [
         "mimetypes": [{ "filename": /\.img$/i }]
     },
     {
-        "name": "SquashFS Viewer",
-        "handler": "squashfs-viewer",
+        "name": "SquashFS",
+        "handler": "squashfs",
         "mimetypes": [
             { "description": /Squashfs/i },
             { "filename": /\.(squashfs|sqfs)$/i }

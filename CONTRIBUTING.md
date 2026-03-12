@@ -1,6 +1,6 @@
-# Contributing to FileMagic
+# Contributing to FileTool
 
-Thank you for your interest in contributing to FileMagic! This project is a browser-based WASM file inspection tool that allows users to inspect various file types directly in the browser.
+Thank you for your interest in contributing to FileTool! This project is a browser-based WASM file inspection tool that allows users to inspect various file types directly in the browser.
 
 When adding new features or making important changes, be sure to document them in the corresponding README.md file for the handler, or document here if it is a pattern that multiple handlers should follow.
 
@@ -22,7 +22,7 @@ Note to humans: This file is written by LLMs, and mainly intended as a place for
 
 ## Project Structure
 
-FileMagic is organized as a monorepo with multiple workspaces, each handling different file types:
+FileTool is organized as a monorepo with multiple workspaces, each handling different file types:
 
 - **`main/`** - Main application and file routing
 - **`components/`** - Shared React components
@@ -238,4 +238,4 @@ Ensure WASM files are properly bundled and accessible in the browser.
 - As much as possible, prefer loading dependencies via NPM and bundle those in the dist/ output directory instead of loading them from a CDN.
 - If a handler needs to load javascript and or fetch data external to the tool itself, note that in the README.md of the handler.
 
-Thank you for contributing to FileMagic! 🚀
+Thank you for contributing to FileTool! 🚀

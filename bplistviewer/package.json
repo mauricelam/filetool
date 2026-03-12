@@ -1,5 +1,5 @@
 {
-  "name": "bplistviewer",
+  "name": "@filetool/bplist",
   "version": "1.0.0",
   "description": "Binary plist viewer",
   "main": "index.js",

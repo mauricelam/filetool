@@ -1,5 +1,5 @@
 {
-  "name": "svgviewer",
+  "name": "@filetool/svgviewer",
   "version": "1.0.0",
   "description": "SVG File Viewer with Pan and Zoom",
   "main": "main.tsx",
@@ -8,7 +8,7 @@
     "watch": "node build.mjs --dev"
   },
   "dependencies": {
-    "filemagic-common": "file:../filemagic-common",
+    "@filetool/common": "file:../filetool-common",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-svg-pan-zoom": "^3.13.1"

@@ -1,7 +1,7 @@
 {
-  "name": "img-viewer",
+  "name": "@filetool/img-viewer",
   "version": "1.0.0",
-  "description": "img viewer",
+  "description": "Disk Image viewer",
   "main": "index.js",
   "scripts": {
     "build": "node build.mjs",

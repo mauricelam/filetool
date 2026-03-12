@@ -1,4 +1,4 @@
-import { RespondFileMessage } from "filemagic-common/messages";
+import { RespondFileMessage } from "filetool-common/messages";
 
 if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' }, '/');

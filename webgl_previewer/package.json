@@ -1,5 +1,5 @@
 {
-    "name": "webgl-previewer",
+    "name": "@filetool/webgl",
     "version": "0.1.0",
     "private": true,
     "main": "dist/bundle.js",

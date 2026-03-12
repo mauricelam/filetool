@@ -1,5 +1,5 @@
 {
-  "name": "dmg-viewer",
+  "name": "@filetool/dmg",
   "version": "1.0.0",
   "description": "DMG file viewer",
   "main": "index.js",

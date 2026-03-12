@@ -189,7 +189,7 @@
                 "../dist/webgl_previewer/**"
             ]
         },
-        "filemagic#build": {
+        "filetool#build": {
             "outputs": [
                 "../dist/index.html",
                 "../dist/libmagic-wrapper.wasm",

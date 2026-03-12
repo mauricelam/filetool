@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { IframeMessage } from "filemagic-common/messages";
+import { IframeMessage } from "filetool-common/messages";
 import { HandlerConfig } from "./App";
 
 interface IframeManagerProps {

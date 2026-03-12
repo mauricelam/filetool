@@ -1,5 +1,5 @@
 {
-  "name": "wat_viewer",
+  "name": "@filetool/wat_viewer",
   "version": "1.0.0",
   "author": "Maurice Lam",
   "scripts": {

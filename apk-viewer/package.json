@@ -1,5 +1,5 @@
 {
-  "name": "apk-viewer",
+  "name": "@filetool/apk-viewer",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",

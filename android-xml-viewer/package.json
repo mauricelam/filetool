@@ -1,5 +1,5 @@
 {
-  "name": "android-xml-viewer",
+  "name": "@filetool/android-xml",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",

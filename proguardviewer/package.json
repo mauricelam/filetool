@@ -1,5 +1,5 @@
 {
-  "name": "proguardviewer",
+  "name": "@filetool/proguard",
   "version": "1.0.0",
   "description": "Proguard mapping file viewer",
   "main": "index.js",

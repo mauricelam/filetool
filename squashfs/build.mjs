@@ -5,7 +5,7 @@ import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
-  outdir: '../dist/squashfs-viewer',
+  outdir: '../dist/squashfs',
   bundle: true,
   format: 'esm',
   platform: 'browser',

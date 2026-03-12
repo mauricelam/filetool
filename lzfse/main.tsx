@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
-import { OpenFileMessage } from 'filemagic-common/messages';
+import { OpenFileMessage } from 'filetool-common/messages';
 
 // A simple hex viewer component to display the decompressed data.
 const HexViewer: React.FC<{ data: ArrayBuffer }> = ({ data }) => {

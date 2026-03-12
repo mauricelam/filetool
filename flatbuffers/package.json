@@ -1,5 +1,5 @@
 {
-  "name": "flatbuffers",
+  "name": "@filetool/flatbuffers",
   "version": "1.0.0",
   "description": "FlatBuffers viewer",
   "main": "index.js",
@@ -16,7 +16,7 @@
     "@microlink/react-json-view": "^1.23.0",
     "flatbuffers": "^25.1.24",
     "react-syntax-highlighter": "^16.1.0",
-    "common": "file:../filemagic-common"
+    "@filetool/common": "file:../filetool-common"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

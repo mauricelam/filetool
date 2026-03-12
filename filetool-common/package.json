@@ -1,7 +1,7 @@
 {
-  "name": "filemagic-common",
+  "name": "@filetool/common",
   "version": "1.0.0",
-  "description": "Common definitions for filemagic",
+  "description": "Common definitions for filetool",
   "main": "index.js",
   "scripts": {
     "build": ":"

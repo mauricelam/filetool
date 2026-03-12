@@ -1,5 +1,5 @@
 {
-    "name": "filemagic",
+    "name": "filetool",
     "packageManager": "npm@11.6.2",
     "workspaces": [
         "archive",
@@ -20,7 +20,7 @@
         "ffmpeg",
         "flatbuffers",
         "file-type-detector",
-        "filemagic-common",
+        "filetool-common",
         "graphviz",
         "hex_viewer",
         "imagemagick",
@@ -42,7 +42,7 @@
         "parquetviewer",
         "setools",
         "svgviewer",
-        "squashfs-viewer"
+        "squashfs"
     ],
     "scripts": {
         "start": "node serve.mts",

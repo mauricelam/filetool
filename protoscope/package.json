@@ -1,6 +1,6 @@
 {
-  "name": "protoscope",
-  "version": "0.0.0",
+  "name": "@filetool/protoscope",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "build": "node build.mjs",
