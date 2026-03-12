@@ -630,10 +630,6 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
     return (
         <>
             <div className="inspector-row">
-                <span className="inspector-label">Offset</span>
-                <span className="inspector-value">0x{targetIndex.toString(16).toUpperCase()}</span>
-            </div>
-            <div className="inspector-row">
                 <span className="inspector-label">Endian</span>
                 <span className="inspector-value">
                     <label style={{ marginRight: '8px' }}>
