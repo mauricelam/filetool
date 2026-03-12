@@ -4,12 +4,12 @@ import process from 'process';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
-  entryPoints: ['main.tsx'],
+  entryPoints: ['main.tsx', 'hash-worker.ts'],
   outdir: "../dist/hex_viewer",
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path'],
+  external: ['require', 'fs', 'path', './hex-viewer-wasm.js'],
   plugins: [
     rustWasm({
       projectDir: 'wasm',

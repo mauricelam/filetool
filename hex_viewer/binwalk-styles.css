@@ -49,10 +49,23 @@
             margin-bottom: 4px;
         }
 
-        .confidence-dot {
+        .confidence-signal {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
             width: 8px;
-            height: 8px;
-            border-radius: 50%;
+            height: 12px;
+        }
+
+        .confidence-bar {
+            flex: 1;
+            width: 100%;
+            background-color: #333;
+            border-radius: 1px;
+        }
+
+        .confidence-bar.active {
+            background-color: inherit;
         }
 
         .binwalk-description {
