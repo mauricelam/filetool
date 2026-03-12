@@ -241,17 +241,6 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
                                 </div>
                             </div>
                             <div className="binwalk-description">{r.description}</div>
-                            <div className="binwalk-actions">
-                                {r.length > 0 && (
-                                    <button onClick={(e) => { e.stopPropagation(); onAddMarker(r.description.split(',')[0], r.length, 'data', undefined, r.offset); }}>Marker</button>
-                                )}
-                                <button onClick={(e) => {
-                                    e.stopPropagation();
-                                    const name = r.description.split(',')[0].replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                                    const subData = r.length > 0 ? buffer.slice(r.offset, r.offset + r.length) : buffer.slice(r.offset);
-                                    onOpen(subData, `extract_0x${r.offset.toString(16)}_${name}.bin`);
-                                }}>Open</button>
-                            </div>
                         </div>
                     ))}
                 </div>
