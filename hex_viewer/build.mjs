@@ -11,6 +11,11 @@ const SETTINGS = {
   platform: "browser",
   external: ['require', 'fs', 'path'],
   plugins: [
+    rustWasm({
+      projectDir: 'wasm',
+      outName: 'hex-viewer-wasm',
+      watchPaths: ['src/**/*.rs', 'Cargo.toml']
+    }),
     copy({
       assets: [
         {
@@ -18,11 +23,12 @@ const SETTINGS = {
           to: ["index.html"],
           watch: process.env['BUILD_MODE'] === 'dev',
         },
+        {
+            from: ["binwalk-styles.css"],
+            to: ["binwalk-styles.css"],
+            watch: process.env['BUILD_MODE'] === 'dev',
+        }
       ]
-    }),
-    rustWasm({
-      projectDir: 'wasm',
-      outName: 'hex-viewer-wasm',
     }),
   ],
 }
@@ -34,5 +40,6 @@ if (process.env['BUILD_MODE'] === 'dev') {
   });
   await ctx.watch();
 } else {
-  await esbuild.build({ ...SETTINGS, minify: true });
+  const buildSettings = { ...SETTINGS, minify: true };
+  await esbuild.build(buildSettings);
 }

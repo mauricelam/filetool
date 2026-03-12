@@ -29,7 +29,8 @@ const ICONS = {
     markers: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>,
     search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
     analysis: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>,
-    hashing: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    hashing: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>,
+    binwalk: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
 };
 
 async function handleFile(file: File) {
@@ -79,12 +80,13 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
         }
     };
 
-    const handleOpen = () => {
-        if (!selection) return;
-        const selectedData = buffer.slice(start, end + 1);
-        const file = new File([selectedData], `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`);
+    const handleOpen = useCallback((customBuffer?: Uint8Array, customName?: string) => {
+        const data = customBuffer || (selection ? buffer.slice(start, end + 1) : null);
+        if (!data) return;
+        const name = customName || `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`;
+        const file = new File([data], name);
         window.parent.postMessage({ action: 'openFile', file }, '*');
-    };
+    }, [selection, buffer, start, end]);
 
     const handleCopyRaw = () => {
         if (!selection) return;
@@ -132,7 +134,7 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
 }
 
 export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void }) {
-    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing' | 'markers'>('inspector');
+    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing' | 'markers' | 'binwalk'>('inspector');
 
     return (
         <div id="inspector" style={{ width: '100%' }}>
@@ -144,6 +146,7 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                     {markers.length > 0 && <span className="tab-badge">{markers.length}</span>}
                 </button>
                 <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')} title="Search">{ICONS.search}</button>
+                <button className={`tab-button ${activeTab === 'binwalk' ? 'active' : ''}`} onClick={() => setActiveTab('binwalk')} title="Binwalk">{ICONS.binwalk}</button>
                 <button className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')} title="Analysis">{ICONS.analysis}</button>
                 <button className={`tab-button ${activeTab === 'hashing' ? 'active' : ''}`} onClick={() => setActiveTab('hashing')} title="Hashing">{ICONS.hashing}</button>
             </div>
@@ -163,7 +166,75 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                 {activeTab === 'markers' && <MarkersTab markers={markers} onRemoveMarker={onRemoveMarker} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'hashing' && <HashingTab buffer={buffer} selection={selection} />}
+                {activeTab === 'binwalk' && <BinwalkTab buffer={buffer} onJumpToOffset={onJumpToOffset} onAddMarker={onAddMarker} onOpen={(buf, name) => handleOpen(buf, name)} />}
             </div>
+        </div>
+    );
+}
+
+interface BinwalkResult {
+    offset: number;
+    description: string;
+    length: number;
+    confidence: number;
+}
+
+function BinwalkTab({ buffer, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, onJumpToOffset: (offset: number) => void, onAddMarker: (format: string, length: number) => void, onOpen: (buffer: Uint8Array, name: string) => void }) {
+    const [results, setResults] = useState<BinwalkResult[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    const performScan = useCallback(async () => {
+        setLoading(true);
+        try {
+            // @ts-ignore
+            const m = await import('./hex-viewer-wasm.js');
+            await m.default();
+            const scanner = new m.BinwalkScanner();
+            const scanResults = scanner.scan(buffer) as BinwalkResult[];
+            setResults(scanResults);
+        } catch (e) {
+            console.error("Binwalk scan failed", e);
+        } finally {
+            setLoading(false);
+        }
+    }, [buffer]);
+
+    const getConfidenceColor = (confidence: number) => {
+        // Binwalk confidence: 0 (LOW), 128 (MEDIUM), 250 (HIGH)
+        if (confidence >= 200) return '#4caf50'; // Green
+        if (confidence >= 100) return '#ff9800'; // Orange
+        return '#f44336'; // Red
+    };
+
+    return (
+        <div className="binwalk-tab">
+            <button className="scan-button" onClick={performScan} disabled={loading}>
+                {loading ? 'Scanning...' : 'Scan with Binwalk'}
+            </button>
+            {results.length > 0 && (
+                <div className="binwalk-results">
+                    {results.map((r, i) => (
+                        <div key={i} className="binwalk-result-item" onClick={() => onJumpToOffset(r.offset)}>
+                            <div className="binwalk-result-header">
+                                <span className="clickable-offset">0x{r.offset.toString(16).toUpperCase()} ({r.offset})</span>
+                                <span className="confidence-dot" style={{ backgroundColor: getConfidenceColor(r.confidence) }} title={`Confidence: ${r.confidence}`} />
+                            </div>
+                            <div className="binwalk-description">{r.description}</div>
+                            <div className="binwalk-actions">
+                                {r.length > 0 && (
+                                    <button onClick={(e) => { e.stopPropagation(); onAddMarker(r.description.split(',')[0], r.length); }}>Marker</button>
+                                )}
+                                <button onClick={(e) => {
+                                    e.stopPropagation();
+                                    const name = r.description.split(',')[0].replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                                    const subData = r.length > 0 ? buffer.slice(r.offset, r.offset + r.length) : buffer.slice(r.offset);
+                                    onOpen(subData, `extract_0x${r.offset.toString(16)}_${name}.bin`);
+                                }}>Open</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
