@@ -5,8 +5,34 @@ import { SearchTab, AnalysisTab, HashingTab } from './main';
 
 // Polyfill TextEncoder/Decoder for jsdom
 import { TextEncoder, TextDecoder } from 'util';
-global.TextEncoder = TextEncoder as any;
-global.TextDecoder = TextDecoder as any;
+// @ts-ignore
+global.TextEncoder = TextEncoder;
+// @ts-ignore
+global.TextDecoder = TextDecoder;
+
+// Mock Worker
+class MockWorker {
+    onmessage: (e: any) => void = () => {};
+    postMessage(data: any) {
+        // Simulate hash calculation
+        setTimeout(() => {
+            this.onmessage({
+                data: {
+                    id: data.id,
+                    results: [
+                        { label: 'MD5', value: 'mock-md5' },
+                        { label: 'SHA-1', value: 'mock-sha1' },
+                        { label: 'SHA-256', value: 'mock-sha256' },
+                        { label: 'SHA-384', value: 'mock-sha384' },
+                        { label: 'SHA-512', value: 'mock-sha512' }
+                    ]
+                }
+            });
+        }, 0);
+    }
+    terminate() {}
+}
+global.Worker = MockWorker as any;
 
 // Mock Canvas getContext
 HTMLCanvasElement.prototype.getContext = jest.fn().mockReturnValue({
@@ -102,20 +128,11 @@ describe('HashingTab', () => {
     expect(screen.getByText('Selection (0x0 - 0x1)')).toBeInTheDocument();
   });
 
-  it('computes Web Crypto hashes automatically', async () => {
-    // Mock crypto.subtle.digest
-    const mockDigest = jest.fn().mockResolvedValue(new Uint8Array([0xAA, 0xBB]).buffer);
-    Object.defineProperty(global, 'crypto', {
-      value: { subtle: { digest: mockDigest } },
-      configurable: true
-    });
-
-    // Mock selection to avoid waiting for MD5 WASM which is hard to mock dynamically in HashingTab
+  it('renders mock hashes from worker', async () => {
     render(<HashingTab buffer={buffer} selection={[0, 3]} />);
 
     await waitFor(() => {
-      expect(screen.getByText('SHA-256')).toBeInTheDocument();
-      expect(screen.getAllByText('aabb').length).toBeGreaterThan(0);
+      expect(screen.getByText('mock-sha256')).toBeInTheDocument();
     });
   });
 });

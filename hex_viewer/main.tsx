@@ -29,7 +29,8 @@ const ICONS = {
     markers: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>,
     search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
     analysis: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>,
-    hashing: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    hashing: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>,
+    binwalk: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v18"></path><path d="M8 3h4a4 4 0 0 1 0 8H8"></path><path d="M8 11h4a4 4 0 0 1 0 8H8"></path><path d="M2 9h3c1 0 1.5 1 3 1"></path><path d="M2 15h3c1 0 1.5-1 3-1"></path><circle cx="2" cy="9" r="1" fill="currentColor"></circle><circle cx="2" cy="15" r="1" fill="currentColor"></circle></svg>
 };
 
 async function handleFile(file: File) {
@@ -37,7 +38,7 @@ async function handleFile(file: File) {
     OUTPUT?.render(<HexViewer buffer={buf} />)
 }
 
-function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void }) {
+function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOpen }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void, onOpen: () => void }) {
     const start = selection ? selection[0] : 0;
     const end = selection ? selection[1] : 0;
     const length = selection ? end - start + 1 : 0;
@@ -79,13 +80,6 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
         }
     };
 
-    const handleOpen = () => {
-        if (!selection) return;
-        const selectedData = buffer.slice(start, end + 1);
-        const file = new File([selectedData], `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`);
-        window.parent.postMessage({ action: 'openFile', file }, '*');
-    };
-
     const handleCopyRaw = () => {
         if (!selection) return;
         const selectedData = buffer.slice(start, end + 1);
@@ -123,7 +117,7 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
                 <div className="inspector-value data-container">{renderSelectedData()}</div>
             </div>
             <div className="selection-actions">
-                <button onClick={handleOpen} disabled={!selection} title="Open selection in new tab">Open</button>
+                <button onClick={() => onOpen()} disabled={!selection} title="Open selection in new tab">Open</button>
                 <button onClick={handleCopyRaw} disabled={!selection} title="Copy as raw bytes">Raw</button>
                 <button onClick={handleCopyHex} disabled={!selection} title="Copy as hex string">Hex</button>
             </div>
@@ -131,12 +125,17 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset }: { 
     );
 }
 
-export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void }) {
-    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing' | 'markers'>('inspector');
+export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen, binwalkResults, onSetBinwalkResults }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (buffer?: Uint8Array, name?: string) => void, binwalkResults: BinwalkResult[] | null, onSetBinwalkResults: (results: BinwalkResult[]) => void }) {
+    const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'hashing' | 'markers' | 'binwalk'>('inspector');
+
+    const handleJumpAndSelect = (offset: number, length: number = 0) => {
+        onJumpToOffset(offset);
+        onSetSelection(offset, offset + Math.max(0, length - 1));
+    };
 
     return (
         <div id="inspector" style={{ width: '100%' }}>
-            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} />
+            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} onOpen={() => onOpen()} />
             <div className="tab-header">
                 <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')} title="Inspector">{ICONS.inspector}</button>
                 <button className={`tab-button ${activeTab === 'markers' ? 'active' : ''}`} onClick={() => setActiveTab('markers')} title="Markers">
@@ -144,6 +143,7 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                     {markers.length > 0 && <span className="tab-badge">{markers.length}</span>}
                 </button>
                 <button className={`tab-button ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')} title="Search">{ICONS.search}</button>
+                <button className={`tab-button ${activeTab === 'binwalk' ? 'active' : ''}`} onClick={() => setActiveTab('binwalk')} title="Binwalk">{ICONS.binwalk}</button>
                 <button className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')} title="Analysis">{ICONS.analysis}</button>
                 <button className={`tab-button ${activeTab === 'hashing' ? 'active' : ''}`} onClick={() => setActiveTab('hashing')} title="Hashing">{ICONS.hashing}</button>
             </div>
@@ -161,9 +161,86 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                 )}
                 {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} matchLength={matchLength} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'markers' && <MarkersTab markers={markers} onRemoveMarker={onRemoveMarker} onJumpToOffset={onJumpToOffset} />}
-                {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={onJumpToOffset} />}
+                {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={handleJumpAndSelect} />}
                 {activeTab === 'hashing' && <HashingTab buffer={buffer} selection={selection} />}
+                {activeTab === 'binwalk' && <BinwalkTab buffer={buffer} results={binwalkResults} onSetResults={onSetBinwalkResults} onJumpToOffset={handleJumpAndSelect} onAddMarker={onAddMarker} onOpen={(buf, name) => onOpen(buf, name)} />}
             </div>
+        </div>
+    );
+}
+
+interface BinwalkResult {
+    offset: number;
+    description: string;
+    length: number;
+    confidence: number;
+}
+
+function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, results: BinwalkResult[] | null, onSetResults: (results: BinwalkResult[]) => void, onJumpToOffset: (offset: number, length?: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (buffer: Uint8Array, name: string) => void }) {
+    const [loading, setLoading] = useState(false);
+
+    const performScan = useCallback(async () => {
+        if (results) return;
+        setLoading(true);
+        try {
+            // @ts-ignore
+            const m = await import('./hex-viewer-wasm.js');
+            await m.default();
+            const scanner = new m.BinwalkScanner();
+            const scanResults = scanner.scan(buffer) as BinwalkResult[];
+            onSetResults(scanResults);
+        } catch (e) {
+            console.error("Binwalk scan failed", e);
+        } finally {
+            setLoading(false);
+        }
+    }, [buffer, results, onSetResults]);
+
+    useEffect(() => {
+        if (!results && !loading) {
+            performScan();
+        }
+    }, [results, loading, performScan]);
+
+    const getConfidenceColor = (confidence: number) => {
+        // Binwalk confidence: 0 (LOW), 128 (MEDIUM), 250 (HIGH)
+        if (confidence >= 200) return '#4caf50'; // Green
+        if (confidence >= 100) return '#ff9800'; // Orange
+        return '#f44336'; // Red
+    };
+
+    return (
+        <div className="binwalk-tab">
+            {loading && <div className="loading">Scanning with Binwalk...</div>}
+            {results && results.length === 0 && <div className="no-results">No signatures found.</div>}
+            {results && results.length > 0 && (
+                <div className="binwalk-results">
+                    {results.map((r, i) => (
+                        <div key={i} className="binwalk-result-item" onClick={() => onJumpToOffset(r.offset, r.length)}>
+                            <div className="binwalk-result-header">
+                                <span className="clickable-offset">0x{r.offset.toString(16).toUpperCase()} ({r.offset})</span>
+                                <div className="confidence-signal" style={{ color: getConfidenceColor(r.confidence) }} title={`Confidence: ${r.confidence}`}>
+                                    <div className={`confidence-bar ${r.confidence >= 200 ? 'active' : ''}`} />
+                                    <div className={`confidence-bar ${r.confidence >= 100 ? 'active' : ''}`} />
+                                    <div className={`confidence-bar active`} />
+                                </div>
+                            </div>
+                            <div className="binwalk-description">{r.description}</div>
+                            <div className="binwalk-actions">
+                                {r.length > 0 && (
+                                    <button onClick={(e) => { e.stopPropagation(); onAddMarker(r.description.split(',')[0], r.length, 'data', undefined, r.offset); }}>Marker</button>
+                                )}
+                                <button onClick={(e) => {
+                                    e.stopPropagation();
+                                    const name = r.description.split(',')[0].replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                                    const subData = r.length > 0 ? buffer.slice(r.offset, r.offset + r.length) : buffer.slice(r.offset);
+                                    onOpen(subData, `extract_0x${r.offset.toString(16)}_${name}.bin`);
+                                }}>Open</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -447,50 +524,31 @@ export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, on
 export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selection: [number, number] | null }) {
     const [hashes, setHashes] = useState<{ label: string, value: string }[]>([]);
     const [isComputing, setIsComputing] = useState(false);
-    const [md5Ready, setMd5Ready] = useState(false);
-    const [md5Compute, setMd5Compute] = useState<((data: Uint8Array) => string) | null>(null);
+    const workerRef = React.useRef<Worker | null>(null);
+    const requestIdRef = React.useRef(0);
 
     useEffect(() => {
-        // @ts-ignore
-        import('./hex-viewer-wasm.js').then(async (m) => {
-            await m.default();
-            setMd5Compute(() => m.compute_md5);
-            setMd5Ready(true);
-        }).catch(e => console.error("Failed to load MD5 WASM", e));
+        const workerUrl = new URL('./hash-worker.js', window.location.href);
+        workerRef.current = new Worker(workerUrl, { type: 'module' });
+        workerRef.current.onmessage = (e) => {
+            if (e.data.id === requestIdRef.current) {
+                setHashes(e.data.results);
+                setIsComputing(false);
+            }
+        };
+        return () => workerRef.current?.terminate();
     }, []);
 
-    const computeHashes = useCallback(async (signal?: AbortSignal) => {
+    useEffect(() => {
+        if (!workerRef.current) return;
+
         setIsComputing(true);
         const data = selection ? buffer.slice(selection[0], selection[1] + 1) : buffer;
-        const results: { label: string, value: string }[] = [];
+        const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
+        const id = ++requestIdRef.current;
 
-        if (md5Compute) {
-            results.push({ label: 'MD5', value: md5Compute(data) });
-        }
-
-        const algorithms = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
-        for (const algo of algorithms) {
-            if (signal?.aborted) return;
-            try {
-                const hashBuffer = await crypto.subtle.digest(algo, (data as Uint8Array).buffer as ArrayBuffer);
-                if (signal?.aborted) return;
-                const hashArray = Array.from(new Uint8Array(hashBuffer));
-                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                results.push({ label: algo, value: hashHex });
-            } catch (e) {
-                results.push({ label: algo, value: 'Error' });
-            }
-        }
-
-        setHashes(results);
-        setIsComputing(false);
-    }, [buffer, selection, md5Compute]);
-
-    useEffect(() => {
-        const controller = new AbortController();
-        computeHashes(controller.signal);
-        return () => controller.abort();
-    }, [computeHashes]);
+        workerRef.current.postMessage({ data, algorithms, id }, [data.buffer.slice(0)]);
+    }, [buffer, selection]);
 
     return (
         <>
@@ -508,7 +566,7 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
     );
 }
 
-function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
     const [littleEndian, setLittleEndian] = useState(false);
 
     const targetIndex = index !== null ? index : (selection ? selection[0] : null);
@@ -571,10 +629,6 @@ function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemove
 
     return (
         <>
-            <div className="inspector-row">
-                <span className="inspector-label">Offset</span>
-                <span className="inspector-value">0x{targetIndex.toString(16).toUpperCase()}</span>
-            </div>
             <div className="inspector-row">
                 <span className="inspector-label">Endian</span>
                 <span className="inspector-value">
@@ -656,6 +710,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     const [searchResults, setSearchResults] = useState<number[]>([]);
     const [currentMatchIndex, setCurrentMatchIndex] = useState<number | null>(null);
     const [matchLength, setMatchLength] = useState(0);
+    const [binwalkResults, setBinwalkResults] = useState<BinwalkResult[] | null>(null);
 
     const searchResultOffsets = React.useMemo(() => {
         const set = new Set<number>();
@@ -692,8 +747,19 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
         onJumpToOffset(start);
     }, [onJumpToOffset]);
 
-    const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number) => {
-        const start = selection !== null ? selection[0] : hoverIndex;
+    const handleOpen = useCallback((customBuffer?: Uint8Array, customName?: string) => {
+        const start = selection ? selection[0] : 0;
+        const end = selection ? selection[1] : 0;
+        const data = customBuffer || (selection ? buffer.slice(start, end + 1) : null);
+        if (!data) return;
+        const name = customName || `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`;
+        // Use slice().buffer to ensure the buffer is unshared for Blob/File creation
+        const file = new File([data.slice().buffer], name);
+        window.parent.postMessage({ action: 'openFile', file }, '*');
+    }, [selection, buffer]);
+
+    const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number, forcedStart?: number) => {
+        const start = forcedStart !== undefined ? forcedStart : (selection !== null ? selection[0] : hoverIndex);
         if (start !== null) {
             setMarkers([...markers, { start, length, format, type, headerLength }]);
         }
@@ -773,6 +839,9 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                         setMatchLength(length);
                     }}
                     onSetSelection={onSetSelection}
+                    onOpen={handleOpen}
+                    binwalkResults={binwalkResults}
+                    onSetBinwalkResults={setBinwalkResults}
                 />
             </div>
         </div>

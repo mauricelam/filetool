@@ -4,13 +4,18 @@ import process from 'process';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
-  entryPoints: ['main.tsx'],
+  entryPoints: ['main.tsx', 'hash-worker.ts'],
   outdir: "../dist/hex_viewer",
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path'],
+  external: ['require', 'fs', 'path', './hex-viewer-wasm.js'],
   plugins: [
+    rustWasm({
+      projectDir: 'wasm',
+      outName: 'hex-viewer-wasm',
+      watchPaths: ['src/**/*.rs', 'Cargo.toml']
+    }),
     copy({
       assets: [
         {
@@ -18,11 +23,12 @@ const SETTINGS = {
           to: ["index.html"],
           watch: process.env['BUILD_MODE'] === 'dev',
         },
+        {
+            from: ["binwalk-styles.css"],
+            to: ["binwalk-styles.css"],
+            watch: process.env['BUILD_MODE'] === 'dev',
+        }
       ]
-    }),
-    rustWasm({
-      projectDir: 'wasm',
-      outName: 'hex-viewer-wasm',
     }),
   ],
 }
@@ -34,5 +40,6 @@ if (process.env['BUILD_MODE'] === 'dev') {
   });
   await ctx.watch();
 } else {
-  await esbuild.build({ ...SETTINGS, minify: true });
+  const buildSettings = { ...SETTINGS, minify: true };
+  await esbuild.build(buildSettings);
 }
