@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { SearchTab, AnalysisTab, HashingTab } from './main';
+import { SearchTab, AnalysisTab, HashingTab, InspectorTab, Marker } from './main';
 
 // Polyfill TextEncoder/Decoder for jsdom
 import { TextEncoder, TextDecoder } from 'util';
@@ -114,6 +114,30 @@ describe('SearchTab', () => {
     fireEvent.click(screen.getByText('Prev'));
     expect(mockOnSearch).toHaveBeenCalledWith(results, 1, 5); // currentIndex was 0, so (0-1+2)%2 = 1
     expect(mockOnJumpToOffset).toHaveBeenCalledWith(6);
+  });
+});
+
+describe('InspectorTab hashing', () => {
+  const buffer = new Uint8Array([0, 1, 2, 3]);
+  const mockMarkers: Marker[] = [];
+  const mockOnAddMarker = jest.fn();
+  const mockOnRemoveMarker = jest.fn();
+  const mockSetPreviewMarker = jest.fn();
+
+  it('renders target information correctly', () => {
+    render(<InspectorTab buffer={buffer} index={0} selection={null} markers={mockMarkers} onAddMarker={mockOnAddMarker} onRemoveMarker={mockOnRemoveMarker} setPreviewMarker={mockSetPreviewMarker} />);
+    expect(screen.getByText('Hashes (Full File)')).toBeInTheDocument();
+
+    render(<InspectorTab buffer={buffer} index={0} selection={[0, 1]} markers={mockMarkers} onAddMarker={mockOnAddMarker} onRemoveMarker={mockOnRemoveMarker} setPreviewMarker={mockSetPreviewMarker} />);
+    expect(screen.getByText('Hashes (Selection)')).toBeInTheDocument();
+  });
+
+  it('renders mock hashes from worker', async () => {
+    render(<InspectorTab buffer={buffer} index={0} selection={[0, 3]} markers={mockMarkers} onAddMarker={mockOnAddMarker} onRemoveMarker={mockOnRemoveMarker} setPreviewMarker={mockSetPreviewMarker} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('mock-sha256')).toBeInTheDocument();
+    });
   });
 });
 
