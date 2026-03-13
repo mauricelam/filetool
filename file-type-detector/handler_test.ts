@@ -1,4 +1,4 @@
-import { HANDLERS, matchMimetype } from './index';
+import { HANDLERS, matchMimetype, getHandlersForFileNameAndType } from './index';
 
 // Local type definition
 interface LocalMimeMatchDetailed {
@@ -210,6 +210,15 @@ describe('Handler Tests', () => {
             expect(pdfViewerIndex).not.toBe(-1);
             expect(browserIndex).not.toBe(-1);
             expect(pdfViewerIndex).toBeLessThan(browserIndex);
+        });
+    });
+
+    describe('Reproduction: Text Viewer for .txt with generic MIME', () => {
+        it('prioritizes Text Viewer for .txt files even with application/octet-stream', () => {
+            const handlers = getHandlersForFileNameAndType('test.txt', 'application/octet-stream', 'ASCII text');
+
+            expect(handlers.length).toBeGreaterThan(0);
+            expect(handlers[0].handler).toBe('textviewer');
         });
     });
 });

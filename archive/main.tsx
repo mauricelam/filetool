@@ -387,9 +387,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const renderFilePreview = (file: ArchiveFile, path: string[]) => {
         async function extractFile(): Promise<File> {
             const extracted: File = await file.extract()
-            // Copy the file to remove the mimetype. For some reason
-            // libarchive.js adds application/octet-stream to this result.
-            return new File([extracted], extracted.name, {})
+            return extracted;
         }
         return <PreviewComponent path={path} filePromise={extractFile} />;
     };

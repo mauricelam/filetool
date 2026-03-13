@@ -134,7 +134,7 @@ export const HANDLERS: HandlerDefinition[] = [
     {
         "name": "PDF.js",
         "handler": "pdfjs",
-        "mimetypes": ["application/pdf"]
+        "mimetypes": ["application/pdf", { "filename": /\.pdf$/i }]
     },
     {
         "name": "SVG Viewer",
@@ -150,7 +150,7 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     { "name": "DEX viewer", "handler": "dexviewer", "mimetypes": [{ "mime": "application/octet-stream", "filename": /.*\.dex/i }] },
-    { "name": "Text Viewer", "handler": "textviewer", "mimetypes": [/text\/.*/, "message/rfc822", "image/svg+xml", "application/json", "application/javascript"] },
+    { "name": "Text Viewer", "handler": "textviewer", "mimetypes": [/text\/.*/, "message/rfc822", "image/svg+xml", "application/json", "application/javascript", { "filename": /\.(txt|log|conf|ini|sh|py|js|json|xml|yml|yaml)$/i }] },
     { "name": "Graphviz Viewer", "handler": "graphviz", "mimetypes": ["text/vnd.graphviz", "application/vnd.graphviz", { "filename": /\.(dot|gv)$/i }] },
     { "name": "JQ Viewer", "handler": "jqviewer", "mimetypes": ["application/json", { "filename": /\.(json|jsonl)$/i }] },
     {
@@ -194,7 +194,7 @@ export const HANDLERS: HandlerDefinition[] = [
             { "filename": /.*\.arsc$/i }
         ]
     },
-    { "name": "JVM Classfile", "handler": "classfile", "mimetypes": ["application/x-java-applet"] },
+    { "name": "JVM Classfile", "handler": "classfile", "mimetypes": ["application/x-java-applet", { "filename": /\.class$/i }] },
     { "name": "Binutils", "handler": "binutils", "mimetypes": ["application/x-mach-binary", "application/x-executable", "application/x-sharedlib"] },
     {
         "name": "ImageMagick",
