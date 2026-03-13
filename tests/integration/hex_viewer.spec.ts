@@ -51,18 +51,31 @@ test.describe('Hex Viewer', () => {
     await expect(shaValue).not.toHaveText('');
 
     // 4. Resize
-    const handle = page.locator('#resize-handle');
     const initialBox = await page.locator('#inspector-container').boundingBox();
+    const handle = page.locator('#resize-handle');
 
     const handleBox = await handle.boundingBox();
     if (handleBox && initialBox) {
-        await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+        // Click near the top of the handle to avoid the toggle button (which is centered)
+        const startX = handleBox.x + handleBox.width / 2;
+        const startY = 10;
+        await page.mouse.move(startX, startY);
         await page.mouse.down();
-        await page.mouse.move(handleBox.x - 50, handleBox.y + handleBox.height / 2);
+        // Move mouse to the left to INCREASE sidebar width (since sidebar is on the right)
+        await page.mouse.move(startX - 100, startY, { steps: 10 });
         await page.mouse.up();
 
         const finalBox = await page.locator('#inspector-container').boundingBox();
         expect(finalBox?.width).toBeGreaterThan(initialBox.width);
     }
+
+    // 5. Collapse/Expand Sidebar
+    await page.click('.sidebar-toggle');
+    await expect(page.locator('#inspector-container')).not.toBeVisible();
+    await expect(page.locator('#resize-handle')).not.toBeVisible();
+
+    await page.click('.sidebar-toggle');
+    await expect(page.locator('#inspector-container')).toBeVisible();
+    await expect(page.locator('#resize-handle')).toBeVisible();
   });
 });
