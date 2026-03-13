@@ -33,7 +33,9 @@ const ICONS = {
     binwalk: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v18"></path><path d="M8 3h4a4 4 0 0 1 0 8H8"></path><path d="M8 11h4a4 4 0 0 1 0 8H8"></path><path d="M2 9h3c1 0 1.5 1 3 1"></path><path d="M2 15h3c1 0 1.5-1 3-1"></path><circle cx="2" cy="9" r="1" fill="currentColor"></circle><circle cx="2" cy="15" r="1" fill="currentColor"></circle></svg>,
     copy: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>,
     open: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>,
-    add: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    add: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+    chevronLeft: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>,
+    chevronRight: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 };
 
 async function handleFile(file: File) {
@@ -810,6 +812,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
 
     const [sidebarWidth, setSidebarWidth] = useState(300);
     const [isResizing, setIsResizing] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(window.innerWidth < 800);
 
     const startResizing = useCallback(() => {
         setIsResizing(true);
@@ -829,6 +832,16 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     }, [isResizing]);
 
     useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 800) {
+                setIsSidebarCollapsed(true);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
         window.addEventListener('mousemove', resize);
         window.addEventListener('mouseup', stopResizing);
         return () => {
@@ -838,7 +851,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     }, [resize, stopResizing]);
 
     return (
-        <div style={{ display: 'flex', height: '100%', userSelect: isResizing ? 'none' : 'auto' }}>
+        <div style={{ display: 'flex', height: '100%', userSelect: isResizing ? 'none' : 'auto', position: 'relative' }}>
             <div id="hexviewer" style={{ flex: 1, overflowY: 'auto' }} onScroll={onScroll}>
                 <Column id="offset" lineCount={lineCount} scrollTop={scrollTop}
                     header="Offset"
@@ -850,8 +863,18 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                     header=" "
                     render={(i) => <div key={i}>{renderAscii(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, searchResultOffsets, currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null, matchLength, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
             </div>
-            <div id="resize-handle" onMouseDown={startResizing} />
-            <div id="inspector-container" style={{ width: sidebarWidth, display: 'flex' }}>
+            {!isSidebarCollapsed && <div id="resize-handle" onMouseDown={startResizing} />}
+            <button
+                className="sidebar-toggle"
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                style={{
+                    right: isSidebarCollapsed ? 0 : sidebarWidth
+                }}
+                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+                {isSidebarCollapsed ? ICONS.chevronLeft : ICONS.chevronRight}
+            </button>
+            <div id="inspector-container" style={{ width: sidebarWidth, display: isSidebarCollapsed ? 'none' : 'flex' }}>
                 <DataInspector
                     buffer={buffer}
                     index={hoverIndex}
