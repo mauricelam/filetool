@@ -134,7 +134,7 @@ export const HANDLERS: HandlerDefinition[] = [
     {
         "name": "PDF.js",
         "handler": "pdfjs",
-        "mimetypes": ["application/pdf", { "filename": /\.pdf$/i }]
+        "mimetypes": ["application/pdf", { "filename": /\.pdf$/i }, { "description": /PDF document/i }]
     },
     {
         "name": "SVG Viewer",
@@ -150,7 +150,7 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
     { "name": "DEX viewer", "handler": "dexviewer", "mimetypes": [{ "mime": "application/octet-stream", "filename": /.*\.dex/i }] },
-    { "name": "Text Viewer", "handler": "textviewer", "mimetypes": [/text\/.*/, "message/rfc822", "image/svg+xml", "application/json", "application/javascript", { "filename": /\.(txt|log|conf|ini|sh|py|js|json|xml|yml|yaml)$/i }] },
+    { "name": "Text Viewer", "handler": "textviewer", "mimetypes": [/text\/.*/, "message/rfc822", "image/svg+xml", "application/json", "application/javascript", { "filename": /\.(txt|log|conf|ini|sh|py|js|json|xml|yml|yaml|ts|tsx|rs|c|cpp|h|hpp|cs|go|rb|php|java|kt|gradle|properties|bat|ps1)$/i }, { "description": /text/i }] },
     { "name": "Graphviz Viewer", "handler": "graphviz", "mimetypes": ["text/vnd.graphviz", "application/vnd.graphviz", { "filename": /\.(dot|gv)$/i }] },
     { "name": "JQ Viewer", "handler": "jqviewer", "mimetypes": ["application/json", { "filename": /\.(json|jsonl)$/i }] },
     {
@@ -298,13 +298,16 @@ export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: s
 }
 
 
-export async function getHandlersForFile(file: File): Promise<HandlerDefinition[]> {
+export async function getHandlersForFile(file: File, fileName?: string): Promise<HandlerDefinition[]> {
     const [magic, mimeMagic] = await Promise.all([getMagic(), getMimeMagic()]);
     const buffer = new Uint8Array(await file.arrayBuffer());
-    const mime = file.type || mimeMagic.detect(buffer) || 'application/octet-stream';
+    let mime = file.type;
+    if (!mime || mime === 'application/octet-stream') {
+        mime = mimeMagic.detect(buffer) || 'application/octet-stream';
+    }
     const description = magic.detect(buffer);
 
-    return getHandlersForFileNameAndType(file.name, mime, description);
+    return getHandlersForFileNameAndType(fileName || file.name, mime, description);
 }
 
 export function getHandlersForFileNameAndType(fileName: string, mimeType: string, description: string): HandlerDefinition[] {

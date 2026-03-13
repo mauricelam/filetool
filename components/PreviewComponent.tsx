@@ -23,7 +23,7 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
             try {
                 const file = await filePromise();
 
-                const sortedHandlers = await getHandlersForFile(file);
+                const sortedHandlers = await getHandlersForFile(file, file.name);
                 setHandlers(sortedHandlers);
 
                 if (sortedHandlers.length > 0) {
