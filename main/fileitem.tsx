@@ -288,7 +288,7 @@ export function FileItem(
                                                         setDefaultHandler(mimetype, name, newDefault);
                                                         setLocalDefaultHandlerId(newDefault);
                                                     }}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', marginRight: '6px' }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
                                                     title={isCurrentDefault ? "Remove as default handler" : "Set as default handler"}
                                                 >
                                                     {isCurrentDefault ? <StarFilled /> : <StarOutline />}

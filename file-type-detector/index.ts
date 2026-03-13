@@ -169,7 +169,7 @@ export const HANDLERS: HandlerDefinition[] = [
     },
     { "name": "Webassembly text viewer", "handler": "wat_viewer", "mimetypes": ["application/wasm"] },
     {
-        "name": "Open archive",
+        "name": "Archive",
         "handler": "archive",
         "mimetypes": [
             "application/zip", "application/gzip", "application/x-xz", "application/vnd.android.package-archive",
@@ -298,13 +298,13 @@ export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: s
 }
 
 
-export async function getHandlersForFile(file: File): Promise<HandlerDefinition[]> {
+export async function getHandlersForFile(file: File): Promise<[string, HandlerDefinition[]]> {
     const [magic, mimeMagic] = await Promise.all([getMagic(), getMimeMagic()]);
     const buffer = new Uint8Array(await file.arrayBuffer());
     const mime = file.type || mimeMagic.detect(buffer) || 'application/octet-stream';
     const description = magic.detect(buffer);
 
-    return getHandlersForFileNameAndType(file.name, mime, description);
+    return [mime, getHandlersForFileNameAndType(file.name, mime, description)];
 }
 
 export function getHandlersForFileNameAndType(fileName: string, mimeType: string, description: string): HandlerDefinition[] {

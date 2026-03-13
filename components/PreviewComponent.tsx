@@ -23,18 +23,15 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
             try {
                 const file = await filePromise();
 
-                const sortedHandlers = await getHandlersForFile(file);
+                let [mime, sortedHandlers] = await getHandlersForFile(file);
                 setHandlers(sortedHandlers);
 
                 if (sortedHandlers.length > 0) {
-                    const defaultHandlerId = getDefaultHandler(file.type, file.name);
-                    console.log("Default handler ID:", defaultHandlerId);
+                    const defaultHandlerId = getDefaultHandler(mime, file.name);
                     let handlerToUse = sortedHandlers.find(h => h.handler === defaultHandlerId);
-                    console.log("Handler after default check:", handlerToUse);
 
                     if (!handlerToUse) {
                         handlerToUse = sortedHandlers[0];
-                        console.log("Handler after fallback:", handlerToUse);
                     }
                     setActiveHandler(handlerToUse);
                 } else {
