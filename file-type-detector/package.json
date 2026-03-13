@@ -8,12 +8,5 @@
   },
   "dependencies": {
     "wasmagic": "^1.0.6"
-  },
-  "turbo": {
-    "tasks": {
-      "build": {
-        "outputs": []
-      }
-    }
   }
 }

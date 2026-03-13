@@ -12,7 +12,8 @@
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!.turbo/**",
-                "components/**"
+                "components/**",
+                "esbuild-plugins/**"
             ]
         },
         "@filetool/archive#build": {
@@ -25,7 +26,8 @@
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!.turbo/**",
-                "../components/**"
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/android-xml#build": {
@@ -34,6 +36,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/apk-viewer#build": {
@@ -46,7 +54,8 @@
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!.turbo/**",
-                "../components/**"
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/binutils#build": {
@@ -55,6 +64,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/bplist#build": {
@@ -63,6 +78,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/browser#build": {
@@ -71,6 +92,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/cbor#build": {
@@ -79,6 +106,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/cheerpj#build": {
@@ -87,6 +120,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/classfile#build": {
@@ -95,6 +134,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/classyshark#build": {
@@ -103,6 +148,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/cyberchef#build": {
@@ -111,6 +162,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/der#build": {
@@ -119,6 +176,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/dex#build": {
@@ -127,6 +190,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/dmg#build": {
@@ -139,7 +208,8 @@
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!.turbo/**",
-                "../components/**"
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/ffmpeg#build": {
@@ -148,6 +218,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/flatbuffers#build": {
@@ -156,6 +232,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/graphviz#build": {
@@ -164,6 +246,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/hex-viewer#build": {
@@ -172,6 +260,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/imagemagick#build": {
@@ -180,6 +274,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/img-viewer#build": {
@@ -192,7 +292,8 @@
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!.turbo/**",
-                "../components/**"
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/jqviewer#build": {
@@ -201,6 +302,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/lzfse#build": {
@@ -209,6 +316,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/lzfse-wasm#build": {
@@ -217,6 +330,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/markdown#build": {
@@ -225,6 +344,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/mhtml#build": {
@@ -233,6 +358,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/parquet#build": {
@@ -241,6 +372,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/pdfjs#build": {
@@ -249,6 +386,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/proguard#build": {
@@ -257,6 +400,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/protoscope#build": {
@@ -265,6 +414,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/rstviewer#build": {
@@ -273,6 +428,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/setools#build": {
@@ -281,6 +442,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/sqlite#build": {
@@ -289,6 +456,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/svgviewer#build": {
@@ -297,6 +470,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/squashfs#build": {
@@ -309,7 +488,8 @@
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!.turbo/**",
-                "../components/**"
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/textviewer#build": {
@@ -318,6 +498,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/wat_viewer#build": {
@@ -326,6 +512,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/webgl#build": {
@@ -334,6 +526,12 @@
             ],
             "dependsOn": [
                 "^build"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "@filetool/filetool#build": {
@@ -346,6 +544,12 @@
                 "../dist/main.js",
                 "../dist/main.js.map",
                 "../dist/icons/**"
+            ],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "../components/**",
+                "../esbuild-plugins/**"
             ]
         },
         "test": {
