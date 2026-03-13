@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import React, { useState, useEffect, useRef } from 'react'
 import init, { dex_classes, dex_methods, dex_fields, JClass, JMethod, JField, init_logger, load_proguard_mapping } from './dexviewer/pkg'
-import { linkifySmaliInstruction, generateClassId, generateFieldId } from './linkify'
+import { linkifySmaliInstruction, generateClassId, generateFieldId, scrollToElement } from './linkify'
 
 // Extended interface to include the new fields we added to JMethod
 interface ExtendedJMethod extends JMethod {
@@ -95,10 +95,20 @@ if (window.parent) {
 
 const OUTPUT = createRoot(document.getElementById('output')!)
 
+interface UsageResult {
+    className: string;
+    methodName: string;
+    instruction: string;
+    classId: number;
+}
+
 function App({ file }: { file: File }) {
     const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
     const [classes, setClasses] = useState<JClass[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchMode, setSearchMode] = useState<'classes' | 'usages'>('classes');
+    const [usageResults, setUsageResults] = useState<UsageResult[]>([]);
+    const [isSearchingUsages, setIsSearchingUsages] = useState(false);
 
     useEffect(() => {
         async function setup() {
@@ -108,6 +118,16 @@ function App({ file }: { file: File }) {
             setFileBytes(bytes);
             const klasses = dex_classes(bytes);
             setClasses(klasses);
+
+            // Initialize Go WASM and set file data
+            if (!window['godexviewer']) {
+                const go = new window['Go']()
+                const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
+                go.run(result.instance)
+            }
+            if (window['godexviewer']?.setFileData) {
+                window['godexviewer'].setFileData(bytes);
+            }
         }
         setup();
     }, [file]);
@@ -119,6 +139,28 @@ function App({ file }: { file: File }) {
             setClasses(klasses);
         }
     }
+
+    const performUsageSearch = async () => {
+        if (!searchTerm) return;
+        setIsSearchingUsages(true);
+        try {
+            if (!window['godexviewer']) {
+                const go = new window['Go']()
+                const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
+                go.run(result.instance)
+            }
+            if (window['godexviewer']?.setFileData && fileBytes) {
+                window['godexviewer'].setFileData(fileBytes);
+            }
+            const results = window['godexviewer']?.searchUsages(searchTerm);
+            setUsageResults(results || []);
+            setSearchMode('usages');
+        } catch (error) {
+            console.error('Error searching usages:', error);
+        } finally {
+            setIsSearchingUsages(false);
+        }
+    };
 
     if (classes.length === 0) {
         return <div className="loading">Loading...</div>
@@ -132,29 +174,137 @@ function App({ file }: { file: File }) {
                (jc.method_names || []).some(m => m.toLowerCase().includes(search));
     });
 
+    const handleResultClick = async (result: UsageResult) => {
+        setSearchMode('classes');
+        // Clean up class name (remove L and ; if present, convert / to .)
+        const className = result.className.replace(/^L|;$/g, '').replace(/\//g, '.');
+        await expandPackagePathForClass(className);
+        const classId = generateClassId(className);
+        await waitFor(() => !!document.getElementById(classId), 2000, 50);
+        const classEl = document.getElementById(classId);
+        if (!classEl) return;
+
+        const classHeader = classEl.querySelector('.class-header') as HTMLElement | null;
+        const methodsContainer = classEl.children.item(1) as HTMLElement | null;
+        if (classHeader && methodsContainer && methodsContainer.style.display === 'none') {
+            classHeader.click();
+        }
+
+        await waitFor(() => classEl.querySelectorAll('.method').length > 0, 2000, 100);
+
+        const methodEls = classEl.querySelectorAll('.method');
+        // We need to find the method. We can use methodName.
+        let targetMethod: HTMLElement | null = null;
+        methodEls.forEach(el => {
+            const nameEl = el.querySelector('.method-name');
+            if (nameEl && nameEl.textContent?.trim() === result.methodName) {
+                targetMethod = el as HTMLElement;
+            }
+        });
+
+        if (targetMethod) {
+            const mHeader = (targetMethod as HTMLElement).querySelector('.method-header') as HTMLElement | null;
+            const mContent = (targetMethod as HTMLElement).querySelector('.method-content') as HTMLElement | null;
+            if (mHeader && mContent && mContent.style.display === 'none') {
+                mHeader.click();
+            }
+            (mHeader || targetMethod).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            classEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
     return (
         <>
-            <Header onSearch={setSearchTerm} onProguardUpload={handleProguardUpload} />
-            <ClassTree classes={filteredClasses} dexfile={fileBytes!} />
+            <Header
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                onSearchUsages={performUsageSearch}
+                onProguardUpload={handleProguardUpload}
+                searchMode={searchMode}
+                setSearchMode={setSearchMode}
+                isSearching={isSearchingUsages}
+            />
+            {searchMode === 'classes' ? (
+                <ClassTree classes={filteredClasses} dexfile={fileBytes!} />
+            ) : (
+                <UsageResults results={usageResults} onResultClick={handleResultClick} />
+            )}
         </>
     )
 }
 
-function Header({ onSearch, onProguardUpload }: {
-    onSearch: (term: string) => void,
-    onProguardUpload: (content: string) => void
+function Header({ searchTerm, onSearchChange, onSearchUsages, onProguardUpload, searchMode, setSearchMode, isSearching }: {
+    searchTerm: string,
+    onSearchChange: (term: string) => void,
+    onSearchUsages: () => void,
+    onProguardUpload: (content: string) => void,
+    searchMode: 'classes' | 'usages',
+    setSearchMode: (mode: 'classes' | 'usages') => void,
+    isSearching: boolean
 }) {
     return (
         <div className="header">
+            <div className="search-mode-selector">
+                <button
+                    className={`mode-button ${searchMode === 'classes' ? 'active' : ''}`}
+                    onClick={() => setSearchMode('classes')}
+                >
+                    Classes
+                </button>
+                <button
+                    className={`mode-button ${searchMode === 'usages' ? 'active' : ''}`}
+                    onClick={() => setSearchMode('usages')}
+                >
+                    API Usages
+                </button>
+            </div>
             <div className="search-container">
                 <input
                     type="text"
                     className="search-input"
-                    placeholder="Search classes or methods..."
-                    onChange={(e) => onSearch(e.target.value)}
+                    value={searchTerm}
+                    placeholder={searchMode === 'classes' ? "Search classes or methods..." : "Search API usage (e.g. android.util.Log)"}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && searchMode === 'usages') {
+                            onSearchUsages();
+                        }
+                    }}
                 />
             </div>
+            {searchMode === 'usages' && (
+                <button className="search-button" onClick={onSearchUsages} disabled={isSearching}>
+                    {isSearching ? 'Searching...' : 'Search'}
+                </button>
+            )}
             <ProguardUploader onUpload={onProguardUpload} />
+        </div>
+    );
+}
+
+function UsageResults({ results, onResultClick }: { results: UsageResult[], onResultClick: (res: UsageResult) => void }) {
+    if (results.length === 0) {
+        return <div className="usage-results-empty">No usages found.</div>
+    }
+
+    return (
+        <div className="usage-results">
+            <div className="usage-results-header">Found {results.length} usages</div>
+            <div className="usage-results-list">
+                {results.map((res, i) => (
+                    <div key={i} className="usage-item" onClick={() => onResultClick(res)}>
+                        <div className="usage-location">
+                            <span className="type-name">{res.className.replace(/\//g, '.')}</span>
+                            <span className="usage-sep">›</span>
+                            <span className="method-name">{res.methodName}</span>
+                        </div>
+                        <div className="usage-instruction">
+                            <code>{res.instruction}</code>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

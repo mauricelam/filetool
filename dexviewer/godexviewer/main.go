@@ -3,20 +3,20 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"syscall/js"
 
 	"github.com/csnewman/dextk"
 )
 
-type DexFile struct {
-	bytes []byte
-}
-
-var dexFiles = make(map[int]DexFile)
+var cachedReader *dextk.Reader
+var cachedBytes []byte
 
 func main() {
 	// Create dextk object to store functions
 	dextkObj := map[string]interface{}{
+		"setFileData":           js.FuncOf(setFileData),
+		"searchUsages":          js.FuncOf(searchUsages),
 		"getMethodInstructions": js.FuncOf(getMethodInstructions),
 	}
 
@@ -27,21 +27,88 @@ func main() {
 	<-make(chan bool)
 }
 
-func getMethodInstructions(this js.Value, args []js.Value) any {
-	// Get the Uint8Array from JavaScript
+func setFileData(this js.Value, args []js.Value) any {
 	array := args[0]
+	dexbytes := make([]byte, array.Length())
+	js.CopyBytesToGo(dexbytes, array)
+
+	r, err := dextk.Read(bytes.NewReader(dexbytes))
+	if err != nil {
+		fmt.Println("Error reading DEX:", err)
+		return js.ValueOf(err.Error())
+	}
+
+	cachedReader = r
+	cachedBytes = dexbytes
+	return js.Null()
+}
+
+func searchUsages(this js.Value, args []js.Value) any {
+	if cachedReader == nil {
+		return js.ValueOf([]any{})
+	}
+
+	query := args[0].String()
+	queryLower := strings.ToLower(query)
+	querySlashes := strings.ReplaceAll(queryLower, ".", "/")
+
+	var results []any
+
+	for i := uint32(0); i < cachedReader.ClassDefCount; i++ {
+		class, err := cachedReader.ReadClassAndParse(i)
+		if err != nil {
+			continue
+		}
+
+		checkMethods := func(methods []dextk.MethodNode) {
+			for _, method := range methods {
+				if method.CodeOff == 0 {
+					continue
+				}
+				instructions := getInstructions(cachedReader, method)
+				for _, ins := range instructions {
+					insLower := strings.ToLower(ins)
+					if strings.Contains(insLower, queryLower) || strings.Contains(insLower, querySlashes) {
+						results = append(results, js.ValueOf(map[string]any{
+							"className":   class.Name.String(),
+							"methodName":  method.Name.String(),
+							"instruction": ins,
+							"classId":     i,
+						}))
+					}
+				}
+			}
+		}
+
+		checkMethods(class.DirectMethods)
+		checkMethods(class.VirtualMethods)
+	}
+
+	return js.ValueOf(results)
+}
+
+func getMethodInstructions(this js.Value, args []js.Value) any {
 	// Get the class ID from JavaScript
 	classId := args[1].Int()
 	// Get the method name from JavaScript
 	methodName := args[2].String()
 
-	// Create Go byte slice and copy data
-	dexbytes := make([]byte, array.Length())
-	js.CopyBytesToGo(dexbytes, array)
-	r, err := dextk.Read(bytes.NewReader(dexbytes))
-	if err != nil {
-		fmt.Println(err)
-		return nil
+	var r *dextk.Reader
+	var err error
+
+	if cachedReader != nil {
+		r = cachedReader
+	} else {
+		// Get the Uint8Array from JavaScript
+		array := args[0]
+		// Create Go byte slice and copy data
+		dexbytes := make([]byte, array.Length())
+		js.CopyBytesToGo(dexbytes, array)
+		r, err = dextk.Read(bytes.NewReader(dexbytes))
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
 	}
 
 	// Find the method in the class
