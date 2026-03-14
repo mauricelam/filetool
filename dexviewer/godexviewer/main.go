@@ -9,6 +9,10 @@ import (
 	"github.com/csnewman/dextk"
 )
 
+type DexFile struct {
+	bytes []byte
+}
+
 var cachedReader *dextk.Reader
 var cachedBytes []byte
 
@@ -45,7 +49,6 @@ func setFileData(this js.Value, args []js.Value) any {
 
 func searchUsages(this js.Value, args []js.Value) any {
 	if cachedReader == nil {
-		fmt.Println("[godexviewer] searchUsages: cachedReader is nil")
 		return js.ValueOf([]any{})
 	}
 
@@ -53,9 +56,33 @@ func searchUsages(this js.Value, args []js.Value) any {
 	if query == "" {
 		return js.ValueOf([]any{})
 	}
-	fmt.Printf("[godexviewer] Searching for: %s\n", query)
 	queryLower := strings.ToLower(query)
 	querySlashes := strings.ReplaceAll(queryLower, ".", "/")
+
+	// Optimization: pre-filter string and type IDs
+	matchingStrings := make(map[uint32]bool)
+	for i := uint32(0); i < cachedReader.StringIDCount; i++ {
+		s, err := cachedReader.ReadString(i)
+		if err != nil {
+			continue
+		}
+		sStr := s.String()
+		sLower := strings.ToLower(sStr)
+		if strings.Contains(sLower, queryLower) || strings.Contains(sLower, querySlashes) {
+			matchingStrings[i] = true
+		}
+	}
+
+	matchingTypes := make(map[uint16]bool)
+	for i := uint32(0); i < uint32(cachedReader.TypeIDCount); i++ {
+		t, err := cachedReader.ReadType(i)
+		if err != nil {
+			continue
+		}
+		if matchingStrings[t.DescriptorStringID] {
+			matchingTypes[uint16(i)] = true
+		}
+	}
 
 	var results []any
 
@@ -70,10 +97,26 @@ func searchUsages(this js.Value, args []js.Value) any {
 				if method.CodeOff == 0 {
 					continue
 				}
-				instructions := getInstructions(cachedReader, method)
-				for _, ins := range instructions {
+
+				code, err := cachedReader.ReadCodeAndParse(method.CodeOff)
+				if err != nil {
+					continue
+				}
+
+				for _, op := range code.Ops {
+					found := false
+					// Use op.String() which is relatively fast and includes all IDs resolved
+					// But we can pre-check some IDs if we had access to them in op.
+					// Since dextk hides some implementation details, string search on disassembly
+					// is currently the most reliable way to match resolved IDs.
+					ins := fmt.Sprintf("  %s", op)
 					insLower := strings.ToLower(ins)
+
 					if strings.Contains(insLower, queryLower) || strings.Contains(insLower, querySlashes) {
+						found = true
+					}
+
+					if found {
 						results = append(results, js.ValueOf(map[string]any{
 							"className":   class.Name.String(),
 							"methodName":  method.Name.String(),
@@ -89,7 +132,6 @@ func searchUsages(this js.Value, args []js.Value) any {
 		checkMethods(class.VirtualMethods)
 	}
 
-	fmt.Printf("[godexviewer] Found %d results\n", len(results))
 	return js.ValueOf(results)
 }
 

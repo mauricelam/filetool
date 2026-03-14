@@ -108,8 +108,8 @@ interface UsageResult {
 function App({ file }: { file: File }) {
     const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
     const [classes, setClasses] = useState<JClass[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [searchMode, setSearchMode] = useState<'classes' | 'usages'>('classes');
+    const [classSearchTerm, setClassSearchTerm] = useState('');
+    const [apiSearchTerm, setApiSearchTerm] = useState('');
     const [usageResults, setUsageResults] = useState<UsageResult[]>([]);
     const [isSearchingUsages, setIsSearchingUsages] = useState(false);
     const workerRef = useRef<Worker | null>(null);
@@ -132,7 +132,6 @@ function App({ file }: { file: File }) {
                     if (action === 'searchUsages') {
                         setUsageResults(results || []);
                         setIsSearchingUsages(false);
-                        setSearchMode('usages');
                     }
                 };
                 worker.postMessage({ action: 'setFileData', data: bytes });
@@ -167,9 +166,9 @@ function App({ file }: { file: File }) {
     }
 
     const performUsageSearch = async () => {
-        if (!searchTerm || !workerRef.current) return;
+        if (!apiSearchTerm || !workerRef.current) return;
         setIsSearchingUsages(true);
-        workerRef.current.postMessage({ action: 'searchUsages', query: searchTerm });
+        workerRef.current.postMessage({ action: 'searchUsages', query: apiSearchTerm });
     };
 
     if (classes.length === 0) {
@@ -177,7 +176,7 @@ function App({ file }: { file: File }) {
     }
 
     const filteredClasses = classes.filter(c => {
-        const search = searchTerm.toLowerCase();
+        const search = classSearchTerm.toLowerCase();
         if (!search) return true;
         const jc = c as ExtendedJClass;
         return jc.original_name.toLowerCase().includes(search) ||
@@ -185,8 +184,6 @@ function App({ file }: { file: File }) {
     });
 
     const handleResultClick = async (result: UsageResult) => {
-        setSearchTerm('');
-        setSearchMode('classes');
         // Clean up class name (remove L and ; if present, convert / to .)
         const className = result.className.replace(/^L|;$/g, '').replace(/\//g, '.');
         await expandPackagePathForClass(className);
@@ -228,67 +225,55 @@ function App({ file }: { file: File }) {
     return (
         <>
             <Header
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                onSearchUsages={performUsageSearch}
                 onProguardUpload={handleProguardUpload}
-                searchMode={searchMode}
-                setSearchMode={setSearchMode}
-                isSearching={isSearchingUsages}
+                searchTerm={classSearchTerm}
+                onSearchChange={setClassSearchTerm}
             />
-            {searchMode === 'classes' ? (
-                <ClassTree classes={filteredClasses} dexfile={fileBytes!} />
-            ) : (
-                <UsageResults results={usageResults} onResultClick={handleResultClick} />
-            )}
+            <div className="main-container">
+                <div className="sidebar">
+                    <div className="sidebar-search">
+                        <input
+                            type="text"
+                            className="search-input"
+                            value={apiSearchTerm}
+                            placeholder="Search API usage (e.g. android.util.Log)"
+                            onChange={(e) => setApiSearchTerm(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    performUsageSearch();
+                                }
+                            }}
+                        />
+                        <button className="search-button" onClick={performUsageSearch} disabled={isSearchingUsages}>
+                            {isSearchingUsages ? 'Searching...' : 'Search'}
+                        </button>
+                    </div>
+                    <UsageResults results={usageResults} onResultClick={handleResultClick} />
+                </div>
+                <div className="content-area">
+                    <ClassTree classes={filteredClasses} dexfile={fileBytes!} />
+                </div>
+            </div>
         </>
     )
 }
 
-function Header({ searchTerm, onSearchChange, onSearchUsages, onProguardUpload, searchMode, setSearchMode, isSearching }: {
-    searchTerm: string,
-    onSearchChange: (term: string) => void,
-    onSearchUsages: () => void,
+function Header({ onProguardUpload, searchTerm, onSearchChange }: {
     onProguardUpload: (content: string) => void,
-    searchMode: 'classes' | 'usages',
-    setSearchMode: (mode: 'classes' | 'usages') => void,
-    isSearching: boolean
+    searchTerm: string,
+    onSearchChange: (term: string) => void
 }) {
     return (
         <div className="header">
-            <div className="search-mode-selector">
-                <button
-                    className={`mode-button ${searchMode === 'classes' ? 'active' : ''}`}
-                    onClick={() => setSearchMode('classes')}
-                >
-                    Classes
-                </button>
-                <button
-                    className={`mode-button ${searchMode === 'usages' ? 'active' : ''}`}
-                    onClick={() => setSearchMode('usages')}
-                >
-                    API Usages
-                </button>
-            </div>
             <div className="search-container">
                 <input
                     type="text"
                     className="search-input"
                     value={searchTerm}
-                    placeholder={searchMode === 'classes' ? "Search classes or methods..." : "Search API usage (e.g. android.util.Log)"}
+                    placeholder="Filter classes or methods..."
                     onChange={(e) => onSearchChange(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && searchMode === 'usages') {
-                            onSearchUsages();
-                        }
-                    }}
                 />
             </div>
-            {searchMode === 'usages' && (
-                <button className="search-button" onClick={onSearchUsages} disabled={isSearching}>
-                    {isSearching ? 'Searching...' : 'Search'}
-                </button>
-            )}
             <ProguardUploader onUpload={onProguardUpload} />
         </div>
     );

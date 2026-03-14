@@ -14,23 +14,47 @@
             margin: 0;
             line-height: 1.5;
             height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            height: calc(100vh - 60px); /* header height approx */
+            width: 100%;
+        }
+
+        .sidebar {
+            width: 400px;
+            min-width: 300px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            background: white;
         }
 
         .header {
-            position: sticky;
-            top: 0;
+            height: 60px;
             background: white;
             z-index: 100;
             display: flex;
             align-items: center;
-            padding: 12px 20px;
+            padding: 0 20px;
             border-bottom: 1px solid #e5e7eb;
             gap: 16px;
             flex-shrink: 0;
         }
 
-        .search-container {
-            flex: 1;
+        .sidebar-search {
+            padding: 16px;
+            border-bottom: 1px solid #f3f4f6;
         }
 
         .search-input {
@@ -42,6 +66,7 @@
             outline: none;
             transition: border-color 0.2s;
             box-sizing: border-box;
+            margin-bottom: 12px;
         }
 
         .search-input:focus {
@@ -89,7 +114,7 @@
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            margin-left: 12px;
+            width: 100%;
             transition: background-color 0.2s;
         }
 
@@ -142,8 +167,7 @@
         .package-tree {
             background: white;
             padding: 16px;
-            overflow-y: auto;
-            flex: 1;
+            height: 100%;
         }
 
         .package-node {
@@ -327,7 +351,7 @@
 
         .usage-results {
             background: white;
-            padding: 20px;
+            padding: 16px;
             overflow-y: auto;
             flex: 1;
         }

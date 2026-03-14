@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 test.describe('DEX Viewer Search', () => {
-    test('should search for API usages and navigate to results', async ({ page }) => {
+    test('should search for API usages and navigate to results in sidebar', async ({ page }) => {
         test.setTimeout(180000);
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
 
@@ -26,11 +26,10 @@ test.describe('DEX Viewer Search', () => {
         const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.package-tree')).toBeVisible({ timeout: 60000 });
 
-        await iframe.locator('button:has-text("API Usages")').click();
-
-        const searchInput = iframe.locator('input[type="text"]');
+        // Search is now in sidebar
+        const searchInput = iframe.locator('.sidebar .search-input');
         await searchInput.fill('Object');
-        await iframe.locator('button:has-text("Search")').click();
+        await iframe.locator('.sidebar .search-button').click();
 
         const firstResult = iframe.locator('.usage-item').first();
         await expect(firstResult).toBeVisible({ timeout: 60000 });
@@ -41,9 +40,7 @@ test.describe('DEX Viewer Search', () => {
 
         await firstResult.click();
 
-        await expect(iframe.locator('button.active:has-text("Classes")')).toBeVisible({ timeout: 30000 });
-        // The scrollToElement logic in linkify.ts expands the method but doesn't add a .highlighted class.
-        // It adds .expanded to the method element.
+        // Target method should be expanded
         await expect(iframe.locator('.method.expanded')).toBeVisible({ timeout: 30000 });
     });
 });
