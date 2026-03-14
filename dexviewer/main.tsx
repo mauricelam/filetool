@@ -295,15 +295,20 @@ function Header({ searchTerm, onSearchChange, onSearchUsages, onProguardUpload, 
 }
 
 function UsageResults({ results, onResultClick }: { results: UsageResult[], onResultClick: (res: UsageResult) => void }) {
+    const [displayLimit, setDisplayLimit] = useState(100);
+
     if (results.length === 0) {
         return <div className="usage-results-empty">No usages found.</div>
     }
+
+    const displayedResults = results.slice(0, displayLimit);
+    const hasMore = results.length > displayLimit;
 
     return (
         <div className="usage-results">
             <div className="usage-results-header">Found {results.length} usages</div>
             <div className="usage-results-list">
-                {results.map((res, i) => (
+                {displayedResults.map((res, i) => (
                     <div key={i} className="usage-item" onClick={() => onResultClick(res)}>
                         <div className="usage-location">
                             <span className="type-name">{res.className.replace(/\//g, '.')}</span>
@@ -316,6 +321,13 @@ function UsageResults({ results, onResultClick }: { results: UsageResult[], onRe
                     </div>
                 ))}
             </div>
+            {hasMore && (
+                <div className="usage-results-more">
+                    <button className="load-more-button" onClick={() => setDisplayLimit(displayLimit + 100)}>
+                        Load more ({results.length - displayLimit} remaining)
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
