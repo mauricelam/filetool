@@ -4,14 +4,11 @@
   ],
   "tasks": {
     "build": {
+      "dependsOn": [
+        "^build"
+      ],
       "outputs": [
         "../dist/binutils/**"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!.turbo/**",
-        "../components/**",
-        "../esbuild-plugins/**"
       ]
     }
   }

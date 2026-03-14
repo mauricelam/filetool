@@ -4,14 +4,11 @@
   ],
   "tasks": {
     "build": {
+      "dependsOn": [
+        "^build"
+      ],
       "outputs": [
         "../dist/flatbuffers/**"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!.turbo/**",
-        "../components/**",
-        "../esbuild-plugins/**"
       ]
     }
   }

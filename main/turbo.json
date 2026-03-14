@@ -4,18 +4,15 @@
   ],
   "tasks": {
     "build": {
+      "dependsOn": [
+        "^build"
+      ],
       "outputs": [
         "../dist/index.html",
         "../dist/libmagic-wrapper.wasm",
         "../dist/main.js",
         "../dist/main.js.map",
         "../dist/icons/**"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!.turbo/**",
-        "../components/**",
-        "../esbuild-plugins/**"
       ]
     }
   }

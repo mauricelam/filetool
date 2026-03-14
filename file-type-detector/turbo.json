@@ -4,12 +4,8 @@
   ],
   "tasks": {
     "build": {
-      "outputs": [],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!.turbo/**",
-        "../components/**",
-        "../esbuild-plugins/**"
+      "dependsOn": [
+        "^build"
       ]
     }
   }

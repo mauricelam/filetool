@@ -4,14 +4,11 @@
   ],
   "tasks": {
     "build": {
+      "dependsOn": [
+        "^build"
+      ],
       "outputs": [
         "../dist/classfile/**"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!.turbo/**",
-        "../components/**",
-        "../esbuild-plugins/**"
       ]
     }
   }
