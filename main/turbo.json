@@ -11,12 +11,11 @@
         "../dist/main.js.map",
         "../dist/icons/**"
       ],
-      "dependsOn": [
-        "^build"
-      ],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "!.turbo/**"
+        "!.turbo/**",
+        "../components/**",
+        "../esbuild-plugins/**"
       ]
     }
   }

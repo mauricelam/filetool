@@ -14,9 +14,7 @@
   "devDependencies": {
     "esbuild": "0.27.2",
     "vite": "7.3.1",
-    "vitest": "4.0.16",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "vitest": "4.0.16"
   },
   "license": "MIT",
   "description": ""

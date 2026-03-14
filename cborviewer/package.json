@@ -19,8 +19,6 @@
     "@types/react-dom": "^18.3.0",
     "esbuild": "^0.27.2",
     "esbuild-plugin-copy": "^2.1.1",
-    "esbuild-plugin-wasm": "^1.1.0",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "esbuild-plugin-wasm": "^1.1.0"
   }
 }

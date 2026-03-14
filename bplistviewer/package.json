@@ -20,8 +20,6 @@
   "devDependencies": {
     "@types/node": "^20.12.7",
     "esbuild": "^0.27.3",
-    "typescript": "^5.4.5",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "typescript": "^5.4.5"
   }
 }

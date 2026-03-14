@@ -13,8 +13,6 @@
   },
   "devDependencies": {
     "esbuild": "^0.27.2",
-    "typescript": "^5.0.0",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "typescript": "^5.0.0"
   }
 }

@@ -21,8 +21,6 @@
     "chokidar": "^3.5.3",
     "esbuild": "^0.27.2",
     "esbuild-plugin-copy": "^2.1.0",
-    "esbuild-plugin-wasm": "^1.1.0",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "esbuild-plugin-wasm": "^1.1.0"
   }
 }

@@ -9,9 +9,7 @@
   "license": "MIT",
   "description": "",
   "devDependencies": {
-    "esbuild-plugin-wasm": "^1.1.0",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "esbuild-plugin-wasm": "^1.1.0"
   },
   "dependencies": {
     "react": "^18.3.1",
