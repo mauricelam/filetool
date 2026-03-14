@@ -13,7 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@filetool/common": "file:../filetool-common",
-    "@filetool/lzfse-wasm": "file:../lzfse-wasm"
+    "@filetool/lzfse-wasm": "file:./lzfse-wasm"
   },
   "devDependencies": {
     "esbuild": "^0.27.2",

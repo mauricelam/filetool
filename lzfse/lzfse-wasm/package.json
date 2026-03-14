@@ -2,23 +2,19 @@
   "name": "@filetool/lzfse-wasm",
   "version": "1.0.0",
   "description": "LZFSE decompressor",
-  "main": "./dist/lzfse.js",
-  "types": "./dist/lzfse.d.ts",
+  "main": "./pkg/lzfse_wasm.js",
+  "types": "./pkg/lzfse_wasm.d.ts",
   "scripts": {
-    "build": "bash build.sh"
+    "build": "npx wasm-pack build --target web"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "esbuild": "^0.27.2",
-    "esbuild-plugin-copy": "^2.1.1"
-  },
   "turbo": {
     "tasks": {
       "build": {
         "outputs": [
-          "dist/**"
+          "pkg/**"
         ]
       }
     }
