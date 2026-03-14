@@ -1,0 +1,18 @@
+{
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "build": {
+      "outputs": [
+        "../dist/classyshark/**"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.turbo/**",
+        "../components/**",
+        "../esbuild-plugins/**"
+      ]
+    }
+  }
+}

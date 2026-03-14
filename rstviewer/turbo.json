@@ -1,0 +1,18 @@
+{
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "build": {
+      "outputs": [
+        "../dist/rstviewer/**"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.turbo/**",
+        "../components/**",
+        "../esbuild-plugins/**"
+      ]
+    }
+  }
+}

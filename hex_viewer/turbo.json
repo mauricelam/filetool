@@ -1,0 +1,18 @@
+{
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "build": {
+      "outputs": [
+        "../dist/hex_viewer/**"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.turbo/**",
+        "../components/**",
+        "../esbuild-plugins/**"
+      ]
+    }
+  }
+}
