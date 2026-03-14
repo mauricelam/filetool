@@ -45,6 +45,7 @@ func setFileData(this js.Value, args []js.Value) any {
 
 func searchUsages(this js.Value, args []js.Value) any {
 	if cachedReader == nil {
+		fmt.Println("[godexviewer] searchUsages: cachedReader is nil")
 		return js.ValueOf([]any{})
 	}
 
@@ -52,6 +53,7 @@ func searchUsages(this js.Value, args []js.Value) any {
 	if query == "" {
 		return js.ValueOf([]any{})
 	}
+	fmt.Printf("[godexviewer] Searching for: %s\n", query)
 	queryLower := strings.ToLower(query)
 	querySlashes := strings.ReplaceAll(queryLower, ".", "/")
 
@@ -87,6 +89,7 @@ func searchUsages(this js.Value, args []js.Value) any {
 		checkMethods(class.VirtualMethods)
 	}
 
+	fmt.Printf("[godexviewer] Found %d results\n", len(results))
 	return js.ValueOf(results)
 }
 

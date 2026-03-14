@@ -6,7 +6,7 @@ import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
 
 const SETTINGS = {
-  entryPoints: ['main.tsx', 'search-worker.ts'],
+  entryPoints: ['main.tsx'],
   outdir: "../dist/dexviewer",
   bundle: true,
   format: "esm",
@@ -41,14 +41,33 @@ const SETTINGS = {
   ],
 }
 
+const WORKER_SETTINGS = {
+  entryPoints: ['search-worker.ts'],
+  outdir: "../dist/dexviewer",
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  external: ['require', 'fs', 'path'],
+  plugins: SETTINGS.plugins, // Reuse plugins
+}
+
 if (process.env['BUILD_MODE'] === 'dev') {
   const ctx = await esbuild.context({
     ...SETTINGS,
     sourcemap: true,
   });
   await ctx.watch();
+
+  const workerCtx = await esbuild.context({
+    ...WORKER_SETTINGS,
+    sourcemap: true,
+  });
+  await workerCtx.watch();
 } else {
   const buildSettings = { ...SETTINGS, minify: true };
   delete buildSettings.banner; // Ensure no banner in prod
   await esbuild.build(buildSettings);
+
+  const workerBuildSettings = { ...WORKER_SETTINGS, minify: true };
+  await esbuild.build(workerBuildSettings);
 }

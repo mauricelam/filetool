@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import React, { useState, useEffect, useRef } from 'react'
 import init, { dex_classes, dex_methods, dex_fields, JClass, JMethod, JField, init_logger, load_proguard_mapping } from './dexviewer/pkg'
-import { linkifySmaliInstruction, generateClassId, generateFieldId, scrollToElement } from './linkify'
+import { linkifySmaliInstruction, generateClassId, generateFieldId } from './linkify'
 
 // Extended interface to include the new fields we added to JMethod
 interface ExtendedJMethod extends JMethod {
