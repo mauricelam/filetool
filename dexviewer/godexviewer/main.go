@@ -49,6 +49,9 @@ func searchUsages(this js.Value, args []js.Value) any {
 	}
 
 	query := args[0].String()
+	if query == "" {
+		return js.ValueOf([]any{})
+	}
 	queryLower := strings.ToLower(query)
 	querySlashes := strings.ReplaceAll(queryLower, ".", "/")
 

@@ -6,7 +6,7 @@ import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
 
 const SETTINGS = {
-  entryPoints: ['main.tsx'],
+  entryPoints: ['main.tsx', 'search-worker.ts'],
   outdir: "../dist/dexviewer",
   bundle: true,
   format: "esm",

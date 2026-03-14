@@ -24,8 +24,11 @@ async function expandPackagePathForClass(fullClassName: string): Promise<void> {
     const parts = fullClassName.split('.')
     if (parts.length <= 1) return
     const packageParts = parts.slice(0, -1)
-    const tree = document.querySelector('.package-tree') as HTMLElement | null
-    if (!tree) return
+
+    // Wait for the tree to be rendered if it's not currently in DOM (e.g. after mode switch)
+    const okTree = await waitFor(() => !!document.querySelector('.package-tree'), 2000, 50);
+    if (!okTree) return
+    const tree = document.querySelector('.package-tree') as HTMLElement
 
     // Start at the currently rendered container (root tree)
     let container: Element | null = tree
@@ -109,6 +112,7 @@ function App({ file }: { file: File }) {
     const [searchMode, setSearchMode] = useState<'classes' | 'usages'>('classes');
     const [usageResults, setUsageResults] = useState<UsageResult[]>([]);
     const [isSearchingUsages, setIsSearchingUsages] = useState(false);
+    const workerRef = useRef<Worker | null>(null);
 
     useEffect(() => {
         async function setup() {
@@ -119,7 +123,22 @@ function App({ file }: { file: File }) {
             const klasses = dex_classes(bytes);
             setClasses(klasses);
 
-            // Initialize Go WASM and set file data
+            // Initialize worker
+            if (!workerRef.current) {
+                const worker = new Worker(new URL('./search-worker.js', window.location.href));
+                workerRef.current = worker;
+                worker.onmessage = (e) => {
+                    const { action, results } = e.data;
+                    if (action === 'searchUsages') {
+                        setUsageResults(results || []);
+                        setIsSearchingUsages(false);
+                        setSearchMode('usages');
+                    }
+                };
+                worker.postMessage({ action: 'setFileData', data: bytes });
+            }
+
+            // Also initialize Go WASM in main thread for getMethodInstructions
             if (!window['godexviewer']) {
                 const go = new window['Go']()
                 const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
@@ -130,6 +149,13 @@ function App({ file }: { file: File }) {
             }
         }
         setup();
+
+        return () => {
+            if (workerRef.current) {
+                workerRef.current.terminate();
+                workerRef.current = null;
+            }
+        };
     }, [file]);
 
     const handleProguardUpload = (mappingContent: string) => {
@@ -141,25 +167,9 @@ function App({ file }: { file: File }) {
     }
 
     const performUsageSearch = async () => {
-        if (!searchTerm) return;
+        if (!searchTerm || !workerRef.current) return;
         setIsSearchingUsages(true);
-        try {
-            if (!window['godexviewer']) {
-                const go = new window['Go']()
-                const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
-                go.run(result.instance)
-            }
-            if (window['godexviewer']?.setFileData && fileBytes) {
-                window['godexviewer'].setFileData(fileBytes);
-            }
-            const results = window['godexviewer']?.searchUsages(searchTerm);
-            setUsageResults(results || []);
-            setSearchMode('usages');
-        } catch (error) {
-            console.error('Error searching usages:', error);
-        } finally {
-            setIsSearchingUsages(false);
-        }
+        workerRef.current.postMessage({ action: 'searchUsages', query: searchTerm });
     };
 
     if (classes.length === 0) {
@@ -175,6 +185,7 @@ function App({ file }: { file: File }) {
     });
 
     const handleResultClick = async (result: UsageResult) => {
+        setSearchTerm('');
         setSearchMode('classes');
         // Clean up class name (remove L and ; if present, convert / to .)
         const className = result.className.replace(/^L|;$/g, '').replace(/\//g, '.');
