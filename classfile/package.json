@@ -12,7 +12,9 @@
     "esbuild": "0.27.2",
     "esbuild-plugin-wasm": "^1.1.0",
     "vite": "7.3.1",
-    "vitest": "4.0.16"
+    "vitest": "4.0.16",
+    "@filetool/components": "*",
+    "@filetool/esbuild-plugins": "*"
   },
   "dependencies": {
     "react": "^18.3.1",

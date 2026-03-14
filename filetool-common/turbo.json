@@ -4,9 +4,6 @@
   ],
   "tasks": {
     "build": {
-      "outputs": [
-        "../dist/lzfse/**"
-      ],
       "dependsOn": [
         "^build"
       ],

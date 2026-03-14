@@ -14,5 +14,9 @@
     "react-dom": "^18.3.1"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@filetool/components": "*",
+    "@filetool/esbuild-plugins": "*"
+  }
 }

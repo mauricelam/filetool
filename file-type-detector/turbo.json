@@ -4,7 +4,14 @@
   ],
   "tasks": {
     "build": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.turbo/**"
+      ]
     }
   }
 }

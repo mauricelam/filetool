@@ -7,11 +7,12 @@
       "outputs": [
         "../dist/cyberchef/**"
       ],
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "!.turbo/**",
-        "../components/**",
-        "../esbuild-plugins/**"
+        "!.turbo/**"
       ]
     }
   }

@@ -8,5 +8,9 @@
   },
   "dependencies": {},
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@filetool/components": "*",
+    "@filetool/esbuild-plugins": "*"
+  }
 }

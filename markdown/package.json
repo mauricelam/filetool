@@ -12,5 +12,9 @@
     "react-markdown": "^9.0.1"
   },
   "license": "MIT",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@filetool/components": "*",
+    "@filetool/esbuild-plugins": "*"
+  }
 }

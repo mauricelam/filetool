@@ -10,5 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "@filetool/components": "*",
+    "@filetool/esbuild-plugins": "*"
+  }
 }
