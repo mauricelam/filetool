@@ -15,13 +15,7 @@
   },
   "license": "MIT",
   "description": "",
-  "turbo": {
-    "tasks": {
-      "build": {
-        "outputs": [
-          "../dist/archive/**"
-        ]
-      }
-    }
+  "devDependencies": {
+    "@filetool/components": "*"
   }
 }

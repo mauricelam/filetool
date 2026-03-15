@@ -9,14 +9,5 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "turbo": {
-    "tasks": {
-      "build": {
-        "outputs": [
-          "pkg/**"
-        ]
-      }
-    }
-  }
+  "license": "ISC"
 }
