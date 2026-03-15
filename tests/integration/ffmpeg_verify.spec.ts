@@ -58,9 +58,9 @@ test('ffmpeg viewer UI update', async ({ page }) => {
 
     // Test automatic unchecking
     await webCodecsCheckbox.check();
-    expect(await webCodecsCheckbox.isChecked()).toBe(true);
+    await expect(webCodecsCheckbox).toBeChecked();
 
     // Select an FFmpeg-only codec
     await h265Label.click();
-    expect(await webCodecsCheckbox.isChecked()).toBe(false);
+    await expect(webCodecsCheckbox).not.toBeChecked();
 });

@@ -26,6 +26,9 @@ test.describe('DEX Viewer Search', () => {
         const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.package-tree')).toBeVisible({ timeout: 60000 });
 
+        // Switch to API Search tab
+        await iframe.locator('.tab-button:has-text("API Search")').click();
+
         // Search is now in sidebar
         const searchInput = iframe.locator('.sidebar .search-input');
         await searchInput.fill('Object');
