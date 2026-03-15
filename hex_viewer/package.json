@@ -13,13 +13,7 @@
   },
   "license": "MIT",
   "description": "",
-  "turbo": {
-    "tasks": {
-      "build": {
-        "outputs": [
-          "../dist/hex_viewer/**"
-        ]
-      }
-    }
+  "devDependencies": {
+    "@filetool/esbuild-plugins": "*"
   }
 }

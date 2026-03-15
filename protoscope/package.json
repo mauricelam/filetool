@@ -17,21 +17,13 @@
     "jsdom": "^26.1.0",
     "typescript": "^5.3.3",
     "vite": "^7.3.1",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "@filetool/esbuild-plugins": "*"
   },
   "dependencies": {
     "protobufjs": "^7.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-syntax-highlighter": "^16.1.0"
-  },
-  "turbo": {
-    "tasks": {
-      "build": {
-        "outputs": [
-          "../dist/protoscope/**"
-        ]
-      }
-    }
   }
 }

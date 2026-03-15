@@ -22,14 +22,5 @@
     "jsdom": "^24.0.0"
   },
   "license": "MIT",
-  "description": "",
-  "turbo": {
-    "tasks": {
-      "build": {
-        "outputs": [
-          "../dist/imagemagick/**"
-        ]
-      }
-    }
-  }
+  "description": ""
 }
