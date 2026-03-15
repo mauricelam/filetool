@@ -34,11 +34,16 @@ self.onmessage = async (event) => {
         const compressedArray = new Uint8Array(compressedBuffer);
 
         // Decompress using the generic WASM function
-        const decompressedArray = decode(compressedArray);
+        const result = decode(compressedArray);
+        const decompressedArray = new Uint8Array(result.data);
 
         // Send the decompressed data back to the main thread.
         // The ArrayBuffer is transferred, not copied, for performance.
-        self.postMessage({ type: 'done', data: decompressedArray.buffer }, [decompressedArray.buffer]);
+        self.postMessage({
+            type: 'done',
+            data: decompressedArray.buffer,
+            format: result.format
+        }, [decompressedArray.buffer]);
     } catch (error) {
         console.error('Error processing input', error)
         const errorMessage = (error instanceof Error) ? error.message : String(error);
