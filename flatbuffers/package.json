@@ -24,8 +24,6 @@
     "@types/react-dom": "^18.3.1",
     "esbuild": "^0.20.2",
     "esbuild-plugin-copy": "^2.1.1",
-    "typescript": "^5.4.5",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "typescript": "^5.4.5"
   }
 }

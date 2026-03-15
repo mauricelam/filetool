@@ -16,7 +16,6 @@
   "license": "MIT",
   "description": "",
   "devDependencies": {
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "@filetool/components": "*"
   }
 }

@@ -14,9 +14,5 @@
     "wabt": "^1.0.36"
   },
   "license": "MIT",
-  "description": "",
-  "devDependencies": {
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
-  }
+  "description": ""
 }

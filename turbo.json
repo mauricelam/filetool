@@ -24,9 +24,5 @@
             "cache": false,
             "persistent": true
         }
-    },
-    "globalDependencies": [
-        "components/**",
-        "esbuild-plugins/**"
-    ]
+    }
 }

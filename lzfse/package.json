@@ -17,8 +17,6 @@
   },
   "devDependencies": {
     "esbuild": "^0.27.2",
-    "esbuild-plugin-copy": "^2.1.1",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "esbuild-plugin-copy": "^2.1.1"
   }
 }

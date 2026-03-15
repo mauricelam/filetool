@@ -8,9 +8,5 @@
   },
   "dependencies": {
     "wasmagic": "^1.0.6"
-  },
-  "devDependencies": {
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
   }
 }

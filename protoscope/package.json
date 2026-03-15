@@ -18,7 +18,6 @@
     "typescript": "^5.3.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.16",
-    "@filetool/components": "*",
     "@filetool/esbuild-plugins": "*"
   },
   "dependencies": {

@@ -10,7 +10,6 @@
   "description": "",
   "devDependencies": {
     "esbuild-plugin-wasm": "^1.1.0",
-    "@filetool/components": "*",
     "@filetool/esbuild-plugins": "*"
   },
   "dependencies": {

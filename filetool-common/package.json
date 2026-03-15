@@ -9,9 +9,5 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "dependencies": {},
-  "devDependencies": {
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
-  }
+  "dependencies": {}
 }

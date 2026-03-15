@@ -10,9 +10,5 @@
     "eml-parse-js": "^1.1.15"
   },
   "license": "MIT",
-  "description": "",
-  "devDependencies": {
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
-  }
+  "description": ""
 }

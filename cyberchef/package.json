@@ -13,8 +13,6 @@
     "common": "file:../common"
   },
   "devDependencies": {
-    "yauzl": "^2.10.0",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "yauzl": "^2.10.0"
   }
 }
