@@ -1,9 +1,15 @@
 {
-  "extends": ["//"],
+  "extends": [
+    "//"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["../dist/archive/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "../dist/archive/**"
+      ]
     }
   }
 }
