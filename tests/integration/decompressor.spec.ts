@@ -4,12 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { runHandlerTest } from './test-utils';
 
-test.describe('LZFSE Handler', () => {
+test.describe('Decompressor Handler', () => {
     test('should decompress an LZFSE file and display the content', async ({ page }) => {
-        const filePath = path.join(__dirname, '../../lzfse/example', 'test.lzfse');
+        const filePath = path.join(__dirname, '../../decompressor/example', 'test.lzfse');
         const fileBuffer = fs.readFileSync(filePath);
         await runHandlerTest(page, {
-            handler: 'lzfse',
+            handler: 'decompressor',
             file: {
                 content: Uint8Array.from(fileBuffer),
                 name: 'test.lzfse',
@@ -17,8 +17,8 @@ test.describe('LZFSE Handler', () => {
             },
         });
 
-        // Wait for the LZFSE handler to be loaded in an iframe
-        const iframe = await page.waitForSelector('iframe[src*="lzfse"]');
+        // Wait for the decompressor handler to be loaded in an iframe
+        const iframe = await page.waitForSelector('iframe[src*="decompressor"]');
         const frame = await iframe.contentFrame();
         await frame!.waitForLoadState('domcontentloaded');
 

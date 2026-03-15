@@ -4,11 +4,11 @@ import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import { execSync } from 'child_process';
 
-execSync('npm run build --prefix lzfse-wasm', { stdio: 'inherit' });
+execSync('npm run build --prefix decompressor-wasm', { stdio: 'inherit' });
 
 const SETTINGS = {
     entryPoints: ['main.tsx', 'worker.ts'],
-    outdir: "../dist/lzfse",
+    outdir: "../dist/decompressor",
     bundle: true,
     format: "esm",
     platform: "browser",
@@ -21,13 +21,13 @@ const SETTINGS = {
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: './lzfse-wasm/pkg/lzfse_wasm_bg.wasm',
-                    to: 'lzfse_wasm_bg.wasm',
+                    from: './decompressor-wasm/pkg/decompressor_wasm_bg.wasm',
+                    to: 'decompressor_wasm_bg.wasm',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: './lzfse-wasm/pkg/lzfse_wasm.js',
-                    to: 'lzfse_wasm.js',
+                    from: './decompressor-wasm/pkg/decompressor_wasm.js',
+                    to: 'decompressor_wasm.js',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
             ],
@@ -48,4 +48,3 @@ if (process.env['BUILD_MODE'] === 'dev') {
 } else {
     await esbuild.build({ ...SETTINGS, minify: true });
 }
-

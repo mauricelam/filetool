@@ -1,9 +1,9 @@
 {
-  "name": "@filetool/lzfse-wasm",
+  "name": "@filetool/decompressor-wasm",
   "version": "1.0.0",
-  "description": "LZFSE decompressor",
-  "main": "./pkg/lzfse_wasm.js",
-  "types": "./pkg/lzfse_wasm.d.ts",
+  "description": "Generic decompressor WASM",
+  "main": "./pkg/decompressor_wasm.js",
+  "types": "./pkg/decompressor_wasm.d.ts",
   "scripts": {
     "build": "npx wasm-pack build --target web"
   },

@@ -237,12 +237,15 @@ export const HANDLERS: HandlerDefinition[] = [
     { "name": "SQLite Viewer", "handler": "sqliteviewer", "mimetypes": [{ "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3"] },
     { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /(\.(map|mapping)|proguard\.txt)$/i }] },
     {
-        "name": "LZFSE Decompressor",
-        "handler": "lzfse",
+        "name": "Decompressor",
+        "handler": "decompressor",
         "mimetypes": [
-            {
-                description: /lzfse (encoded|compressed)/i,
-            }
+            { "description": /lzfse (encoded|compressed)/i },
+            "application/gzip", "application/x-gzip", { "filename": /\.gz$/i },
+            "application/x-brotli", { "filename": /\.br$/i },
+            "application/x-lzma", { "filename": /\.lzma$/i },
+            "application/x-xz", { "filename": /\.xz$/i },
+            "application/zlib", { "filename": /\.zlib$/i }
         ]
     },
     {

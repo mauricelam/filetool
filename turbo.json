@@ -203,15 +203,15 @@
                 "^build"
             ]
         },
-        "@filetool/lzfse#build": {
+        "@filetool/decompressor#build": {
             "outputs": [
-                "../dist/lzfse/**"
+                "../dist/decompressor/**"
             ],
             "dependsOn": [
                 "^build"
             ]
         },
-        "@filetool/lzfse-wasm#build": {
+        "@filetool/decompressor-wasm#build": {
             "outputs": [
                 "pkg/**"
             ],

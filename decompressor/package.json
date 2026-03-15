@@ -1,7 +1,7 @@
 {
-  "name": "@filetool/lzfse",
+  "name": "@filetool/decompressor",
   "version": "1.0.0",
-  "description": "LZFSE decompressor",
+  "description": "Generic decompressor",
   "main": "index.js",
   "private": true,
   "scripts": {
@@ -13,7 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@filetool/common": "file:../filetool-common",
-    "@filetool/lzfse-wasm": "file:./lzfse-wasm"
+    "@filetool/decompressor-wasm": "file:./decompressor-wasm"
   },
   "devDependencies": {
     "esbuild": "^0.27.2",
@@ -23,7 +23,7 @@
     "tasks": {
       "build": {
         "outputs": [
-          "../dist/lzfse/**"
+          "../dist/decompressor/**"
         ]
       }
     }
