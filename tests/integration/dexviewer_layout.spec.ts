@@ -48,6 +48,11 @@ test.describe('DEX Viewer Layout', () => {
 
         // Header should be sticky
         await expect(iframe.locator('.content-area .class-header')).toBeVisible();
+
+        // Breadcrumbs should be visible
+        await expect(iframe.locator('.breadcrumbs')).toBeVisible();
+        const breadcrumbItems = iframe.locator('.breadcrumb-item');
+        expect(await breadcrumbItems.count()).toBeGreaterThan(1);
     });
 
     test('should resize sidebar', async ({ page }) => {
@@ -127,6 +132,34 @@ test.describe('DEX Viewer Layout', () => {
         const box = await sidebar.boundingBox();
         if (!box) throw new Error('Could not get bounding box');
         expect(box.width).toBe(0);
+    });
+
+    test('should have an Info tab with proguard uploader', async ({ page }) => {
+        const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
+        const fileContent = fs.readFileSync(dexPath);
+        const contentArray = Array.from(new Uint8Array(fileContent));
+
+        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
+
+        await page.evaluate(({ contentArray, name }) => {
+            window.postMessage({
+                action: 'setFile',
+                file: {
+                    content: new Uint8Array(contentArray),
+                    name: name,
+                    type: 'application/octet-stream'
+                }
+            }, '*');
+        }, { contentArray, name: 'classes.dex' });
+
+        const iframe = page.frameLocator('#file-handler-iframe');
+        await expect(iframe.locator('.sidebar')).toBeVisible({ timeout: 60000 });
+
+        const infoTab = iframe.locator('.tab-button:has-text("Info")');
+        await infoTab.click();
+
+        await expect(iframe.locator('.proguard-section')).toBeVisible();
+        await expect(iframe.locator('.proguard-uploader-compact')).toBeVisible();
     });
 
     test('should show class and method on separate lines in search results', async ({ page }) => {

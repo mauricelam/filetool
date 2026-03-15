@@ -112,7 +112,7 @@ function App({ file }: { file: File }) {
     const [apiSearchTerm, setApiSearchTerm] = useState('');
     const [usageResults, setUsageResults] = useState<UsageResult[]>([]);
     const [isSearchingUsages, setIsSearchingUsages] = useState(false);
-    const [activeTab, setActiveTab] = useState<'packages' | 'search'>('packages');
+    const [activeTab, setActiveTab] = useState<'packages' | 'search' | 'info'>('packages');
     const resizerRef = useRef<HTMLDivElement | null>(null);
     const [sidebarWidth, setSidebarWidth] = useState(400);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -250,11 +250,10 @@ function App({ file }: { file: File }) {
 
     return (
         <>
-            <Header
-                onProguardUpload={handleProguardUpload}
-                searchTerm={classSearchTerm}
-                onSearchChange={setClassSearchTerm}
-            />
+            <div className="header">
+                <div style={{ fontWeight: 600, fontSize: 16 }}>DEX Viewer</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>{file.name}</div>
+            </div>
             <div className="main-container">
                 <div className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarWidth }}>
                     <div className="sidebar-tabs">
@@ -270,16 +269,33 @@ function App({ file }: { file: File }) {
                         >
                             API Search
                         </button>
+                        <button
+                            className={`tab-button ${activeTab === 'info' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('info')}
+                        >
+                            Info
+                        </button>
                     </div>
                     <div className="sidebar-content">
                         {activeTab === 'packages' ? (
-                            <ClassTree
-                                classes={filteredClasses}
-                                dexfile={fileBytes!}
-                                onClassSelect={(c) => setSelectedClass(c)}
-                                selectedClassId={selectedClass?.id}
-                            />
-                        ) : (
+                            <div className="package-tree-container">
+                                <div className="sidebar-search">
+                                    <input
+                                        type="text"
+                                        className="search-input"
+                                        value={classSearchTerm}
+                                        placeholder="Filter classes or methods..."
+                                        onChange={(e) => setClassSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <ClassTree
+                                    classes={filteredClasses}
+                                    dexfile={fileBytes!}
+                                    onClassSelect={(c) => setSelectedClass(c)}
+                                    selectedClassId={selectedClass?.id}
+                                />
+                            </div>
+                        ) : activeTab === 'search' ? (
                             <>
                                 <div className="sidebar-search">
                                     <input
@@ -294,12 +310,29 @@ function App({ file }: { file: File }) {
                                             }
                                         }}
                                     />
-                                    <button className="search-button" onClick={performUsageSearch} disabled={isSearchingUsages}>
-                                        {isSearchingUsages ? 'Searching...' : 'Search'}
+                                    <button className="search-button" onClick={performUsageSearch} disabled={isSearchingUsages} title="Search">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
                                     </button>
                                 </div>
                                 <UsageResults results={usageResults} onResultClick={handleResultClick} />
                             </>
+                        ) : (
+                            <div className="proguard-section">
+                                <h4>Proguard Mapping</h4>
+                                <ProguardUploader onUpload={handleProguardUpload} />
+                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+                                    Upload a proguard mapping file to de-obfuscate class and method names.
+                                </div>
+                                <h4 style={{ marginTop: 24 }}>File Info</h4>
+                                <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <div><strong>Name:</strong> {file.name}</div>
+                                    <div><strong>Size:</strong> {(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                                    <div><strong>Classes:</strong> {classes.length}</div>
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -309,15 +342,21 @@ function App({ file }: { file: File }) {
                         {isSidebarCollapsed ? '›' : '‹'}
                     </div>
                     {selectedClass ? (
-                        <DexClass
-                            key={selectedClass.id}
-                            javaClass={selectedClass as ExtendedJClass}
-                            dexfile={fileBytes!}
-                            level={0}
-                            initiallyExpanded={true}
-                            onNavigateToClass={onNavigateToClass}
-                            targetMethodName={targetMethodName}
-                        />
+                        <>
+                            <Breadcrumbs
+                                className={selectedClass.original_name}
+                                onNavigate={(name) => onNavigateToClass(name)}
+                            />
+                            <DexClass
+                                key={selectedClass.id}
+                                javaClass={selectedClass as ExtendedJClass}
+                                dexfile={fileBytes!}
+                                level={0}
+                                initiallyExpanded={true}
+                                onNavigateToClass={onNavigateToClass}
+                                targetMethodName={targetMethodName}
+                            />
+                        </>
                     ) : (
                         <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
                             Select a class from the sidebar to view its content.
@@ -329,23 +368,31 @@ function App({ file }: { file: File }) {
     )
 }
 
-function Header({ onProguardUpload, searchTerm, onSearchChange }: {
-    onProguardUpload: (content: string) => void,
-    searchTerm: string,
-    onSearchChange: (term: string) => void
-}) {
+function Breadcrumbs({ className, onNavigate }: { className: string, onNavigate: (name: string) => void }) {
+    const parts = className.split('.');
+    const breadcrumbs: { name: string, fullPath: string }[] = [];
+
+    parts.forEach((part, i) => {
+        breadcrumbs.push({
+            name: part,
+            fullPath: parts.slice(0, i + 1).join('.')
+        });
+    });
+
     return (
-        <div className="header">
-            <div className="search-container">
-                <input
-                    type="text"
-                    className="search-input"
-                    value={searchTerm}
-                    placeholder="Filter classes or methods..."
-                    onChange={(e) => onSearchChange(e.target.value)}
-                />
-            </div>
-            <ProguardUploader onUpload={onProguardUpload} />
+        <div className="breadcrumbs">
+            <span className="breadcrumb-icon" style={{ marginRight: 4 }}>📂</span>
+            {breadcrumbs.map((crumb, i) => (
+                <React.Fragment key={crumb.fullPath}>
+                    {i > 0 && <span className="breadcrumb-separator">/</span>}
+                    <span
+                        className={`breadcrumb-item ${i === breadcrumbs.length - 1 ? 'active' : ''}`}
+                        onClick={() => i < breadcrumbs.length - 1 && onNavigate(crumb.fullPath)}
+                    >
+                        {crumb.name}
+                    </span>
+                </React.Fragment>
+            ))}
         </div>
     );
 }
