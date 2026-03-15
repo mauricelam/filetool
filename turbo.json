@@ -213,7 +213,7 @@
         },
         "@filetool/lzfse-wasm#build": {
             "outputs": [
-                "dist/**"
+                "pkg/**"
             ],
             "dependsOn": [
                 "^build"
