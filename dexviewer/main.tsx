@@ -112,7 +112,21 @@ function App({ file }: { file: File }) {
     const [apiSearchTerm, setApiSearchTerm] = useState('');
     const [usageResults, setUsageResults] = useState<UsageResult[]>([]);
     const [isSearchingUsages, setIsSearchingUsages] = useState(false);
+    const [activeTab, setActiveTab] = useState<'packages' | 'search'>('packages');
+    const resizerRef = useRef<HTMLDivElement | null>(null);
+    const [sidebarWidth, setSidebarWidth] = useState(400);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [selectedClass, setSelectedClass] = useState<JClass | null>(null);
+    const [targetMethodName, setTargetMethodName] = useState<string | null>(null);
     const workerRef = useRef<Worker | null>(null);
+
+    const onNavigateToClass = (className: string) => {
+        const dotted = className.replace(/\//g, '.');
+        const targetClass = classes.find(c => c.original_name === dotted);
+        if (targetClass) {
+            setSelectedClass(targetClass);
+        }
+    };
 
     useEffect(() => {
         async function setup() {
@@ -184,41 +198,53 @@ function App({ file }: { file: File }) {
     });
 
     const handleResultClick = async (result: UsageResult) => {
+        // Keep active tab as search for context
         // Clean up class name (remove L and ; if present, convert / to .)
         const className = result.className.replace(/^L|;$/g, '').replace(/\//g, '.');
-        await expandPackagePathForClass(className);
-        const classId = generateClassId(className);
-        await waitFor(() => !!document.getElementById(classId), 2000, 50);
-        const classEl = document.getElementById(classId);
-        if (!classEl) return;
-
-        const classHeader = classEl.querySelector('.class-header') as HTMLElement | null;
-        const methodsContainer = classEl.children.item(1) as HTMLElement | null;
-        if (classHeader && methodsContainer && methodsContainer.style.display === 'none') {
-            classHeader.click();
+        const targetClass = classes.find(c => c.original_name === className);
+        if (targetClass) {
+            // Force re-selection if it's the same class to trigger useEffect
+            if (selectedClass?.id === targetClass.id) {
+                setSelectedClass(null);
+                setTimeout(() => {
+                    setSelectedClass(targetClass);
+                    setTargetMethodName(result.methodName);
+                }, 0);
+            } else {
+                setSelectedClass(targetClass);
+                setTargetMethodName(result.methodName);
+            }
         }
+    };
 
-        await waitFor(() => classEl.querySelectorAll('.method').length > 0, 2000, 100);
+    const toggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
 
-        const methodEls = classEl.querySelectorAll('.method');
-        // We need to find the method. We can use methodName.
-        let targetMethod: HTMLElement | null = null;
-        methodEls.forEach(el => {
-            const nameEl = el.querySelector('.method-name');
-            if (nameEl && nameEl.textContent?.trim() === result.methodName) {
-                targetMethod = el as HTMLElement;
+    const handleResizerMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.pageX;
+        const startWidth = sidebarWidth;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const newWidth = startWidth + (moveEvent.pageX - startX);
+            if (newWidth > 150 && newWidth < 800) {
+                setSidebarWidth(newWidth);
             }
-        });
+        };
 
-        if (targetMethod) {
-            const mHeader = (targetMethod as HTMLElement).querySelector('.method-header') as HTMLElement | null;
-            const mContent = (targetMethod as HTMLElement).querySelector('.method-content') as HTMLElement | null;
-            if (mHeader && mContent && mContent.style.display === 'none') {
-                mHeader.click();
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = 'default';
+            if (resizerRef.current) {
+                resizerRef.current.classList.remove('resizing');
             }
-            (mHeader || targetMethod).scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-            classEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = 'col-resize';
+        if (resizerRef.current) {
+            resizerRef.current.classList.add('resizing');
         }
     };
 
@@ -230,28 +256,73 @@ function App({ file }: { file: File }) {
                 onSearchChange={setClassSearchTerm}
             />
             <div className="main-container">
-                <div className="sidebar">
-                    <div className="sidebar-search">
-                        <input
-                            type="text"
-                            className="search-input"
-                            value={apiSearchTerm}
-                            placeholder="Search API usage (e.g. android.util.Log)"
-                            onChange={(e) => setApiSearchTerm(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    performUsageSearch();
-                                }
-                            }}
-                        />
-                        <button className="search-button" onClick={performUsageSearch} disabled={isSearchingUsages}>
-                            {isSearchingUsages ? 'Searching...' : 'Search'}
+                <div className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarWidth }}>
+                    <div className="sidebar-tabs">
+                        <button
+                            className={`tab-button ${activeTab === 'packages' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('packages')}
+                        >
+                            Packages
+                        </button>
+                        <button
+                            className={`tab-button ${activeTab === 'search' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('search')}
+                        >
+                            API Search
                         </button>
                     </div>
-                    <UsageResults results={usageResults} onResultClick={handleResultClick} />
+                    <div className="sidebar-content">
+                        {activeTab === 'packages' ? (
+                            <ClassTree
+                                classes={filteredClasses}
+                                dexfile={fileBytes!}
+                                onClassSelect={(c) => setSelectedClass(c)}
+                                selectedClassId={selectedClass?.id}
+                            />
+                        ) : (
+                            <>
+                                <div className="sidebar-search">
+                                    <input
+                                        type="text"
+                                        className="search-input"
+                                        value={apiSearchTerm}
+                                        placeholder="Search API usage (e.g. android.util.Log)"
+                                        onChange={(e) => setApiSearchTerm(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                performUsageSearch();
+                                            }
+                                        }}
+                                    />
+                                    <button className="search-button" onClick={performUsageSearch} disabled={isSearchingUsages}>
+                                        {isSearchingUsages ? 'Searching...' : 'Search'}
+                                    </button>
+                                </div>
+                                <UsageResults results={usageResults} onResultClick={handleResultClick} />
+                            </>
+                        )}
+                    </div>
                 </div>
+                <div className="resizer" onMouseDown={handleResizerMouseDown} ref={resizerRef} />
                 <div className="content-area">
-                    <ClassTree classes={filteredClasses} dexfile={fileBytes!} />
+                    <div className="sidebar-toggle" onClick={toggleSidebar}>
+                        {isSidebarCollapsed ? '›' : '‹'}
+                    </div>
+                    {selectedClass ? (
+                        <DexClass
+                            key={selectedClass.id}
+                            javaClass={selectedClass as ExtendedJClass}
+                            dexfile={fileBytes!}
+                            level={0}
+                            initiallyExpanded={true}
+                            onNavigateToClass={onNavigateToClass}
+                            targetMethodName={targetMethodName}
+                        />
+                    ) : (
+                        <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
+                            Select a class from the sidebar to view its content.
+                        </div>
+                    )}
                 </div>
             </div>
         </>
@@ -296,9 +367,8 @@ function UsageResults({ results, onResultClick }: { results: UsageResult[], onRe
                 {displayedResults.map((res, i) => (
                     <div key={i} className="usage-item" onClick={() => onResultClick(res)}>
                         <div className="usage-location">
-                            <span className="type-name">{res.className.replace(/\//g, '.')}</span>
-                            <span className="usage-sep">›</span>
-                            <span className="method-name">{res.methodName}</span>
+                            <div className="type-name">{res.className.replace(/^L|;$/g, '').replace(/\//g, '.')}</div>
+                            <div className="method-name">{res.methodName}</div>
                         </div>
                         <div className="usage-instruction">
                             <code>{res.instruction}</code>
@@ -344,7 +414,12 @@ async function handleFile(file: File) {
     OUTPUT.render(<App file={file} />);
 }
 
-function ClassTree({ classes, dexfile }: { classes: JClass[], dexfile: Uint8Array }) {
+function ClassTree({ classes, dexfile, onClassSelect, selectedClassId }: {
+    classes: JClass[],
+    dexfile: Uint8Array,
+    onClassSelect: (c: JClass) => void,
+    selectedClassId?: number
+}) {
     const [packageTree, setPackageTree] = useState<PackageNode | null>(null);
 
     useEffect(() => {
@@ -353,12 +428,18 @@ function ClassTree({ classes, dexfile }: { classes: JClass[], dexfile: Uint8Arra
     }, [classes]);
 
     if (!packageTree) {
-        return <div>Building package tree...</div>;
+        return <div className="loading">Building package tree...</div>;
     }
 
     return (
         <div className="package-tree">
-            <PackageTreeNode node={packageTree} dexfile={dexfile} level={0} />
+            <PackageTreeNode
+                node={packageTree}
+                dexfile={dexfile}
+                level={0}
+                onClassSelect={onClassSelect}
+                selectedClassId={selectedClassId}
+            />
         </div>
     );
 }
@@ -409,7 +490,13 @@ function buildPackageTree(classes: JClass[]): PackageNode {
     return root;
 }
 
-function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile: Uint8Array, level: number }) {
+function PackageTreeNode({ node, dexfile, level, onClassSelect, selectedClassId }: {
+    node: PackageNode,
+    dexfile: Uint8Array,
+    level: number,
+    onClassSelect: (c: JClass) => void,
+    selectedClassId?: number
+}) {
     const [isExpanded, setIsExpanded] = useState(node.isExpanded);
     const hasContent = node.classes.length > 0 || node.subPackages.size > 0;
     const isRoot = level === 0;
@@ -420,13 +507,25 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
             <>
                 {/* Render classes at root level */}
                 {node.classes.map(javaClass => (
-                    <DexClass key={javaClass.name} javaClass={javaClass} dexfile={dexfile} level={0} />
+                    <ClassListItem
+                        key={javaClass.name}
+                        javaClass={javaClass}
+                        onSelect={onClassSelect}
+                        isSelected={selectedClassId === javaClass.id}
+                    />
                 ))}
                 {/* Render sub-packages sorted alphabetically - start at level 1 for proper hierarchy */}
                 {Array.from(node.subPackages.values())
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(subNode => (
-                        <PackageTreeNode key={subNode.fullPath} node={subNode} dexfile={dexfile} level={1} />
+                        <PackageTreeNode
+                            key={subNode.fullPath}
+                            node={subNode}
+                            dexfile={dexfile}
+                            level={1}
+                            onClassSelect={onClassSelect}
+                            selectedClassId={selectedClassId}
+                        />
                     ))}
             </>
         );
@@ -469,13 +568,25 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
                     {Array.from(node.subPackages.values())
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map(subNode => (
-                            <PackageTreeNode key={subNode.fullPath} node={subNode} dexfile={dexfile} level={level + 1} />
+                            <PackageTreeNode
+                                key={subNode.fullPath}
+                                node={subNode}
+                                dexfile={dexfile}
+                                level={level + 1}
+                                onClassSelect={onClassSelect}
+                                selectedClassId={selectedClassId}
+                            />
                         ))}
                     {/* Render classes in this package, sorted alphabetically */}
                     {node.classes
                         .sort((a, b) => a.original_name.localeCompare(b.original_name))
                         .map(javaClass => (
-                            <DexClass key={javaClass.name} javaClass={javaClass} dexfile={dexfile} level={level + 1} />
+                            <ClassListItem
+                                key={javaClass.name}
+                                javaClass={javaClass}
+                                onSelect={onClassSelect}
+                                isSelected={selectedClassId === javaClass.id}
+                            />
                         ))}
                 </div>
             )}
@@ -483,13 +594,98 @@ function PackageTreeNode({ node, dexfile, level }: { node: PackageNode, dexfile:
     );
 }
 
+function ClassListItem({ javaClass, onSelect, isSelected }: { javaClass: JClass, onSelect: (c: JClass) => void, isSelected: boolean }) {
+    const simpleName = javaClass.original_name.split('.').pop();
+    return (
+        <div
+            className={`class-list-item ${isSelected ? 'selected' : ''}`}
+            onClick={() => onSelect(javaClass)}
+            style={{
+                padding: '4px 8px 4px 28px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: isSelected ? '#2563eb' : '#4b5563',
+                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                borderRadius: '4px',
+                margin: '1px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+            }}
+        >
+            <span style={{ fontSize: '12px' }}>📄</span>
+            <span className="class-name">{simpleName}</span>
+        </div>
+    )
+}
 
-function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, dexfile: Uint8Array, level: number }) {
-    const [expanded, setExpanded] = useState(false)
-    const [showMembers, setShowMembers] = useState(false)
+
+function DexClass({ javaClass, dexfile, level, initiallyExpanded = false, onNavigateToClass, targetMethodName }: {
+    javaClass: ExtendedJClass,
+    dexfile: Uint8Array,
+    level: number,
+    initiallyExpanded?: boolean,
+    onNavigateToClass?: (className: string) => void,
+    targetMethodName?: string | null
+}) {
+    const [expanded, setExpanded] = useState(initiallyExpanded)
+    const [showMembers, setShowMembers] = useState(initiallyExpanded)
     const [methods, setMethods] = useState<JMethod[]>([])
     const [fields, setFields] = useState<JField[]>([])
     const [loading, setLoading] = useState(false)
+    const contentRef = useRef<HTMLDivElement | null>(null);
+
+    const loadMembers = async () => {
+        if (methods.length === 0 && fields.length === 0) {
+            setLoading(true);
+            try {
+                const [m, f] = await Promise.all([
+                    Promise.resolve(dex_methods(dexfile, javaClass.id)),
+                    Promise.resolve(dex_fields(dexfile, javaClass.id)),
+                ]);
+                setMethods(m);
+                setFields(f);
+            } catch (error) {
+                console.error('Error loading class members:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (initiallyExpanded) {
+            loadMembers().then(() => {
+                if (targetMethodName && contentRef.current) {
+                    // Try to find the method and scroll to it
+                    const checkInterval = setInterval(() => {
+                        const methodEls = contentRef.current?.querySelectorAll('.method');
+                        if (methodEls && methodEls.length > 0) {
+                            let targetEl: HTMLElement | null = null;
+                            methodEls.forEach(el => {
+                                const nameEl = el.querySelector('.method-name');
+                                if (nameEl && nameEl.textContent?.trim() === targetMethodName) {
+                                    targetEl = el as HTMLElement;
+                                }
+                            });
+
+                            if (targetEl) {
+                                clearInterval(checkInterval);
+                                // Ensure it's expanded
+                                const header = (targetEl as HTMLElement).querySelector('.method-header') as HTMLElement;
+                                const content = (targetEl as HTMLElement).querySelector('.method-content') as HTMLElement;
+                                if (header && content && content.style.display === 'none') {
+                                    header.click();
+                                }
+                                (header || targetEl).scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }
+                    }, 100);
+                    setTimeout(() => clearInterval(checkInterval), 2000);
+                }
+            });
+        }
+    }, [javaClass.id, initiallyExpanded, targetMethodName]);
 
     const toggleExpansion = async () => {
         const nextExpanded = !expanded;
@@ -497,40 +693,10 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
 
         if (nextExpanded && !showMembers) {
             setShowMembers(true);
-            if (methods.length === 0 && fields.length === 0) {
-                setLoading(true);
-                try {
-                    const [m, f] = await Promise.all([
-                        Promise.resolve(dex_methods(dexfile, javaClass.id)),
-                        Promise.resolve(dex_fields(dexfile, javaClass.id)),
-                    ]);
-                    setMethods(m);
-                    setFields(f);
-                } catch (error) {
-                    console.error('Error loading class members:', error);
-                } finally {
-                    setLoading(false);
-                }
-            }
+            await loadMembers();
         }
     };
 
-    const navigateToClass = async (className: string) => {
-        const dotted = className.replace(/\//g, '.')
-        await expandPackagePathForClass(dotted)
-        const classId = generateClassId(dotted)
-        await waitFor(() => !!document.getElementById(classId), 2000, 50)
-        const el = document.getElementById(classId)
-        if (el) {
-            const header = el.querySelector('.class-header') as HTMLElement | null
-            const content = el.querySelector(':scope > .class-content') as HTMLElement | null
-            if (header && (!content || content.style.display === 'none')) {
-                header.click()
-                await new Promise(r => requestAnimationFrame(() => r(null)))
-            }
-            ;((header || el) as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
-    }
 
     const renderClassSignature = () => {
         const flags = javaClass.access_flags || ''
@@ -544,7 +710,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                 <span
                     className="class-link type-name"
                     style={{ textDecoration: 'underline', cursor: 'pointer' }}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(i) }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onNavigateToClass?.(i) }}
                     title={i}
                 >
                     {i.split('.').pop()}
@@ -563,7 +729,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                         <span
                             className="class-link type-name"
                             style={{ textDecoration: 'underline', cursor: 'pointer' }}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(superName) }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onNavigateToClass?.(superName) }}
                             title={superName}
                         >
                             {superName.split('.').pop()}
@@ -585,8 +751,8 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
     return (
         <div id={generateClassId(javaClass.original_name)} className={[
             "dexclass", expanded ? "expanded" : ""
-        ].join(" ")}>
-            <div className="class-header" onClick={toggleExpansion}>
+        ].join(" ")} style={{ height: initiallyExpanded ? '100%' : 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div className="class-header" onClick={toggleExpansion} style={{ cursor: initiallyExpanded ? 'default' : 'pointer' }}>
                 {javaClass.annotations && javaClass.annotations.length > 0 && (
                     <div className="class-annotations">
                         {javaClass.annotations.map((a, i) => (
@@ -596,7 +762,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                 )}
                 {renderClassSignature()}
             </div>
-            <div style={{ display: expanded && showMembers ? 'block' : 'none', paddingLeft: 16 }} className="class-content">
+            <div ref={contentRef} style={{ display: expanded && showMembers ? 'block' : 'none', paddingLeft: 16, flex: initiallyExpanded ? 1 : 'none', overflowY: initiallyExpanded ? 'auto' : 'visible' }} className="class-content">
                 {loading ? (
                     <div className="loading">Loading members...</div>
                 ) : (
@@ -613,7 +779,7 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                                         <span
                                             className="class-link type-name"
                                             style={{ textDecoration: 'underline', cursor: 'pointer' }}
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToClass(field.type_name) }}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onNavigateToClass?.(field.type_name) }}
                                             title={field.type_name}
                                         >
                                             {typeSimple}
@@ -632,7 +798,12 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
                         )}
                         {/* Methods */}
                         {methods.map(method => (
-                            <DexMethod key={getMethodKey(method as ExtendedJMethod)} method={method as ExtendedJMethod} dexfile={dexfile} />
+                            <DexMethod
+                                key={getMethodKey(method as ExtendedJMethod)}
+                                method={method as ExtendedJMethod}
+                                dexfile={dexfile}
+                                onNavigateToClass={onNavigateToClass}
+                            />
                         ))}
                     </>
                 )}
@@ -642,7 +813,11 @@ function DexClass({ javaClass, dexfile, level }: { javaClass: ExtendedJClass, de
     )
 }
 
-function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint8Array }) {
+function DexMethod({ method, dexfile, onNavigateToClass }: {
+    method: ExtendedJMethod,
+    dexfile: Uint8Array,
+    onNavigateToClass?: (className: string) => void
+}) {
     const [expanded, setExpanded] = useState(false)
     const [instructions, setInstructions] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
@@ -696,7 +871,10 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
                 ) : instructions.length > 0 ? (
                     instructions.map((instruction, i) => (
                         <div key={i} className="instruction-line">
-                            <InstructionLine instruction={instruction} />
+                            <InstructionLine
+                                instruction={instruction}
+                                onNavigateToClass={onNavigateToClass}
+                            />
                         </div>
                     ))
                 ) : (
@@ -708,7 +886,7 @@ function DexMethod({ method, dexfile }: { method: ExtendedJMethod, dexfile: Uint
     )
 }
 
-function InstructionLine({ instruction }: { instruction: string }) {
+function InstructionLine({ instruction, onNavigateToClass }: { instruction: string, onNavigateToClass?: (className: string) => void }) {
     const lineRef = useRef<HTMLDivElement | null>(null)
 
     useEffect(() => {
@@ -721,100 +899,23 @@ function InstructionLine({ instruction }: { instruction: string }) {
             instruction,
             // onMethodClick
             (ref) => {
-                // Run async to allow DOM to update
-                ;(async () => {
-                    // Normalize class name and ensure the package path is expanded so the class exists in DOM
-                    const dottedClass = ref.className.replace(/\//g, '.')
-                    await expandPackagePathForClass(dottedClass)
-                    const classId = generateClassId(dottedClass)
-                    // Wait for class element to appear after expansion
-                    await waitFor(() => !!document.getElementById(classId), 2000, 50)
-                    const classEl = document.getElementById(classId)
-                    if (!classEl) return
-
-                    // Ensure class is expanded so methods can render
-                    const classHeader = classEl.querySelector('.class-header') as HTMLElement | null
-                    const methodsContainer = classEl.children.item(1) as HTMLElement | null
-                    if (classHeader && methodsContainer && methodsContainer.style.display === 'none') {
-                        classHeader.click()
-                    }
-
-                    // Wait for methods to be present (max ~2s)
-                    await waitFor(() => classEl.querySelectorAll('.method').length > 0, 2000, 100)
-
-                    // Find and expand target method
-                    const methodEls = classEl.querySelectorAll('.method')
-                    const target = findBestMethodMatch(methodEls, ref.methodName, ref.parameters)
-                    if (target) {
-                        const headerEl = target.querySelector('.method-header') as HTMLElement | null
-                        const contentEl = target.querySelector('.method-content') as HTMLElement | null
-                        if (headerEl && contentEl && contentEl.style.display === 'none') {
-                            headerEl.click()
-                            // wait one frame for layout after expansion
-                            await new Promise(r => requestAnimationFrame(() => r(null)))
-                        }
-                        ;(headerEl || target).scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        return
-                    }
-
-                    // Fallback: scroll to class
-                    ;(classEl as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
-                })()
+                onNavigateToClass?.(ref.className);
+                // After navigation, we might need to find the method in the new view.
+                // This is slightly complex since DexClass is re-rendering.
+                // We'll handle this in the parent App or by passing down method to scroll to.
             },
             // onClassClick
             (className) => {
-                ;(async () => {
-                    const dotted = className.replace(/\//g, '.')
-                    await expandPackagePathForClass(dotted)
-                    const classId = generateClassId(dotted)
-                    await waitFor(() => !!document.getElementById(classId), 2000, 50)
-                    const el = document.getElementById(classId)
-                    if (el) {
-                        const header = el.querySelector('.class-header') as HTMLElement | null
-                        const content = el.querySelector(':scope > .class-content') as HTMLElement | null
-                        if (header && (!content || content.style.display === 'none')) {
-                            header.click()
-                            await new Promise(r => requestAnimationFrame(() => r(null)))
-                        }
-                        ;((header || el) as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    }
-                })()
+                onNavigateToClass?.(className);
             },
             // onFieldClick
             (fieldRef) => {
-                ;(async () => {
-                    const dottedClass = fieldRef.className.replace(/\//g, '.')
-                    await expandPackagePathForClass(dottedClass)
-                    const classId = generateClassId(dottedClass)
-                    await waitFor(() => !!document.getElementById(classId), 2000, 50)
-                    const classEl = document.getElementById(classId)
-                    if (!classEl) return
-
-                    // Ensure class is expanded so fields render
-                    const classHeader = classEl.querySelector('.class-header') as HTMLElement | null
-                    const contentEl = classEl.children.item(1) as HTMLElement | null
-                    if (classHeader && contentEl && contentEl.style.display === 'none') {
-                        classHeader.click()
-                    }
-
-                    // Wait for fields to be present
-                    await waitFor(() => classEl.querySelectorAll('.field').length > 0, 2000, 100)
-
-                    const fieldId = generateFieldId(dottedClass, fieldRef.fieldName)
-                    const fieldEl = document.getElementById(fieldId)
-                    if (fieldEl) {
-                        fieldEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        return
-                    }
-
-                    // Fallback: scroll to class
-                    ;(classEl as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
-                })()
+                onNavigateToClass?.(fieldRef.className);
             }
         )
 
         lineRef.current.appendChild(fragment)
-    }, [instruction])
+    }, [instruction, onNavigateToClass])
 
     return (
         <div
