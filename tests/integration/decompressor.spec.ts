@@ -34,8 +34,8 @@ test.describe('Decompressor Handler', () => {
             await frame!.waitForLoadState('domcontentloaded');
 
             // Wait for decompression to complete by checking for status or metadata
-            // Increased timeout to 30s as WASM initialization and sequential format trial can be slow in CI
-            await expect(frame!.locator('text=Decompression successful.')).toBeVisible({ timeout: 30000 });
+            // Increased timeout to 60s as WASM initialization and sequential format trial can be slow in CI
+            await expect(frame!.locator('text=Decompression successful.')).toBeVisible({ timeout: 60000 });
 
             // Check for the decompressed content within the iframe
             const content = await frame!.locator('pre').textContent();

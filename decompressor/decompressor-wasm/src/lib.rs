@@ -54,11 +54,10 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
         }
     }
 
-    // Brotli doesn't have a reliable magic header as it's a stream format,
-    // but we can try it as a fallback if other specific matches fail.
+    // Brotli fallback: try it if other specific matches fail.
+    // Brotli does not have a reliable magic header.
     let mut decompressed = Vec::new();
-    let mut d = brotli::Decompressor::new(compressed, 4096);
-    if let Ok(_) = d.read_to_end(&mut decompressed) {
+    if let Ok(_) = brotli::BrotliDecompress(&mut &compressed[..], &mut decompressed) {
         if !decompressed.is_empty() {
             return Ok(decompressed);
         }
