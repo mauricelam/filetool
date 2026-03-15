@@ -4,7 +4,7 @@ import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import { execSync } from 'child_process';
 
-execSync('npm run build --prefix ../lzfse-wasm', { stdio: 'inherit' });
+execSync('npm run build --prefix lzfse-wasm', { stdio: 'inherit' });
 
 const SETTINGS = {
     entryPoints: ['main.tsx', 'worker.ts'],
@@ -21,13 +21,13 @@ const SETTINGS = {
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: '../lzfse-wasm/dist/lzfse.wasm',
-                    to: 'lzfse.wasm',
+                    from: './lzfse-wasm/pkg/lzfse_wasm_bg.wasm',
+                    to: 'lzfse_wasm_bg.wasm',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
                 {
-                    from: '../lzfse-wasm/dist/lzfse.js',
-                    to: 'lzfse.js',
+                    from: './lzfse-wasm/pkg/lzfse_wasm.js',
+                    to: 'lzfse_wasm.js',
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
             ],

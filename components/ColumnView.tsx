@@ -87,7 +87,7 @@ function Column<T>({
             })}
         </div>
     );
-};
+}
 
 /**
  * A reusable column-based file/directory viewer component.
@@ -251,4 +251,3 @@ export function ColumnView<T>({
         </div>
     );
 }
-// target rebuild verify

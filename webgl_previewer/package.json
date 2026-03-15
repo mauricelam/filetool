@@ -1,18 +1,18 @@
 {
-  "name": "@filetool/webgl",
-  "version": "0.1.0",
-  "private": true,
-  "main": "dist/bundle.js",
-  "scripts": {
-    "build": "node build.mjs",
-    "watch": "BUILD_MODE=dev node build.mjs"
-  },
-  "dependencies": {
-    "@types/three": "^0.162.0",
-    "three": "^0.162.0"
-  },
-  "devDependencies": {
-    "esbuild": "^0.27.2",
-    "typescript": "^5.0.0"
-  }
+    "name": "@filetool/webgl",
+    "version": "0.1.0",
+    "private": true,
+    "main": "dist/bundle.js",
+    "scripts": {
+        "build": "node build.mjs",
+        "watch": "BUILD_MODE=dev node build.mjs"
+    },
+    "dependencies": {
+        "@types/three": "^0.162.0",
+        "three": "^0.162.0"
+    },
+    "devDependencies": {
+        "esbuild": "^0.27.2",
+        "typescript": "^5.0.0"
+    }
 }
