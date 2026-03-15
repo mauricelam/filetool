@@ -156,20 +156,20 @@ const DecompressorViewer: React.FC = () => {
             </div>
 
             {file && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                    <div style={{ padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 'bold' }}>Compressed Size</div>
-                        <div style={{ fontSize: '18px', fontWeight: '500' }}>{formatSize(file.size)}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px', fontSize: '14px', color: '#4b5563' }}>
+                    <div style={{ padding: '6px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                        <span style={{ color: '#6b7280', fontWeight: 'bold', marginRight: '6px' }}>Compressed:</span>
+                        <span style={{ fontWeight: '500' }}>{formatSize(file.size)}</span>
                     </div>
                     {decompressedData && (
                         <>
-                            <div style={{ padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 'bold' }}>Decompressed Size</div>
-                                <div style={{ fontSize: '18px', fontWeight: '500' }}>{formatSize(decompressedData.byteLength)}</div>
+                            <div style={{ padding: '6px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                                <span style={{ color: '#6b7280', fontWeight: 'bold', marginRight: '6px' }}>Decompressed:</span>
+                                <span style={{ fontWeight: '500' }}>{formatSize(decompressedData.byteLength)}</span>
                             </div>
-                            <div style={{ padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 'bold' }}>Compression Ratio</div>
-                                <div style={{ fontSize: '18px', fontWeight: '500' }}>{compressionRatio}% savings</div>
+                            <div style={{ padding: '6px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+                                <span style={{ color: '#6b7280', fontWeight: 'bold', marginRight: '6px' }}>Ratio:</span>
+                                <span style={{ fontWeight: '500' }}>{compressionRatio}% savings</span>
                             </div>
                         </>
                     )}
