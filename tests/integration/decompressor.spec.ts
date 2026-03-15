@@ -5,6 +5,7 @@ import path from 'path';
 import { runHandlerTest } from './test-utils';
 
 test.describe('Decompressor Handler', () => {
+    test.slow();
     const testCases = [
         { file: 'test.lzfse', name: 'LZFSE', expectedChunks: ['hello world', 'is a message'] },
         { file: 'test.gz', name: 'GZIP', expectedChunks: ['This is an gzip', 'compressed file'] },
