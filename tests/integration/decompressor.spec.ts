@@ -11,7 +11,7 @@ test.describe('Decompressor Handler', () => {
         { file: 'test.gz', name: 'GZIP', expectedChunks: ['This is an gzip', 'compressed file'] },
         { file: 'test.xz', name: 'XZ', expectedChunks: ['This is a xz', 'pressed file'] },
         { file: 'test.lzma', name: 'LZMA', expectedChunks: ['This is an lzma', 'compressed file'] },
-        { file: 'test.br', name: 'Brotli', expectedChunks: ['This is an brotl', 'compressed fil'] },
+        { file: 'test.br', name: 'Brotli', expectedChunks: ['This is a brotl', 'compressed fil'] },
         { file: 'test.zz', name: 'ZLIB', expectedChunks: ['This is a zlib', 'pressed file'] },
     ];
 
@@ -34,8 +34,7 @@ test.describe('Decompressor Handler', () => {
             await frame!.waitForLoadState('domcontentloaded');
 
             // Wait for decompression to complete by checking for status or metadata
-            // Increased timeout to 60s as WASM initialization and sequential format trial can be slow in CI
-            await expect(frame!.locator('text=Decompression successful.')).toBeVisible({ timeout: 60000 });
+            await expect(frame!.locator('text=Decompression successful.')).toBeVisible({ timeout: 10000 });
 
             // Check for the decompressed content within the iframe
             const content = await frame!.locator('pre').textContent();

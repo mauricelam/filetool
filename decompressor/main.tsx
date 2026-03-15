@@ -142,7 +142,7 @@ const DecompressorViewer: React.FC = () => {
 
     return (
         <div style={{ padding: '20px', fontFamily: 'sans-serif', height: '100%', overflow: 'auto', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
                 <h2 style={{ margin: 0 }}>Decompressor</h2>
                 <div style={{
                     padding: '4px 12px',
