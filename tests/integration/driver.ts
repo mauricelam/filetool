@@ -4,7 +4,7 @@ const handler = params.get('handler');
 const iframeEl = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
 if (handler) {
     iframeEl.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
-    iframeEl.src = `/filetool/${handler}/index.html`;
+    iframeEl.src = `../../${handler}/index.html`;
 }
 
 let fileToProvide: File | null = null;
