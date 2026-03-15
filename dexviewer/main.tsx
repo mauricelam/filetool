@@ -345,7 +345,26 @@ function App({ file }: { file: File }) {
                         <>
                             <Breadcrumbs
                                 className={selectedClass.original_name}
-                                onNavigate={(name) => onNavigateToClass(name)}
+                                onPackageClick={async (path) => {
+                                    setActiveTab('packages');
+                                    await expandPackagePathForClass(path + '.dummy');
+                                    // Find the header for this package and scroll to it
+                                    setTimeout(() => {
+                                        const tree = document.querySelector('.package-tree');
+                                        if (!tree) return;
+                                        const parts = path.split('.');
+                                        const lastPart = parts[parts.length - 1];
+                                        const headers = Array.from(document.querySelectorAll('.package-header')) as HTMLElement[];
+                                        const targetHeader = headers.find(h =>
+                                            (h.querySelector('.package-name')?.textContent || '').trim() === lastPart
+                                        );
+                                        if (targetHeader) {
+                                            targetHeader.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            targetHeader.style.backgroundColor = '#fef08a';
+                                            setTimeout(() => { targetHeader.style.backgroundColor = ''; }, 2000);
+                                        }
+                                    }, 100);
+                                }}
                             />
                             <DexClass
                                 key={selectedClass.id}
@@ -368,14 +387,15 @@ function App({ file }: { file: File }) {
     )
 }
 
-function Breadcrumbs({ className, onNavigate }: { className: string, onNavigate: (name: string) => void }) {
+function Breadcrumbs({ className, onPackageClick }: { className: string, onPackageClick: (path: string) => void }) {
     const parts = className.split('.');
-    const breadcrumbs: { name: string, fullPath: string }[] = [];
+    const breadcrumbs: { name: string, fullPath: string, isPackage: boolean }[] = [];
 
     parts.forEach((part, i) => {
         breadcrumbs.push({
             name: part,
-            fullPath: parts.slice(0, i + 1).join('.')
+            fullPath: parts.slice(0, i + 1).join('.'),
+            isPackage: i < parts.length - 1
         });
     });
 
@@ -387,7 +407,11 @@ function Breadcrumbs({ className, onNavigate }: { className: string, onNavigate:
                     {i > 0 && <span className="breadcrumb-separator">/</span>}
                     <span
                         className={`breadcrumb-item ${i === breadcrumbs.length - 1 ? 'active' : ''}`}
-                        onClick={() => i < breadcrumbs.length - 1 && onNavigate(crumb.fullPath)}
+                        onClick={() => {
+                            if (crumb.isPackage) {
+                                onPackageClick(crumb.fullPath);
+                            }
+                        }}
                     >
                         {crumb.name}
                     </span>
