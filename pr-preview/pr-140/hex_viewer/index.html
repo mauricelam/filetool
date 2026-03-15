@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hex viewer</title>
+    <style>
+@import "binwalk-styles.css";
+
+        html,
+        body,
+        #output,
+        #hexviewer {
+            height: 100%;
+        }
+
+        body {
+            background-color: black;
+            margin: 0;
+            font-family: sans-serif;
+        }
+
+        #hexviewer {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            color: #ddd;
+            line-height: 16px;
+        }
+
+        #hex {
+            padding: 0 8px;
+        }
+
+        #offset {
+            color: #888;
+        }
+
+        .char_ascii {
+            color: #b4d273;
+        }
+
+        .char_unknown {
+            color: #b05279;
+        }
+
+        .hovered {
+            background-color: #444;
+        }
+
+        .selected {
+            background-color: #264f78;
+        }
+
+        .marked {
+            text-decoration: underline;
+            text-decoration-color: #f0ad4e;
+            text-decoration-thickness: 2px;
+        }
+
+        .marked_length {
+            text-decoration-color: #5bc0de;
+        }
+
+        .marked_overflow {
+            text-decoration-color: #ff0000 !important;
+        }
+
+        .preview_marked {
+            text-decoration: underline dashed #aaa !important;
+            text-decoration-thickness: 2px;
+        }
+
+        #inspector {
+            width: 300px;
+            min-width: 200px;
+            background-color: #1e1e1e;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            color: #ccc;
+        }
+
+        #resize-handle {
+            width: 4px;
+            cursor: col-resize;
+            background-color: #333;
+            transition: background-color 0.2s;
+        }
+
+        #resize-handle:hover {
+            background-color: #0e639c;
+        }
+
+        .tab-header {
+            display: flex;
+            background-color: #252526;
+            border-bottom: 1px solid #333;
+            overflow-x: auto;
+            scrollbar-width: none;
+            white-space: nowrap;
+        }
+
+        .tab-header::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tab-button {
+            background: none;
+            border: none;
+            color: #888;
+            padding: 4px 8px;
+            cursor: pointer;
+            outline: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            gap: 2px;
+            position: relative;
+        }
+
+        .tab-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .tab-badge {
+            position: absolute;
+            top: 2px;
+            right: 8px;
+            background-color: #0e639c;
+            color: white;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            font-size: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tab-button:hover {
+            color: #ccc;
+            background-color: #2d2d2d;
+        }
+
+        .tab-button.active {
+            color: #fff;
+            border-bottom: 1px solid #0e639c;
+        }
+
+        .tab-content {
+            padding: 16px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .selection-info {
+            padding: 16px;
+            background-color: #252526;
+            border-bottom: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .selection-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .selection-info-row input {
+            width: 120px;
+            text-align: right;
+        }
+
+        .data-row {
+            align-items: flex-start;
+            gap: 4px;
+        }
+
+        .data-container {
+            width: 100%;
+            text-align: left;
+            margin-left: 0;
+            font-family: monospace;
+            font-size: 11px;
+            background-color: #1a1a1a;
+            padding: 4px;
+            border-radius: 2px;
+            cursor: pointer;
+            min-width: 0;
+            flex: 1 1 0;
+        }
+
+        .data-preview.expanded {
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+
+        .data-preview.single-line {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .clickable-offset {
+            font-family: monospace;
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-color: #555;
+        }
+
+        .clickable-offset:hover {
+            color: #fff;
+            text-decoration-color: #0e639c;
+        }
+
+        .tab-content h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #bbb;
+            text-transform: uppercase;
+        }
+
+        .inspector-row {
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d2d;
+        }
+
+        .inspector-label {
+            color: #aaa;
+        }
+
+        .inspector-value {
+            color: #fff;
+            word-break: break-all;
+            text-align: right;
+            margin-left: 8px;
+        }
+
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        button:hover {
+            background-color: #1177bb;
+        }
+
+        select,
+        input {
+            background-color: #3c3c3c;
+            color: white;
+            border: 1px solid #3c3c3c;
+            padding: 2px;
+            font-size: 12px;
+        }
+
+        .icon-button {
+            padding: 2px 4px;
+            margin-left: 4px;
+            font-size: 10px;
+            line-height: 1;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .marker-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 12px;
+            color: #ddd;
+        }
+
+        .marker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d2d;
+        }
+
+        .analysis-canvas {
+            width: 100%;
+            height: 150px;
+            background-color: #000;
+            border: 1px solid #333;
+            cursor: crosshair;
+        }
+
+        .analysis-label {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .search-match {
+            background-color: #613214;
+            border-bottom: 1px solid #f0ad4e;
+        }
+
+        .search-match.current-match {
+            background-color: #9b4d1c;
+            border: 1px solid #ffcc00;
+        }
+
+        .search-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .search-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-row input[type="text"] {
+            flex: 1;
+        }
+
+        .match-preview {
+            background-color: #000;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 11px;
+            border: 1px solid #333;
+            margin-top: 8px;
+            white-space: pre;
+            overflow-x: auto;
+            color: #888;
+        }
+
+        .match-preview .match-line {
+            color: #ddd;
+        }
+
+        .match-preview .match-highlight {
+            background-color: #9b4d1c;
+            color: #fff;
+        }
+
+        .selection-actions,
+        .marker-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .selection-actions button,
+        .marker-actions button {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            min-width: 60px;
+        }
+
+        .selection-actions button svg {
+            flex-shrink: 0;
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            top: 60px;
+            width: 20px;
+            height: 40px;
+            background-color: #252526;
+            border: 1px solid #333;
+            border-right: none;
+            color: #888;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            z-index: 100;
+            border-radius: 4px 0 0 4px;
+            transition: right 0.2s ease, color 0.2s;
+        }
+
+        .sidebar-toggle:hover {
+            background-color: #2d2d2d;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="output"></div>
+</body>
+<script type="module" src="main.js"></script>
+
+</html>

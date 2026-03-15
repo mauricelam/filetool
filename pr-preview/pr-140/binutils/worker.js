@@ -1,0 +1,1 @@
+import e from"./@binutils-wasm/binutils/index.mjs";self.onmessage=a=>{console.log("Running util",a.data.action,a.data.flags),o(a.data.action,a.data.flags,a.data.buffer,a.data.fileName,n=>{self.postMessage(n)})};async function o(a,n,r,s,i){await(await e(a))({print:i,printErr:t=>i(`ERROR: ${t}`),arguments:[...n,s],preRun:[t=>{t.FS.writeFile(s,new Uint8Array(r))}]})}
