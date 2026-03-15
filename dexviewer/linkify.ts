@@ -95,12 +95,12 @@ export function parseClassReference(reference: string): string | null {
 export function generateMethodId(className: string, methodName: string, parameters: string): string {
     // Clean up the class name (remove array markers and replace special chars)
     const cleanClassName = className
-        .replace(/^\[+L?|;$/g, '')  // Remove array markers and trailing semicolon
+        .replace(/[\[;]/g, '')  // Remove array markers and semicolon
         .replace(/[^a-zA-Z0-9]/g, '_');
         
     const cleanMethodName = methodName.replace(/[^a-zA-Z0-9]/g, '_');
     const cleanParams = parameters
-        .replace(/^\[+L?|;$/g, '')  // Clean up parameters similarly
+        .replace(/[\[;]/g, '')  // Clean up parameters similarly
         .replace(/[^a-zA-Z0-9]/g, '_');
         
     return `method_${cleanClassName}_${cleanMethodName}_${cleanParams}`.toLowerCase();
