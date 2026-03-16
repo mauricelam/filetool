@@ -31,7 +31,7 @@ A handler for Android DEX files that provides parsing and analysis using Rust an
 
 - Built with Rust and compiled to WebAssembly
 - Uses custom Rust library for parsing DEX files
-- Implements the standard `requestFile`/`respondFile` messaging protocol
+- Implements the standard `requestFile`/`respondFile` messaging protocol, including support for multiple files via `additionalFiles`.
 - Processes files entirely in the browser
 - No external dependencies or network requests
 
@@ -155,6 +155,22 @@ Regex matchers used:
 - Method links expand the package path, class, and method, then scroll to the method header.
 - Class links expand the package path and class, then scroll to the class header.
 - Field links expand the package path and class, then scroll directly to the field row when available.
+
+### Multi-DEX Support and Messaging
+
+The DEX viewer supports analyzing multiple DEX files simultaneously. This is typically initiated by an archive viewer (like APK or ZIP viewer).
+
+**Messaging Protocol:**
+
+- **`openFile`**: Sent to the parent to request opening the DEX viewer.
+  - `file`: The primary DEX file.
+  - `additionalFiles` (optional): An array of additional DEX files to load.
+  - `handler`: Set to `'dexviewer'`.
+- **`respondFile`**: Received from the parent with the file data.
+  - `file`: The primary file.
+  - `additionalFiles` (optional): The additional files.
+
+When multiple files are loaded, the viewer aggregates all classes and shows the source DEX file name in the breadcrumbs and search results. Cross-linking between classes in different DEX files is fully supported.
 
 ### Field rendering and navigation
 

@@ -13,13 +13,15 @@ type DexFile struct {
 	bytes []byte
 }
 
-var cachedReader *dextk.Reader
-var cachedBytes []byte
+var cachedReaders []*dextk.Reader
+var cachedBytes [][]byte
 
 func main() {
 	// Create dextk object to store functions
 	dextkObj := map[string]interface{}{
 		"setFileData":           js.FuncOf(setFileData),
+		"addFileData":           js.FuncOf(addFileData),
+		"clearFileData":         js.FuncOf(clearFileData),
 		"searchUsages":          js.FuncOf(searchUsages),
 		"getMethodInstructions": js.FuncOf(getMethodInstructions),
 	}
@@ -32,6 +34,11 @@ func main() {
 }
 
 func setFileData(this js.Value, args []js.Value) any {
+	clearFileData(this, nil)
+	return addFileData(this, args)
+}
+
+func addFileData(this js.Value, args []js.Value) any {
 	array := args[0]
 	dexbytes := make([]byte, array.Length())
 	js.CopyBytesToGo(dexbytes, array)
@@ -42,13 +49,19 @@ func setFileData(this js.Value, args []js.Value) any {
 		return js.ValueOf(err.Error())
 	}
 
-	cachedReader = r
-	cachedBytes = dexbytes
+	cachedReaders = append(cachedReaders, r)
+	cachedBytes = append(cachedBytes, dexbytes)
+	return js.Null()
+}
+
+func clearFileData(this js.Value, args []js.Value) any {
+	cachedReaders = nil
+	cachedBytes = nil
 	return js.Null()
 }
 
 func searchUsages(this js.Value, args []js.Value) any {
-	if cachedReader == nil {
+	if len(cachedReaders) == 0 {
 		return js.ValueOf([]any{})
 	}
 
@@ -59,99 +72,113 @@ func searchUsages(this js.Value, args []js.Value) any {
 	queryLower := strings.ToLower(query)
 	querySlashes := strings.ReplaceAll(queryLower, ".", "/")
 
-	// Optimization: pre-filter string and type IDs
-	matchingStrings := make(map[uint32]bool)
-	for i := uint32(0); i < cachedReader.StringIDCount; i++ {
-		s, err := cachedReader.ReadString(i)
-		if err != nil {
-			continue
-		}
-		sStr := s.String()
-		sLower := strings.ToLower(sStr)
-		if strings.Contains(sLower, queryLower) || strings.Contains(sLower, querySlashes) {
-			matchingStrings[i] = true
-		}
-	}
-
-	matchingTypes := make(map[uint16]bool)
-	for i := uint32(0); i < uint32(cachedReader.TypeIDCount); i++ {
-		t, err := cachedReader.ReadType(i)
-		if err != nil {
-			continue
-		}
-		if matchingStrings[t.DescriptorStringID] {
-			matchingTypes[uint16(i)] = true
-		}
-	}
-
 	var results []any
 
-	for i := uint32(0); i < cachedReader.ClassDefCount; i++ {
-		class, err := cachedReader.ReadClassAndParse(i)
-		if err != nil {
-			continue
-		}
-
-		checkMethods := func(methods []dextk.MethodNode) {
-			for _, method := range methods {
-				if method.CodeOff == 0 {
-					continue
-				}
-
-				code, err := cachedReader.ReadCodeAndParse(method.CodeOff)
-				if err != nil {
-					continue
-				}
-
-				for _, op := range code.Ops {
-					found := false
-					// Use op.String() which is relatively fast and includes all IDs resolved
-					// But we can pre-check some IDs if we had access to them in op.
-					// Since dextk hides some implementation details, string search on disassembly
-					// is currently the most reliable way to match resolved IDs.
-					ins := fmt.Sprintf("  %s", op)
-					insLower := strings.ToLower(ins)
-
-					if strings.Contains(insLower, queryLower) || strings.Contains(insLower, querySlashes) {
-						found = true
-					}
-
-					if found {
-						results = append(results, js.ValueOf(map[string]any{
-							"className":   class.Name.String(),
-							"methodName":  method.Name.String(),
-							"instruction": ins,
-							"classId":     i,
-						}))
-					}
-				}
+	for dexIdx, reader := range cachedReaders {
+		// Optimization: pre-filter string and type IDs
+		matchingStrings := make(map[uint32]bool)
+		for i := uint32(0); i < reader.StringIDCount; i++ {
+			s, err := reader.ReadString(i)
+			if err != nil {
+				continue
+			}
+			sStr := s.String()
+			sLower := strings.ToLower(sStr)
+			if strings.Contains(sLower, queryLower) || strings.Contains(sLower, querySlashes) {
+				matchingStrings[i] = true
 			}
 		}
 
-		checkMethods(class.DirectMethods)
-		checkMethods(class.VirtualMethods)
+		matchingTypes := make(map[uint16]bool)
+		for i := uint32(0); i < uint32(reader.TypeIDCount); i++ {
+			t, err := reader.ReadType(i)
+			if err != nil {
+				continue
+			}
+			if matchingStrings[t.DescriptorStringID] {
+				matchingTypes[uint16(i)] = true
+			}
+		}
+
+		for i := uint32(0); i < reader.ClassDefCount; i++ {
+			class, err := reader.ReadClassAndParse(i)
+			if err != nil {
+				continue
+			}
+
+			checkMethods := func(methods []dextk.MethodNode) {
+				for _, method := range methods {
+					if method.CodeOff == 0 {
+						continue
+					}
+
+					code, err := reader.ReadCodeAndParse(method.CodeOff)
+					if err != nil {
+						continue
+					}
+
+					for _, op := range code.Ops {
+						found := false
+						// Use op.String() which is relatively fast and includes all IDs resolved
+						// But we can pre-check some IDs if we had access to them in op.
+						// Since dextk hides some implementation details, string search on disassembly
+						// is currently the most reliable way to match resolved IDs.
+						ins := fmt.Sprintf("  %s", op)
+						insLower := strings.ToLower(ins)
+
+						if strings.Contains(insLower, queryLower) || strings.Contains(insLower, querySlashes) {
+							found = true
+						}
+
+						if found {
+							results = append(results, js.ValueOf(map[string]any{
+								"className":   class.Name.String(),
+								"methodName":  method.Name.String(),
+								"instruction": ins,
+								"classId":     i,
+								"dexIndex":    dexIdx,
+							}))
+						}
+					}
+				}
+			}
+
+			checkMethods(class.DirectMethods)
+			checkMethods(class.VirtualMethods)
+		}
 	}
 
 	return js.ValueOf(results)
 }
 
 func getMethodInstructions(this js.Value, args []js.Value) any {
-	// Get the class ID from JavaScript
-	classId := args[1].Int()
-	// Get the method name from JavaScript
-	methodName := args[2].String()
-
 	var r *dextk.Reader
-	var err error
+	var classId int
+	var methodName string
 
-	if cachedReader != nil {
-		r = cachedReader
+	if len(args) == 4 {
+		// New signature: (dummy, dexIndex, classId, methodName)
+		dexIdx := args[1].Int()
+		classId = args[2].Int()
+		methodName = args[3].String()
+
+		if dexIdx >= 0 && dexIdx < len(cachedReaders) {
+			r = cachedReaders[dexIdx]
+		} else {
+			fmt.Println("Invalid dex index:", dexIdx)
+			return nil
+		}
 	} else {
+		// Old signature: (dexBytes, classId, methodName)
+		classId = args[1].Int()
+		methodName = args[2].String()
+
 		// Get the Uint8Array from JavaScript
 		array := args[0]
 		// Create Go byte slice and copy data
 		dexbytes := make([]byte, array.Length())
 		js.CopyBytesToGo(dexbytes, array)
+		var err error
 		r, err = dextk.Read(bytes.NewReader(dexbytes))
 		if err != nil {
 			fmt.Println(err)

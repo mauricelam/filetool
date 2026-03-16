@@ -12,6 +12,7 @@ interface FrameData {
     file: File;
     handler: string;
     mime: string;
+    additionalFiles?: File[];
 }
 
 const MAX_IFRAMES = 5;
@@ -39,14 +40,16 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                     id: existingFrame.id,
                     file: activeHandler.file,
                     handler: activeHandler.handler,
-                    mime: activeHandler.magicMime
+                    mime: activeHandler.magicMime,
+                    additionalFiles: (activeHandler as any).additionalFiles
                 };
             } else {
                 newFrame = {
                     id: crypto.randomUUID(),
                     file: activeHandler.file,
                     handler: activeHandler.handler,
-                    mime: activeHandler.magicMime
+                    mime: activeHandler.magicMime,
+                    additionalFiles: (activeHandler as any).additionalFiles
                 };
             }
 
@@ -80,12 +83,29 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                         console.log("Mismatched mime types", file.type, mime);
                     }
                     const fileCopy = new File([file], file.name, { type: mime });
+                    const additionalFiles = matchedFrame.additionalFiles || [];
+                    const transferables = [await file.arrayBuffer()];
+                    for (const f of additionalFiles) {
+                        transferables.push(await f.arrayBuffer());
+                    }
+
                     (e.source as WindowProxy).postMessage(
-                        { action: 'respondFile', file: fileCopy, originalType: file.type },
-                        "/", [await file.arrayBuffer()]);
+                        {
+                            action: 'respondFile',
+                            file: fileCopy,
+                            originalType: file.type,
+                            additionalFiles: additionalFiles
+                        },
+                        "/", transferables);
                 } else if (e.data.action === 'openFile') {
                     console.log('onmessage', e.data);
-                    window.dispatchEvent(new CustomEvent<File[]>("openFiles", { detail: [e.data.file] }));
+                    window.dispatchEvent(new CustomEvent<{ file: File, additionalFiles?: File[], handler?: string } | File[]>("openFiles", {
+                        detail: e.data.additionalFiles ? {
+                            file: e.data.file,
+                            additionalFiles: e.data.additionalFiles,
+                            handler: e.data.handler
+                        } : [e.data.file]
+                    }));
                 }
             }
         };

@@ -181,6 +181,51 @@ function FileViewer({ files, onItemClick }: {
         );
     };
 
+    const getDexFiles = (obj: any): { name: string, content: Uint8Array }[] => {
+        const results: { name: string, content: Uint8Array }[] = [];
+        const find = (o: any) => {
+            for (const key in o) {
+                const item = o[key];
+                if (item instanceof Uint8Array) {
+                    if (key.toLowerCase().endsWith('.dex')) {
+                        results.push({ name: key, content: item });
+                    }
+                } else if (item && typeof item === 'object') {
+                    find(item);
+                }
+            }
+        };
+        find(obj);
+        return results;
+    };
+
+    const handleOpenMultiDex = async () => {
+        const dexFiles = getDexFiles(files);
+
+        if (dexFiles.length === 0) return;
+
+        try {
+            // Sort to have classes.dex first if possible
+            dexFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+            const extractedFiles = dexFiles.map(f => new File([f.content.buffer as ArrayBuffer], f.name));
+            const primaryFile = extractedFiles[0];
+            const additionalFiles = extractedFiles.slice(1);
+
+            window.parent?.postMessage({
+                action: 'openFile',
+                file: primaryFile,
+                additionalFiles: additionalFiles,
+                handler: 'dexviewer'
+            }, "/", [
+                await primaryFile.arrayBuffer(),
+                ...await Promise.all(additionalFiles.map(f => f.arrayBuffer()))
+            ]);
+        } catch (e) {
+            console.error('Error opening multiple DEX files:', e);
+        }
+    };
+
     const renderFilePreview = (file: Uint8Array, path: string[]) => {
         const extractFile = async () => {
             return new File([file.buffer as ArrayBuffer], path[path.length - 1]);
@@ -188,10 +233,29 @@ function FileViewer({ files, onItemClick }: {
         return <PreviewComponent path={path} filePromise={extractFile} />;
     };
 
+    const hasMultipleDex = getDexFiles(files).length > 1;
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0 }}>APK Contents</h3>
+                {hasMultipleDex && (
+                    <button
+                        onClick={handleOpenMultiDex}
+                        style={{
+                            padding: '4px 12px',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            background: '#e0f2fe',
+                            color: '#0369a1',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 500
+                        }}
+                    >
+                        Analyze all DEX files
+                    </button>
+                )}
             </div>
             <ColumnView
                 initialContent={files}
