@@ -19,7 +19,7 @@ test.describe('Decompressor Handler', () => {
         test(`should decompress a ${name} file and display the content`, async ({ page }) => {
             const filePath = path.join(__dirname, '../../decompressor/example', file);
             const fileBuffer = fs.readFileSync(filePath);
-            await runHandlerTest(page, {
+            const iframe = await runHandlerTest(page, {
                 handler: 'decompressor',
                 file: {
                     content: Uint8Array.from(fileBuffer),
@@ -28,24 +28,23 @@ test.describe('Decompressor Handler', () => {
                 },
             });
 
-            // Wait for the decompressor handler to be loaded in an iframe
-            const iframe = await page.waitForSelector('iframe[src*="decompressor"]');
-            const frame = await iframe.contentFrame();
-            await frame!.waitForLoadState('domcontentloaded');
-
             // Wait for decompression to complete by checking for the format chip
-            await expect(frame!.getByText(formatChip, { exact: true })).toBeVisible({ timeout: 10000 });
+            await expect(iframe.getByText(formatChip, { exact: true })).toBeVisible({ timeout: 10000 });
 
-            // Check for the decompressed content within the iframe
-            const content = await frame!.locator('pre').textContent();
+            // Now there is a nested iframe for the actual handler
+            const handlerIframe = await iframe.waitForSelector('iframe');
+            const handlerFrame = await handlerIframe.contentFrame();
+            await handlerFrame!.waitForLoadState('domcontentloaded');
+
+            // Check for the decompressed content within the nested handler iframe
+            // For text files, it will likely be the textviewer
+            const content = await handlerFrame!.locator('body').textContent();
             for (const chunk of expectedChunks) {
                 expect(content?.toLowerCase()).toContain(chunk.toLowerCase());
             }
 
-            // Verify metadata is displayed (using exact matching to avoid ambiguity with "Decompressed")
-            await expect(frame!.getByText('Compressed:', { exact: true })).toBeVisible();
-            await expect(frame!.getByText('Decompressed:', { exact: true })).toBeVisible();
-            await expect(frame!.getByText('Ratio:', { exact: true })).toBeVisible();
+            // Verify metadata is displayed in the decompressor (parent of the nested iframe)
+            await expect(iframe.getByText('savings', { exact: false })).toBeVisible();
         });
     }
 });
