@@ -487,6 +487,18 @@ function Breadcrumbs({ className, dexName, onPackageClick }: { className: string
                     </span>
                 </React.Fragment>
             ))}
+            {parts.length > 1 && (
+                <button
+                    className="show-in-packages-btn"
+                    title="Show in Packages"
+                    onClick={() => onPackageClick(parts.slice(0, -1).join('.'))}
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                </button>
+            )}
         </div>
     );
 }
