@@ -115,6 +115,8 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
     const [apiSearchTerm, setApiSearchTerm] = useState('');
     const [usageResults, setUsageResults] = useState<UsageResult[]>([]);
     const [isSearchingUsages, setIsSearchingUsages] = useState(false);
+    const [isIndexing, setIsIndexing] = useState(false);
+    const [indexMemoryUsage, setIndexMemoryUsage] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState<'packages' | 'search' | 'info'>('packages');
     const resizerRef = useRef<HTMLDivElement | null>(null);
     const [sidebarWidth, setSidebarWidth] = useState(400);
@@ -182,10 +184,17 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                 const worker = new Worker(new URL('./search-worker.js', window.location.href));
                 workerRef.current = worker;
                 worker.onmessage = (e) => {
-                    const { action, results } = e.data;
+                    const { action, results, status, memoryUsage, error } = e.data;
                     if (action === 'searchUsages') {
                         setUsageResults(results || []);
                         setIsSearchingUsages(false);
+                    } else if (action === 'buildIndex') {
+                        setIsIndexing(false);
+                        if (status === 'ok') {
+                            setIndexMemoryUsage(memoryUsage);
+                        } else if (error) {
+                            console.error('Indexing failed:', error);
+                        }
                     }
                 };
 
@@ -234,6 +243,12 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
         if (!apiSearchTerm || !workerRef.current) return;
         setIsSearchingUsages(true);
         workerRef.current.postMessage({ action: 'searchUsages', query: apiSearchTerm });
+    };
+
+    const performIndexing = async () => {
+        if (!workerRef.current) return;
+        setIsIndexing(true);
+        workerRef.current.postMessage({ action: 'buildIndex' });
     };
 
     if (classes.length === 0) {
@@ -369,6 +384,28 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                         </svg>
                                     </button>
+                                </div>
+                                <div style={{ padding: '0 12px 12px', borderBottom: '1px solid #f3f4f6' }}>
+                                    <button
+                                        className="search-button"
+                                        style={{
+                                            width: '100%',
+                                            backgroundColor: indexMemoryUsage !== null ? '#10b981' : '#3b82f6',
+                                            display: 'flex',
+                                            gap: '8px',
+                                            fontSize: '13px'
+                                        }}
+                                        onClick={performIndexing}
+                                        disabled={isIndexing}
+                                    >
+                                        {isIndexing && <div className="spinner-mini" />}
+                                        {indexMemoryUsage !== null ? 'Rebuild Search Index' : 'Build Search Index'}
+                                    </button>
+                                    {indexMemoryUsage !== null && (
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px', textAlign: 'center' }}>
+                                            Index size: {(indexMemoryUsage / 1024 / 1024).toFixed(2)} MB
+                                        </div>
+                                    )}
                                 </div>
                                 <UsageResults
                                     results={usageResults}

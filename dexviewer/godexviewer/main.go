@@ -16,6 +16,22 @@ type DexFile struct {
 var cachedReaders []*dextk.Reader
 var cachedBytes [][]byte
 
+type IndexedMethod struct {
+	Name         string
+	Instructions []string
+}
+
+type IndexedClass struct {
+	Name    string
+	Methods []IndexedMethod
+}
+
+type IndexedDex struct {
+	Classes []IndexedClass
+}
+
+var fullIndex []IndexedDex
+
 func main() {
 	// Create dextk object to store functions
 	dextkObj := map[string]interface{}{
@@ -24,6 +40,8 @@ func main() {
 		"clearFileData":         js.FuncOf(clearFileData),
 		"searchUsages":          js.FuncOf(searchUsages),
 		"getMethodInstructions": js.FuncOf(getMethodInstructions),
+		"buildIndex":            js.FuncOf(buildIndex),
+		"getIndexMemoryUsage":   js.FuncOf(getIndexMemoryUsage),
 	}
 
 	// Export dextk object to JavaScript
@@ -57,7 +75,67 @@ func addFileData(this js.Value, args []js.Value) any {
 func clearFileData(this js.Value, args []js.Value) any {
 	cachedReaders = nil
 	cachedBytes = nil
+	fullIndex = nil
 	return js.Null()
+}
+
+func buildIndex(this js.Value, args []js.Value) any {
+	fullIndex = make([]IndexedDex, len(cachedReaders))
+	for dexIdx, reader := range cachedReaders {
+		dex := IndexedDex{
+			Classes: make([]IndexedClass, reader.ClassDefCount),
+		}
+		for i := uint32(0); i < reader.ClassDefCount; i++ {
+			class, err := reader.ReadClassAndParse(i)
+			if err != nil {
+				continue
+			}
+			indexedClass := IndexedClass{
+				Name: class.Name.String(),
+			}
+
+			processMethods := func(methods []dextk.MethodNode) []IndexedMethod {
+				indexedMethods := make([]IndexedMethod, 0, len(methods))
+				for _, method := range methods {
+					if method.CodeOff == 0 {
+						continue
+					}
+					instructions := getInstructions(reader, method)
+					if instructions != nil {
+						indexedMethods = append(indexedMethods, IndexedMethod{
+							Name:         method.Name.String(),
+							Instructions: instructions,
+						})
+					}
+				}
+				return indexedMethods
+			}
+
+			indexedClass.Methods = append(processMethods(class.DirectMethods), processMethods(class.VirtualMethods)...)
+			dex.Classes[i] = indexedClass
+		}
+		fullIndex[dexIdx] = dex
+	}
+	return js.Null()
+}
+
+func getIndexMemoryUsage(this js.Value, args []js.Value) any {
+	var total uint64
+	for _, dex := range fullIndex {
+		total += 24 // slice header for Classes
+		for _, class := range dex.Classes {
+			total += 16 + uint64(len(class.Name)) // Name string
+			total += 24                           // slice header for Methods
+			for _, method := range class.Methods {
+				total += 16 + uint64(len(method.Name)) // Name string
+				total += 24                            // slice header for Instructions
+				for _, ins := range method.Instructions {
+					total += 16 + uint64(len(ins)) // Instruction string
+				}
+			}
+		}
+	}
+	return js.ValueOf(total)
 }
 
 func searchUsages(this js.Value, args []js.Value) any {
@@ -73,6 +151,28 @@ func searchUsages(this js.Value, args []js.Value) any {
 	querySlashes := strings.ReplaceAll(queryLower, ".", "/")
 
 	var results []any
+
+	if fullIndex != nil {
+		for dexIdx, dex := range fullIndex {
+			for classIdx, class := range dex.Classes {
+				for _, method := range class.Methods {
+					for _, ins := range method.Instructions {
+						insLower := strings.ToLower(ins)
+						if strings.Contains(insLower, queryLower) || strings.Contains(insLower, querySlashes) {
+							results = append(results, js.ValueOf(map[string]any{
+								"className":   class.Name,
+								"methodName":  method.Name,
+								"instruction": ins,
+								"classId":     classIdx,
+								"dexIndex":    dexIdx,
+							}))
+						}
+					}
+				}
+			}
+		}
+		return js.ValueOf(results)
+	}
 
 	for dexIdx, reader := range cachedReaders {
 		// Optimization: pre-filter string and type IDs

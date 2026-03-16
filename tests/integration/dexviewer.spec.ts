@@ -32,7 +32,7 @@ test.describe('DEX Viewer Search', () => {
         // Search is now in sidebar
         const searchInput = iframe.locator('.sidebar .search-input');
         await searchInput.fill('Object');
-        await iframe.locator('.sidebar .search-button').click();
+        await iframe.locator('.sidebar .search-button[title="Search"]').click();
 
         const firstResult = iframe.locator('.usage-item').first();
         await expect(firstResult).toBeVisible({ timeout: 60000 });

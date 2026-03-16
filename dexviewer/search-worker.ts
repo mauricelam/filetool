@@ -76,5 +76,13 @@ self.onmessage = async (e) => {
         } else {
             self.postMessage({ action: 'searchUsages', results: [] });
         }
+    } else if (action === 'buildIndex') {
+        if (godexviewer?.buildIndex) {
+            godexviewer.buildIndex();
+            const memoryUsage = godexviewer.getIndexMemoryUsage();
+            self.postMessage({ action: 'buildIndex', status: 'ok', memoryUsage });
+        } else {
+            self.postMessage({ action: 'buildIndex', error: 'buildIndex not found' });
+        }
     }
 };
