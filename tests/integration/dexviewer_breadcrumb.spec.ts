@@ -26,14 +26,17 @@ test.describe('DEX Viewer Breadcrumb "Show in Packages"', () => {
         const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.package-tree')).toBeVisible({ timeout: 60000 });
 
-        // Search for a class to navigate to it
-        const searchInputSidebar = iframe.locator('.sidebar .search-input').first();
-        await searchInputSidebar.fill('MainActivity');
+        // Switch to API Search tab
+        await iframe.locator('.tab-button:has-text("API Search")').click();
 
-        // Wait for results
-        const classItem = iframe.locator('.class-list-item').first();
-        await expect(classItem).toBeVisible({ timeout: 10000 });
-        await classItem.click();
+        // Search is now in sidebar
+        const searchInput = iframe.locator('.sidebar .search-input');
+        await searchInput.fill('Object');
+        await iframe.locator('.sidebar .search-button').click();
+
+        const firstResult = iframe.locator('.usage-item').first();
+        await expect(firstResult).toBeVisible({ timeout: 60000 });
+        await firstResult.click();
 
         // Verify breadcrumbs are visible
         await expect(iframe.locator('.breadcrumbs')).toBeVisible();
