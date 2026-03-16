@@ -17,9 +17,27 @@ const generateHexdump = (data: ArrayBuffer): string => {
 
 // A simple hex viewer component to display the decompressed data.
 const HexViewer: React.FC<{ data: ArrayBuffer }> = ({ data }) => {
-    const hexString = useMemo(() => generateHexdump(data), [data]);
+    const MAX_HEX_SIZE = 16384; // 16KB
+    const truncated = data.byteLength > MAX_HEX_SIZE;
+    const displayData = useMemo(() => {
+        if (truncated) {
+            return data.slice(0, MAX_HEX_SIZE);
+        }
+        return data;
+    }, [data, truncated]);
 
-    return <pre style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', backgroundColor: '#f5f5f5', padding: '10px', borderRadius: '4px', overflowX: 'auto' }}>{hexString}</pre>;
+    const hexString = useMemo(() => generateHexdump(displayData), [displayData]);
+
+    return (
+        <div>
+            {truncated && (
+                <div style={{ marginBottom: '8px', padding: '8px 12px', backgroundColor: '#fff7ed', color: '#9a3412', border: '1px solid #ffedd5', borderRadius: '6px', fontSize: '14px' }}>
+                    <b>Note:</b> Only the first 16 KB of the decompressed data are shown here. Use "Download" or "Open in Parent" to view the full file.
+                </div>
+            )}
+            <pre style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', backgroundColor: '#f5f5f5', padding: '10px', borderRadius: '4px', overflowX: 'auto', margin: 0 }}>{hexString}</pre>
+        </div>
+    );
 };
 
 const formatSize = (bytes: number) => {
@@ -33,6 +51,7 @@ const formatSize = (bytes: number) => {
 const DecompressorViewer: React.FC = () => {
     const [file, setFile] = useState<File | null>(null);
     const [decompressedData, setDecompressedData] = useState<ArrayBuffer | null>(null);
+    const [compressionType, setCompressionType] = useState<string | null>(null);
     const [status, setStatus] = useState<string>('Initializing...');
     const [worker, setWorker] = useState<Worker | null>(null);
 
@@ -86,7 +105,7 @@ const DecompressorViewer: React.FC = () => {
         setWorker(newWorker);
 
         const handleWorkerMessage = (event: MessageEvent) => {
-            const { type, data, message } = event.data;
+            const { type, data, format, message } = event.data;
             switch (type) {
                 case 'ready':
                     setStatus('Worker is ready. Requesting file...');
@@ -96,7 +115,8 @@ const DecompressorViewer: React.FC = () => {
                     break;
                 case 'done':
                     setDecompressedData(data);
-                    setStatus('Decompression successful.');
+                    setCompressionType(format);
+                    setStatus(''); // Hide success status as requested
                     break;
                 case 'error':
                     setStatus(`Error: ${message}`);
@@ -144,19 +164,26 @@ const DecompressorViewer: React.FC = () => {
         <div style={{ padding: '20px', fontFamily: 'sans-serif', height: '100%', overflow: 'auto', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
                 <h2 style={{ margin: 0 }}>Decompressor</h2>
-                <div style={{
-                    padding: '4px 12px',
-                    borderRadius: '16px',
-                    backgroundColor: status.startsWith('Error') ? '#fee2e2' : '#f3f4f6',
-                    color: status.startsWith('Error') ? '#b91c1c' : '#374151',
-                    fontSize: '14px'
-                }}>
-                    {status}
-                </div>
+                {status && (
+                    <div style={{
+                        padding: '4px 12px',
+                        borderRadius: '16px',
+                        backgroundColor: status.startsWith('Error') ? '#fee2e2' : '#f3f4f6',
+                        color: status.startsWith('Error') ? '#b91c1c' : '#374151',
+                        fontSize: '14px'
+                    }}>
+                        {status}
+                    </div>
+                )}
             </div>
 
             {file && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px', fontSize: '14px', color: '#4b5563' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px', fontSize: '14px', color: '#4b5563', marginTop: '16px' }}>
+                    {compressionType && (
+                        <div style={{ padding: '6px 12px', backgroundColor: '#dcfce7', color: '#166534', borderRadius: '6px', border: '1px solid #bbf7d0', fontWeight: 'bold' }}>
+                            {compressionType}
+                        </div>
+                    )}
                     <div style={{ padding: '6px 12px', backgroundColor: '#f3f4f6', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
                         <span style={{ color: '#6b7280', fontWeight: 'bold', marginRight: '6px' }}>Compressed:</span>
                         <span style={{ fontWeight: '500' }}>{formatSize(file.size)}</span>

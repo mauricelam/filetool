@@ -2,9 +2,18 @@ use wasm_bindgen::prelude::*;
 use lzfse_rust::LzfseDecoder;
 use flate2::read::{GzDecoder, ZlibDecoder};
 use std::io::Read;
+use serde::{Serialize, Deserialize};
+use tsify::Tsify;
+
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct DecompressionResult {
+    pub data: Vec<u8>,
+    pub format: String,
+}
 
 #[wasm_bindgen]
-pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
+pub fn decode(compressed: &[u8]) -> Result<DecompressionResult, JsValue> {
     if compressed.len() < 4 {
         return Err(JsValue::from_str("Input too short"));
     }
@@ -14,7 +23,7 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
         let mut d = GzDecoder::new(compressed);
         let mut decompressed = Vec::new();
         if let Ok(_) = d.read_to_end(&mut decompressed) {
-            return Ok(decompressed);
+            return Ok(DecompressionResult { data: decompressed, format: "GZIP".to_string() });
         }
     }
 
@@ -22,7 +31,7 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
     if compressed.starts_with(&[0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) {
         let mut decompressed = Vec::new();
         if let Ok(_) = lzma_rs::xz_decompress(&mut &compressed[..], &mut decompressed) {
-            return Ok(decompressed);
+            return Ok(DecompressionResult { data: decompressed, format: "XZ".to_string() });
         }
     }
 
@@ -30,7 +39,7 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
     if compressed[0] == 0x5D && compressed[1] == 0x00 && compressed[2] == 0x00 {
         let mut decompressed = Vec::new();
         if let Ok(_) = lzma_rs::lzma_decompress(&mut &compressed[..], &mut decompressed) {
-            return Ok(decompressed);
+            return Ok(DecompressionResult { data: decompressed, format: "LZMA".to_string() });
         }
     }
 
@@ -40,7 +49,7 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
         let mut decompressed = Vec::new();
         if let Ok(_) = decoder.decode_bytes(compressed, &mut decompressed) {
             if !decompressed.is_empty() {
-                return Ok(decompressed);
+                return Ok(DecompressionResult { data: decompressed, format: "LZFSE".to_string() });
             }
         }
     }
@@ -50,7 +59,7 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
         let mut d = ZlibDecoder::new(compressed);
         let mut decompressed = Vec::new();
         if let Ok(_) = d.read_to_end(&mut decompressed) {
-            return Ok(decompressed);
+            return Ok(DecompressionResult { data: decompressed, format: "ZLIB".to_string() });
         }
     }
 
@@ -59,7 +68,7 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
     let mut decompressed = Vec::new();
     if let Ok(_) = brotli::BrotliDecompress(&mut &compressed[..], &mut decompressed) {
         if !decompressed.is_empty() {
-            return Ok(decompressed);
+            return Ok(DecompressionResult { data: decompressed, format: "Brotli".to_string() });
         }
     }
 
@@ -68,7 +77,7 @@ pub fn decode(compressed: &[u8]) -> Result<Vec<u8>, JsValue> {
     let mut decompressed = Vec::new();
     if let Ok(_) = decoder.decode_bytes(compressed, &mut decompressed) {
         if !decompressed.is_empty() {
-            return Ok(decompressed);
+            return Ok(DecompressionResult { data: decompressed, format: "LZFSE".to_string() });
         }
     }
 
