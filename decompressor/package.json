@@ -13,7 +13,8 @@
   "license": "ISC",
   "dependencies": {
     "@filetool/common": "file:../filetool-common",
-    "@filetool/decompressor-wasm": "file:./decompressor-wasm"
+    "@filetool/decompressor-wasm": "file:./decompressor-wasm",
+    "file-type-detector": "file:../file-type-detector"
   },
   "devDependencies": {
     "esbuild": "^0.27.2",
