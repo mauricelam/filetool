@@ -123,13 +123,43 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
     const [targetMethodName, setTargetMethodName] = useState<string | null>(null);
     const workerRef = useRef<Worker | null>(null);
 
-    const onNavigateToClass = (className: string) => {
+    const onNavigateToClass = async (className: string, pushHistory = true) => {
         const dotted = className.replace(/\//g, '.');
         const targetClass = classes.find(c => c.original_name === dotted);
         if (targetClass) {
             setSelectedClass(targetClass);
+            if (pushHistory) {
+                window.history.pushState({ className: targetClass.original_name }, '');
+            }
+
+            // If we're in packages tab, reveal and highlight the class
+            if (activeTab === 'packages') {
+                await expandPackagePathForClass(targetClass.original_name);
+                setTimeout(() => {
+                    const classId = generateClassId(targetClass.original_name);
+                    const classEl = document.getElementById(classId);
+                    if (classEl) {
+                        classEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        const header = classEl.querySelector('.class-header') as HTMLElement;
+                        if (header) {
+                            header.style.backgroundColor = '#fef08a';
+                            setTimeout(() => { header.style.backgroundColor = ''; }, 2000);
+                        }
+                    }
+                }, 100);
+            }
         }
     };
+
+    useEffect(() => {
+        const handlePopState = (e: PopStateEvent) => {
+            if (e.state && e.state.className) {
+                onNavigateToClass(e.state.className, false);
+            }
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [classes, activeTab]);
 
     useEffect(() => {
         async function setup() {
@@ -225,6 +255,7 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
         // Filter by both name and dex index for accuracy
         const targetClass = classes.find(c => c.original_name === className && (c as ExtendedJClass).dex_index === result.dexIndex);
         if (targetClass) {
+            window.history.pushState({ className: targetClass.original_name }, '');
             // Force re-selection if it's the same class to trigger useEffect
             if (selectedClass?.id === targetClass.id && (selectedClass as ExtendedJClass).dex_index === (targetClass as ExtendedJClass).dex_index) {
                 setSelectedClass(null);
@@ -339,7 +370,12 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                                         </svg>
                                     </button>
                                 </div>
-                                <UsageResults results={usageResults} onResultClick={handleResultClick} allFiles={[file, ...additionalFiles]} />
+                                <UsageResults
+                                    results={usageResults}
+                                    onResultClick={handleResultClick}
+                                    allFiles={[file, ...additionalFiles]}
+                                    isLoading={isSearchingUsages}
+                                />
                             </>
                         ) : (
                             <div className="proguard-section">
@@ -373,11 +409,9 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                                     await expandPackagePathForClass(path + '.dummy');
                                     // Find the header for this package and scroll to it
                                     setTimeout(() => {
-                                        const tree = document.querySelector('.package-tree');
-                                        if (!tree) return;
+                                        const headers = Array.from(document.querySelectorAll('.package-header')) as HTMLElement[];
                                         const parts = path.split('.');
                                         const lastPart = parts[parts.length - 1];
-                                        const headers = Array.from(document.querySelectorAll('.package-header')) as HTMLElement[];
                                         const targetHeader = headers.find(h =>
                                             (h.querySelector('.package-name')?.textContent || '').trim() === lastPart
                                         );
@@ -457,8 +491,31 @@ function Breadcrumbs({ className, dexName, onPackageClick }: { className: string
     );
 }
 
-function UsageResults({ results, onResultClick, allFiles }: { results: UsageResult[], onResultClick: (res: UsageResult) => void, allFiles: File[] }) {
+function UsageResults({ results, onResultClick, allFiles, isLoading }: {
+    results: UsageResult[],
+    onResultClick: (res: UsageResult) => void,
+    allFiles: File[],
+    isLoading?: boolean
+}) {
     const [displayLimit, setDisplayLimit] = useState(100);
+
+    if (isLoading) {
+        return (
+            <div className="usage-results-loading" style={{ padding: 20, textAlign: 'center' }}>
+                <div className="spinner" style={{
+                    width: 24,
+                    height: 24,
+                    border: '2px solid #e5e7eb',
+                    borderTopColor: '#3b82f6',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    margin: '0 auto 8px'
+                }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <div style={{ fontSize: 13, color: '#6b7280' }}>Searching...</div>
+            </div>
+        );
+    }
 
     if (results.length === 0) {
         return <div className="usage-results-empty">No usages found.</div>
