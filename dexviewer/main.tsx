@@ -8,6 +8,7 @@ interface ExtendedJMethod extends JMethod {
     parameters: string[];
     return_type: string;
     access_flags: string;
+    dex_index: number;
 }
 
 // Extended shape for JClass to support newly added fields while staying compatible with current bindings
@@ -17,6 +18,7 @@ type ExtendedJClass = JClass & Partial<{
     interfaces: string[];
     annotations: string[];
     method_names: string[];
+    dex_index: number;
 }>;
 
 // Expand the package tree path so the target class node is rendered
@@ -82,14 +84,14 @@ function getTotalClassCount(node: PackageNode): number {
 
 window.addEventListener('message', (e) => {
     if (e.data.action === 'respondFile') {
-        handleFile(e.data.file)
+        handleFile(e.data.file, e.data.additionalFiles || [])
     }
 });
 
 // Generate a stable unique key for a method element
 function getMethodKey(method: ExtendedJMethod): string {
     const params = (method.parameters || []).join(',')
-    return `m|${method.class_id}|${method.name}|${params}|${method.return_type}`
+    return `m|${method.dex_index}|${method.class_id}|${method.name}|${params}|${method.return_type}`
 }
 
 if (window.parent) {
@@ -103,10 +105,11 @@ interface UsageResult {
     methodName: string;
     instruction: string;
     classId: number;
+    dexIndex: number;
 }
 
-function App({ file }: { file: File }) {
-    const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+function App({ file, additionalFiles }: { file: File, additionalFiles: File[] }) {
+    const [filesBytes, setFilesBytes] = useState<Uint8Array[]>([]);
     const [classes, setClasses] = useState<JClass[]>([]);
     const [classSearchTerm, setClassSearchTerm] = useState('');
     const [apiSearchTerm, setApiSearchTerm] = useState('');
@@ -132,10 +135,17 @@ function App({ file }: { file: File }) {
         async function setup() {
             await init();
             init_logger();
-            const bytes = new Uint8Array(await file.arrayBuffer());
-            setFileBytes(bytes);
-            const klasses = dex_classes(bytes);
-            setClasses(klasses);
+
+            const allFiles = [file, ...additionalFiles];
+            const allBytes = await Promise.all(allFiles.map(async f => new Uint8Array(await f.arrayBuffer())));
+            setFilesBytes(allBytes);
+
+            let allClasses: JClass[] = [];
+            for (let i = 0; i < allBytes.length; i++) {
+                const klasses = dex_classes(allBytes[i], i);
+                allClasses = allClasses.concat(klasses);
+            }
+            setClasses(allClasses);
 
             // Initialize worker
             if (!workerRef.current) {
@@ -148,7 +158,11 @@ function App({ file }: { file: File }) {
                         setIsSearchingUsages(false);
                     }
                 };
-                worker.postMessage({ action: 'setFileData', data: bytes });
+
+                worker.postMessage({ action: 'clearFileData' });
+                for (const bytes of allBytes) {
+                    worker.postMessage({ action: 'addFileData', data: bytes });
+                }
             }
 
             // Also initialize Go WASM in main thread for getMethodInstructions
@@ -157,8 +171,11 @@ function App({ file }: { file: File }) {
                 const result = await WebAssembly.instantiateStreaming(fetch('dextk.wasm'), go.importObject)
                 go.run(result.instance)
             }
-            if (window['godexviewer']?.setFileData) {
-                window['godexviewer'].setFileData(bytes);
+            if (window['godexviewer']?.clearFileData) {
+                window['godexviewer'].clearFileData();
+                for (const bytes of allBytes) {
+                    window['godexviewer'].addFileData(bytes);
+                }
             }
         }
         setup();
@@ -169,13 +186,17 @@ function App({ file }: { file: File }) {
                 workerRef.current = null;
             }
         };
-    }, [file]);
+    }, [file, additionalFiles]);
 
     const handleProguardUpload = (mappingContent: string) => {
-        if (fileBytes) {
+        if (filesBytes.length > 0) {
             load_proguard_mapping(mappingContent);
-            const klasses = dex_classes(fileBytes);
-            setClasses(klasses);
+            let allClasses: JClass[] = [];
+            for (let i = 0; i < filesBytes.length; i++) {
+                const klasses = dex_classes(filesBytes[i], i);
+                allClasses = allClasses.concat(klasses);
+            }
+            setClasses(allClasses);
         }
     }
 
@@ -201,10 +222,11 @@ function App({ file }: { file: File }) {
         // Keep active tab as search for context
         // Clean up class name (remove L and ; if present, convert / to .)
         const className = result.className.replace(/^L|;$/g, '').replace(/\//g, '.');
-        const targetClass = classes.find(c => c.original_name === className);
+        // Filter by both name and dex index for accuracy
+        const targetClass = classes.find(c => c.original_name === className && (c as ExtendedJClass).dex_index === result.dexIndex);
         if (targetClass) {
             // Force re-selection if it's the same class to trigger useEffect
-            if (selectedClass?.id === targetClass.id) {
+            if (selectedClass?.id === targetClass.id && (selectedClass as ExtendedJClass).dex_index === (targetClass as ExtendedJClass).dex_index) {
                 setSelectedClass(null);
                 setTimeout(() => {
                     setSelectedClass(targetClass);
@@ -290,9 +312,9 @@ function App({ file }: { file: File }) {
                                 </div>
                                 <ClassTree
                                     classes={filteredClasses}
-                                    dexfile={fileBytes!}
+                                    filesBytes={filesBytes}
                                     onClassSelect={(c) => setSelectedClass(c)}
-                                    selectedClassId={selectedClass?.id}
+                                    selectedClass={selectedClass}
                                 />
                             </div>
                         ) : activeTab === 'search' ? (
@@ -317,7 +339,7 @@ function App({ file }: { file: File }) {
                                         </svg>
                                     </button>
                                 </div>
-                                <UsageResults results={usageResults} onResultClick={handleResultClick} />
+                                <UsageResults results={usageResults} onResultClick={handleResultClick} allFiles={[file, ...additionalFiles]} />
                             </>
                         ) : (
                             <div className="proguard-section">
@@ -345,6 +367,7 @@ function App({ file }: { file: File }) {
                         <>
                             <Breadcrumbs
                                 className={selectedClass.original_name}
+                                dexName={[file, ...additionalFiles][(selectedClass as ExtendedJClass).dex_index!]?.name}
                                 onPackageClick={async (path) => {
                                     setActiveTab('packages');
                                     await expandPackagePathForClass(path + '.dummy');
@@ -367,9 +390,9 @@ function App({ file }: { file: File }) {
                                 }}
                             />
                             <DexClass
-                                key={selectedClass.id}
+                                key={`${(selectedClass as ExtendedJClass).dex_index}-${selectedClass.id}`}
                                 javaClass={selectedClass as ExtendedJClass}
-                                dexfile={fileBytes!}
+                                dexfile={filesBytes[(selectedClass as ExtendedJClass).dex_index!]}
                                 level={0}
                                 initiallyExpanded={true}
                                 onNavigateToClass={onNavigateToClass}
@@ -387,7 +410,7 @@ function App({ file }: { file: File }) {
     )
 }
 
-function Breadcrumbs({ className, onPackageClick }: { className: string, onPackageClick: (path: string) => void }) {
+function Breadcrumbs({ className, dexName, onPackageClick }: { className: string, dexName?: string, onPackageClick: (path: string) => void }) {
     const parts = className.split('.');
     const breadcrumbs: { name: string, fullPath: string, isPackage: boolean }[] = [];
 
@@ -401,6 +424,19 @@ function Breadcrumbs({ className, onPackageClick }: { className: string, onPacka
 
     return (
         <div className="breadcrumbs">
+            {dexName && (
+                <div className="dex-source-tag" style={{
+                    fontSize: '10px',
+                    backgroundColor: '#e5e7eb',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    marginRight: '8px',
+                    color: '#4b5563',
+                    fontWeight: 500
+                }}>
+                    {dexName}
+                </div>
+            )}
             <span className="breadcrumb-icon" style={{ marginRight: 4 }}>📂</span>
             {breadcrumbs.map((crumb, i) => (
                 <React.Fragment key={crumb.fullPath}>
@@ -421,7 +457,7 @@ function Breadcrumbs({ className, onPackageClick }: { className: string, onPacka
     );
 }
 
-function UsageResults({ results, onResultClick }: { results: UsageResult[], onResultClick: (res: UsageResult) => void }) {
+function UsageResults({ results, onResultClick, allFiles }: { results: UsageResult[], onResultClick: (res: UsageResult) => void, allFiles: File[] }) {
     const [displayLimit, setDisplayLimit] = useState(100);
 
     if (results.length === 0) {
@@ -438,7 +474,10 @@ function UsageResults({ results, onResultClick }: { results: UsageResult[], onRe
                 {displayedResults.map((res, i) => (
                     <div key={i} className="usage-item" onClick={() => onResultClick(res)}>
                         <div className="usage-location">
-                            <div className="type-name">{res.className.replace(/^L|;$/g, '').replace(/\//g, '.')}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div className="type-name">{res.className.replace(/^L|;$/g, '').replace(/\//g, '.')}</div>
+                                <div className="dex-source-mini" style={{ fontSize: '10px', color: '#9ca3af' }}>{allFiles[res.dexIndex]?.name}</div>
+                            </div>
                             <div className="method-name">{res.methodName}</div>
                         </div>
                         <div className="usage-instruction">
@@ -481,15 +520,15 @@ function ProguardUploader({ onUpload }: { onUpload: (content: string) => void })
     );
 }
 
-async function handleFile(file: File) {
-    OUTPUT.render(<App file={file} />);
+async function handleFile(file: File, additionalFiles: File[] = []) {
+    OUTPUT.render(<App file={file} additionalFiles={additionalFiles} />);
 }
 
-function ClassTree({ classes, dexfile, onClassSelect, selectedClassId }: {
+function ClassTree({ classes, filesBytes, onClassSelect, selectedClass }: {
     classes: JClass[],
-    dexfile: Uint8Array,
+    filesBytes: Uint8Array[],
     onClassSelect: (c: JClass) => void,
-    selectedClassId?: number
+    selectedClass?: JClass | null
 }) {
     const [packageTree, setPackageTree] = useState<PackageNode | null>(null);
 
@@ -506,10 +545,10 @@ function ClassTree({ classes, dexfile, onClassSelect, selectedClassId }: {
         <div className="package-tree">
             <PackageTreeNode
                 node={packageTree}
-                dexfile={dexfile}
+                filesBytes={filesBytes}
                 level={0}
                 onClassSelect={onClassSelect}
-                selectedClassId={selectedClassId}
+                selectedClass={selectedClass}
             />
         </div>
     );
@@ -561,12 +600,12 @@ function buildPackageTree(classes: JClass[]): PackageNode {
     return root;
 }
 
-function PackageTreeNode({ node, dexfile, level, onClassSelect, selectedClassId }: {
+function PackageTreeNode({ node, filesBytes, level, onClassSelect, selectedClass }: {
     node: PackageNode,
-    dexfile: Uint8Array,
+    filesBytes: Uint8Array[],
     level: number,
     onClassSelect: (c: JClass) => void,
-    selectedClassId?: number
+    selectedClass?: JClass | null
 }) {
     const [isExpanded, setIsExpanded] = useState(node.isExpanded);
     const hasContent = node.classes.length > 0 || node.subPackages.size > 0;
@@ -579,10 +618,10 @@ function PackageTreeNode({ node, dexfile, level, onClassSelect, selectedClassId 
                 {/* Render classes at root level */}
                 {node.classes.map(javaClass => (
                     <ClassListItem
-                        key={javaClass.name}
+                        key={`${(javaClass as ExtendedJClass).dex_index}-${javaClass.name}`}
                         javaClass={javaClass}
                         onSelect={onClassSelect}
-                        isSelected={selectedClassId === javaClass.id}
+                        isSelected={selectedClass?.id === javaClass.id && (selectedClass as ExtendedJClass).dex_index === (javaClass as ExtendedJClass).dex_index}
                     />
                 ))}
                 {/* Render sub-packages sorted alphabetically - start at level 1 for proper hierarchy */}
@@ -592,10 +631,10 @@ function PackageTreeNode({ node, dexfile, level, onClassSelect, selectedClassId 
                         <PackageTreeNode
                             key={subNode.fullPath}
                             node={subNode}
-                            dexfile={dexfile}
+                            filesBytes={filesBytes}
                             level={1}
                             onClassSelect={onClassSelect}
-                            selectedClassId={selectedClassId}
+                            selectedClass={selectedClass}
                         />
                     ))}
             </>
@@ -642,10 +681,10 @@ function PackageTreeNode({ node, dexfile, level, onClassSelect, selectedClassId 
                             <PackageTreeNode
                                 key={subNode.fullPath}
                                 node={subNode}
-                                dexfile={dexfile}
+                                filesBytes={filesBytes}
                                 level={level + 1}
                                 onClassSelect={onClassSelect}
-                                selectedClassId={selectedClassId}
+                                selectedClass={selectedClass}
                             />
                         ))}
                     {/* Render classes in this package, sorted alphabetically */}
@@ -653,10 +692,10 @@ function PackageTreeNode({ node, dexfile, level, onClassSelect, selectedClassId 
                         .sort((a, b) => a.original_name.localeCompare(b.original_name))
                         .map(javaClass => (
                             <ClassListItem
-                                key={javaClass.name}
+                                key={`${(javaClass as ExtendedJClass).dex_index}-${javaClass.name}`}
                                 javaClass={javaClass}
                                 onSelect={onClassSelect}
-                                isSelected={selectedClassId === javaClass.id}
+                                isSelected={selectedClass?.id === javaClass.id && (selectedClass as ExtendedJClass).dex_index === (javaClass as ExtendedJClass).dex_index}
                             />
                         ))}
                 </div>
@@ -711,8 +750,8 @@ function DexClass({ javaClass, dexfile, level, initiallyExpanded = false, onNavi
             setLoading(true);
             try {
                 const [m, f] = await Promise.all([
-                    Promise.resolve(dex_methods(dexfile, javaClass.id)),
-                    Promise.resolve(dex_fields(dexfile, javaClass.id)),
+                    Promise.resolve(dex_methods(dexfile, javaClass.id, javaClass.dex_index!)),
+                    Promise.resolve(dex_fields(dexfile, javaClass.id, javaClass.dex_index!)),
                 ]);
                 setMethods(m);
                 setFields(f);
@@ -904,7 +943,7 @@ function DexMethod({ method, dexfile, onNavigateToClass }: {
                 go.run(result.instance)
             }
             const dextk = window['godexviewer']
-            const methodInstructions = dextk.getMethodInstructions(dexfile, method.class_id, method.name)
+            const methodInstructions = dextk.getMethodInstructions(null, method.dex_index, method.class_id, method.name)
             setInstructions(methodInstructions || [])
         } catch (error) {
             console.error('Error loading instructions:', error)

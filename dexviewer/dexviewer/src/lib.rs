@@ -19,17 +19,18 @@ pub struct JField {
     pub is_static: bool,
     pub class_descriptor: String,
     pub class_id: u32,
+    pub dex_index: usize,
 }
 
 #[wasm_bindgen]
-pub fn dex_fields(bytes: Vec<u8>, class_id: u32) -> Result<JsValue, wasm_bindgen::JsError> {
-    let v = dex_fields_impl(bytes, class_id).map_err(|e| JsError::new(&format!("{e}")))?;
+pub fn dex_fields(bytes: Vec<u8>, class_id: u32, dex_index: usize) -> Result<JsValue, wasm_bindgen::JsError> {
+    let v = dex_fields_impl(bytes, class_id, dex_index).map_err(|e| JsError::new(&format!("{e}")))?;
     Ok(serde_wasm_bindgen::to_value(&v)
         .map_err(|e| JsError::new(&format!("{e}")))?
         .into())
 }
 
-fn dex_fields_impl(bytes: Vec<u8>, class_id: u32) -> Result<Vec<JField>, anyhow::Error> {
+fn dex_fields_impl(bytes: Vec<u8>, class_id: u32, dex_index: usize) -> Result<Vec<JField>, anyhow::Error> {
     let dex = dex::DexReader::from_vec(bytes)?;
     let Some(Ok(class)) = dex.classes().nth(class_id as usize) else {
         return Err(anyhow::anyhow!("Class not found"));
@@ -56,6 +57,7 @@ fn dex_fields_impl(bytes: Vec<u8>, class_id: u32) -> Result<Vec<JField>, anyhow:
             is_static: f.is_static(),
             class_descriptor: class_desc.clone(),
             class_id,
+            dex_index,
         });
     }
 
@@ -79,6 +81,7 @@ pub struct JClass {
     /// The class ID that the Go side uses, which is the index of the class in the iterator.
     /// Note: This is not the same as class.id()
     pub id: u32,
+    pub dex_index: usize,
     /// Space-separated access flags like "public final".
     pub access_flags: String,
     /// Java type name of the superclass, if present.
@@ -97,14 +100,14 @@ pub fn init_logger() {
 }
 
 #[wasm_bindgen]
-pub fn dex_classes(bytes: Vec<u8>) -> Result<JsValue, wasm_bindgen::JsError> {
-    let v = dex_classes_impl(bytes).map_err(|e| JsError::new(&format!("{e}")))?;
+pub fn dex_classes(bytes: Vec<u8>, dex_index: usize) -> Result<JsValue, wasm_bindgen::JsError> {
+    let v = dex_classes_impl(bytes, dex_index).map_err(|e| JsError::new(&format!("{e}")))?;
     Ok(serde_wasm_bindgen::to_value(&v)
         .map_err(|e| JsError::new(&format!("{e}")))?
         .into())
 }
 
-fn dex_classes_impl(bytes: Vec<u8>) -> Result<Vec<JClass>, anyhow::Error> {
+fn dex_classes_impl(bytes: Vec<u8>, dex_index: usize) -> Result<Vec<JClass>, anyhow::Error> {
     let dex = dex::DexReader::from_vec(bytes)?;
     let mapper_guard = PROGUARD_MAPPER.lock().unwrap();
     let mapper = mapper_guard.as_ref();
@@ -169,6 +172,7 @@ fn dex_classes_impl(bytes: Vec<u8>) -> Result<Vec<JClass>, anyhow::Error> {
                     original_name,
                     descriptor: c.jtype().type_descriptor().to_string(),
                     id: i as u32,
+                    dex_index,
                     access_flags,
                     super_name,
                     interfaces,
@@ -187,20 +191,21 @@ pub struct JMethod {
     pub name: String,
     pub class_descriptor: String,
     pub class_id: u32,
+    pub dex_index: usize,
     pub parameters: Vec<String>,
     pub return_type: String,
     pub access_flags: String,
 }
 
 #[wasm_bindgen]
-pub fn dex_methods(bytes: Vec<u8>, class_id: u32) -> Result<JsValue, wasm_bindgen::JsError> {
-    let v = dex_methods_impl(bytes, class_id).map_err(|e| JsError::new(&format!("{e}")))?;
+pub fn dex_methods(bytes: Vec<u8>, class_id: u32, dex_index: usize) -> Result<JsValue, wasm_bindgen::JsError> {
+    let v = dex_methods_impl(bytes, class_id, dex_index).map_err(|e| JsError::new(&format!("{e}")))?;
     Ok(serde_wasm_bindgen::to_value(&v)
         .map_err(|e| JsError::new(&format!("{e}")))?
         .into())
 }
 
-fn dex_methods_impl(bytes: Vec<u8>, class_id: u32) -> Result<Vec<JMethod>, anyhow::Error> {
+fn dex_methods_impl(bytes: Vec<u8>, class_id: u32, dex_index: usize) -> Result<Vec<JMethod>, anyhow::Error> {
     let dex = dex::DexReader::from_vec(bytes)?;
     let Some(Ok(class)) = dex.classes().nth(class_id as usize) else {
         return Err(anyhow::anyhow!("Class not found"));
@@ -233,6 +238,7 @@ fn dex_methods_impl(bytes: Vec<u8>, class_id: u32) -> Result<Vec<JMethod>, anyho
                 name: m.name().to_string(),
                 class_descriptor: class.jtype().type_descriptor().to_string(),
                 class_id: class_id,
+                dex_index,
                 parameters,
                 return_type,
                 access_flags,

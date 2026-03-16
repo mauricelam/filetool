@@ -82,8 +82,18 @@ export function App() {
     }, [files]);
 
     useEffect(() => {
-        const handleOpenFile = (e: CustomEvent<File[]>) => {
-            handleAddFiles(e.detail);
+        const handleOpenFile = (e: CustomEvent<File[] | { file: File, additionalFiles?: File[], handler?: string }>) => {
+            if (Array.isArray(e.detail)) {
+                handleAddFiles(e.detail);
+            } else {
+                const { file, additionalFiles, handler } = e.detail;
+                setFiles(cur => [...cur, file]);
+                setActiveHandlers(cur => [
+                    ...cur,
+                    handler ? { file, handler, magicMime: file.type || 'application/octet-stream', additionalFiles } as any : undefined
+                ]);
+                setPinnedHandlers(cur => [...cur, []]);
+            }
         }
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
         return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)

@@ -59,6 +59,16 @@ self.onmessage = async (e) => {
             godexviewer.setFileData(data);
         }
         self.postMessage({ action: 'setFileData', status: 'ok' });
+    } else if (action === 'addFileData') {
+        if (godexviewer?.addFileData) {
+            godexviewer.addFileData(data);
+        }
+        self.postMessage({ action: 'addFileData', status: 'ok' });
+    } else if (action === 'clearFileData') {
+        if (godexviewer?.clearFileData) {
+            godexviewer.clearFileData();
+        }
+        self.postMessage({ action: 'clearFileData', status: 'ok' });
     } else if (action === 'searchUsages') {
         if (godexviewer?.searchUsages) {
             const results = godexviewer.searchUsages(query);
