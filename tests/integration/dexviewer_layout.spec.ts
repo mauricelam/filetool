@@ -32,7 +32,7 @@ test.describe('DEX Viewer Layout', () => {
         // Search in sidebar
         const searchInput = iframe.locator('.sidebar .search-input');
         await searchInput.fill('Object');
-        await iframe.locator('.sidebar .search-button').click();
+        await iframe.locator('.sidebar .search-button[title="Search"]').click();
 
         const firstResult = iframe.locator('.usage-item').first();
         await expect(firstResult).toBeVisible({ timeout: 60000 });
@@ -183,7 +183,7 @@ test.describe('DEX Viewer Layout', () => {
         const iframe = page.frameLocator('#file-handler-iframe');
         await iframe.locator('.tab-button:has-text("API Search")').click();
         await iframe.locator('.sidebar .search-input').fill('Object');
-        await iframe.locator('.sidebar .search-button').click();
+        await iframe.locator('.sidebar .search-button[title="Search"]').click();
 
         const location = iframe.locator('.usage-location').first();
         await expect(location).toBeVisible({ timeout: 60000 });
