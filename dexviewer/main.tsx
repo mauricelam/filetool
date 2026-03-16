@@ -34,17 +34,33 @@ async function expandPackagePathForClass(fullClassName: string): Promise<void> {
 
     // Start at the currently rendered container (root tree)
     let container: Element | null = tree
-    for (const part of packageParts) {
+    let currentPartIndex = 0;
+    while (currentPartIndex < packageParts.length) {
         if (!container) break
-        // Find the package header with the given name within the current container
+        // Find the package header within the current container
         const headers = Array.from(container.querySelectorAll('.package-node > .package-header')) as HTMLElement[]
-        const header = headers.find(h => (h.querySelector('.package-name')?.textContent || '').trim() === part)
-        if (!header) break
 
-        const node = header.parentElement as HTMLElement
+        let foundHeader: HTMLElement | null = null;
+        let consumedParts = 0;
+
+        // Try to match as many parts as possible (for collapsed nodes like android.content)
+        for (let i = packageParts.length; i > currentPartIndex; i--) {
+            const candidate = packageParts.slice(currentPartIndex, i).join('.');
+            const header = headers.find(h => (h.querySelector('.package-name')?.textContent || '').trim() === candidate);
+            if (header) {
+                foundHeader = header;
+                consumedParts = i - currentPartIndex;
+                break;
+            }
+        }
+
+        if (!foundHeader) break;
+        currentPartIndex += consumedParts;
+
+        const node = foundHeader.parentElement as HTMLElement
         let content = node.querySelector(':scope > .package-content') as HTMLElement | null
         if (!content) {
-            header.click()
+            foundHeader.click()
             // Wait until this node's content renders
             await waitFor(() => !!node.querySelector(':scope > .package-content'), 2000, 50)
             content = node.querySelector(':scope > .package-content') as HTMLElement | null
@@ -411,16 +427,25 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                                     setTimeout(() => {
                                         const headers = Array.from(document.querySelectorAll('.package-header')) as HTMLElement[];
                                         const parts = path.split('.');
-                                        const lastPart = parts[parts.length - 1];
-                                        const targetHeader = headers.find(h =>
-                                            (h.querySelector('.package-name')?.textContent || '').trim() === lastPart
-                                        );
+
+                                        // Look for a header that matches the end of the path
+                                        let targetHeader: HTMLElement | null = null;
+                                        for (let i = 0; i < parts.length; i++) {
+                                            const suffix = parts.slice(i).join('.');
+                                            targetHeader = headers.find(h => (h.querySelector('.package-name')?.textContent || '').trim() === suffix) || null;
+                                            if (targetHeader) break;
+                                        }
+
                                         if (targetHeader) {
                                             targetHeader.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                             targetHeader.style.backgroundColor = '#fef08a';
                                             setTimeout(() => { targetHeader.style.backgroundColor = ''; }, 2000);
                                         }
                                     }, 100);
+                                }}
+                                onShowInPackages={async () => {
+                                    setActiveTab('packages');
+                                    await onNavigateToClass(selectedClass.original_name, false);
                                 }}
                             />
                             <DexClass
@@ -444,7 +469,12 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
     )
 }
 
-function Breadcrumbs({ className, dexName, onPackageClick }: { className: string, dexName?: string, onPackageClick: (path: string) => void }) {
+function Breadcrumbs({ className, dexName, onPackageClick, onShowInPackages }: {
+    className: string,
+    dexName?: string,
+    onPackageClick: (path: string) => void,
+    onShowInPackages?: () => void
+}) {
     const parts = className.split('.');
     const breadcrumbs: { name: string, fullPath: string, isPackage: boolean }[] = [];
 
@@ -491,10 +521,14 @@ function Breadcrumbs({ className, dexName, onPackageClick }: { className: string
                 <button
                     className="show-in-packages-btn"
                     title="Show in Packages"
-                    onClick={() => onPackageClick(parts.slice(0, -1).join('.'))}
+                    onClick={() => onShowInPackages ? onShowInPackages() : onPackageClick(parts.slice(0, -1).join('.'))}
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <line x1="12" y1="1" x2="12" y2="5"></line>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="1" y1="12" x2="5" y2="12"></line>
+                        <line x1="19" y1="12" x2="23" y2="12"></line>
                         <circle cx="12" cy="12" r="3"></circle>
                     </svg>
                 </button>
@@ -665,6 +699,22 @@ function buildPackageTree(classes: JClass[]): PackageNode {
         // Add class to the final package node
         currentNode.classes.push(javaClass);
     });
+
+    // Collapse single-child package nodes
+    const collapseNodes = (node: PackageNode) => {
+        for (const [name, subPackage] of node.subPackages) {
+            collapseNodes(subPackage);
+            if (subPackage.subPackages.size === 1 && subPackage.classes.length === 0) {
+                const childName = subPackage.subPackages.keys().next().value!;
+                const childPackage = subPackage.subPackages.get(childName)!;
+                const combinedName = `${subPackage.name}.${childName}`;
+                node.subPackages.delete(name);
+                childPackage.name = combinedName;
+                node.subPackages.set(combinedName, childPackage);
+            }
+        }
+    };
+    collapseNodes(root);
 
     return root;
 }
@@ -986,7 +1036,7 @@ function DexClass({ javaClass, dexfile, level, initiallyExpanded = false, onNavi
                         ))}
                     </>
                 )}
-                <div className="brace" style={{ marginLeft: -16 }}>{'}'}</div>
+                <div className="brace" style={{ marginLeft: -16, marginTop: 8, paddingBottom: 16 }}>{'}'}</div>
             </div>
         </div>
     )
