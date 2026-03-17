@@ -16,6 +16,17 @@ type DexFile struct {
 var cachedReaders []*dextk.Reader
 var cachedBytes [][]byte
 
+type IndexEntry struct {
+	dexIdx           int
+	classId          uint32
+	className        string
+	methodName       string
+	instruction      string
+	instructionLower string
+}
+
+var searchIndex []IndexEntry
+
 func main() {
 	// Create dextk object to store functions
 	dextkObj := map[string]interface{}{
@@ -24,6 +35,8 @@ func main() {
 		"clearFileData":         js.FuncOf(clearFileData),
 		"searchUsages":          js.FuncOf(searchUsages),
 		"getMethodInstructions": js.FuncOf(getMethodInstructions),
+		"buildIndex":            js.FuncOf(buildIndex),
+		"getIndexMemoryUsage":   js.FuncOf(getIndexMemoryUsage),
 	}
 
 	// Export dextk object to JavaScript
@@ -57,7 +70,63 @@ func addFileData(this js.Value, args []js.Value) any {
 func clearFileData(this js.Value, args []js.Value) any {
 	cachedReaders = nil
 	cachedBytes = nil
+	searchIndex = nil
 	return js.Null()
+}
+
+func buildIndex(this js.Value, args []js.Value) any {
+	searchIndex = nil
+	for dexIdx, reader := range cachedReaders {
+		for i := uint32(0); i < reader.ClassDefCount; i++ {
+			class, err := reader.ReadClassAndParse(i)
+			if err != nil {
+				continue
+			}
+			className := class.Name.String()
+
+			addMethods := func(methods []dextk.MethodNode) {
+				for _, method := range methods {
+					if method.CodeOff == 0 {
+						continue
+					}
+					methodName := method.Name.String()
+
+					code, err := reader.ReadCodeAndParse(method.CodeOff)
+					if err != nil {
+						continue
+					}
+
+					for _, op := range code.Ops {
+						ins := fmt.Sprintf("  %s", op)
+						searchIndex = append(searchIndex, IndexEntry{
+							dexIdx:           dexIdx,
+							classId:          i,
+							className:        className,
+							methodName:       methodName,
+							instruction:      ins,
+							instructionLower: strings.ToLower(ins),
+						})
+					}
+				}
+			}
+			addMethods(class.DirectMethods)
+			addMethods(class.VirtualMethods)
+		}
+	}
+	return js.Null()
+}
+
+func getIndexMemoryUsage(this js.Value, args []js.Value) any {
+	var totalSize uintptr
+	for _, entry := range searchIndex {
+		totalSize += uintptr(len(entry.className))
+		totalSize += uintptr(len(entry.methodName))
+		totalSize += uintptr(len(entry.instruction))
+		totalSize += uintptr(len(entry.instructionLower))
+		totalSize += 48 // approximate overhead per struct
+	}
+	// Return in MB
+	return js.ValueOf(float64(totalSize) / 1024 / 1024)
 }
 
 func searchUsages(this js.Value, args []js.Value) any {
@@ -74,6 +143,22 @@ func searchUsages(this js.Value, args []js.Value) any {
 
 	var results []any
 
+	if len(searchIndex) > 0 {
+		for _, entry := range searchIndex {
+			if strings.Contains(entry.instructionLower, queryLower) || strings.Contains(entry.instructionLower, querySlashes) {
+				results = append(results, js.ValueOf(map[string]any{
+					"className":   entry.className,
+					"methodName":  entry.methodName,
+					"instruction": entry.instruction,
+					"classId":     entry.classId,
+					"dexIndex":    entry.dexIdx,
+				}))
+			}
+		}
+		return js.ValueOf(results)
+	}
+
+	// Fallback to slow search if index not built
 	for dexIdx, reader := range cachedReaders {
 		// Optimization: pre-filter string and type IDs
 		matchingStrings := make(map[uint32]bool)
@@ -118,19 +203,10 @@ func searchUsages(this js.Value, args []js.Value) any {
 					}
 
 					for _, op := range code.Ops {
-						found := false
-						// Use op.String() which is relatively fast and includes all IDs resolved
-						// But we can pre-check some IDs if we had access to them in op.
-						// Since dextk hides some implementation details, string search on disassembly
-						// is currently the most reliable way to match resolved IDs.
 						ins := fmt.Sprintf("  %s", op)
 						insLower := strings.ToLower(ins)
 
 						if strings.Contains(insLower, queryLower) || strings.Contains(insLower, querySlashes) {
-							found = true
-						}
-
-						if found {
 							results = append(results, js.ValueOf(map[string]any{
 								"className":   class.Name.String(),
 								"methodName":  method.Name.String(),

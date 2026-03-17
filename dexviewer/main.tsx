@@ -135,6 +135,8 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
     const [apiSearchTerm, setApiSearchTerm] = useState('');
     const [usageResults, setUsageResults] = useState<UsageResult[]>([]);
     const [isSearchingUsages, setIsSearchingUsages] = useState(false);
+    const [isIndexing, setIsIndexing] = useState(false);
+    const [indexMemoryUsage, setIndexMemoryUsage] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState<'packages' | 'search' | 'info'>('packages');
     const resizerRef = useRef<HTMLDivElement | null>(null);
     const [sidebarWidth, setSidebarWidth] = useState(400);
@@ -199,10 +201,15 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                 const worker = new Worker(new URL('./search-worker.js', window.location.href));
                 workerRef.current = worker;
                 worker.onmessage = (e) => {
-                    const { action, results } = e.data;
+                    const { action, results, usage } = e.data;
                     if (action === 'searchUsages') {
                         setUsageResults(results || []);
                         setIsSearchingUsages(false);
+                    } else if (action === 'buildIndex') {
+                        setIsIndexing(false);
+                        worker.postMessage({ action: 'getIndexMemoryUsage' });
+                    } else if (action === 'getIndexMemoryUsage') {
+                        setIndexMemoryUsage(usage);
                     }
                 };
 
@@ -251,6 +258,12 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
         if (!apiSearchTerm || !workerRef.current) return;
         setIsSearchingUsages(true);
         workerRef.current.postMessage({ action: 'searchUsages', query: apiSearchTerm });
+    };
+
+    const buildIndex = () => {
+        if (!workerRef.current) return;
+        setIsIndexing(true);
+        workerRef.current.postMessage({ action: 'buildIndex' });
     };
 
     if (classes.length === 0) {
@@ -380,13 +393,57 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                                             }
                                         }}
                                     />
-                                    <button className="search-button" onClick={performUsageSearch} disabled={isSearchingUsages} title="Search">
+                                    <button className="search-button" onClick={performUsageSearch} disabled={isSearchingUsages || isIndexing} title="Search">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <circle cx="11" cy="11" r="8"></circle>
                                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                         </svg>
                                     </button>
                                 </div>
+                                <div style={{ padding: '0 12px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #e5e7eb' }}>
+                                    {indexMemoryUsage === null ? (
+                                        <button
+                                            onClick={buildIndex}
+                                            disabled={isIndexing}
+                                            style={{
+                                                fontSize: 11,
+                                                padding: '4px 8px',
+                                                backgroundColor: '#3b82f6',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: 4,
+                                                cursor: isIndexing ? 'default' : 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 6
+                                            }}
+                                        >
+                                            {isIndexing && <div className="spinner-mini" />}
+                                            Build Search Index
+                                        </button>
+                                    ) : (
+                                        <div style={{ fontSize: 11, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                <polyline points="22 4 12 14.01 9 11.01" />
+                                            </svg>
+                                            Indexed ({indexMemoryUsage.toFixed(1)} MB)
+                                        </div>
+                                    )}
+                                    {isIndexing && (
+                                        <div style={{ fontSize: 11, color: '#6b7280' }}>Building index...</div>
+                                    )}
+                                </div>
+                                <style>{`
+                                    .spinner-mini {
+                                        width: 10px;
+                                        height: 10px;
+                                        border: 2px solid rgba(255,255,255,0.3);
+                                        border-top-color: white;
+                                        border-radius: 50%;
+                                        animation: spin 0.8s linear infinite;
+                                    }
+                                `}</style>
                                 <UsageResults
                                     results={usageResults}
                                     onResultClick={handleResultClick}

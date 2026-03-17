@@ -76,5 +76,16 @@ self.onmessage = async (e) => {
         } else {
             self.postMessage({ action: 'searchUsages', results: [] });
         }
+    } else if (action === 'buildIndex') {
+        if (godexviewer?.buildIndex) {
+            godexviewer.buildIndex();
+        }
+        self.postMessage({ action: 'buildIndex', status: 'ok' });
+    } else if (action === 'getIndexMemoryUsage') {
+        let usage = 0;
+        if (godexviewer?.getIndexMemoryUsage) {
+            usage = godexviewer.getIndexMemoryUsage();
+        }
+        self.postMessage({ action: 'getIndexMemoryUsage', usage });
     }
 };
