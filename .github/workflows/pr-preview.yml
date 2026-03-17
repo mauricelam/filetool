@@ -64,13 +64,21 @@ jobs:
         run: |
           mkdir -p deploy/filetool
           cp -r dist/* deploy/filetool/
+          cat <<EOF > deploy/_headers
+          /filetool/ffmpeg/*
+            Cross-Origin-Opener-Policy: same-origin
+            Cross-Origin-Embedder-Policy: require-corp
+          EOF
+          cat <<EOF > deploy/_redirects
+          / /filetool/ 302
+          EOF
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy deploy --project-name=filetool --branch=${{ github.head_ref }}
+          command: pages deploy deploy --project-name=filetool --branch=${{ github.head_ref }} --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
