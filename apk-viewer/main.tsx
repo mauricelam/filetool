@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, set_system_resources } from './apk-wasm-bindings/pkg'
+import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata } from './apk-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
@@ -8,6 +8,7 @@ import { PreviewComponent } from '../components/PreviewComponent';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
+let systemResources: Uint8Array | null = null;
 
 const initializeWasm = async () => {
     if (!wasmInitialized) {
@@ -16,8 +17,8 @@ const initializeWasm = async () => {
 
             // Load system resources
             const response = await fetch('android.arsc');
-            const arscBytes = new Uint8Array(await response.arrayBuffer());
-            set_system_resources(arscBytes);
+            if (!response.ok) throw new Error('Failed to fetch android.arsc');
+            systemResources = new Uint8Array(await response.arrayBuffer());
 
             wasmInitialized = true;
         } catch (error) {
@@ -77,9 +78,10 @@ function App() {
         if (!wasmInitialized) {
             await initializeWasm();
         }
+        if (!systemResources) throw new Error("System resources not loaded");
         const fileBytes = new Uint8Array(await file.arrayBuffer());
 
-        const decoded = decode_apk(fileBytes)
+        const decoded = decode_apk(fileBytes, systemResources)
         const tree = pathToTree(decoded.files.map(([path, content]) => [path, new Uint8Array(content)] as any))
         setFileTree(tree);
         setMetadata(decoded.metadata);
@@ -89,7 +91,8 @@ function App() {
     const handleItemClick = (level: number, key: string, content: any) => {
         // Check if it's an ARSC file
         if (key.endsWith('.arsc') && content instanceof Uint8Array) {
-            const resources = extract_arsc(content);
+            if (!systemResources) throw new Error("System resources not loaded");
+            const resources = extract_arsc(content, systemResources);
             setResources(resources);
             setView('resource');
         }

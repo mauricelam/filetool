@@ -1,11 +1,12 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, extract_arsc, decode_xml, set_system_resources } from './abxml-wasm-bindings/pkg'
+import init, { ArscResource, extract_arsc, decode_xml } from './abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
+let systemResources: Uint8Array | null = null;
 
 const initializeWasm = async () => {
     if (!wasmInitialized) {
@@ -14,8 +15,8 @@ const initializeWasm = async () => {
 
             // Load system resources
             const response = await fetch('android.arsc');
-            const arscBytes = new Uint8Array(await response.arrayBuffer());
-            set_system_resources(arscBytes);
+            if (!response.ok) throw new Error('Failed to fetch android.arsc');
+            systemResources = new Uint8Array(await response.arrayBuffer());
 
             wasmInitialized = true;
         } catch (error) {
@@ -59,10 +60,12 @@ function App() {
         }
         const fileBytes = new Uint8Array(await file.arrayBuffer());
 
+        if (!systemResources) throw new Error("System resources not loaded");
+
         // Try standalone ARSC
         if (file.name.endsWith('.arsc')) {
             try {
-                const resources = extract_arsc(fileBytes);
+                const resources = extract_arsc(fileBytes, systemResources);
                 setResources(resources);
                 setView('resource');
                 return;
@@ -73,7 +76,7 @@ function App() {
 
         // Try standalone XML
         try {
-            const xml = decode_xml(fileBytes);
+            const xml = decode_xml(fileBytes, systemResources);
             setXmlContent(xml);
             setView('xml');
         } catch (e) {
@@ -81,7 +84,7 @@ function App() {
             // If it failed and we haven't tried ARSC yet
             if (!file.name.endsWith('.arsc')) {
                 try {
-                    const resources = extract_arsc(fileBytes);
+                    const resources = extract_arsc(fileBytes, systemResources);
                     setResources(resources);
                     setView('resource');
                     return;
