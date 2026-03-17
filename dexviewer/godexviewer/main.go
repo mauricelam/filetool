@@ -16,18 +16,50 @@ type DexFile struct {
 var cachedReaders []*dextk.Reader
 var cachedBytes [][]byte
 
+type StringPool struct {
+	Strings []string
+	Lowers  []string
+	Lookup  map[string]uint32
+}
+
+func (p *StringPool) GetID(s string) uint32 {
+	if id, ok := p.Lookup[s]; ok {
+		return id
+	}
+	id := uint32(len(p.Strings))
+	p.Strings = append(p.Strings, s)
+	p.Lowers = append(p.Lowers, strings.ToLower(s))
+	if p.Lookup == nil {
+		p.Lookup = make(map[string]uint32)
+	}
+	p.Lookup[s] = id
+	return id
+}
+
+func (p *StringPool) Clear() {
+	p.Strings = nil
+	p.Lowers = nil
+	p.Lookup = nil
+}
+
+var globalStringPool StringPool
+
 type IndexedMethod struct {
-	Name         string
-	Instructions []string
+	NameID           uint32
+	InstructionStart uint32
+	InstructionEnd   uint32
 }
 
 type IndexedClass struct {
-	Name    string
-	Methods []IndexedMethod
+	NameID      uint32
+	MethodStart uint32
+	MethodEnd   uint32
 }
 
 type IndexedDex struct {
-	Classes []IndexedClass
+	Classes      []IndexedClass
+	Methods      []IndexedMethod
+	Instructions []uint32
 }
 
 var fullIndex []IndexedDex
@@ -76,65 +108,93 @@ func clearFileData(this js.Value, args []js.Value) any {
 	cachedReaders = nil
 	cachedBytes = nil
 	fullIndex = nil
+	globalStringPool.Clear()
 	return js.Null()
 }
 
 func buildIndex(this js.Value, args []js.Value) any {
+	globalStringPool.Clear()
 	fullIndex = make([]IndexedDex, len(cachedReaders))
+
 	for dexIdx, reader := range cachedReaders {
 		dex := IndexedDex{
-			Classes: make([]IndexedClass, reader.ClassDefCount),
+			Classes:      make([]IndexedClass, reader.ClassDefCount),
+			Methods:      make([]IndexedMethod, 0),
+			Instructions: make([]uint32, 0),
 		}
+
 		for i := uint32(0); i < reader.ClassDefCount; i++ {
 			class, err := reader.ReadClassAndParse(i)
 			if err != nil {
 				continue
 			}
+
 			indexedClass := IndexedClass{
-				Name: class.Name.String(),
+				NameID:      globalStringPool.GetID(class.Name.String()),
+				MethodStart: uint32(len(dex.Methods)),
 			}
 
-			processMethods := func(methods []dextk.MethodNode) []IndexedMethod {
-				indexedMethods := make([]IndexedMethod, 0, len(methods))
+			processMethods := func(methods []dextk.MethodNode) {
 				for _, method := range methods {
 					if method.CodeOff == 0 {
 						continue
 					}
-					instructions := getInstructions(reader, method)
-					if instructions != nil {
-						indexedMethods = append(indexedMethods, IndexedMethod{
-							Name:         method.Name.String(),
-							Instructions: instructions,
-						})
+
+					code, err := reader.ReadCodeAndParse(method.CodeOff)
+					if err != nil {
+						continue
 					}
+
+					indexedMethod := IndexedMethod{
+						NameID:           globalStringPool.GetID(method.Name.String()),
+						InstructionStart: uint32(len(dex.Instructions)),
+					}
+
+					for _, op := range code.Ops {
+						ins := fmt.Sprintf("  %s", op)
+						dex.Instructions = append(dex.Instructions, globalStringPool.GetID(ins))
+					}
+					indexedMethod.InstructionEnd = uint32(len(dex.Instructions))
+					dex.Methods = append(dex.Methods, indexedMethod)
 				}
-				return indexedMethods
 			}
 
-			indexedClass.Methods = append(processMethods(class.DirectMethods), processMethods(class.VirtualMethods)...)
+			processMethods(class.DirectMethods)
+			processMethods(class.VirtualMethods)
+			indexedClass.MethodEnd = uint32(len(dex.Methods))
 			dex.Classes[i] = indexedClass
 		}
 		fullIndex[dexIdx] = dex
 	}
+
+	// Clear lookup map to save memory after indexing is done
+	globalStringPool.Lookup = nil
+
 	return js.Null()
 }
 
 func getIndexMemoryUsage(this js.Value, args []js.Value) any {
 	var total uint64
-	for _, dex := range fullIndex {
-		total += 24 // slice header for Classes
-		for _, class := range dex.Classes {
-			total += 16 + uint64(len(class.Name)) // Name string
-			total += 24                           // slice header for Methods
-			for _, method := range class.Methods {
-				total += 16 + uint64(len(method.Name)) // Name string
-				total += 24                            // slice header for Instructions
-				for _, ins := range method.Instructions {
-					total += 16 + uint64(len(ins)) // Instruction string
-				}
-			}
-		}
+	// String pool memory
+	for _, s := range globalStringPool.Strings {
+		total += 16 + uint64(len(s))
 	}
+	for _, s := range globalStringPool.Lowers {
+		total += 16 + uint64(len(s))
+	}
+	total += uint64(len(globalStringPool.Strings)) * 8 * 2 // slice overhead for Strings and Lowers
+
+	// Index structures memory
+	for _, dex := range fullIndex {
+		total += 24                                    // Classes slice header
+		total += uint64(len(dex.Classes)) * 12         // IndexedClass size
+		total += 24                                    // Methods slice header
+		total += uint64(len(dex.Methods)) * 12         // IndexedMethod size
+		total += 24                                    // Instructions slice header
+		total += uint64(len(dex.Instructions)) * 4      // uint32 size
+	}
+	total += uint64(len(fullIndex)) * 72 // IndexedDex struct size (3 slices * 24)
+
 	return js.ValueOf(total)
 }
 
@@ -153,16 +213,25 @@ func searchUsages(this js.Value, args []js.Value) any {
 	var results []any
 
 	if fullIndex != nil {
+		// Pre-match strings in the pool
+		matchingIDs := make([]bool, len(globalStringPool.Strings))
+		for i, sLower := range globalStringPool.Lowers {
+			if strings.Contains(sLower, queryLower) || strings.Contains(sLower, querySlashes) {
+				matchingIDs[i] = true
+			}
+		}
+
 		for dexIdx, dex := range fullIndex {
 			for classIdx, class := range dex.Classes {
-				for _, method := range class.Methods {
-					for _, ins := range method.Instructions {
-						insLower := strings.ToLower(ins)
-						if strings.Contains(insLower, queryLower) || strings.Contains(insLower, querySlashes) {
+				for mIdx := class.MethodStart; mIdx < class.MethodEnd; mIdx++ {
+					method := dex.Methods[mIdx]
+					for iIdx := method.InstructionStart; iIdx < method.InstructionEnd; iIdx++ {
+						insID := dex.Instructions[iIdx]
+						if matchingIDs[insID] {
 							results = append(results, js.ValueOf(map[string]any{
-								"className":   class.Name,
-								"methodName":  method.Name,
-								"instruction": ins,
+								"className":   globalStringPool.Strings[class.NameID],
+								"methodName":  globalStringPool.Strings[method.NameID],
+								"instruction": globalStringPool.Strings[insID],
 								"classId":     classIdx,
 								"dexIndex":    dexIdx,
 							}))
@@ -219,10 +288,6 @@ func searchUsages(this js.Value, args []js.Value) any {
 
 					for _, op := range code.Ops {
 						found := false
-						// Use op.String() which is relatively fast and includes all IDs resolved
-						// But we can pre-check some IDs if we had access to them in op.
-						// Since dextk hides some implementation details, string search on disassembly
-						// is currently the most reliable way to match resolved IDs.
 						ins := fmt.Sprintf("  %s", op)
 						insLower := strings.ToLower(ins)
 
