@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Paste functionality', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('/filetool/');
+        await page.goto('./');
         await page.waitForLoadState('networkidle');
         // Wait for the drop target to be ready
         const dropTarget = page.locator('#droptarget');

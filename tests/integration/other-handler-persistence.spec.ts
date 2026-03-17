@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('other handler should persist in button bar and when switching files', async ({ page }) => {
-    await page.goto('/filetool/');
+    await page.goto('./');
 
     // Wait for the drop target to be ready
     const dropTarget = page.locator('#droptarget');

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('should correctly handle opening multiple files', async ({ page }) => {
-    await page.goto('/filetool/');
+    await page.goto('./');
 
     // Wait for the drop target to be ready
     const dropTarget = page.locator('#droptarget');

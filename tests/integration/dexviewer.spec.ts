@@ -10,7 +10,7 @@ test.describe('DEX Viewer Search', () => {
         const fileContent = fs.readFileSync(dexPath);
         const contentArray = Array.from(new Uint8Array(fileContent));
 
-        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
+        await page.goto('http://localhost:8080./tests/integration/driver.html?handler=dexviewer');
 
         await page.evaluate(({ contentArray, name }) => {
             window.postMessage({

@@ -4,7 +4,7 @@ import { loadFile } from './test-utils';
 test.describe('Hex Viewer', () => {
   test('performs basic operations: search, analysis, hashing, and resize', async ({ page }) => {
     // Navigate to the hex viewer directly
-    await page.goto('http://localhost:8080/filetool/hex_viewer/index.html');
+    await page.goto('./hex_viewer/index.html');
 
     // Load a dummy file
     const data = new Uint8Array(256);

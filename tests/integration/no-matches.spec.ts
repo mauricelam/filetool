@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('should show Hex viewer in the "open with" bar if no specific handlers match', async ({ page }) => {
-    await page.goto('/filetool/');
+    await page.goto('./');
 
     // Wait for the drop target to be ready
     const dropTarget = page.locator('#droptarget');
@@ -26,7 +26,7 @@ test('should show Hex viewer in the "open with" bar if no specific handlers matc
 });
 
 test('should NOT show Hex viewer in the "open with" bar by default if specific handlers match', async ({ page }) => {
-    await page.goto('/filetool/');
+    await page.goto('./');
 
     const dropTarget = page.locator('#droptarget');
     await expect(dropTarget).toBeVisible();

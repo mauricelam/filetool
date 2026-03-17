@@ -11,7 +11,7 @@ interface HandlerTestOptions {
 
 const runHandlerTest = async (page: Page, { handler, file }: HandlerTestOptions) => {
     // Navigate to the test harness page with the specified handler
-    await page.goto(`/filetool/tests/integration/driver.html?handler=${handler}`);
+    await page.goto(`./tests/integration/driver.html?handler=${handler}`);
 
     // Ensure the iframe is attached before posting the file
     await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });

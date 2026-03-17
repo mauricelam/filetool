@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 test('should allow switching between handlers for the same file', async ({ page }) => {
     // Load the integration test harness which hosts an iframe and driver.js
-    await page.goto('/filetool/tests/integration/driver.html');
+    await page.goto('./tests/integration/driver.html');
 
     await page.evaluate(() => {
         const iframe = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
-        iframe.src = '/filetool/markdown/index.html';
+        iframe.src = '../../markdown/index.html';
         // Tell the driver which file to provide to the handler when it requests it
         window.postMessage({
             action: 'setFile',
@@ -30,7 +30,7 @@ test('should allow switching between handlers for the same file', async ({ page 
     // Now switch the same iframe to the text handler and ensure it shows raw text
     await page.evaluate(() => {
         const iframe = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
-        iframe.src = '/filetool/textviewer/index.html';
+        iframe.src = '../../textviewer/index.html';
     });
 
     // Wait for the textviewer to load and render the raw text
