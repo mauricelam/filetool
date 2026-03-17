@@ -46,10 +46,14 @@ async function expandPackagePathForClass(fullClassName: string): Promise<void> {
         // Try to match as many parts as possible (for collapsed nodes like android.content)
         for (let i = packageParts.length; i > currentPartIndex; i--) {
             const candidate = packageParts.slice(currentPartIndex, i).join('.');
-            const header = headers.find(h => (h.querySelector('.package-name')?.textContent || '').trim() === candidate);
+            const header = headers.find(h => {
+                const name = (h.querySelector('.package-name')?.textContent || '').trim();
+                return name === candidate || name.startsWith(candidate + '.');
+            });
             if (header) {
                 foundHeader = header;
-                consumedParts = i - currentPartIndex;
+                const matchedName = (header.querySelector('.package-name')?.textContent || '').trim();
+                consumedParts = matchedName.split('.').length;
                 break;
             }
         }
@@ -152,15 +156,12 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
             if (activeTab === 'packages') {
                 await expandPackagePathForClass(targetClass.original_name);
                 setTimeout(() => {
-                    const classId = generateClassId(targetClass.original_name);
-                    const classEl = document.getElementById(classId);
-                    if (classEl) {
-                        classEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        const header = classEl.querySelector('.class-header') as HTMLElement;
-                        if (header) {
-                            header.style.backgroundColor = '#fef08a';
-                            setTimeout(() => { header.style.backgroundColor = ''; }, 2000);
-                        }
+                    const sidebarClassId = generateClassId(targetClass.original_name) + '_sidebar';
+                    const sidebarEl = document.getElementById(sidebarClassId);
+                    if (sidebarEl) {
+                        sidebarEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        sidebarEl.style.backgroundColor = '#fef08a';
+                        setTimeout(() => { sidebarEl.style.backgroundColor = ''; }, 2000);
                     }
                 }, 100);
             }
@@ -425,17 +426,7 @@ function App({ file, additionalFiles }: { file: File, additionalFiles: File[] })
                                     await expandPackagePathForClass(path + '.dummy');
                                     // Find the header for this package and scroll to it
                                     setTimeout(() => {
-                                        const headers = Array.from(document.querySelectorAll('.package-header')) as HTMLElement[];
-                                        const parts = path.split('.');
-
-                                        // Look for a header that matches the end of the path
-                                        let targetHeader: HTMLElement | null = null;
-                                        for (let i = 0; i < parts.length; i++) {
-                                            const suffix = parts.slice(i).join('.');
-                                            targetHeader = headers.find(h => (h.querySelector('.package-name')?.textContent || '').trim() === suffix) || null;
-                                            if (targetHeader) break;
-                                        }
-
+                                        const targetHeader = document.getElementById('package_' + path);
                                         if (targetHeader) {
                                             targetHeader.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                             targetHeader.style.backgroundColor = '#fef08a';
@@ -763,6 +754,7 @@ function PackageTreeNode({ node, filesBytes, level, onClassSelect, selectedClass
     return (
         <div className={`package-node ${isExpanded ? 'expanded' : ''}`}>
             <div
+                id={'package_' + node.fullPath}
                 className="package-header"
                 onClick={() => setIsExpanded(!isExpanded)}
                 style={{ cursor: hasContent ? 'pointer' : 'default' }}
@@ -827,6 +819,7 @@ function ClassListItem({ javaClass, onSelect, isSelected }: { javaClass: JClass,
     const simpleName = javaClass.original_name.split('.').pop();
     return (
         <div
+            id={generateClassId(javaClass.original_name) + '_sidebar'}
             className={`class-list-item ${isSelected ? 'selected' : ''}`}
             onClick={() => onSelect(javaClass)}
             style={{
