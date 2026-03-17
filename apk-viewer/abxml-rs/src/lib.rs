@@ -45,6 +45,3 @@ pub mod raw_chunks;
 #[cfg(test)]
 pub mod test;
 pub mod visitor;
-
-/// Contents of android's resources.arsc
-pub const STR_ARSC: &[u8] = include_bytes!("../resources/resources.arsc");

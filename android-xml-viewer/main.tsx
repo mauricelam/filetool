@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, extract_arsc, decode_xml } from './abxml-wasm-bindings/pkg'
+import init, { ArscResource, extract_arsc, decode_xml, set_system_resources } from './abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
@@ -11,6 +11,12 @@ const initializeWasm = async () => {
     if (!wasmInitialized) {
         try {
             await init();
+
+            // Load system resources
+            const response = await fetch('android.arsc');
+            const arscBytes = new Uint8Array(await response.arrayBuffer());
+            set_system_resources(arscBytes);
+
             wasmInitialized = true;
         } catch (error) {
             console.error('Failed to initialize WebAssembly:', error);

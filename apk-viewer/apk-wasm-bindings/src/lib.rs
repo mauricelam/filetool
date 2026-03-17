@@ -4,9 +4,17 @@ use abxml::{
 };
 use log::{debug, error, info};
 use serde_bytes::ByteBuf;
-use std::{collections::HashMap, fs::File};
+use std::{collections::HashMap, fs::File, sync::Mutex};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
+
+static SYSTEM_RESOURCES: Mutex<Option<Vec<u8>>> = Mutex::new(None);
+
+#[wasm_bindgen]
+pub fn set_system_resources(bytes: Vec<u8>) {
+    let mut resources = SYSTEM_RESOURCES.lock().unwrap();
+    *resources = Some(bytes);
+}
 
 // Initialize panic hook and logger
 fn init() {
@@ -79,12 +87,17 @@ pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> 
         JsError::new(&format!("{e}"))
     })?;
 
-    let metadata = apk.get_metadata_with_bytes(&bytes).map_err(|e| {
+    let resources_lock = SYSTEM_RESOURCES.lock().unwrap();
+    let resources = resources_lock
+        .as_ref()
+        .ok_or_else(|| JsError::new("System resources not set"))?;
+
+    let metadata = apk.get_metadata_with_bytes(&bytes, resources).map_err(|e| {
         error!("Failed to get APK metadata: {}", e);
         JsError::new(&format!("{e}"))
     })?;
 
-    let strings = apk.export_string().map_err(|e| {
+    let strings = apk.export_string(resources).map_err(|e| {
         error!("Failed to export strings: {}", e);
         JsError::new(&format!("{e}"))
     })?;
@@ -127,9 +140,14 @@ pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> 
 #[wasm_bindgen]
 pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::JsError> {
     info!("Extracting ARSC of size {} bytes", bytes.len());
-    let decoder = abxml::decoder::Decoder::from_arsc(&bytes).map_err(|e| {
+    let resources_lock = SYSTEM_RESOURCES.lock().unwrap();
+    let resources = resources_lock
+        .as_ref()
+        .ok_or_else(|| JsError::new("System resources not set"))?;
+
+    let decoder = abxml::decoder::Decoder::from_arsc(resources, &bytes).map_err(|e| {
         error!("Failed to decode ARSC: {}", e);
-        JsError::new(&format!("XX {e}"))
+        JsError::new(&format!("{e}"))
     })?;
 
     let resources = decoder.get_resources();
@@ -195,8 +213,13 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::J
 pub fn decode_xml(bytes: Vec<u8>) -> Result<String, wasm_bindgen::JsError> {
     info!("Decoding standalone XML of size {} bytes", bytes.len());
 
+    let resources_lock = SYSTEM_RESOURCES.lock().unwrap();
+    let resources = resources_lock
+        .as_ref()
+        .ok_or_else(|| JsError::new("System resources not set"))?;
+
     let mut visitor = abxml::visitor::ModelVisitor::default();
-    abxml::visitor::Executor::arsc(abxml::STR_ARSC, &mut visitor).map_err(|e| {
+    abxml::visitor::Executor::arsc(resources, &mut visitor).map_err(|e| {
         error!("Failed to load system resources: {}", e);
         JsError::new(&format!("{e}"))
     })?;
@@ -217,10 +240,12 @@ pub fn decode_xml(bytes: Vec<u8>) -> Result<String, wasm_bindgen::JsError> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_extract_arsc() {
         let bytes = include_bytes!("example_resources.arsc").to_vec();
-        let decoder = abxml::decoder::Decoder::from_arsc(&bytes).unwrap();
+        let decoder = abxml::decoder::Decoder::from_arsc(&bytes, &bytes).unwrap();
         decoder.get_resources();
     }
 }

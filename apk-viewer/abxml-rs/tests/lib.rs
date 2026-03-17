@@ -25,7 +25,8 @@ fn it_can_generate_a_decoder_from_a_buffer() {
     xml.push_owned(Box::new(XmlTagEndBuf::new(90)));
 
     let xml_content = xml.into_vec().unwrap();
-    let decoder = Decoder::from_buffer(&arsc).unwrap();
+    let dummy_arsc = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let decoder = Decoder::from_buffer(&dummy_arsc, &arsc).unwrap();
     let xml_visitor = decoder.xml_visitor(&xml_content).unwrap();
     let out = xml_visitor.into_string().unwrap();
 
