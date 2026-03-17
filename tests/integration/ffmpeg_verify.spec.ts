@@ -7,7 +7,7 @@ test('ffmpeg viewer UI update', async ({ page }) => {
     test.setTimeout(60000);
 
     // Navigate to the driver page with the ffmpeg handler
-    await page.goto('http://localhost:8080./tests/integration/driver.html?handler=ffmpeg');
+    await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=ffmpeg');
 
     const filePath = path.resolve('ffmpeg/example/big_buck_bunny.mp4');
     // Use only a small portion of the file for UI verification to speed up the test

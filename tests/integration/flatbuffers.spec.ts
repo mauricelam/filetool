@@ -203,7 +203,7 @@ test.describe('flatbuffers handler', () => {
 });
 
 test('should detect FlatBuffers file in main UI', async ({ page }) => {
-    await page.goto('./');
+    await page.goto('/filetool/');
 
     // Wait for the drop target to be ready
     const dropTarget = page.locator('#droptarget');
