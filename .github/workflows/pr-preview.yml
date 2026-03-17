@@ -37,6 +37,9 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
 
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
@@ -68,3 +71,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy deploy --project-name=filetool --branch=${{ github.head_ref }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
