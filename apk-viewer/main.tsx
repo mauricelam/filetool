@@ -8,11 +8,18 @@ import { PreviewComponent } from '../components/PreviewComponent';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
+let systemResources: Uint8Array | null = null;
 
 const initializeWasm = async () => {
     if (!wasmInitialized) {
         try {
             await init();
+
+            // Load system resources
+            const response = await fetch('android.arsc');
+            if (!response.ok) throw new Error('Failed to fetch android.arsc');
+            systemResources = new Uint8Array(await response.arrayBuffer());
+
             wasmInitialized = true;
         } catch (error) {
             console.error('Failed to initialize WebAssembly:', error);
@@ -71,9 +78,10 @@ function App() {
         if (!wasmInitialized) {
             await initializeWasm();
         }
+        if (!systemResources) throw new Error("System resources not loaded");
         const fileBytes = new Uint8Array(await file.arrayBuffer());
 
-        const decoded = decode_apk(fileBytes)
+        const decoded = decode_apk(fileBytes, systemResources)
         const tree = pathToTree(decoded.files.map(([path, content]) => [path, new Uint8Array(content)] as any))
         setFileTree(tree);
         setMetadata(decoded.metadata);
@@ -83,7 +91,8 @@ function App() {
     const handleItemClick = (level: number, key: string, content: any) => {
         // Check if it's an ARSC file
         if (key.endsWith('.arsc') && content instanceof Uint8Array) {
-            const resources = extract_arsc(content);
+            if (!systemResources) throw new Error("System resources not loaded");
+            const resources = extract_arsc(content, systemResources);
             setResources(resources);
             setView('resource');
         }

@@ -41,8 +41,9 @@ fn run() -> Result<(), Error> {
         }
     };
 
+    let android_resources_content = std::fs::read("resources/resources.arsc")?;
     let mut apk = Apk::<std::fs::File>::from_path(&apk_path).context("error loading APK")?;
-    apk.export(Path::new(&output), true)
+    apk.export(Path::new(&output), true, &android_resources_content)
         .context("APK could not be exported")?;
 
     Ok(())

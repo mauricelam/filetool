@@ -6,11 +6,18 @@ import 'react-tabs/style/react-tabs.css'
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
+let systemResources: Uint8Array | null = null;
 
 const initializeWasm = async () => {
     if (!wasmInitialized) {
         try {
             await init();
+
+            // Load system resources
+            const response = await fetch('android.arsc');
+            if (!response.ok) throw new Error('Failed to fetch android.arsc');
+            systemResources = new Uint8Array(await response.arrayBuffer());
+
             wasmInitialized = true;
         } catch (error) {
             console.error('Failed to initialize WebAssembly:', error);
@@ -53,10 +60,12 @@ function App() {
         }
         const fileBytes = new Uint8Array(await file.arrayBuffer());
 
+        if (!systemResources) throw new Error("System resources not loaded");
+
         // Try standalone ARSC
         if (file.name.endsWith('.arsc')) {
             try {
-                const resources = extract_arsc(fileBytes);
+                const resources = extract_arsc(fileBytes, systemResources);
                 setResources(resources);
                 setView('resource');
                 return;
@@ -67,7 +76,7 @@ function App() {
 
         // Try standalone XML
         try {
-            const xml = decode_xml(fileBytes);
+            const xml = decode_xml(fileBytes, systemResources);
             setXmlContent(xml);
             setView('xml');
         } catch (e) {
@@ -75,7 +84,7 @@ function App() {
             // If it failed and we haven't tried ARSC yet
             if (!file.name.endsWith('.arsc')) {
                 try {
-                    const resources = extract_arsc(fileBytes);
+                    const resources = extract_arsc(fileBytes, systemResources);
                     setResources(resources);
                     setView('resource');
                     return;

@@ -22,6 +22,10 @@ const SETTINGS = {
         {
           from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
           to: ["libmagic-wrapper.wasm"],
+        },
+        {
+          from: ["../apk-viewer/abxml-rs/resources/resources.arsc"],
+          to: ["android.arsc"],
         }
       ]
     }),

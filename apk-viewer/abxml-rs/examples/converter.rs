@@ -48,7 +48,7 @@ fn run() -> Result<(), Error> {
     };
 
     // Android lib
-    let android_resources_content = abxml::STR_ARSC.to_owned();
+    let android_resources_content = std::fs::read("resources/resources.arsc")?;
 
     // APK
     let file = std::fs::File::open(&apk_path)?;
