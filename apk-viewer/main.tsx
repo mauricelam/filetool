@@ -1,9 +1,10 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata } from './apk-wasm-bindings/pkg'
+import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './apk-wasm-bindings/pkg'
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
-import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea } from '@mantine/core';
+import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import '@mantine/core/styles.css';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
@@ -38,10 +39,35 @@ function pathToTree(paths: [string, string][]): { [key: string]: any } {
     return result
 }
 
+function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
+    return (
+        <div
+            onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onMouseDown(e);
+            }}
+            style={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: '4px',
+                cursor: 'col-resize',
+                zIndex: 10,
+                transition: 'background-color 0.2s',
+            }}
+            className="resize-handle"
+        />
+    );
+}
+
 function App() {
-    const [view, setView] = useState<'file' | 'resource' | 'metadata'>('file');
+    const [view, setView] = useState<'file' | 'resource' | 'metadata' | 'file-preview'>('file');
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
     const [selectedFilePath, setSelectedFilePath] = useState<string[] | undefined>(undefined);
+    const [previewPath, setPreviewPath] = useState<string[] | null>(null);
+    const [previewContent, setPreviewContent] = useState<Uint8Array | null>(null);
     const [resources, setResources] = useState<ArscResource[]>([]);
     const [metadata, setMetadata] = useState<ApkMetadata | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -91,9 +117,27 @@ function App() {
     };
 
     const handleNavigateToFile = useCallback((path: string) => {
-        setSelectedFilePath(path.split('/'));
-        setView('file');
-    }, []);
+        const pathArr = path.split('/');
+        // Try to find the file in fileTree to preview it
+        let current = fileTree;
+        for (const segment of pathArr) {
+            if (current && typeof current === 'object' && segment in current) {
+                current = current[segment];
+            } else {
+                current = null;
+                break;
+            }
+        }
+
+        if (current instanceof Uint8Array) {
+            setPreviewPath(pathArr);
+            setPreviewContent(current);
+            setView('file-preview');
+        } else {
+            setSelectedFilePath(pathArr);
+            setView('file');
+        }
+    }, [fileTree]);
 
     if (error) {
         return <div style={{ color: 'red', padding: '10px' }}>Error: {error}</div>;
@@ -102,6 +146,27 @@ function App() {
     let content;
     if (view === 'resource') {
         content = <ResourceTableViewer resources={resources} onBack={() => setView('file')} onNavigateToFile={handleNavigateToFile} />;
+    } else if (view === 'file-preview') {
+        content = (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px' }}>
+                <div style={{ marginBottom: '16px' }}>
+                    <Button
+                        variant="default"
+                        onClick={() => setView('resource')}
+                        leftSection={
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                                <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                            </svg>
+                        }
+                    >
+                        Back to Resources
+                    </Button>
+                </div>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <PreviewComponent path={previewPath!} filePromise={async () => new File([previewContent!.buffer], previewPath![previewPath!.length - 1])} />
+                </div>
+            </div>
+        );
     } else if (view === 'metadata') {
         content = <MetadataViewer metadata={metadata} onBack={() => setView('file')} />;
     } else {
@@ -267,16 +332,16 @@ function FileViewer({ files, onItemClick, selectedPath }: {
 }
 
 function ArscValueRenderer({ value, onNavigateToFile, onNavigateToResource }: {
-    value: any,
+    value: ArscValue,
     onNavigateToFile: (path: string) => void,
-    onNavigateToResource: (resId: u32) => void
+    onNavigateToResource: (resId: number) => void
 }) {
     if (value.ref_id) {
         return (
             <Anchor
                 component="button"
                 size="sm"
-                onClick={() => onNavigateToResource(value.ref_id)}
+                onClick={() => onNavigateToResource(value.ref_id!)}
             >
                 {value.value}
             </Anchor>
@@ -297,11 +362,11 @@ function ArscValueRenderer({ value, onNavigateToFile, onNavigateToResource }: {
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {value.value}
+            <Text size="sm">{value.value}</Text>
             {typeof value.value === 'string' && value.value.startsWith('#') && (value.value.length === 9 || value.value.length === 7) && (
                 <div style={{
-                    width: '20px',
-                    height: '20px',
+                    width: '16px',
+                    height: '16px',
                     backgroundColor: value.value.length === 9
                         ? `rgba(${parseInt(value.value.slice(3, 5), 16)}, ${parseInt(value.value.slice(5, 7), 16)}, ${parseInt(value.value.slice(7, 9), 16)}, ${parseInt(value.value.slice(1, 3), 16) / 255})`
                         : value.value,
@@ -318,7 +383,30 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
     onBack: () => void,
     onNavigateToFile: (path: string) => void
 }) {
-    // Group resources by type name
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+        entry_id: 120,
+        name: 300,
+        values: 500,
+    });
+
+    const handleResize = useCallback((column: string) => (e: React.MouseEvent) => {
+        const startX = e.pageX;
+        const startWidth = columnWidths[column];
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const newWidth = Math.max(50, startWidth + (moveEvent.pageX - startX));
+            setColumnWidths(prev => ({ ...prev, [column]: newWidth }));
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }, [columnWidths]);
+
     const resourcesByType = useMemo(() => resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
         if (!acc[typeName]) {
@@ -330,6 +418,7 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
 
     const resourceTypes = useMemo(() => Object.keys(resourcesByType), [resourcesByType]);
     const [selectedType, setSelectedType] = useState<string>(resourceTypes[0] || '');
+    const [filter, setFilter] = useState('');
 
     useEffect(() => {
         if (resourceTypes.length > 0 && !selectedType) {
@@ -342,7 +431,6 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
         if (targetRes) {
             setSelectedType(targetRes.type_name);
             const hexId = `0x${resId.toString(16).toUpperCase()}`;
-            // Wait for tab switch to complete rendering
             setTimeout(() => {
                 const el = document.getElementById(`res-${hexId}`);
                 if (el) {
@@ -356,34 +444,40 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
         }
     }, [resources]);
 
-    const [sortConfig, setSortConfig] = useState<{ key: 'entry_id' | 'name' | 'value', direction: 'asc' | 'desc' }>({
+    const [sortConfig, setSortConfig] = useState<{ key: 'entry_id' | 'name', direction: 'asc' | 'desc' }>({
         key: 'entry_id',
         direction: 'asc'
     });
 
-    const handleSort = (key: 'entry_id' | 'name' | 'value') => {
+    const handleSort = (key: 'entry_id' | 'name') => {
         setSortConfig(prev => ({
             key,
             direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
         }));
     };
 
-    const sortedResources = useMemo(() => {
-        const resources = resourcesByType[selectedType] || [];
-        return [...resources].sort((a, b) => {
+    const filteredResources = useMemo(() => {
+        let items = resourcesByType[selectedType] || [];
+        if (filter) {
+            const lowFilter = filter.toLowerCase();
+            items = items.filter(r =>
+                r.name.toLowerCase().includes(lowFilter) ||
+                r.entry_id.toString(16).toLowerCase().includes(lowFilter) ||
+                r.values.some(v => v.value.value.toLowerCase().includes(lowFilter))
+            );
+        }
+        return items.sort((a, b) => {
             let comparison = 0;
             if (sortConfig.key === 'entry_id') {
                 comparison = a.entry_id - b.entry_id;
-            } else if (sortConfig.key === 'name') {
-                comparison = a.name.localeCompare(b.name);
             } else {
-                comparison = a.value.value.localeCompare(b.value.value);
+                comparison = a.name.localeCompare(b.name);
             }
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         });
-    }, [resourcesByType, selectedType, sortConfig]);
+    }, [resourcesByType, selectedType, sortConfig, filter]);
 
-    const SortIndicator = ({ column }: { column: 'entry_id' | 'name' | 'value' }) => (
+    const SortIndicator = ({ column }: { column: 'entry_id' | 'name' }) => (
         <span style={{ marginLeft: '4px' }}>
             {sortConfig.key === column && (sortConfig.direction === 'asc' ? '↑' : '↓')}
         </span>
@@ -397,24 +491,39 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
             flexDirection: 'column',
             overflow: 'hidden'
         }}>
+            <style>
+                {`
+                    .resize-handle:hover {
+                        background-color: #228be6;
+                    }
+                `}
+            </style>
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '16px',
+                justifyContent: 'space-between',
                 marginBottom: '16px'
             }}>
-                <Button
-                    variant="default"
-                    onClick={onBack}
-                    leftSection={
-                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                            <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
-                        </svg>
-                    }
-                >
-                    Back
-                </Button>
-                <h3 style={{ margin: 0 }}>Resource Table</h3>
+                <Group>
+                    <Button
+                        variant="default"
+                        onClick={onBack}
+                        leftSection={
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                                <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                            </svg>
+                        }
+                    >
+                        Back
+                    </Button>
+                    <h3 style={{ margin: 0 }}>Resource Table</h3>
+                </Group>
+                <TextInput
+                    placeholder="Filter resources..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    style={{ width: '300px' }}
+                />
             </div>
 
             <Tabs value={selectedType} onChange={(val) => setSelectedType(val || '')} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -426,29 +535,32 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
 
                 <div style={{ flex: 1, overflow: 'hidden', marginTop: '16px' }}>
                     <ScrollArea style={{ height: '100%' }}>
-                        <Table striped highlightOnHover withBorder withColumnBorders>
+                        <Table striped highlightOnHover withBorder withColumnBorders style={{ tableLayout: 'fixed', width: '100%' }}>
                             <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: 'white', zIndex: 1 }}>
                                 <Table.Tr>
-                                    <Table.Th style={{ cursor: 'pointer' }} onClick={() => handleSort('entry_id')}>
+                                    <Table.Th style={{ cursor: 'pointer', width: columnWidths.entry_id, position: 'relative' }} onClick={() => handleSort('entry_id')}>
                                         Entry ID <SortIndicator column="entry_id" />
+                                        <ResizeHandle onMouseDown={handleResize('entry_id')} />
                                     </Table.Th>
-                                    <Table.Th style={{ cursor: 'pointer' }} onClick={() => handleSort('name')}>
+                                    <Table.Th style={{ cursor: 'pointer', width: columnWidths.name, position: 'relative' }} onClick={() => handleSort('name')}>
                                         Name <SortIndicator column="name" />
+                                        <ResizeHandle onMouseDown={handleResize('name')} />
                                     </Table.Th>
                                     {selectedType !== 'id' && (
-                                        <Table.Th style={{ cursor: 'pointer' }} onClick={() => handleSort('value')}>
-                                            Value <SortIndicator column="value" />
+                                        <Table.Th style={{ width: columnWidths.values, position: 'relative' }}>
+                                            Values
+                                            <ResizeHandle onMouseDown={handleResize('values')} />
                                         </Table.Th>
                                     )}
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
-                                {sortedResources.map((resource, index) => (
+                                {filteredResources.map((resource, index) => (
                                     <Table.Tr key={index} id={`res-0x${resource.entry_id.toString(16).toUpperCase()}`}>
-                                        <Table.Td style={{ fontFamily: 'monospace' }}>
+                                        <Table.Td style={{ fontFamily: 'monospace', width: columnWidths.entry_id, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             0x{resource.entry_id.toString(16).toUpperCase()}
                                         </Table.Td>
-                                        <Table.Td style={{ fontFamily: 'monospace' }}>
+                                        <Table.Td style={{ fontFamily: 'monospace', width: columnWidths.name, overflow: 'hidden' }}>
                                             <Stack gap={4}>
                                                 <Text size="sm" ff="monospace">{resource.name}</Text>
                                                 {resource.parent_id && (
@@ -459,27 +571,15 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
                                                             size="xs"
                                                             onClick={() => onNavigateToResource(resource.parent_id!)}
                                                         >
-                                                            0x{resource.parent_id.toString(16).toUpperCase()}
+                                                            {resource.parent_name || `0x${resource.parent_id.toString(16).toUpperCase()}`}
                                                         </Anchor>
                                                     </Group>
                                                 )}
                                             </Stack>
                                         </Table.Td>
                                         {selectedType !== 'id' && (
-                                            <Table.Td>
-                                                <Stack gap={4}>
-                                                    <ArscValueRenderer value={resource.value} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
-                                                    {resource.entries && (
-                                                        <Box mt="xs" pl="md" style={{ borderLeft: '2px solid #eee' }}>
-                                                            {resource.entries.map(([key, val], i) => (
-                                                                <Group key={i} gap="xs" wrap="nowrap">
-                                                                    <Text size="xs" fw={700} style={{ whiteSpace: 'nowrap' }}>{key}:</Text>
-                                                                    <ArscValueRenderer value={val} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
-                                                                </Group>
-                                                            ))}
-                                                        </Box>
-                                                    )}
-                                                </Stack>
+                                            <Table.Td style={{ width: columnWidths.values, overflow: 'hidden' }}>
+                                                <ResourceValues resource={resource} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
                                             </Table.Td>
                                         )}
                                     </Table.Tr>
@@ -490,6 +590,65 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
                 </div>
             </Tabs>
         </div>
+    );
+}
+
+function ResourceValues({ resource, onNavigateToFile, onNavigateToResource }: {
+    resource: ArscResource,
+    onNavigateToFile: (path: string) => void,
+    onNavigateToResource: (resId: number) => void
+}) {
+    const [opened, { toggle }] = useDisclosure(false);
+    const defaultValue = resource.values.find(v => v.config === 'default') || resource.values[0];
+    const otherValues = resource.values.filter(v => v !== defaultValue);
+
+    return (
+        <Stack gap={4}>
+            <Box>
+                {resource.values.length > 1 && <Text size="xs" c="dimmed" fw={700}>default:</Text>}
+                <ArscConfigValueRenderer configValue={defaultValue} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+            </Box>
+
+            {otherValues.length > 0 && (
+                <>
+                    <Button variant="subtle" size="compact-xs" onClick={toggle} style={{ width: 'fit-content' }}>
+                        {opened ? 'Hide' : `Show ${otherValues.length} more configurations`}
+                    </Button>
+                    <Collapse in={opened}>
+                        <Stack gap={8} mt={4}>
+                            {otherValues.map((cv, i) => (
+                                <Box key={i} pl="md" style={{ borderLeft: '2px solid #eee' }}>
+                                    <Text size="xs" c="dimmed" fw={700}>{cv.config}:</Text>
+                                    <ArscConfigValueRenderer configValue={cv} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+                                </Box>
+                            ))}
+                        </Stack>
+                    </Collapse>
+                </>
+            )}
+        </Stack>
+    );
+}
+
+function ArscConfigValueRenderer({ configValue, onNavigateToFile, onNavigateToResource }: {
+    configValue: any,
+    onNavigateToFile: (path: string) => void,
+    onNavigateToResource: (resId: number) => void
+}) {
+    return (
+        <Stack gap={4}>
+            <ArscValueRenderer value={configValue.value} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+            {configValue.entries && (
+                <Box pl="md" style={{ borderLeft: '2px solid #eee' }}>
+                    {configValue.entries.map(([key, val], i) => (
+                        <Group key={i} gap="xs" wrap="nowrap">
+                            <Text size="xs" fw={700} style={{ whiteSpace: 'nowrap' }}>{key}:</Text>
+                            <ArscValueRenderer value={val} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+                        </Group>
+                    ))}
+                </Box>
+            )}
+        </Stack>
     );
 }
 
