@@ -1,6 +1,10 @@
 use abxml::{
     apk::Apk,
-    model::{owned::Entry, Identifier, Library as LibraryTrait},
+    model::{
+        owned::Entry,
+        value::{TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID, TOKEN_TYPE_DYN_ATTRIBUTE, TOKEN_TYPE_DYN_REFERENCE, TOKEN_TYPE_REFERENCE_ID},
+        Identifier, Library as LibraryTrait,
+    },
 };
 use log::{debug, error, info};
 use serde_bytes::ByteBuf;
@@ -23,13 +27,21 @@ pub fn start() {
 
 #[derive(serde::Serialize, serde::Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ArscValue {
+    pub value: String,
+    pub ref_id: Option<u32>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct ArscResource {
-    package_id: u8,
-    type_name: String,
-    entry_id: u32,
-    name: String,
-    value: String,
-    entries: Option<HashMap<String, String>>,
+    pub package_id: u8,
+    pub type_name: String,
+    pub entry_id: u32,
+    pub name: String,
+    pub value: ArscValue,
+    pub parent_id: Option<u32>,
+    pub entries: Option<Vec<(String, ArscValue)>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Tsify)]
@@ -164,25 +176,96 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::J
                 .format_reference(*entry_id, entry.get_key(), None)
                 .unwrap_or_else(|_| "Unknown".into());
 
-            let value = entry.to_string(&resources.packages, *package_id);
+            let value_str = entry.to_string(&resources.packages, *package_id);
 
             let spec_id = u32::from(entry_id.get_spec());
             let spec_str = package
                 .get_spec_as_str(spec_id)
                 .unwrap_or_else(|e| format!("{e}"));
 
+            let ref_id = match entry {
+                Entry::Simple(simple_entry) => {
+                    let value_type = simple_entry.get_type();
+                    if value_type == TOKEN_TYPE_REFERENCE_ID
+                        || value_type == TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID
+                        || value_type == TOKEN_TYPE_DYN_REFERENCE
+                        || value_type == TOKEN_TYPE_DYN_ATTRIBUTE
+                    {
+                        Some(simple_entry.get_value_data())
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+
+            let parent_id = match entry {
+                Entry::Complex(complex_entry) => {
+                    let pid = complex_entry.get_parent_id();
+                    if pid == 0 {
+                        None
+                    } else {
+                        Some(pid)
+                    }
+                }
+                _ => None,
+            };
+
+            let entries = match entry {
+                Entry::Complex(complex_entry) => {
+                    let mut complex_entries = Vec::new();
+                    for e in complex_entry.get_entries() {
+                        let name = if e.get_id() == 0x1000000 {
+                            "type".into()
+                        } else {
+                            let package_id_entry = e.get_id().get_package();
+                            let package_entry = resources.packages.get(&package_id_entry).unwrap();
+                            package_entry.resid_to_string(
+                                e.get_id(),
+                                if package_id_entry == 1 {
+                                    Some("android".into())
+                                } else {
+                                    None
+                                },
+                            )
+                        };
+
+                        let val_str = e.to_string(&resources.packages, *package_id);
+                        let val_type = e.get_type();
+                        let val_ref_id = if val_type == TOKEN_TYPE_REFERENCE_ID
+                            || val_type == TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID
+                            || val_type == TOKEN_TYPE_DYN_REFERENCE
+                            || val_type == TOKEN_TYPE_DYN_ATTRIBUTE
+                        {
+                            Some(e.get_value_data())
+                        } else {
+                            None
+                        };
+
+                        complex_entries.push((
+                            name,
+                            ArscValue {
+                                value: val_str,
+                                ref_id: val_ref_id,
+                            },
+                        ));
+                    }
+                    Some(complex_entries)
+                }
+                _ => None,
+            };
+
             result.push(ArscResource {
                 package_id: *package_id,
                 type_name: spec_str,
                 entry_id: *entry_id,
                 name: entry_name,
-                value,
-                entries: match entry {
-                    Entry::Complex(complex_entry) => {
-                        Some(complex_entry.to_hash_map(&resources.packages, *package_id))
-                    }
-                    _ => None,
+                value: ArscValue {
+                    value: value_str,
+                    ref_id,
                 },
+                parent_id,
+                entries,
             });
         }
     }

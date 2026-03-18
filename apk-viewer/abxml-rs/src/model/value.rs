@@ -2,14 +2,14 @@ use std::string::ToString;
 
 use anyhow::{format_err, Error};
 
-pub(crate) const TOKEN_TYPE_REFERENCE_ID: u8 = 0x01;
-pub(crate) const TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID: u8 = 0x02;
-pub(crate) const TOKEN_TYPE_STRING: u8 = 0x03;
-pub(crate) const TOKEN_TYPE_FLOAT: u8 = 0x04;
-pub(crate) const TOKEN_TYPE_DIMENSION: u8 = 0x05;
-pub(crate) const TOKEN_TYPE_FRACTION: u8 = 0x06;
-pub(crate) const TOKEN_TYPE_DYN_REFERENCE: u8 = 0x07;
-pub(crate) const TOKEN_TYPE_DYN_ATTRIBUTE: u8 = 0x08;
+pub const TOKEN_TYPE_REFERENCE_ID: u8 = 0x01;
+pub const TOKEN_TYPE_ATTRIBUTE_REFERENCE_ID: u8 = 0x02;
+pub const TOKEN_TYPE_STRING: u8 = 0x03;
+pub const TOKEN_TYPE_FLOAT: u8 = 0x04;
+pub const TOKEN_TYPE_DIMENSION: u8 = 0x05;
+pub const TOKEN_TYPE_FRACTION: u8 = 0x06;
+pub const TOKEN_TYPE_DYN_REFERENCE: u8 = 0x07;
+pub const TOKEN_TYPE_DYN_ATTRIBUTE: u8 = 0x08;
 pub(crate) const TOKEN_TYPE_INTEGER: u8 = 0x10;
 pub(crate) const TOKEN_TYPE_FLAGS: u8 = 0x11;
 pub(crate) const TOKEN_TYPE_BOOLEAN: u8 = 0x12;
