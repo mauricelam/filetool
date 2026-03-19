@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './apk-wasm-bindings/pkg'
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
 import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse } from '@mantine/core';
@@ -9,6 +9,13 @@ import '@mantine/core/styles.css';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
+
+interface ResourceTableState {
+    selectedType: string;
+    filter: string;
+    sortConfig: { key: 'entry_id' | 'name', direction: 'asc' | 'desc' };
+    scrollTop?: number;
+}
 
 const initializeWasm = async () => {
     if (!wasmInitialized) {
@@ -72,6 +79,13 @@ function App() {
     const [metadata, setMetadata] = useState<ApkMetadata | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    // State for ResourceTableViewer to persist across view changes
+    const [resTableState, setResTableState] = useState<ResourceTableState>({
+        selectedType: 'style',
+        filter: '',
+        sortConfig: { key: 'entry_id', direction: 'asc' }
+    });
+
     useEffect(() => {
         // Request file from parent window
         if (window.parent) {
@@ -116,7 +130,7 @@ function App() {
         }
     };
 
-    const handleNavigateToFile = useCallback((path: string) => {
+    const handleNavigateToFile = useCallback((path: string, currentScrollTop?: number) => {
         const pathArr = path.split('/');
         // Try to find the file in fileTree to preview it
         let current = fileTree;
@@ -127,6 +141,10 @@ function App() {
                 current = null;
                 break;
             }
+        }
+
+        if (currentScrollTop !== undefined) {
+            setResTableState(prev => ({ ...prev, scrollTop: currentScrollTop }));
         }
 
         if (current instanceof Uint8Array) {
@@ -145,7 +163,15 @@ function App() {
 
     let content;
     if (view === 'resource') {
-        content = <ResourceTableViewer resources={resources} onBack={() => setView('file')} onNavigateToFile={handleNavigateToFile} />;
+        content = (
+            <ResourceTableViewer
+                resources={resources}
+                onBack={() => setView('file')}
+                onNavigateToFile={(path, scrollTop) => handleNavigateToFile(path, scrollTop)}
+                state={resTableState}
+                onStateChange={setResTableState}
+            />
+        );
     } else if (view === 'file-preview') {
         content = (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px' }}>
@@ -333,7 +359,7 @@ function FileViewer({ files, onItemClick, selectedPath }: {
 
 function ArscValueRenderer({ value, onNavigateToFile, onNavigateToResource }: {
     value: ArscValue,
-    onNavigateToFile: (path: string) => void,
+    onNavigateToFile: () => void,
     onNavigateToResource: (resId: number) => void
 }) {
     if (value.ref_id) {
@@ -353,7 +379,7 @@ function ArscValueRenderer({ value, onNavigateToFile, onNavigateToResource }: {
             <Anchor
                 component="button"
                 size="sm"
-                onClick={() => onNavigateToFile(value.value)}
+                onClick={onNavigateToFile}
             >
                 {value.value}
             </Anchor>
@@ -378,11 +404,14 @@ function ArscValueRenderer({ value, onNavigateToFile, onNavigateToResource }: {
     );
 }
 
-function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
+function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onStateChange }: {
     resources: ArscResource[],
     onBack: () => void,
-    onNavigateToFile: (path: string) => void
+    onNavigateToFile: (path: string, scrollTop: number) => void,
+    state: ResourceTableState,
+    onStateChange: React.Dispatch<React.SetStateAction<ResourceTableState>>
 }) {
+    const viewportRef = useRef<HTMLDivElement>(null);
     const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
         entry_id: 120,
         name: 300,
@@ -417,14 +446,36 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
     }, {} as Record<string, ArscResource[]>), [resources]);
 
     const resourceTypes = useMemo(() => Object.keys(resourcesByType), [resourcesByType]);
-    const [selectedType, setSelectedType] = useState<string>(resourceTypes[0] || '');
-    const [filter, setFilter] = useState('');
+
+    const selectedType = state.selectedType || resourceTypes[0] || '';
+    const filter = state.filter;
+    const sortConfig = state.sortConfig;
+
+    const setSelectedType = useCallback((newType: string | null) => {
+        if (newType) {
+            onStateChange(prev => ({ ...prev, selectedType: newType, scrollTop: 0 }));
+        }
+    }, [onStateChange]);
+
+    const setFilter = useCallback((newFilter: string) => {
+        onStateChange(prev => ({ ...prev, filter: newFilter }));
+    }, [onStateChange]);
+
+    const setSortConfig = useCallback((newSortConfig: { key: 'entry_id' | 'name', direction: 'asc' | 'desc' }) => {
+        onStateChange(prev => ({ ...prev, sortConfig: newSortConfig }));
+    }, [onStateChange]);
 
     useEffect(() => {
-        if (resourceTypes.length > 0 && !selectedType) {
+        if (resourceTypes.length > 0 && (!state.selectedType || !resourceTypes.includes(state.selectedType))) {
             setSelectedType(resourceTypes[0]);
         }
-    }, [resourceTypes, selectedType]);
+    }, [resourceTypes, state.selectedType, setSelectedType]);
+
+    useEffect(() => {
+        if (viewportRef.current && state.scrollTop) {
+            viewportRef.current.scrollTop = state.scrollTop;
+        }
+    }, []);
 
     const onNavigateToResource = useCallback((resId: number) => {
         const targetRes = resources.find(r => r.entry_id === resId);
@@ -442,19 +493,19 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
                 }
             }, 100);
         }
-    }, [resources]);
-
-    const [sortConfig, setSortConfig] = useState<{ key: 'entry_id' | 'name', direction: 'asc' | 'desc' }>({
-        key: 'entry_id',
-        direction: 'asc'
-    });
+    }, [resources, setSelectedType]);
 
     const handleSort = (key: 'entry_id' | 'name') => {
-        setSortConfig(prev => ({
+        setSortConfig({
             key,
-            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-        }));
+            direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+        });
     };
+
+    const handleNavigateToFileInternal = useCallback((path: string) => {
+        const scrollTop = viewportRef.current?.scrollTop || 0;
+        onNavigateToFile(path, scrollTop);
+    }, [onNavigateToFile]);
 
     const filteredResources = useMemo(() => {
         let items = resourcesByType[selectedType] || [];
@@ -526,7 +577,7 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
                 />
             </div>
 
-            <Tabs value={selectedType} onChange={(val) => setSelectedType(val || '')} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <Tabs value={selectedType} onChange={setSelectedType} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <Tabs.List>
                     {resourceTypes.map(typeName => (
                         <Tabs.Tab key={typeName} value={typeName}>{typeName}</Tabs.Tab>
@@ -534,7 +585,7 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
                 </Tabs.List>
 
                 <div style={{ flex: 1, overflow: 'hidden', marginTop: '16px' }}>
-                    <ScrollArea style={{ height: '100%' }}>
+                    <ScrollArea style={{ height: '100%' }} viewportRef={viewportRef}>
                         <Table striped highlightOnHover withBorder withColumnBorders style={{ tableLayout: 'fixed', width: '100%' }}>
                             <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: 'white', zIndex: 1 }}>
                                 <Table.Tr>
@@ -579,7 +630,7 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile }: {
                                         </Table.Td>
                                         {selectedType !== 'id' && (
                                             <Table.Td style={{ width: columnWidths.values, overflow: 'hidden' }}>
-                                                <ResourceValues resource={resource} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+                                            <ResourceValues resource={resource} onNavigateToFile={handleNavigateToFileInternal} onNavigateToResource={onNavigateToResource} />
                                             </Table.Td>
                                         )}
                                     </Table.Tr>
@@ -637,7 +688,7 @@ function ArscConfigValueRenderer({ configValue, onNavigateToFile, onNavigateToRe
 }) {
     return (
         <Stack gap={4}>
-            <ArscValueRenderer value={configValue.value} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+            <ArscValueRenderer value={configValue.value} onNavigateToFile={() => onNavigateToFile(configValue.value.value)} onNavigateToResource={onNavigateToResource} />
             {configValue.entries && (
                 <Box pl="md" style={{ borderLeft: '2px solid #eee' }}>
                     {configValue.entries.map(([key, val], i) => (
