@@ -48,7 +48,7 @@ test('should correctly process and display a standalone binary XML file in andro
     });
 
     await expect(iframe.locator('h3')).toContainText('Binary XML Content');
-    const textviewer = iframe.frame_locator('iframe').locator('#textviewer');
+    const textviewer = page.frameLocator('#file-handler-iframe').frameLocator('iframe').locator('#textviewer');
     await expect(textviewer).toContainText('<start_tag key="value" />');
 });
 
@@ -101,7 +101,7 @@ test('should correctly process and display a binary XML file with multiple roots
     });
 
     await expect(iframe.locator('h3')).toContainText('Binary XML Content');
-    const textviewer = iframe.frame_locator('iframe').locator('#textviewer');
+    const textviewer = page.frameLocator('#file-handler-iframe').frameLocator('iframe').locator('#textviewer');
     await expect(textviewer).toContainText('<tag1 />');
     await expect(textviewer).toContainText('<tag2 />');
 });

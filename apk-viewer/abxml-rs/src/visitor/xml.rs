@@ -132,11 +132,9 @@ impl<'a> XmlVisitor<'a> {
             let value = match current_value {
                 Value::StringReference(index) => (*string_table.get_string(index)?).clone(),
                 Value::ReferenceId(id) => AttributeHelper::resolve_reference(self.resources, id)
-                    .context("could not resolve reference")?,
-                Value::AttributeReferenceId(id) => {
-                    AttributeHelper::resolve_reference(self.resources, id)
-                        .context("could not resolve attribute reference")?
-                }
+                    .unwrap_or_else(|_| format!("@0x{:08X}", id)),
+                Value::AttributeReferenceId(id) => AttributeHelper::resolve_reference(self.resources, id)
+                    .unwrap_or_else(|_| format!("?0x{:08X}", id)),
                 Value::Integer(value) | Value::Flags(value) => {
                     let flag_resolution = AttributeHelper::resolve_flags(
                         &current_attribute,
@@ -342,8 +340,7 @@ impl AttributeHelper {
                             })
                             .unwrap_or_else(|_| {
                                 error!(
-                                    "Value should be added but there was an issue reading \
-                                     the entry"
+                                    "Value should be added but there was an issue reading                                      the entry"
                                 );
                             });
                     }
