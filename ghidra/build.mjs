@@ -13,7 +13,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path', 'node:fs', 'node:path', 'node:crypto', 'crypto'],
+  external: ['require', 'fs', 'path', 'node:fs', 'node:path', 'node:crypto', 'crypto', 'node:module'],
   plugins: [
     copy({
       assets: [
@@ -72,5 +72,9 @@ function copyProcessors(src, dest) {
 }
 
 console.log('Copying processor specifications...');
+const oldTarget = path.join(projectDir, '..', 'dist', 'ghidra', 'processors');
+if (fs.existsSync(oldTarget)) {
+    fs.rmSync(oldTarget, { recursive: true, force: true });
+}
 copyProcessors(processorsDir, targetDir);
 console.log('Done copying processors.');

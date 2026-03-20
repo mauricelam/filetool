@@ -14,12 +14,16 @@ const GhidraApp = () => {
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [processors, setProcessors] = useState<any[]>([]);
     const [status, setStatus] = useState<string>('Initializing...');
+    const [error, setError] = useState<string | null>(null);
 
     const worker = useMemo(() => new Worker(new URL('./worker.js', import.meta.url), { type: 'module' }), []);
     const fileRef = useRef<File | null>(null);
 
     useEffect(() => {
-        fetch('processors.json').then(r => r.json()).then(setProcessors);
+        fetch('processors.json').then(r => r.json()).then(setProcessors).catch(e => {
+            console.error('[GhidraUI] Failed to load processors.json:', e);
+            setError('Failed to load architecture list.');
+        });
 
         worker.onmessage = (e) => {
             console.log('[GhidraUI] Worker message:', e.data);
@@ -37,7 +41,8 @@ const GhidraApp = () => {
             } else if (e.data.action === 'error') {
                 console.error('[GhidraUI] Worker error:', e.data.error);
                 setLoading(false);
-                setStatus(`Error: ${e.data.error}`);
+                setError(`Worker Error: ${e.data.error}`);
+                setStatus('Error occurred.');
             }
         };
 
@@ -45,41 +50,44 @@ const GhidraApp = () => {
             console.log('[GhidraUI] Handling file:', file.name);
             setFile(file);
             fileRef.current = file;
+            setError(null);
             setStatus('Detecting architecture...');
             const buffer = await file.arrayBuffer();
             worker.postMessage({ action: 'detect_architecture', buffer: buffer.slice(0) }, [buffer]);
 
             setStatus('Extracting symbols...');
             // Extract symbols using binutils (nm)
-            const nmWorker = new Worker(new URL('../binutils/worker.js', import.meta.url), { type: 'module' });
-            const nmBuffer = await file.arrayBuffer();
-            let nmOutput = '';
-            nmWorker.onmessage = (e) => {
-                if (typeof e.data === 'string') {
-                    nmOutput += e.data + '\n';
-                } else if (e.data.action === 'done') {
-                    const lines = nmOutput.split('\n');
-                    const extractedSymbols = lines.map(line => {
-                        // Match common nm output formats:
-                        // 0000000000001000 T main
-                        // 00001000 t func
-                        const match = line.trim().match(/^([0-9a-fA-F]*)\s+([tTwW])\s+(.+)$/);
-                        if (match) {
-                            return { address: match[1] ? '0x' + match[1] : '?', type: match[2], name: match[3] };
-                        }
-                        return null;
-                    }).filter(s => s !== null);
-                    console.log('[GhidraUI] Extracted symbols:', extractedSymbols.length);
-                    setSymbols(extractedSymbols);
-                    nmWorker.terminate();
-                    setStatus(prev => prev === 'Extracting symbols...' ? 'Ready' : prev);
-                }
-            };
-            nmWorker.onerror = (err) => {
-                console.error('[GhidraUI] NM Worker Error:', err);
-                setStatus('Failed to extract symbols.');
-            };
-            nmWorker.postMessage({ action: 'nm', buffer: nmBuffer, flags: ['-C'], fileName: file.name }, [nmBuffer]);
+            try {
+                const nmWorker = new Worker(new URL('../binutils/worker.js', import.meta.url), { type: 'module' });
+                const nmBuffer = await file.arrayBuffer();
+                let nmOutput = '';
+                nmWorker.onmessage = (ev) => {
+                    if (typeof ev.data === 'string') {
+                        nmOutput += ev.data + '\n';
+                    } else if (ev.data.action === 'done') {
+                        const lines = nmOutput.split('\n');
+                        const extractedSymbols = lines.map(line => {
+                            const match = line.trim().match(/^([0-9a-fA-F]*)\s+([tTwW])\s+(.+)$/);
+                            if (match) {
+                                return { address: match[1] ? '0x' + match[1] : '?', type: match[2], name: match[3] };
+                            }
+                            return null;
+                        }).filter(s => s !== null);
+                        console.log('[GhidraUI] Extracted symbols:', extractedSymbols.length);
+                        setSymbols(extractedSymbols);
+                        nmWorker.terminate();
+                        setStatus(prev => prev === 'Extracting symbols...' ? 'Ready' : prev);
+                    }
+                };
+                nmWorker.onerror = (err) => {
+                    console.error('[GhidraUI] NM Worker Error:', err);
+                    setStatus('Failed to extract symbols.');
+                };
+                nmWorker.postMessage({ action: 'nm', buffer: nmBuffer, flags: ['-C'], fileName: file.name }, [nmBuffer]);
+            } catch (err) {
+                console.error('[GhidraUI] Failed to start NM worker:', err);
+                setStatus('Failed to start symbol extraction.');
+            }
         };
 
         window.onmessage = (e) => {
@@ -96,6 +104,7 @@ const GhidraApp = () => {
     const handleDecompile = async (funcName: string) => {
         if (!fileRef.current || !arch || arch === 'unknown') return;
         setLoading(true);
+        setError(null);
         setSelectedFunc(funcName);
         setStatus(`Decompiling ${funcName}...`);
 
@@ -103,16 +112,16 @@ const GhidraApp = () => {
         if (!proc) {
             console.error('[GhidraUI] Processor not found for arch:', arch);
             setLoading(false);
-            setStatus(`Unsupported architecture: ${arch}`);
+            setError(`Unsupported architecture: ${arch}`);
             return;
         }
 
         try {
             console.log('[GhidraUI] Fetching specs for:', arch);
             const [sla, pspec, cspec] = await Promise.all([
-                fetch(proc.sla).then(r => r.arrayBuffer()),
-                fetch(proc.pspec).then(r => r.text()),
-                fetch(proc.compilers[0].spec).then(r => r.text()),
+                fetch(proc.sla).then(r => { if (!r.ok) throw new Error(`Failed to fetch ${proc.sla}`); return r.arrayBuffer(); }),
+                fetch(proc.pspec).then(r => { if (!r.ok) throw new Error(`Failed to fetch ${proc.pspec}`); return r.text(); }),
+                fetch(proc.compilers[0].spec).then(r => { if (!r.ok) throw new Error(`Failed to fetch ${proc.compilers[0].spec}`); return r.text(); }),
             ]);
 
             const buffer = await fileRef.current.arrayBuffer();
@@ -130,7 +139,7 @@ const GhidraApp = () => {
         } catch (err: any) {
             console.error('[GhidraUI] Failed to fetch specs:', err);
             setLoading(false);
-            setStatus(`Failed to load processor specs: ${err.message}`);
+            setError(`Failed to load processor specs: ${err.message}`);
         }
     };
 
@@ -138,14 +147,14 @@ const GhidraApp = () => {
 
     return (
         <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
-            <div style={{ width: '300px', borderRight: '1px solid #ccc', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: '350px', borderRight: '1px solid #ccc', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '10px', borderBottom: '1px solid #ccc' }}>
                     <input
                         type="text"
                         placeholder="Search symbols..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ width: '100%', padding: '5px', boxSizing: 'border-box' }}
+                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
                     />
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -155,7 +164,7 @@ const GhidraApp = () => {
                             key={s.name + s.address}
                             onClick={() => handleDecompile(s.name)}
                             style={{
-                                padding: '10px',
+                                padding: '8px 12px',
                                 cursor: 'pointer',
                                 backgroundColor: (selectedFunc === s.name || selectedFunc === s.address) ? '#e0e0e0' : 'transparent',
                                 borderBottom: '1px solid #eee'
@@ -168,17 +177,22 @@ const GhidraApp = () => {
                 </div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '10px', borderBottom: '1px solid #ccc', backgroundColor: '#f5f5f5', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ padding: '10px', borderBottom: '1px solid #ccc', backgroundColor: '#f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>Architecture: <b>{arch || 'Detecting...'}</b></div>
-                    <div style={{ color: '#666', fontSize: '0.9em' }}>{status}</div>
+                    <div style={{ color: loading ? '#0066cc' : '#666', fontSize: '0.9em' }}>{status}</div>
                 </div>
-                {(arch === 'unknown' || status.includes('failed')) && (
+                {error && (
+                    <div style={{ padding: '10px', backgroundColor: '#fff2f0', borderBottom: '1px solid #ffccc7', color: '#ff4d4f' }}>
+                        {error}
+                    </div>
+                )}
+                {(arch === 'unknown' || arch === '') && (
                     <div style={{ padding: '10px', backgroundColor: '#fffbe6', borderBottom: '1px solid #ffe58f' }}>
                         Manual Selection:
                         <select onChange={(e) => {
                             setArch(e.target.value);
                             setStatus(`Selected: ${e.target.value}`);
-                        }} value={arch} style={{ marginLeft: '10px' }}>
+                        }} value={arch} style={{ marginLeft: '10px', padding: '4px' }}>
                             <option value="unknown">-- Select --</option>
                             {processors.map(p => <option key={p.id} value={p.id}>{p.description}</option>)}
                         </select>
