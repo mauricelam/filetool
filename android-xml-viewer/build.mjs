@@ -2,7 +2,19 @@ import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import path from 'path';
+import fs from 'fs';
+import zlib from 'zlib';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
+
+const arscPath = '../apk-viewer/abxml-rs/resources/resources.arsc';
+const compressedArscPath = './android.arsc.gz';
+
+if (fs.existsSync(arscPath)) {
+  const input = fs.readFileSync(arscPath);
+  const output = zlib.gzipSync(input);
+  fs.writeFileSync(compressedArscPath, output);
+  console.log(`Compressed ${arscPath} to ${compressedArscPath}`);
+}
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -24,8 +36,8 @@ const SETTINGS = {
           to: ["libmagic-wrapper.wasm"],
         },
         {
-          from: ["../apk-viewer/abxml-rs/resources/resources.arsc"],
-          to: ["android.arsc"],
+          from: [compressedArscPath],
+          to: ["android.arsc.gz"],
         }
       ]
     }),

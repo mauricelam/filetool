@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import init, { ArscResource, extract_arsc, decode_xml } from './abxml-wasm-bindings/pkg'
+import pako from 'pako'
 import React, { useState, useEffect, useRef } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
@@ -14,9 +15,10 @@ const initializeWasm = async () => {
             await init();
 
             // Load system resources
-            const response = await fetch('android.arsc');
-            if (!response.ok) throw new Error('Failed to fetch android.arsc');
-            systemResources = new Uint8Array(await response.arrayBuffer());
+            const response = await fetch('android.arsc.gz');
+            if (!response.ok) throw new Error('Failed to fetch android.arsc.gz');
+            const compressed = new Uint8Array(await response.arrayBuffer());
+            systemResources = pako.ungzip(compressed);
 
             wasmInitialized = true;
         } catch (error) {
