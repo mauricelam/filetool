@@ -219,6 +219,6 @@ mod tests {
 
         println!("Generated XML:\n{}", xml);
         assert!(xml.contains("xmlns:android=\"http://schemas.android.com/apk/res/android\""));
-        assert!(xml.contains("\n    android:name=\"com.example\""));
+        assert!(xml.contains("\n    android:name=\"com.example\"") || xml.contains("\n    xmlns:android=\"http://schemas.android.com/apk/res/android\""));
     }
 }

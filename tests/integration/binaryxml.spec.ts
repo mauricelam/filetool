@@ -48,7 +48,8 @@ test('should correctly process and display a standalone binary XML file in andro
     });
 
     await expect(iframe.locator('h3')).toContainText('Binary XML Content');
-    await expect(iframe.locator('pre')).toContainText('<start_tag key="value" />');
+    const textviewer = iframe.frame_locator('iframe').locator('#textviewer');
+    await expect(textviewer).toContainText('<start_tag key="value" />');
 });
 
 test('should correctly process and display a standalone ARSC file in android-xml-viewer', async ({ page }) => {
@@ -100,7 +101,7 @@ test('should correctly process and display a binary XML file with multiple roots
     });
 
     await expect(iframe.locator('h3')).toContainText('Binary XML Content');
-    const preContent = await iframe.locator('pre').textContent();
-    expect(preContent).toContain('<tag1 />');
-    expect(preContent).toContain('<tag2 />');
+    const textviewer = iframe.frame_locator('iframe').locator('#textviewer');
+    await expect(textviewer).toContainText('<tag1 />');
+    await expect(textviewer).toContainText('<tag2 />');
 });
