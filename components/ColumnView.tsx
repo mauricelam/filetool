@@ -6,6 +6,8 @@ import React, { useState, useEffect, useRef } from 'react';
 interface ColumnViewProps<T> {
     /** The initial content to display in the column view. Should be an object where keys are item names and values are either nested objects (for directories) or any other type (for files) */
     initialContent: { [key: string]: T };
+    /** The path to select and highlight in the column view */
+    selectedPath?: string[];
     /** Optional callback function that is called when an item is clicked. Receives the level (column index), key (item name), and content of the clicked item */
     onItemClick?: (level: number, key: string, content: T) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
@@ -120,6 +122,7 @@ function Column<T>({
  */
 export function ColumnView<T>({
     initialContent,
+    selectedPath: initialSelectedPath,
     onItemClick,
     renderFileActions,
     renderFilePreview,
@@ -130,10 +133,35 @@ export function ColumnView<T>({
     const columnsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        setColumns([{ path: [], content: initialContent }]);
-        setSelectedPath([]);
-        setSelectedFile(null);
-    }, [initialContent]);
+        if (initialSelectedPath && initialSelectedPath.length > 0) {
+            const newColumns = [{ path: [], content: initialContent }];
+            let currentContent: any = initialContent;
+            let currentPath: string[] = [];
+
+            for (const segment of initialSelectedPath) {
+                if (currentContent && typeof currentContent === 'object' && segment in currentContent) {
+                    currentPath = [...currentPath, segment];
+                    currentContent = currentContent[segment];
+                    const isDirectory = typeof currentContent === 'object' &&
+                        !(currentContent instanceof Uint8Array) &&
+                        Object.keys(currentContent).some(k => !k.startsWith('_'));
+                    if (isDirectory) {
+                        newColumns.push({ path: currentPath, content: currentContent });
+                    } else {
+                        setSelectedFile({ content: currentContent, path: currentPath });
+                    }
+                } else {
+                    break;
+                }
+            }
+            setColumns(newColumns);
+            setSelectedPath(currentPath);
+        } else {
+            setColumns([{ path: [], content: initialContent }]);
+            setSelectedPath([]);
+            setSelectedFile(null);
+        }
+    }, [initialContent, initialSelectedPath]);
 
     const handleItemClick = (level: number, key: string, content: any) => {
         const newPath = [...selectedPath.slice(0, level), key];

@@ -1,14 +1,22 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata } from './apk-wasm-bindings/pkg'
-import React, { useState, useEffect } from 'react'
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
-import 'react-tabs/style/react-tabs.css'
+import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './apk-wasm-bindings/pkg'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
+import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import '@mantine/core/styles.css';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
 let wasmInitialized = false;
 let systemResources: Uint8Array | null = null;
+
+interface ResourceTableState {
+    selectedType: string;
+    filter: string;
+    sortConfig: { key: 'entry_id' | 'name', direction: 'asc' | 'desc' };
+    scrollTop?: number;
+}
 
 const initializeWasm = async () => {
     if (!wasmInitialized) {
@@ -45,12 +53,45 @@ function pathToTree(paths: [string, string][]): { [key: string]: any } {
     return result
 }
 
+function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
+    return (
+        <div
+            onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onMouseDown(e);
+            }}
+            style={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: '4px',
+                cursor: 'col-resize',
+                zIndex: 10,
+                transition: 'background-color 0.2s',
+            }}
+            className="resize-handle"
+        />
+    );
+}
+
 function App() {
-    const [view, setView] = useState<'file' | 'resource' | 'metadata'>('file');
+    const [view, setView] = useState<'file' | 'resource' | 'metadata' | 'file-preview'>('file');
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
+    const [selectedFilePath, setSelectedFilePath] = useState<string[] | undefined>(undefined);
+    const [previewPath, setPreviewPath] = useState<string[] | null>(null);
+    const [previewContent, setPreviewContent] = useState<Uint8Array | null>(null);
     const [resources, setResources] = useState<ArscResource[]>([]);
     const [metadata, setMetadata] = useState<ApkMetadata | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    // State for ResourceTableViewer to persist across view changes
+    const [resTableState, setResTableState] = useState<ResourceTableState>({
+        selectedType: 'style',
+        filter: '',
+        sortConfig: { key: 'entry_id', direction: 'asc' }
+    });
 
     useEffect(() => {
         // Request file from parent window
@@ -98,60 +139,116 @@ function App() {
         }
     };
 
+    const handleNavigateToFile = useCallback((path: string, currentScrollTop?: number) => {
+        const pathArr = path.split('/');
+        // Try to find the file in fileTree to preview it
+        let current = fileTree;
+        for (const segment of pathArr) {
+            if (current && typeof current === 'object' && segment in current) {
+                current = current[segment];
+            } else {
+                current = null;
+                break;
+            }
+        }
+
+        if (currentScrollTop !== undefined) {
+            setResTableState(prev => ({ ...prev, scrollTop: currentScrollTop }));
+        }
+
+        if (current instanceof Uint8Array) {
+            setPreviewPath(pathArr);
+            setPreviewContent(current);
+            setView('file-preview');
+        } else {
+            setSelectedFilePath(pathArr);
+            setView('file');
+        }
+    }, [fileTree]);
+
     if (error) {
         return <div style={{ color: 'red', padding: '10px' }}>Error: {error}</div>;
     }
 
+    let content;
     if (view === 'resource') {
-        return <ResourceTableViewer resources={resources} onBack={() => setView('file')} />;
-    }
-
-    if (view === 'metadata') {
-        return <MetadataViewer metadata={metadata} onBack={() => setView('file')} />;
+        content = (
+            <ResourceTableViewer
+                resources={resources}
+                onBack={() => setView('file')}
+                onNavigateToFile={(path, scrollTop) => handleNavigateToFile(path, scrollTop)}
+                state={resTableState}
+                onStateChange={setResTableState}
+            />
+        );
+    } else if (view === 'file-preview') {
+        content = (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px' }}>
+                <div style={{ marginBottom: '16px' }}>
+                    <Button
+                        variant="default"
+                        onClick={() => setView('resource')}
+                        leftSection={
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                                <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                            </svg>
+                        }
+                    >
+                        Back to Resources
+                    </Button>
+                </div>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <PreviewComponent path={previewPath!} filePromise={async () => new File([previewContent!.buffer], previewPath![previewPath!.length - 1])} />
+                </div>
+            </div>
+        );
+    } else if (view === 'metadata') {
+        content = <MetadataViewer metadata={metadata} onBack={() => setView('file')} />;
+    } else {
+        content = (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                {metadata && (
+                    <div style={{
+                        padding: '10px 20px',
+                        borderBottom: '1px solid #ccc',
+                        backgroundColor: '#f9f9f9',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 'bold' }}>{metadata.manifest?.package || 'Unknown APK'}</span>
+                            <span style={{ fontSize: '12px', color: '#666' }}>
+                                {metadata.manifest?.version_name} ({metadata.manifest?.version_code})
+                            </span>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="compact-sm"
+                            onClick={() => setView('metadata')}
+                        >
+                            View APK Metadata
+                        </Button>
+                    </div>
+                )}
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <FileViewer files={fileTree} onItemClick={handleItemClick} selectedPath={selectedFilePath} />
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {metadata && (
-                <div style={{
-                    padding: '10px 20px',
-                    borderBottom: '1px solid #ccc',
-                    backgroundColor: '#f9f9f9',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                }}>
-                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 'bold' }}>{metadata.manifest?.package || 'Unknown APK'}</span>
-                        <span style={{ fontSize: '12px', color: '#666' }}>
-                            {metadata.manifest?.version_name} ({metadata.manifest?.version_code})
-                        </span>
-                    </div>
-                    <button
-                        onClick={() => setView('metadata')}
-                        style={{
-                            padding: '4px 12px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            background: 'white',
-                            cursor: 'pointer',
-                            fontSize: '12px'
-                        }}
-                    >
-                        View APK Metadata
-                    </button>
-                </div>
-            )}
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-                <FileViewer files={fileTree} onItemClick={handleItemClick} />
-            </div>
-        </div>
+        <MantineProvider>
+            {content}
+        </MantineProvider>
     );
 }
 
-function FileViewer({ files, onItemClick }: {
+function FileViewer({ files, onItemClick, selectedPath }: {
     files: { [key: string]: any },
     onItemClick: (level: number, key: string, content: any) => void,
+    selectedPath?: string[],
 }) {
     const handleOpenFile = async (file: Uint8Array, filename: string) => {
         const extractedFile = new File([file.buffer as ArrayBuffer], filename);
@@ -176,16 +273,16 @@ function FileViewer({ files, onItemClick }: {
 
         return (
             <div className="file-actions">
-                <button onClick={() => handleOpenFile(file, path[path.length - 1])} title="Open">
+                <ActionIcon variant="subtle" onClick={() => handleOpenFile(file, path[path.length - 1])} title="Open">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
                         <path d="M216-144q-29.7 0-50.85-21.15Q144-186.3 144-216v-528q0-29.7 21.15-50.85Q186.3-816 216-816h264v72H216v528h528v-264h72v264q0 29.7-21.15 50.85Q773.7-144 744-144H216Zm171-192-51-51 357-357H576v-72h240v240h-72v-117L387-336Z" />
                     </svg>
-                </button>
-                <button onClick={() => handleDownloadFile(file, path[path.length - 1])} title="Download">
+                </ActionIcon>
+                <ActionIcon variant="subtle" onClick={() => handleDownloadFile(file, path[path.length - 1])} title="Download">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
                         <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
                     </svg>
-                </button>
+                </ActionIcon>
             </div>
         );
     };
@@ -249,25 +346,18 @@ function FileViewer({ files, onItemClick }: {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0 }}>APK Contents</h3>
                 {hasMultipleDex && (
-                    <button
+                    <Button
+                        size="compact-sm"
                         onClick={handleOpenMultiDex}
-                        style={{
-                            padding: '4px 12px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            background: '#e0f2fe',
-                            color: '#0369a1',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 500
-                        }}
+                        variant="light"
                     >
                         Analyze all DEX files
-                    </button>
+                    </Button>
                 )}
             </div>
             <ColumnView
                 initialContent={files}
+                selectedPath={selectedPath}
                 onItemClick={onItemClick}
                 renderFileActions={renderFileActions}
                 renderFilePreview={renderFilePreview}
@@ -276,209 +366,349 @@ function FileViewer({ files, onItemClick }: {
     );
 }
 
-function ResourceTableViewer({ resources, onBack }: { resources: ArscResource[], onBack: () => void }) {
-    // Group resources by type name
-    const resourcesByType = resources.reduce((acc, resource) => {
+function ArscValueRenderer({ value, onNavigateToFile, onNavigateToResource }: {
+    value: ArscValue,
+    onNavigateToFile: () => void,
+    onNavigateToResource: (resId: number) => void
+}) {
+    if (value.ref_id) {
+        return (
+            <Anchor
+                component="button"
+                size="sm"
+                onClick={() => onNavigateToResource(value.ref_id!)}
+            >
+                {value.value}
+            </Anchor>
+        );
+    }
+
+    if (typeof value.value === 'string' && value.value.startsWith('res/')) {
+        return (
+            <Anchor
+                component="button"
+                size="sm"
+                onClick={onNavigateToFile}
+            >
+                {value.value}
+            </Anchor>
+        );
+    }
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Text size="sm">{value.value}</Text>
+            {typeof value.value === 'string' && value.value.startsWith('#') && (value.value.length === 9 || value.value.length === 7) && (
+                <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: value.value.length === 9
+                        ? `rgba(${parseInt(value.value.slice(3, 5), 16)}, ${parseInt(value.value.slice(5, 7), 16)}, ${parseInt(value.value.slice(7, 9), 16)}, ${parseInt(value.value.slice(1, 3), 16) / 255})`
+                        : value.value,
+                    border: '1px solid #ccc',
+                    borderRadius: '4px'
+                }} />
+            )}
+        </div>
+    );
+}
+
+function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onStateChange }: {
+    resources: ArscResource[],
+    onBack: () => void,
+    onNavigateToFile: (path: string, scrollTop: number) => void,
+    state: ResourceTableState,
+    onStateChange: React.Dispatch<React.SetStateAction<ResourceTableState>>
+}) {
+    const viewportRef = useRef<HTMLDivElement>(null);
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+        entry_id: 120,
+        name: 300,
+        values: 500,
+    });
+
+    const handleResize = useCallback((column: string) => (e: React.MouseEvent) => {
+        const startX = e.pageX;
+        const startWidth = columnWidths[column];
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const newWidth = Math.max(50, startWidth + (moveEvent.pageX - startX));
+            setColumnWidths(prev => ({ ...prev, [column]: newWidth }));
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }, [columnWidths]);
+
+    const resourcesByType = useMemo(() => resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
         if (!acc[typeName]) {
             acc[typeName] = [];
         }
         acc[typeName].push(resource);
         return acc;
-    }, {} as Record<string, any[]>);
+    }, {} as Record<string, ArscResource[]>), [resources]);
 
-    const [selectedType, setSelectedType] = useState<string>(Object.keys(resourcesByType)[0]);
-    const [sortConfig, setSortConfig] = useState<{ key: 'entry_id' | 'name' | 'value', direction: 'asc' | 'desc' }>({
-        key: 'entry_id',
-        direction: 'asc'
-    });
+    const resourceTypes = useMemo(() => Object.keys(resourcesByType), [resourcesByType]);
 
-    const handleSort = (key: 'entry_id' | 'name' | 'value') => {
-        setSortConfig(prev => ({
+    const selectedType = state.selectedType || resourceTypes[0] || '';
+    const filter = state.filter;
+    const sortConfig = state.sortConfig;
+
+    const setSelectedType = useCallback((newType: string | null) => {
+        if (newType) {
+            onStateChange(prev => ({ ...prev, selectedType: newType, scrollTop: 0 }));
+        }
+    }, [onStateChange]);
+
+    const setFilter = useCallback((newFilter: string) => {
+        onStateChange(prev => ({ ...prev, filter: newFilter }));
+    }, [onStateChange]);
+
+    const setSortConfig = useCallback((newSortConfig: { key: 'entry_id' | 'name', direction: 'asc' | 'desc' }) => {
+        onStateChange(prev => ({ ...prev, sortConfig: newSortConfig }));
+    }, [onStateChange]);
+
+    useEffect(() => {
+        if (resourceTypes.length > 0 && (!state.selectedType || !resourceTypes.includes(state.selectedType))) {
+            setSelectedType(resourceTypes[0]);
+        }
+    }, [resourceTypes, state.selectedType, setSelectedType]);
+
+    useEffect(() => {
+        if (viewportRef.current && state.scrollTop) {
+            viewportRef.current.scrollTop = state.scrollTop;
+        }
+    }, []);
+
+    const onNavigateToResource = useCallback((resId: number) => {
+        const targetRes = resources.find(r => r.entry_id === resId);
+        if (targetRes) {
+            setSelectedType(targetRes.type_name);
+            const hexId = `0x${resId.toString(16).toUpperCase()}`;
+            setTimeout(() => {
+                const el = document.getElementById(`res-${hexId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.style.backgroundColor = '#fff9c4';
+                    setTimeout(() => {
+                        el.style.backgroundColor = '';
+                    }, 2000);
+                }
+            }, 100);
+        }
+    }, [resources, setSelectedType]);
+
+    const handleSort = (key: 'entry_id' | 'name') => {
+        setSortConfig({
             key,
-            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-        }));
+            direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+        });
     };
 
-    function getSortedResources(): ArscResource[] {
-        const resources = resourcesByType[selectedType] || [];
-        return [...resources].sort((a, b) => {
+    const handleNavigateToFileInternal = useCallback((path: string) => {
+        const scrollTop = viewportRef.current?.scrollTop || 0;
+        onNavigateToFile(path, scrollTop);
+    }, [onNavigateToFile]);
+
+    const filteredResources = useMemo(() => {
+        let items = resourcesByType[selectedType] || [];
+        if (filter) {
+            const lowFilter = filter.toLowerCase();
+            items = items.filter(r =>
+                r.name.toLowerCase().includes(lowFilter) ||
+                r.entry_id.toString(16).toLowerCase().includes(lowFilter) ||
+                r.values.some(v => v.value.value.toLowerCase().includes(lowFilter))
+            );
+        }
+        return items.sort((a, b) => {
             let comparison = 0;
             if (sortConfig.key === 'entry_id') {
                 comparison = a.entry_id - b.entry_id;
-            } else if (sortConfig.key === 'name') {
-                comparison = a.name.localeCompare(b.name);
             } else {
-                comparison = a.value.localeCompare(b.value);
+                comparison = a.name.localeCompare(b.name);
             }
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         });
-    }
+    }, [resourcesByType, selectedType, sortConfig, filter]);
 
-    const SortIndicator = ({ column }: { column: 'entry_id' | 'name' | 'value' }) => (
+    const SortIndicator = ({ column }: { column: 'entry_id' | 'name' }) => (
         <span style={{ marginLeft: '4px' }}>
             {sortConfig.key === column && (sortConfig.direction === 'asc' ? '↑' : '↓')}
         </span>
     );
 
-    const showValueColumn = selectedType !== 'id';
-
-    const resourceTypes = Object.keys(resourcesByType);
-
     return (
         <div style={{
             padding: '20px',
-            overflow: 'auto',
             height: '100%',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            overflow: 'hidden'
         }}>
+            <style>
+                {`
+                    .resize-handle:hover {
+                        background-color: #228be6;
+                    }
+                `}
+            </style>
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '16px',
+                justifyContent: 'space-between',
                 marginBottom: '16px'
             }}>
-                <button
-                    onClick={onBack}
-                    style={{
-                        padding: '8px 16px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        background: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
-                    </svg>
-                    Back
-                </button>
-                <h3 style={{ margin: 0 }}>Resource Table</h3>
+                <Group>
+                    <Button
+                        variant="default"
+                        onClick={onBack}
+                        leftSection={
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                                <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                            </svg>
+                        }
+                    >
+                        Back
+                    </Button>
+                    <h3 style={{ margin: 0 }}>Resource Table</h3>
+                </Group>
+                <TextInput
+                    placeholder="Filter resources..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    style={{ width: '300px' }}
+                />
             </div>
 
-            {/* Type selector tabs */}
-            <div style={{ marginBottom: '16px' }}>
-                <Tabs
-                    selectedIndex={resourceTypes.indexOf(selectedType)}
-                    onSelect={(index) => setSelectedType(resourceTypes[index])}
-                >
-                    <TabList>
-                        {resourceTypes.map(typeName => (
-                            <Tab key={typeName}>{typeName}</Tab>
-                        ))}
-                    </TabList>
-
+            <Tabs value={selectedType} onChange={setSelectedType} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <Tabs.List>
                     {resourceTypes.map(typeName => (
-                        <TabPanel key={typeName}>
-                            {/* Resource table */}
-                            <div style={{
-                                overflow: 'auto',
-                                flex: 1,
-                                border: '1px solid #ccc',
-                                borderRadius: '4px'
-                            }}>
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: selectedType !== 'id' ? 'auto auto auto' : 'auto auto',
-                                    gap: '8px',
-                                    padding: '8px',
-                                    minWidth: 'min-content'
-                                }}>
-                                    <div
-                                        style={{
-                                            fontWeight: 'bold',
-                                            padding: '8px',
-                                            borderBottom: '1px solid #ccc',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            whiteSpace: 'nowrap'
-                                        }}
-                                        onClick={() => handleSort('entry_id')}
-                                    >
-                                        Entry ID <SortIndicator column="entry_id" />
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontWeight: 'bold',
-                                            padding: '8px',
-                                            borderBottom: '1px solid #ccc',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            whiteSpace: 'nowrap'
-                                        }}
-                                        onClick={() => handleSort('name')}
-                                    >
-                                        Name <SortIndicator column="name" />
-                                    </div>
-                                    {selectedType !== 'id' && (
-                                        <div
-                                            style={{
-                                                fontWeight: 'bold',
-                                                padding: '8px',
-                                                borderBottom: '1px solid #ccc',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                whiteSpace: 'nowrap'
-                                            }}
-                                            onClick={() => handleSort('value')}
-                                        >
-                                            Value <SortIndicator column="value" />
-                                        </div>
-                                    )}
-
-                                    {getSortedResources().map((resource, index) => (
-                                        <React.Fragment key={index}>
-                                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>0x{resource.entry_id.toString(16).toUpperCase()}</div>
-                                            <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{resource.name}</div>
-                                            {selectedType !== 'id' && (
-                                                <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
-                                                    {resource.type_name !== 'attr' && <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        {typeof resource.value === 'object' && resource.value !== null
-                                                            ? JSON.stringify(resource.value)
-                                                            : resource.value}
-                                                        {resource.value.startsWith('#') && resource.value.length === 9 && (
-                                                            <div style={{
-                                                                width: '20px',
-                                                                height: '20px',
-                                                                backgroundColor: `rgba(${parseInt(resource.value.slice(3, 5), 16)}, ${parseInt(resource.value.slice(5, 7), 16)}, ${parseInt(resource.value.slice(7, 9), 16)}, ${parseInt(resource.value.slice(1, 3), 16) / 255})`,
-                                                                border: '1px solid #ccc',
-                                                                borderRadius: '4px'
-                                                            }} />
-                                                        )}
-                                                    </div>}
-                                                    {resource.entries && (
-                                                        <div style={{ marginTop: '8px' }}>
-                                                            {Object.entries(resource).map(([key, value], i) => (
-                                                                <div key={i} style={{
-                                                                    padding: '4px 0',
-                                                                    borderTop: i > 0 ? '1px solid #eee' : 'none'
-                                                                }}>
-                                                                    <span style={{ fontWeight: 'bold' }}>{key}:</span> {typeof value === 'object' && value !== null
-                                                                        ? JSON.stringify(value)
-                                                                        : String(value)}
-                                                                </div>
-                                                            ))
-                                                            }
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                </div>
-                            </div>
-                        </TabPanel>
+                        <Tabs.Tab key={typeName} value={typeName}>{typeName}</Tabs.Tab>
                     ))}
-                </Tabs>
-            </div>
+                </Tabs.List>
+
+                <div style={{ flex: 1, overflow: 'hidden', marginTop: '16px' }}>
+                    <ScrollArea style={{ height: '100%' }} viewportRef={viewportRef}>
+                        <Table striped highlightOnHover withBorder withColumnBorders style={{ tableLayout: 'fixed', width: '100%' }}>
+                            <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: 'white', zIndex: 1 }}>
+                                <Table.Tr>
+                                    <Table.Th style={{ cursor: 'pointer', width: columnWidths.entry_id, position: 'relative' }} onClick={() => handleSort('entry_id')}>
+                                        Entry ID <SortIndicator column="entry_id" />
+                                        <ResizeHandle onMouseDown={handleResize('entry_id')} />
+                                    </Table.Th>
+                                    <Table.Th style={{ cursor: 'pointer', width: columnWidths.name, position: 'relative' }} onClick={() => handleSort('name')}>
+                                        Name <SortIndicator column="name" />
+                                        <ResizeHandle onMouseDown={handleResize('name')} />
+                                    </Table.Th>
+                                    {selectedType !== 'id' && (
+                                        <Table.Th style={{ width: columnWidths.values, position: 'relative' }}>
+                                            Values
+                                            <ResizeHandle onMouseDown={handleResize('values')} />
+                                        </Table.Th>
+                                    )}
+                                </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                                {filteredResources.map((resource, index) => (
+                                    <Table.Tr key={index} id={`res-0x${resource.entry_id.toString(16).toUpperCase()}`}>
+                                        <Table.Td style={{ fontFamily: 'monospace', width: columnWidths.entry_id, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            0x{resource.entry_id.toString(16).toUpperCase()}
+                                        </Table.Td>
+                                        <Table.Td style={{ fontFamily: 'monospace', width: columnWidths.name, overflow: 'hidden' }}>
+                                            <Stack gap={4}>
+                                                <Text size="sm" ff="monospace">{resource.name}</Text>
+                                                {resource.parent_id && (
+                                                    <Group gap={4}>
+                                                        <Text size="xs" c="dimmed">Parent:</Text>
+                                                        <Anchor
+                                                            component="button"
+                                                            size="xs"
+                                                            onClick={() => onNavigateToResource(resource.parent_id!)}
+                                                        >
+                                                            {resource.parent_name || `0x${resource.parent_id.toString(16).toUpperCase()}`}
+                                                        </Anchor>
+                                                    </Group>
+                                                )}
+                                            </Stack>
+                                        </Table.Td>
+                                        {selectedType !== 'id' && (
+                                            <Table.Td style={{ width: columnWidths.values, overflow: 'hidden' }}>
+                                            <ResourceValues resource={resource} onNavigateToFile={handleNavigateToFileInternal} onNavigateToResource={onNavigateToResource} />
+                                            </Table.Td>
+                                        )}
+                                    </Table.Tr>
+                                ))}
+                            </Table.Tbody>
+                        </Table>
+                    </ScrollArea>
+                </div>
+            </Tabs>
         </div>
+    );
+}
+
+function ResourceValues({ resource, onNavigateToFile, onNavigateToResource }: {
+    resource: ArscResource,
+    onNavigateToFile: (path: string) => void,
+    onNavigateToResource: (resId: number) => void
+}) {
+    const [opened, { toggle }] = useDisclosure(false);
+    const defaultValue = resource.values.find(v => v.config === 'default') || resource.values[0];
+    const otherValues = resource.values.filter(v => v !== defaultValue);
+
+    return (
+        <Stack gap={4}>
+            <Box>
+                {resource.values.length > 1 && <Text size="xs" c="dimmed" fw={700}>default:</Text>}
+                <ArscConfigValueRenderer configValue={defaultValue} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+            </Box>
+
+            {otherValues.length > 0 && (
+                <>
+                    <Button variant="subtle" size="compact-xs" onClick={toggle} style={{ width: 'fit-content' }}>
+                        {opened ? 'Hide' : `Show ${otherValues.length} more configurations`}
+                    </Button>
+                    <Collapse in={opened}>
+                        <Stack gap={8} mt={4}>
+                            {otherValues.map((cv, i) => (
+                                <Box key={i} pl="md" style={{ borderLeft: '2px solid #eee' }}>
+                                    <Text size="xs" c="dimmed" fw={700}>{cv.config}:</Text>
+                                    <ArscConfigValueRenderer configValue={cv} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+                                </Box>
+                            ))}
+                        </Stack>
+                    </Collapse>
+                </>
+            )}
+        </Stack>
+    );
+}
+
+function ArscConfigValueRenderer({ configValue, onNavigateToFile, onNavigateToResource }: {
+    configValue: any,
+    onNavigateToFile: (path: string) => void,
+    onNavigateToResource: (resId: number) => void
+}) {
+    return (
+        <Stack gap={4}>
+            <ArscValueRenderer value={configValue.value} onNavigateToFile={() => onNavigateToFile(configValue.value.value)} onNavigateToResource={onNavigateToResource} />
+            {configValue.entries && (
+                <Box pl="md" style={{ borderLeft: '2px solid #eee' }}>
+                    {configValue.entries.map(([key, val], i) => (
+                        <Group key={i} gap="xs" wrap="nowrap">
+                            <Text size="xs" fw={700} style={{ whiteSpace: 'nowrap' }}>{key}:</Text>
+                            <ArscValueRenderer value={val} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+                        </Group>
+                    ))}
+                </Box>
+            )}
+        </Stack>
     );
 }
 
@@ -496,24 +726,17 @@ function MetadataViewer({ metadata, onBack }: { metadata: ApkMetadata | null, on
     return (
         <div style={{ padding: '20px', height: '100%', overflow: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-                <button
+                <Button
+                    variant="default"
                     onClick={onBack}
-                    style={{
-                        padding: '8px 16px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        background: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}
+                    leftSection={
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                            <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                        </svg>
+                    }
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
-                    </svg>
                     Back to Files
-                </button>
+                </Button>
                 <h2 style={{ margin: 0 }}>APK Metadata</h2>
             </div>
 

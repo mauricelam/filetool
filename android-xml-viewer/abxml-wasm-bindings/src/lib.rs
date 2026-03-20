@@ -167,12 +167,16 @@ pub fn extract_arsc(
         debug!("Type map: {type_map:?}");
 
         // Get entries for this type
-        for (entry_id, entry) in package.iter_entries() {
-            let entry_name = package
-                .format_reference(*entry_id, entry.get_key(), None)
-                .unwrap_or_else(|_| "Unknown".into());
-
-            let value = entry.to_string(&resources.packages, *package_id);
+        for (entry_id, entries_vec) in package.iter_entries() {
+            let (entry_name, value, entry_type) = if let Some((_, entry)) = entries_vec.first() {
+                let name = package
+                    .format_reference(*entry_id, entry.get_key(), None)
+                    .unwrap_or_else(|_| "Unknown".into());
+                let val = entry.to_string(&resources.packages, *package_id);
+                (name, val, Some(entry))
+            } else {
+                ("Unknown".into(), "Unknown".into(), None)
+            };
 
             let spec_id = u32::from(entry_id.get_spec());
             let spec_str = package

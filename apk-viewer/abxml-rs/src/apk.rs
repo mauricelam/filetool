@@ -497,13 +497,16 @@ impl<Reader: Read + Seek> Apk<Reader> {
                     .unwrap_or_else(|_| format!("type_{}", type_id));
 
                 // Get entries for this type
-                for (entry_id, entry) in package.iter_entries() {
+                for (entry_id, entries) in package.iter_entries() {
                     if (entry_id >> 16) == *type_id {
-                        let entry_name = package.get_entries_string(*entry_id)
+                        let entry_name = package
+                            .get_entries_string(*entry_id)
                             .map(|s| s.to_string())
                             .unwrap_or_else(|_| format!("entry_{}", entry_id & 0xFFFF));
 
-                        let value = entry.get_value()
+                        let entry = entries.first().map(|(_c, e)| e).unwrap();
+                        let value = entry
+                            .get_value()
                             .map(|v| v.to_string())
                             .unwrap_or_else(|| "".to_string());
 
