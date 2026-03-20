@@ -86,6 +86,12 @@ impl<'a> ChunkVisitor<'a> for ModelVisitor<'a> {
                 .and_then(|id| Ok(self.package_mask | (u32::from(id) << 16)))
                 .unwrap_or(0);
 
+            use crate::model::{Configuration, TableType};
+            let config = table_type
+                .get_configuration()
+                .map(|c| c.format())
+                .unwrap_or_else(|_| "unknown".into());
+
             let entries_result = table_type.get_entries();
 
             match entries_result {
@@ -94,7 +100,7 @@ impl<'a> ChunkVisitor<'a> for ModelVisitor<'a> {
                         let id = mask | e.get_id();
 
                         if !e.is_empty() {
-                            entries.insert(id, e.clone());
+                            entries.entry(id).or_default().push((config.clone(), e.clone()));
                         }
                     }
                 }
@@ -198,7 +204,7 @@ impl<'a> Library<'a> {
         self.specs.iter()
     }
 
-    pub fn iter_entries(&self) -> impl Iterator<Item = (&u32, &Entry)> {
+    pub fn iter_entries(&self) -> impl Iterator<Item = (&u32, &Vec<(String, Entry)>)> {
         self.entries.iter()
     }
 
@@ -261,7 +267,12 @@ impl<'a> LibraryTrait for Library<'a> {
     fn get_entry(&self, id: u32) -> Result<&Entry, Error> {
         self.entries
             .get(&id)
+            .and_then(|v| v.first().map(|(_, e)| e))
             .ok_or_else(|| format_err!("could not find entry"))
+    }
+
+    fn get_all_entries(&self, id: u32) -> Option<&Vec<(String, Entry)>> {
+        self.entries.get(&id)
     }
 
     fn get_entries_string(&self, str_id: u32) -> Result<Rc<String>, Error> {

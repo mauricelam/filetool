@@ -21,7 +21,7 @@ pub use self::{
 use crate::visitor::Origin;
 
 pub type Namespaces = BTreeMap<String, String>;
-pub type Entries = HashMap<u32, Entry>;
+pub type Entries = HashMap<u32, Vec<(String, Entry)>>;
 
 /// Android resource IDs assigned by AAPT has the format 0xPPTTEEEE
 /// Where PP = package, TT = type (called "spec" here), and EEEE is the unique ID for that resource.
@@ -75,6 +75,7 @@ pub trait Library {
     ) -> Result<String, Error>;
     // fn get_entries(&self) -> &Entries;
     fn get_entry(&self, id: u32) -> Result<&Entry, Error>;
+    fn get_all_entries(&self, id: u32) -> Option<&Vec<(String, Entry)>>;
     fn get_entries_string(&self, str_id: u32) -> Result<Rc<String>, Error>;
     fn get_spec_string(&self, str_id: u32) -> Result<Rc<String>, Error>;
 
@@ -192,6 +193,74 @@ pub trait TableType {
 }
 
 pub trait Configuration {
+    fn format(&self) -> String {
+        let mut parts = Vec::new();
+
+        if let Ok(mcc) = self.get_mcc() {
+            if mcc != 0 {
+                parts.push(format!("mcc{}", mcc));
+            }
+        }
+
+        if let Ok(mnc) = self.get_mnc() {
+            if mnc != 0 {
+                parts.push(format!("mnc{}", mnc));
+            }
+        }
+
+        if let Ok(lang) = self.get_language() {
+            if lang != "any" {
+                parts.push(lang);
+            }
+        }
+
+        if let Ok(region) = self.get_region() {
+            if region != "any" {
+                parts.push(format!("r{}", region));
+            }
+        }
+
+        if let Ok(sw) = self.get_smallest_screen() {
+            if sw != 0 {
+                parts.push(format!("sw{}dp", sw));
+            }
+        }
+
+        if let Ok(w) = self.get_screen_width() {
+            if w != 0 {
+                parts.push(format!("w{}dp", w));
+            }
+        }
+
+        if let Ok(h) = self.get_screen_height() {
+            if h != 0 {
+                parts.push(format!("h{}dp", h));
+            }
+        }
+
+        if let Ok(density) = self.get_density() {
+            if density != 0 {
+                match density {
+                    0x78 => parts.push("ldpi".into()),
+                    0xa0 => parts.push("mdpi".into()),
+                    0xd5 => parts.push("tvdpi".into()),
+                    0xf0 => parts.push("hdpi".into()),
+                    0x140 => parts.push("xhdpi".into()),
+                    0x1e0 => parts.push("xxhdpi".into()),
+                    0x280 => parts.push("xxxhdpi".into()),
+                    0xffff => {} // any
+                    _ => parts.push(format!("{}dpi", density)),
+                }
+            }
+        }
+
+        if parts.is_empty() {
+            "default".into()
+        } else {
+            parts.join("-")
+        }
+    }
+
     fn get_size(&self) -> Result<u32, Error>;
     fn get_mcc(&self) -> Result<u16, Error>;
     fn get_mnc(&self) -> Result<u16, Error>;
