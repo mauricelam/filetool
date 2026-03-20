@@ -13,9 +13,10 @@ interface SidebarProps {
     onRemoveGroup: (id: string) => void;
     onAddFiles: (files: File[]) => void;
     onGroupFiles: (ids: string[]) => void;
+    onToggleGroup: (id: string) => void;
 }
 
-export function FileList({ files, groups, selectedId, onSelect, onRemoveFile, onRemoveGroup, onAddFiles, onGroupFiles }: SidebarProps) {
+export function FileList({ files, groups, selectedId, onSelect, onRemoveFile, onRemoveGroup, onAddFiles, onGroupFiles, onToggleGroup }: SidebarProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [multiSelectedIds, setMultiSelectedIds] = useState<string[]>([]);
     const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
@@ -93,7 +94,12 @@ export function FileList({ files, groups, selectedId, onSelect, onRemoveFile, on
                                 group={group}
                                 selected={selectedId === group.id}
                                 multiSelected={multiSelectedIds.includes(group.id)}
-                                onClick={(e) => handleItemClick(e, group.id)}
+                                onClick={(e) => {
+                                    handleItemClick(e, group.id);
+                                    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                                        onToggleGroup(group.id);
+                                    }
+                                }}
                                 onRemove={() => onRemoveGroup(group.id)}
                             />
                             {group.isExpanded && (

@@ -95,6 +95,10 @@ export function App() {
         }
     };
 
+    const toggleGroup = (id: string) => {
+        setGroups(cur => cur.map(g => g.id === id ? { ...g, isExpanded: !g.isExpanded } : g));
+    };
+
     const removeGroup = (id: string) => {
         setGroups(cur => cur.filter(g => g.id !== id));
         setFiles(cur => cur.map(f => f.parentId === id ? { ...f, parentId: null } : f));
@@ -223,6 +227,7 @@ export function App() {
                         onRemoveGroup={removeGroup}
                         onAddFiles={handleAddFiles}
                         onGroupFiles={handleGroupFiles}
+                        onToggleGroup={toggleGroup}
                     />
                     <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
                         {selectedFile &&
@@ -354,6 +359,24 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
     const [activeHandler, setActiveHandler] = useState<HandlerConfig | undefined>(group.activeHandler);
     const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
     const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
+    const [groupMimetypes, setGroupMimetypes] = useState<string[]>([]);
+
+    const mimeMagicPromise = WASMagic.create({
+        flags: WASMagicFlags.MIME_TYPE,
+        stdio: (name, text) => console.log(text)
+    });
+
+    useEffect(() => {
+        const loadMimes = async () => {
+            const mimeMagic = await mimeMagicPromise;
+            const mimes = await Promise.all(files.map(async f => {
+                const fileBuf = new Uint8Array(await f.file.arrayBuffer());
+                return mimeMagic.detect(fileBuf);
+            }));
+            setGroupMimetypes(Array.from(new Set(mimes)));
+        };
+        loadMimes();
+    }, [files]);
 
     const onOpenFile = (handlerConfig: HandlerConfig) => {
         openHandler(handlerConfig);
@@ -361,7 +384,25 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
         onAddPinnedHandler(handlerConfig.handler);
     }
 
-    const promotedHandlers = HANDLERS.filter(h => ['archive', 'dexviewer'].includes(h.handler));
+    const isUniversal = (handler: any) => handler.mimetypes.length === 1 && handler.mimetypes[0] === matchMimetype({}, '', ''); // Approximation
+
+    const matchesGroup = (handler: any) => {
+        // A handler matches a group if it matches any file in the group
+        return files.some((f, idx) => {
+            const mime = groupMimetypes[idx] || f.file.type || 'application/octet-stream';
+            return handler.mimetypes.some((m: any) => matchMimetype(m, mime, f.file.name));
+        });
+    };
+
+    // Dex viewer and Archive are special.
+    // Archive should always be available for groups.
+    // Dex viewer only if dex files are present.
+    const promotedHandlers = HANDLERS.filter(h => {
+        if (h.handler === 'archive') return true;
+        if (h.handler === 'dexviewer') return matchesGroup(h);
+        return false;
+    });
+
     const filteredHandlers = HANDLERS.filter(h => {
         const filter = otherHandlersFilter.toLowerCase();
         return h.name.toLowerCase().includes(filter) || h.handler.toLowerCase().includes(filter);
@@ -383,58 +424,83 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
     const activeButtonStyle: React.CSSProperties = {
         ...buttonStyle,
         backgroundColor: '#0066cc',
+        border: '1px solid #0066cc',
         color: '#fff',
     };
 
+    const labelStyle: React.CSSProperties = {
+        fontSize: '11px',
+        color: '#666',
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+        marginRight: '8px',
+    };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="#666">
-                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Z" />
-                </svg>
-                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{group.name}</div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#666', textTransform: 'uppercase' }}>Group Handlers</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                    {(() => {
-                        const allVisibleGroupHandlers = [
-                            ...promotedHandlers,
-                            ...HANDLERS.filter(h => group.pinnedHandlers.includes(h.handler))
-                        ].filter((h, i, self) => self.findIndex(t => t.handler === h.handler) === i);
-
-                        return (
-                            <>
-                                {allVisibleGroupHandlers.map(handler => (
-                                    <button
-                                        key={handler.handler}
-                                        onClick={() => onOpenFile({
-                                            file: files[0].file,
-                                            additionalFiles: files.slice(1).map(f => f.file),
-                                            handler: handler.handler,
-                                            magicMime: 'application/octet-stream'
-                                        })}
-                                        style={activeHandler?.handler === handler.handler ? activeButtonStyle : buttonStyle}
-                                    >
-                                        {handler.name}
-                                    </button>
-                                ))}
-                                <button
-                                    onClick={() => setOtherHandlersDialogOpen(true)}
-                                    style={buttonStyle}
-                                    title="Other handlers"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-                                        <path d="M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z" />
-                                    </svg>
-                                    Other...
-                                </button>
-                            </>
-                        );
-                    })()}
+        <div style={{ display: 'flex', gap: '8px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="#666" style={{ flexShrink: 0 }}>
+                <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Z" />
+            </svg>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 600 }}>{group.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{
+                        color: '#fff',
+                        padding: '1px 4px',
+                        fontSize: '12px',
+                        borderRadius: '6px',
+                        backgroundColor: '#666',
+                        marginRight: '4px',
+                        userSelect: 'none',
+                    }}>group</div>
+                    <span style={{ color: '#555', fontSize: '14px' }}>{files.length} files</span>
                 </div>
-            </div>
+
+                <div className="buttonBar" style={{ display: 'flex', alignItems: 'center', marginTop: '8px' }}>
+                    <label style={labelStyle}>Open with:</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                        {(() => {
+                            const allVisibleGroupHandlers = [
+                                ...promotedHandlers,
+                                ...HANDLERS.filter(h => group.pinnedHandlers.includes(h.handler))
+                            ].filter((h, i, self) => self.findIndex(t => t.handler === h.handler) === i);
+
+                            return (
+                                <>
+                                    {allVisibleGroupHandlers.map(handler => (
+                                        <button
+                                            key={handler.handler}
+                                            onClick={() => onOpenFile({
+                                                file: files[0].file,
+                                                additionalFiles: files.slice(1).map(f => f.file),
+                                                handler: handler.handler,
+                                                magicMime: 'application/octet-stream'
+                                            })}
+                                            style={activeHandler?.handler === handler.handler ? activeButtonStyle : buttonStyle}
+                                        >
+                                            {handler.name.replace(/^Open with /i, '').replace(/^Open in /i, '')}
+                                        </button>
+                                    ))}
+                                    <button
+                                        onClick={() => setOtherHandlersDialogOpen(true)}
+                                        style={{
+                                            ...buttonStyle,
+                                            backgroundColor: '#f0f0f0',
+                                            color: '#555',
+                                            border: '1px solid #ccc',
+                                            padding: '6px 12px'
+                                        }}
+                                        title="Other handlers"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                                            <path d="M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z" />
+                                        </svg>
+                                    </button>
+                                </>
+                            );
+                        })()}
+                    </div>
+                </div>
 
             {isOtherHandlersDialogOpen && (
                 <div
@@ -488,16 +554,6 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
                 </div>
             )}
 
-            <div style={{ marginTop: '20px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#666', textTransform: 'uppercase', marginBottom: '8px' }}>Files in Group ({files.length})</div>
-                <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid #eee', borderRadius: '4px' }}>
-                    {files.map(f => (
-                        <div key={f.id} style={{ padding: '8px 12px', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <img src={getIcon(f.file.name)} style={{ width: 16, height: 16 }} />
-                            <span>{f.file.name}</span>
-                        </div>
-                    ))}
-                </div>
             </div>
         </div>
     );
