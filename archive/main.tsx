@@ -28,12 +28,19 @@ async function handleFile(file: File, additionalFiles: File[]) {
 }
 
 const SUPPORTED_DOWNLOAD_FORMATS = [
-    {
-        id: 'zip',
-        name: 'ZIP',
-        format: ArchiveFormat.ZIP,
-        compression: null
-    },
+    // Not supported due to https://github.com/nika-begiashvili/libarchivejs/issues/70
+    // {
+    //     id: 'zip',
+    //     name: 'ZIP',
+    //     format: ArchiveFormat.ZIP,
+    //     compression: null
+    // },
+    // {
+    //     id: '7z',
+    //     name: '7Z',
+    //     format: ArchiveFormat.SEVEN_ZIP,
+    //     compression: null
+    // },
     {
         id: 'tar.gz',
         name: 'TAR.GZ',
