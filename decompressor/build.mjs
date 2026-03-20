@@ -13,9 +13,6 @@ const SETTINGS = {
     format: "esm",
     platform: "browser",
     external: ['require', 'fs', 'path', 'crypto'],
-    define: {
-        'process.env.SKIP_HANDLERS': JSON.stringify(process.env.SKIP_HANDLERS || ''),
-    },
     plugins: [
         copy({
             assets: [
