@@ -30,6 +30,7 @@ function App() {
     const [view, setView] = useState<'resource' | 'xml' | 'loading'>('loading');
     const [resources, setResources] = useState<ArscResource[]>([]);
     const [xmlContent, setXmlContent] = useState<string>('');
+    const [filename, setFilename] = useState<string>('AndroidManifest.xml');
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -59,6 +60,7 @@ function App() {
             await initializeWasm();
         }
         const fileBytes = new Uint8Array(await file.arrayBuffer());
+        setFilename(file.name);
 
         if (!systemResources) throw new Error("System resources not loaded");
 
@@ -108,7 +110,7 @@ function App() {
         return <ResourceTableViewer resources={resources} />;
     }
 
-    return <XmlViewer content={xmlContent} filename="AndroidManifest.xml" />;
+    return <XmlViewer content={xmlContent} filename={filename} />;
 }
 
 function XmlViewer({ content, filename }: { content: string, filename: string }) {
