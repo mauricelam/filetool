@@ -6,19 +6,39 @@ import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { IframeManager } from './IframeManager';
 import { FileList } from './FileList';
 import { PasteModal } from './PasteModal';
+import ICON_LOOKUP from './icons';
 
 export type HandlerConfig = {
     file: File,
+    additionalFiles?: File[],
     magicMime: string,
     handler: string,
 }
 
+export interface AppFile {
+    id: string;
+    file: File;
+    activeHandler?: HandlerConfig;
+    pinnedHandlers: string[];
+    parentId: string | null;
+}
+
+export interface AppGroup {
+    id: string;
+    name: string;
+    fileIds: string[];
+    activeHandler?: HandlerConfig;
+    pinnedHandlers: string[];
+    isExpanded: boolean;
+}
+
 export function App() {
-    const [selected, setSelected] = useState(0)
-    const [files, setFiles] = useState<File[]>([])
-    const [activeHandlers, setActiveHandlers] = useState<(HandlerConfig | undefined)[]>([]);
-    const [pinnedHandlers, setPinnedHandlers] = useState<string[][]>([]);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [files, setFiles] = useState<AppFile[]>([]);
+    const [groups, setGroups] = useState<AppGroup[]>([]);
     const [pastedText, setPastedText] = useState<string | null>(null);
+
+    const generateId = () => crypto.randomUUID();
 
     // Global paste handler
     useEffect(() => {
@@ -51,35 +71,62 @@ export function App() {
     }, []);
 
     const handleAddFiles = (newFiles: File[]) => {
-        setFiles(cur => [...cur, ...newFiles]);
-        setActiveHandlers(cur => [...cur, ...Array(newFiles.length)])
-        setPinnedHandlers(cur => [...cur, ...newFiles.map(() => [])]);
+        const newAppFiles: AppFile[] = newFiles.map(file => ({
+            id: generateId(),
+            file,
+            pinnedHandlers: [],
+            parentId: null
+        }));
+        setFiles(cur => [...cur, ...newAppFiles]);
+        if (newAppFiles.length > 0) {
+            setSelectedId(newAppFiles[newAppFiles.length - 1].id);
+        }
     }
 
-    const removeFile = (index: number) => {
-        setFiles(cur => {
-            const newFiles = [...cur];
-            newFiles.splice(index, 1);
-            setSelected(prev => Math.min(prev, newFiles.length - 1));
-            return newFiles;
-        });
-        setActiveHandlers(cur => {
-            const newHandlers = [...cur];
-            newHandlers.splice(index, 1);
-            return newHandlers;
-        });
-        setPinnedHandlers(cur => {
-            const newPinned = [...cur];
-            newPinned.splice(index, 1);
-            return newPinned;
-        });
+    const removeFile = (id: string) => {
+        setFiles(cur => cur.filter(f => f.id !== id));
+        setGroups(cur => cur.map(g => ({
+            ...g,
+            fileIds: g.fileIds.filter(fid => fid !== id)
+        })).filter(g => g.fileIds.length > 0));
+
+        if (selectedId === id) {
+            setSelectedId(null);
+        }
     };
 
-    useEffect(() => {
-        if (files.length > 0) {
-            setSelected(files.length - 1);
+    const removeGroup = (id: string) => {
+        setGroups(cur => cur.filter(g => g.id !== id));
+        setFiles(cur => cur.map(f => f.parentId === id ? { ...f, parentId: null } : f));
+        if (selectedId === id) {
+            setSelectedId(null);
         }
-    }, [files]);
+    };
+
+    const handleGroupFiles = (ids: string[]) => {
+        if (ids.length < 1) return;
+        const groupId = generateId();
+        const firstFile = files.find(f => f.id === ids[0]);
+        if (!firstFile) return;
+
+        const newGroup: AppGroup = {
+            id: groupId,
+            name: ids.length > 1 ? `${firstFile.file.name} + ${ids.length - 1} others` : firstFile.file.name,
+            fileIds: ids,
+            pinnedHandlers: [],
+            isExpanded: true
+        };
+
+        setGroups(cur => [
+            ...cur.map(g => ({
+                ...g,
+                fileIds: g.fileIds.filter(fid => !ids.includes(fid))
+            })).filter(g => g.fileIds.length > 0),
+            newGroup
+        ]);
+        setFiles(cur => cur.map(f => ids.includes(f.id) ? { ...f, parentId: groupId } : f));
+        setSelectedId(groupId);
+    };
 
     useEffect(() => {
         const handleOpenFile = (e: CustomEvent<File[] | { file: File, additionalFiles?: File[], handler?: string }>) => {
@@ -87,30 +134,70 @@ export function App() {
                 handleAddFiles(e.detail);
             } else {
                 const { file, additionalFiles, handler } = e.detail;
-                setFiles(cur => [...cur, file]);
-                setActiveHandlers(cur => [
-                    ...cur,
-                    handler ? { file, handler, magicMime: file.type || 'application/octet-stream', additionalFiles } as any : undefined
-                ]);
-                setPinnedHandlers(cur => [...cur, []]);
+                const fileId = crypto.randomUUID();
+
+                const newFile: AppFile = {
+                    id: fileId,
+                    file,
+                    activeHandler: handler ? {
+                        file,
+                        handler,
+                        magicMime: file.type || 'application/octet-stream',
+                        additionalFiles
+                    } : undefined,
+                    pinnedHandlers: [],
+                    parentId: null
+                };
+
+                if (additionalFiles && additionalFiles.length > 0) {
+                    const groupId = crypto.randomUUID();
+                    const groupFiles: AppFile[] = additionalFiles.map(f => ({
+                        id: crypto.randomUUID(),
+                        file: f,
+                        pinnedHandlers: [],
+                        parentId: groupId
+                    }));
+                    newFile.parentId = groupId;
+
+                    const newGroup: AppGroup = {
+                        id: groupId,
+                        name: `${file.name} + ${additionalFiles.length} others`,
+                        fileIds: [fileId, ...groupFiles.map(f => f.id)],
+                        activeHandler: newFile.activeHandler,
+                        pinnedHandlers: [],
+                        isExpanded: true
+                    };
+
+                    setFiles(cur => [...cur, newFile, ...groupFiles]);
+                    setGroups(cur => [...cur, newGroup]);
+                    setSelectedId(groupId);
+                } else {
+                    setFiles(cur => [...cur, newFile]);
+                    setSelectedId(fileId);
+                }
             }
         }
         window.addEventListener("openFiles", handleOpenFile as EventListener, false)
         return () => window.removeEventListener("openFiles", handleOpenFile as EventListener)
-    }, [])
+    }, []);
 
     useEffect(() => {
         const handlePopState = (event: PopStateEvent) => {
             if (event.state && event.state.fileName) {
-                const fileIndex = files.findIndex(f => f.name === event.state.fileName);
-                if (fileIndex !== -1) {
-                    setSelected(fileIndex);
+                const file = files.find(f => f.file.name === event.state.fileName);
+                if (file) {
+                    setSelectedId(file.id);
                 }
             }
         };
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
     }, [files]);
+
+    const selectedFile = files.find(f => f.id === selectedId);
+    const selectedGroup = groups.find(g => g.id === selectedId);
+
+    const activeHandler = selectedFile?.activeHandler || selectedGroup?.activeHandler;
 
     return (
         <>
@@ -129,40 +216,52 @@ export function App() {
                 <div style={{ display: 'flex', height: '100%', width: '100%' }}>
                     <FileList
                         files={files}
-                        selected={selected}
-                        onSelect={setSelected}
-                        onRemove={removeFile}
+                        groups={groups}
+                        selectedId={selectedId}
+                        onSelect={setSelectedId}
+                        onRemoveFile={removeFile}
+                        onRemoveGroup={removeGroup}
                         onAddFiles={handleAddFiles}
+                        onGroupFiles={handleGroupFiles}
                     />
                     <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
-                        {files[selected] &&
+                        {selectedFile &&
                             <LoadFileItem
-                                key={selected}
-                                file={files[selected]}
+                                key={selectedFile.id}
+                                file={selectedFile.file}
                                 openHandler={(handlerConfig: HandlerConfig) => {
-                                    setActiveHandlers(cur => {
-                                        const updatedHandlers = [...cur];
-                                        updatedHandlers[selected] = handlerConfig;
-                                        return updatedHandlers;
-                                    });
+                                    setFiles(cur => cur.map(f => f.id === selectedFile.id ? { ...f, activeHandler: handlerConfig } : f));
                                 }}
-                                initialActiveHandler={activeHandlers[selected]}
-                                pinnedHandlers={pinnedHandlers[selected] || []}
+                                initialActiveHandler={selectedFile.activeHandler}
+                                pinnedHandlers={selectedFile.pinnedHandlers}
                                 onAddPinnedHandler={(handlerId: string) => {
-                                    setPinnedHandlers(cur => {
-                                        const updatedPinned = [...cur];
-                                        if (!updatedPinned[selected].includes(handlerId)) {
-                                            updatedPinned[selected] = [...updatedPinned[selected], handlerId];
-                                        }
-                                        return updatedPinned;
-                                    });
+                                    setFiles(cur => cur.map(f => f.id === selectedFile.id ? {
+                                        ...f,
+                                        pinnedHandlers: f.pinnedHandlers.includes(handlerId) ? f.pinnedHandlers : [...f.pinnedHandlers, handlerId]
+                                    } : f));
+                                }}
+                            />
+                        }
+                        {selectedGroup &&
+                            <LoadGroupItem
+                                key={selectedGroup.id}
+                                group={selectedGroup}
+                                files={files.filter(f => selectedGroup.fileIds.includes(f.id))}
+                                openHandler={(handlerConfig: HandlerConfig) => {
+                                    setGroups(cur => cur.map(g => g.id === selectedGroup.id ? { ...g, activeHandler: handlerConfig } : g));
+                                }}
+                                onAddPinnedHandler={(handlerId: string) => {
+                                    setGroups(cur => cur.map(g => g.id === selectedGroup.id ? {
+                                        ...g,
+                                        pinnedHandlers: g.pinnedHandlers.includes(handlerId) ? g.pinnedHandlers : [...g.pinnedHandlers, handlerId]
+                                    } : g));
                                 }}
                             />
                         }
                     </div>
                 </div>
             </div>
-            <IframeManager activeHandler={activeHandlers[selected]} files={files} />
+            <IframeManager activeHandler={activeHandler} files={files.map(f => f.file)} />
         </>
     );
 }
@@ -242,4 +341,174 @@ function LoadFileItem({ file, openHandler, initialActiveHandler, pinnedHandlers,
             onOpenHandler={onOpenFile}
         />
     )
+}
+
+interface LoadGroupItemProps {
+    group: AppGroup;
+    files: AppFile[];
+    openHandler: (handlerConfig: HandlerConfig) => void;
+    onAddPinnedHandler: (handlerId: string) => void;
+}
+
+function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGroupItemProps): ReactNode {
+    const [activeHandler, setActiveHandler] = useState<HandlerConfig | undefined>(group.activeHandler);
+    const [isOtherHandlersDialogOpen, setOtherHandlersDialogOpen] = useState(false);
+    const [otherHandlersFilter, setOtherHandlersFilter] = useState('');
+
+    const onOpenFile = (handlerConfig: HandlerConfig) => {
+        openHandler(handlerConfig);
+        setActiveHandler(handlerConfig);
+        onAddPinnedHandler(handlerConfig.handler);
+    }
+
+    const promotedHandlers = HANDLERS.filter(h => ['archive', 'dexviewer'].includes(h.handler));
+    const filteredHandlers = HANDLERS.filter(h => {
+        const filter = otherHandlersFilter.toLowerCase();
+        return h.name.toLowerCase().includes(filter) || h.handler.toLowerCase().includes(filter);
+    });
+
+    const buttonStyle: React.CSSProperties = {
+        padding: '10px 20px',
+        borderRadius: '4px',
+        border: '1px solid #0066cc',
+        backgroundColor: '#fff',
+        color: '#0066cc',
+        cursor: 'pointer',
+        fontWeight: '500',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px'
+    };
+
+    const activeButtonStyle: React.CSSProperties = {
+        ...buttonStyle,
+        backgroundColor: '#0066cc',
+        color: '#fff',
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" height="32px" viewBox="0 -960 960 960" width="32px" fill="#666">
+                    <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Z" />
+                </svg>
+                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{group.name}</div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#666', textTransform: 'uppercase' }}>Group Handlers</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                    {(() => {
+                        const allVisibleGroupHandlers = [
+                            ...promotedHandlers,
+                            ...HANDLERS.filter(h => group.pinnedHandlers.includes(h.handler))
+                        ].filter((h, i, self) => self.findIndex(t => t.handler === h.handler) === i);
+
+                        return (
+                            <>
+                                {allVisibleGroupHandlers.map(handler => (
+                                    <button
+                                        key={handler.handler}
+                                        onClick={() => onOpenFile({
+                                            file: files[0].file,
+                                            additionalFiles: files.slice(1).map(f => f.file),
+                                            handler: handler.handler,
+                                            magicMime: 'application/octet-stream'
+                                        })}
+                                        style={activeHandler?.handler === handler.handler ? activeButtonStyle : buttonStyle}
+                                    >
+                                        {handler.name}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => setOtherHandlersDialogOpen(true)}
+                                    style={buttonStyle}
+                                    title="Other handlers"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                                        <path d="M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z" />
+                                    </svg>
+                                    Other...
+                                </button>
+                            </>
+                        );
+                    })()}
+                </div>
+            </div>
+
+            {isOtherHandlersDialogOpen && (
+                <div
+                    style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', zIndex: 1000
+                    }}
+                    onClick={() => setOtherHandlersDialogOpen(false)}
+                >
+                    <div
+                        style={{
+                            background: 'white', padding: '20px', borderRadius: '8px',
+                            width: '80%', maxWidth: '600px', maxHeight: '80vh',
+                            overflowY: 'auto', position: 'relative'
+                        }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setOtherHandlersDialogOpen(false)}
+                            style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}
+                        >×</button>
+                        <h2>All Handlers</h2>
+                        <input
+                            type="text"
+                            placeholder="Filter by name..."
+                            value={otherHandlersFilter}
+                            onChange={(e) => setOtherHandlersFilter(e.target.value)}
+                            style={{ width: '100%', padding: '8px', marginBottom: '15px', border: '1px solid #ccc', borderRadius: '4px' }}
+                        />
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+                            {filteredHandlers.map(handler => (
+                                <button
+                                    key={handler.handler}
+                                    onClick={() => {
+                                        onOpenFile({
+                                            file: files[0].file,
+                                            additionalFiles: files.slice(1).map(f => f.file),
+                                            handler: handler.handler,
+                                            magicMime: 'application/octet-stream'
+                                        });
+                                        setOtherHandlersDialogOpen(false);
+                                    }}
+                                    style={{ padding: '10px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+                                >
+                                    {handler.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div style={{ marginTop: '20px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#666', textTransform: 'uppercase', marginBottom: '8px' }}>Files in Group ({files.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid #eee', borderRadius: '4px' }}>
+                    {files.map(f => (
+                        <div key={f.id} style={{ padding: '8px 12px', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <img src={getIcon(f.file.name)} style={{ width: 16, height: 16 }} />
+                            <span>{f.file.name}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function getIcon(name: string) {
+    for (const ext in ICON_LOOKUP) {
+        const key = ext as keyof typeof ICON_LOOKUP
+        if (name.toLowerCase().endsWith("." + ext) || name.toLowerCase() == ext) {
+            return `icons/file_type_${ICON_LOOKUP[key][0]}.svg`
+        }
+    }
+    return `icons/default_file.svg`
 }

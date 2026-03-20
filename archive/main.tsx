@@ -11,7 +11,7 @@ const ROOT = createRoot(document.getElementById('root')!)
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
-        handleFile(e.data.file)
+        handleFile(e.data.file, e.data.additionalFiles || [])
     }
 }
 
@@ -19,8 +19,12 @@ if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' })
 }
 
-async function handleFile(file: File) {
-    ROOT.render(<ArchiveViewer initialFile={file} />)
+async function handleFile(file: File, additionalFiles: File[]) {
+    if (additionalFiles.length > 0) {
+        ROOT.render(<ArchiveCreator files={[file, ...additionalFiles]} />)
+    } else {
+        ROOT.render(<ArchiveViewer initialFile={file} />)
+    }
 }
 
 const SUPPORTED_DOWNLOAD_FORMATS = [
@@ -201,6 +205,98 @@ const MetadataViewer: React.FC<{ metadata: ArchiveMetadata | null, onBack: () =>
                         </tbody>
                     </table>
                 </section>
+            </div>
+        </div>
+    );
+};
+
+const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
+    const [isCompressing, setIsCompressing] = useState(false);
+    const [format, setFormat] = useState('tar.gz');
+    const [filename, setFilename] = useState('archive');
+
+    const handleCreate = async () => {
+        setIsCompressing(true);
+        try {
+            const formatInfo = SUPPORTED_DOWNLOAD_FORMATS.find(f => f.id === format);
+            if (!formatInfo) throw new Error('Unsupported format');
+
+            const filesToArchive: ArchiveEntryFile[] = await Promise.all(files.map(async f => ({
+                file: f,
+                pathname: f.name
+            } as unknown as ArchiveEntryFile)));
+
+            const newArchiveFile = await Archive.write({
+                files: filesToArchive,
+                outputFileName: filename + (filename.endsWith('.' + format) ? '' : '.' + format),
+                compression: formatInfo.compression,
+                format: formatInfo.format,
+                passphrase: null
+            });
+
+            const url = URL.createObjectURL(newArchiveFile);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = newArchiveFile.name;
+            anchor.click();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error creating archive:', error);
+            alert('Failed to create archive.');
+        } finally {
+            setIsCompressing(false);
+        }
+    };
+
+    return (
+        <div style={{ padding: '40px', maxWidth: '600px', margin: '0 auto' }}>
+            <h2 style={{ marginBottom: '24px' }}>Create Archive</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontWeight: 'bold' }}>Filename</label>
+                    <input
+                        type="text"
+                        value={filename}
+                        onChange={e => setFilename(e.target.value)}
+                        style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                    />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontWeight: 'bold' }}>Format</label>
+                    <select
+                        value={format}
+                        onChange={e => setFormat(e.target.value)}
+                        style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                    >
+                        {SUPPORTED_DOWNLOAD_FORMATS.map(f => (
+                            <option key={f.id} value={f.id}>{f.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div style={{ marginTop: '10px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Files to include ({files.length}):</div>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px', padding: '8px' }}>
+                        {files.map((f, i) => (
+                            <div key={i} style={{ fontSize: '14px', padding: '4px 0' }}>{f.name}</div>
+                        ))}
+                    </div>
+                </div>
+                <button
+                    onClick={handleCreate}
+                    disabled={isCompressing}
+                    style={{
+                        padding: '12px',
+                        backgroundColor: '#0066cc',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: isCompressing ? 'not-allowed' : 'pointer',
+                        fontWeight: 'bold',
+                        marginTop: '10px'
+                    }}
+                >
+                    {isCompressing ? 'Creating Archive...' : 'Create and Download'}
+                </button>
             </div>
         </div>
     );
