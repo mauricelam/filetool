@@ -1,13 +1,52 @@
 import { createRoot } from 'react-dom/client'
-import { Archive, ArchiveCompression, ArchiveFormat, ArchiveFile, ArchiveEntryFile, ArchiveEntry } from 'libarchive.js';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { ColumnView } from '../components/ColumnView';
 import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { PreviewComponent } from '../components/PreviewComponent';
-
-Archive.init({ workerUrl: 'libarchive-worker-bundle.js' });
+import { ArchiveMetadata, ArchiveEntryInfo, FileToArchive } from './archive-wasm/pkg/archive_wasm';
 
 const ROOT = createRoot(document.getElementById('root')!)
+
+// Worker management
+let worker: Worker | null = null;
+let pendingPromises: { [key: string]: { resolve: (val: any) => void, reject: (err: any) => void } } = {};
+let messageId = 0;
+
+function getWorker(): Promise<Worker> {
+    if (worker) return Promise.resolve(worker);
+    return new Promise((resolve, reject) => {
+        worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+        worker.onmessage = (e) => {
+            const { type, metadata, data, entryName, message, id } = e.data;
+            if (type === 'ready') {
+                resolve(worker!);
+            } else if (type === 'error') {
+                if (id !== undefined && pendingPromises[id]) {
+                    pendingPromises[id].reject(new Error(message));
+                    delete pendingPromises[id];
+                } else {
+                    console.error('Worker error:', message);
+                }
+            } else if (id !== undefined && pendingPromises[id]) {
+                pendingPromises[id].resolve(e.data);
+                delete pendingPromises[id];
+            }
+        };
+        worker.onerror = (e) => {
+            console.error('Worker global error:', e);
+            reject(e);
+        }
+    });
+}
+
+async function callWorker(action: string, args: any): Promise<any> {
+    const w = await getWorker();
+    const id = ++messageId;
+    return new Promise((resolve, reject) => {
+        pendingPromises[id] = { resolve, reject };
+        w.postMessage({ action, ...args, id }, args.data instanceof ArrayBuffer ? [args.data] : []);
+    });
+}
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -28,24 +67,13 @@ async function handleFile(file: File, additionalFiles: File[]) {
 }
 
 const SUPPORTED_DOWNLOAD_FORMATS = [
-    // Not supported due to https://github.com/nika-begiashvili/libarchivejs/issues/70
-    // {
-    //     id: 'zip',
-    //     name: 'ZIP',
-    //     format: ArchiveFormat.ZIP,
-    //     compression: null
-    // },
-    // {
-    //     id: '7z',
-    //     name: '7Z',
-    //     format: ArchiveFormat.SEVEN_ZIP,
-    //     compression: null
-    // },
+    {
+        id: 'zip',
+        name: 'ZIP',
+    },
     {
         id: 'tar.gz',
         name: 'TAR.GZ',
-        format: ArchiveFormat.PAX,
-        compression: ArchiveCompression.GZIP
     }
 ];
 
@@ -57,24 +85,49 @@ const FormatDialog: React.FC<{
     if (!isOpen) return null;
 
     return (
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-        }}>
-            <div style={{
-                backgroundColor: 'white',
-                padding: '20px',
-                borderRadius: '8px',
-                minWidth: '300px'
-            }}>
+        <div
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+            }}
+            onClick={onClose}
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                style={{
+                    backgroundColor: 'white',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    minWidth: '300px',
+                    position: 'relative'
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <button
+                    onClick={onClose}
+                    aria-label="Close"
+                    style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer'
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#434343">
+                        <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
+                    </svg>
+                </button>
                 <h3 style={{ margin: '0 0 16px 0' }}>Select Archive Format</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {SUPPORTED_DOWNLOAD_FORMATS.map(format => (
@@ -94,35 +147,20 @@ const FormatDialog: React.FC<{
                         </button>
                     ))}
                 </div>
-                <button
-                    onClick={onClose}
-                    style={{
-                        marginTop: '16px',
-                        padding: '8px 16px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        background: '#f5f5f5',
-                        cursor: 'pointer',
-                        width: '100%'
-                    }}
-                >
-                    Cancel
-                </button>
             </div>
         </div>
     );
 };
 
-interface ArchiveMetadata {
+interface ArchiveViewerMetadata {
     fileName: string;
     description: string;
     fileCount: number;
     uncompressedSize: number;
     compressedSize: number;
-    hasEncryptedData: boolean;
 }
 
-const MetadataViewer: React.FC<{ metadata: ArchiveMetadata | null, onBack: () => void }> = ({ metadata, onBack }) => {
+const MetadataViewer: React.FC<{ metadata: ArchiveViewerMetadata | null, onBack: () => void }> = ({ metadata, onBack }) => {
     if (!metadata) return null;
 
     const formatSize = (bytes: number) => {
@@ -174,10 +212,6 @@ const MetadataViewer: React.FC<{ metadata: ArchiveMetadata | null, onBack: () =>
                                 <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Format</td>
                                 <td style={{ padding: '8px 0' }}>{metadata.description}</td>
                             </tr>
-                            <tr>
-                                <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Encrypted</td>
-                                <td style={{ padding: '8px 0' }}>{metadata.hasEncryptedData ? 'Yes' : 'No'}</td>
-                            </tr>
                         </tbody>
                     </table>
                 </section>
@@ -218,26 +252,20 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
     const handleCreate = async () => {
         setIsCompressing(true);
         try {
-            const formatInfo = SUPPORTED_DOWNLOAD_FORMATS.find(f => f.id === format);
-            if (!formatInfo) throw new Error('Unsupported format');
+            const filesToArchive: FileToArchive[] = await Promise.all(files.map(async f => ({
+                name: f.name,
+                data: new Uint8Array(await f.arrayBuffer())
+            })));
 
-            const filesToArchive: ArchiveEntryFile[] = await Promise.all(files.map(async f => ({
-                file: f,
-                pathname: f.name
-            } as unknown as ArchiveEntryFile)));
+            const action = format === 'zip' ? 'create_zip' : 'create_tar_gz';
+            const { data } = await callWorker(action, { files: filesToArchive });
 
-            const newArchiveFile = await Archive.write({
-                files: filesToArchive,
-                outputFileName: filename + (filename.endsWith('.' + format) ? '' : '.' + format),
-                compression: formatInfo.compression,
-                format: formatInfo.format,
-                passphrase: null
-            });
-
-            const url = URL.createObjectURL(newArchiveFile);
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
             anchor.href = url;
-            anchor.download = newArchiveFile.name;
+            const fullFilename = filename + (filename.endsWith('.' + format) ? '' : '.' + format);
+            anchor.download = fullFilename;
             anchor.click();
             URL.revokeObjectURL(url);
         } catch (error) {
@@ -304,54 +332,65 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
 
 const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const [archiveFile, setArchiveFile] = useState<File | null>(initialFile);
-    const [files, setFiles] = useState<{ [key: string]: ArchiveFile }>({});
+    const [filesObject, setFilesObject] = useState<{ [key: string]: any }>({});
     const [isFormatDialogOpen, setIsFormatDialogOpen] = useState(false);
     const [isCompressing, setIsCompressing] = useState(false);
     const [view, setView] = useState<'file' | 'metadata'>('file');
-    const [metadata, setMetadata] = useState<ArchiveMetadata | null>(null);
+    const [metadata, setMetadata] = useState<ArchiveViewerMetadata | null>(null);
 
     useEffect(() => {
         const loadArchive = async () => {
             if (!archiveFile) return;
-            const ar = await Archive.open(archiveFile);
-            const filesObj = await ar.getFilesObject();
-            setFiles(filesObj);
+            try {
+                const buffer = await archiveFile.arrayBuffer();
+                const { metadata: wasmMetadata } = await callWorker('list', { data: buffer });
+                const entries: ArchiveEntryInfo[] = wasmMetadata.entries;
 
-            // Calculate metadata
-            let uncompressedSize = 0;
-            let fileCount = 0;
+                // Build hierarchical object for ColumnView
+                const root: { [key: string]: any } = {};
+                let totalUncompressedSize = 0;
 
-            const processFiles = (obj: any) => {
-                for (const key in obj) {
-                    const item = obj[key];
-                    if (item.extract) {
-                        // It's an ArchiveFile
-                        uncompressedSize += item._size;
-                        fileCount++;
-                    } else {
-                        // It's a directory
-                        processFiles(item);
+                entries.forEach(entry => {
+                    const parts = entry.name.split('/');
+                    let current = root;
+                    for (let i = 0; i < parts.length; i++) {
+                        const part = parts[i];
+                        if (i === parts.length - 1) {
+                            if (!entry.is_directory) {
+                                current[part] = {
+                                    _path: entry.name,
+                                    _size: entry.size,
+                                    _is_file: true
+                                };
+                                totalUncompressedSize += entry.size;
+                            } else {
+                                current[part] = current[part] || {};
+                            }
+                        } else {
+                            current[part] = current[part] || {};
+                            current = current[part];
+                        }
                     }
-                }
-            };
-            processFiles(filesObj);
+                });
 
-            const hasEncryptedData = await ar.hasEncryptedData();
+                setFilesObject(root);
 
-            // Detect format using wasmagic. Only read first 1MB to avoid OOM.
-            const magic = await WASMagic.create({ flags: WASMagicFlags.NONE });
-            const head = archiveFile.slice(0, 1024 * 1024);
-            const buffer = new Uint8Array(await head.arrayBuffer());
-            const description = magic.detect(buffer);
+                // Detect format description using wasmagic
+                const magic = await WASMagic.create({ flags: WASMagicFlags.NONE });
+                const head = archiveFile.slice(0, 1024 * 1024);
+                const magicBuffer = new Uint8Array(await head.arrayBuffer());
+                const description = magic.detect(magicBuffer);
 
-            setMetadata({
-                fileName: archiveFile.name,
-                description,
-                fileCount,
-                uncompressedSize,
-                compressedSize: archiveFile.size,
-                hasEncryptedData
-            });
+                setMetadata({
+                    fileName: archiveFile.name,
+                    description: description || wasmMetadata.format,
+                    fileCount: entries.filter(e => !e.is_directory).length,
+                    uncompressedSize: totalUncompressedSize,
+                    compressedSize: archiveFile.size
+                });
+            } catch (e) {
+                console.error('Failed to load archive:', e);
+            }
         };
 
         loadArchive();
@@ -359,101 +398,63 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
 
     const handleFileDownload = async (format: string) => {
         if (!archiveFile) return;
-
         setIsCompressing(true);
         try {
-            const formatInfo = SUPPORTED_DOWNLOAD_FORMATS.find(f => f.id === format);
-            if (!formatInfo) throw new Error('Unsupported format');
+            // Re-archive all files
+            const buffer = await archiveFile.arrayBuffer();
+            const { metadata: wasmMetadata } = await callWorker('list', { data: buffer.slice(0) });
+            const entries: ArchiveEntryInfo[] = wasmMetadata.entries;
 
-            const ar = await Archive.open(archiveFile);
-            const extractedFiles: { [key: string]: ArchiveEntry } = await ar.getFilesObject();
+            const filesToArchive: FileToArchive[] = await Promise.all(
+                entries.filter(e => !e.is_directory).map(async e => {
+                    const { data } = await callWorker('extract', { data: buffer.slice(0), entryName: e.name });
+                    return { name: e.name, data: new Uint8Array(data) };
+                })
+            );
 
-            // Helper function to recursively process files and directories
-            const processEntry = async (entry: ArchiveEntry, currentPath: string): Promise<ArchiveEntryFile[]> => {
-                try {
-                    if (typeof (entry as ArchiveFile).extract === 'function') {
-                        // It's a file
-                        const file = entry as ArchiveFile;
-                        try {
-                            const extractedFile = await file.extract();
-                            return [{
-                                file: extractedFile,
-                                pathname: file._path
-                            } as unknown as ArchiveEntryFile];
-                        } catch (extractError) {
-                            console.error('Error extracting file:', file._path, extractError);
-                            return [];
-                        }
-                    } else {
-                        // It's a directory
-                        const dir = entry as { [filename: string]: ArchiveEntry };
-                        const results: ArchiveEntryFile[] = [];
-                        for (const [filename, nestedEntry] of Object.entries(dir)) {
-                            const nestedPath = currentPath ? `${currentPath}/${filename}` : filename;
-                            const nestedFiles = await processEntry(nestedEntry, nestedPath);
-                            results.push(...nestedFiles);
-                        }
-                        return results;
-                    }
-                } catch (error) {
-                    console.error('Error processing entry:', currentPath, error);
-                    return [];
-                }
-            };
+            const action = format === 'zip' ? 'create_zip' : 'create_tar_gz';
+            const { data } = await callWorker(action, { files: filesToArchive });
 
-            // Process all entries recursively
-            const filesToArchive = await Promise.all(
-                Object.entries(extractedFiles).map(([path, entry]) => processEntry(entry, path))
-            ).then(results => results.flat());
-
-            if (filesToArchive.length === 0) {
-                throw new Error('No files were successfully extracted from the archive');
-            }
-
-            // Create new archive
-            console.log('write archive', formatInfo.compression, formatInfo.format, formatInfo)
-            const newArchiveFile = await Archive.write({
-                files: filesToArchive,
-                outputFileName: archiveFile.name.replace(/\.[^/.]+$/, '') + '.' + format,
-                compression: formatInfo.compression,
-                format: formatInfo.format,
-                passphrase: null
-            });
-
-            // Download the new archive
-            const url = URL.createObjectURL(newArchiveFile);
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
             anchor.href = url;
-            anchor.download = newArchiveFile.name;
+            anchor.download = archiveFile.name.replace(/\.[^/.]+$/, '') + '.' + format;
             anchor.click();
             URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error creating archive:', error);
-            alert('Failed to create archive. Please try again.');
+            alert('Failed to create archive.');
         } finally {
             setIsCompressing(false);
         }
     };
 
-    const handleOpenFile = async (file: ArchiveFile) => {
+    const handleOpenFile = async (file: any) => {
+        if (!archiveFile) return;
         try {
-            const extractedFile = await file.extract();
+            const buffer = await archiveFile.arrayBuffer();
+            const { data } = await callWorker('extract', { data: buffer, entryName: file._path });
+            const extractedFile = new File([data], file._path.split('/').pop()!, { type: 'application/octet-stream' });
             window.parent?.postMessage({
                 action: 'openFile',
                 file: extractedFile
-            }, "/", [await extractedFile.arrayBuffer()]);
+            }, "/", [data]);
         } catch (e) {
             console.error('Error opening file:', e);
         }
     };
 
-    const handleDownloadFile = async (file: ArchiveFile) => {
+    const handleDownloadFile = async (file: any) => {
+        if (!archiveFile) return;
         try {
-            const extractedFile = await file.extract();
-            const url = URL.createObjectURL(extractedFile);
+            const buffer = await archiveFile.arrayBuffer();
+            const { data } = await callWorker('extract', { data: buffer, entryName: file._path });
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
             anchor.href = url;
-            anchor.download = extractedFile.name;
+            anchor.download = file._path.split('/').pop()!;
             anchor.click();
             URL.revokeObjectURL(url);
         } catch (e) {
@@ -461,8 +462,8 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         }
     };
 
-    const renderFileActions = (file: ArchiveFile, path: string[]) => {
-        if (!window.parent) return null;
+    const renderFileActions = (file: any, path: string[]) => {
+        if (!window.parent || !file._is_file) return null;
 
         return (
             <div className="file-actions">
@@ -480,13 +481,13 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         );
     };
 
-    const getDexFiles = (obj: any): ArchiveFile[] => {
-        const results: ArchiveFile[] = [];
+    const getDexFiles = (obj: any): any[] => {
+        const results: any[] = [];
         const find = (o: any) => {
             for (const key in o) {
                 const item = o[key];
                 if (item && typeof item === 'object') {
-                    if (item.extract) {
+                    if (item._is_file) {
                         if (key.toLowerCase().endsWith('.dex')) {
                             results.push(item);
                         }
@@ -501,15 +502,20 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     };
 
     const handleOpenMultiDex = async () => {
-        const dexFiles = getDexFiles(files);
+        if (!archiveFile) return;
+        const dexFiles = getDexFiles(filesObject);
 
         if (dexFiles.length === 0) return;
 
         try {
-            // Sort to have classes.dex first if possible
             dexFiles.sort((a, b) => a._path.localeCompare(b._path));
 
-            const extractedFiles = await Promise.all(dexFiles.map(f => f.extract()));
+            const buffer = await archiveFile.arrayBuffer();
+            const extractedFiles = await Promise.all(dexFiles.map(async f => {
+                const { data } = await callWorker('extract', { data: buffer.slice(0), entryName: f._path });
+                return new File([data], f._path.split('/').pop()!, { type: 'application/octet-stream' });
+            }));
+
             const primaryFile = extractedFiles[0];
             const additionalFiles = extractedFiles.slice(1);
 
@@ -527,12 +533,12 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         }
     };
 
-    const renderFilePreview = (file: ArchiveFile, path: string[]) => {
+    const renderFilePreview = (file: any, path: string[]) => {
         async function extractFile(): Promise<File> {
-            const extracted: File = await file.extract()
-            // Copy the file to remove the mimetype. For some reason
-            // libarchive.js adds application/octet-stream to this result.
-            return new File([extracted], extracted.name, {})
+            if (!archiveFile) throw new Error('No archive file');
+            const buffer = await archiveFile.arrayBuffer();
+            const { data } = await callWorker('extract', { data: buffer, entryName: file._path });
+            return new File([data], file._path.split('/').pop()!, { type: 'application/octet-stream' });
         }
         return <PreviewComponent path={path} filePromise={extractFile} />;
     };
@@ -541,7 +547,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         return <MetadataViewer metadata={metadata} onBack={() => setView('file')} />;
     }
 
-    const hasMultipleDex = getDexFiles(files).length > 1;
+    const hasMultipleDex = getDexFiles(filesObject).length > 1;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
@@ -604,7 +610,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                 )}
             </div>
             <ColumnView
-                initialContent={files}
+                initialContent={filesObject}
                 renderFileActions={renderFileActions}
                 renderFilePreview={renderFilePreview}
             />

@@ -152,7 +152,7 @@ pub fn extract_arsc(
         }
 
         // Iterate through all type specs
-        let type_map: HashMap<u32, String> = package
+        let _type_map: HashMap<u32, String> = package
             .iter_specs()
             .map(|(type_id, _type_spec)| {
                 (
@@ -164,10 +164,10 @@ pub fn extract_arsc(
                 )
             })
             .collect();
-        debug!("Type map: {type_map:?}");
 
         // Get entries for this type
-        for (entry_id, entry) in package.iter_entries() {
+        for (entry_id, entries_vec) in package.iter_entries() {
+            let entry = &entries_vec[0].1;
             let entry_name = package
                 .format_reference(*entry_id, entry.get_key(), None)
                 .unwrap_or_else(|_| "Unknown".into());

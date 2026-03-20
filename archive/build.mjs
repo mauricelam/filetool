@@ -1,9 +1,12 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
+import { execSync } from 'child_process';
+
+execSync('npx wasm-pack build --target web --out-dir pkg archive/archive-wasm', { stdio: 'inherit', cwd: '..' });
 
 const SETTINGS = {
-  entryPoints: ['main.tsx'],
+  entryPoints: ['main.tsx', './worker.ts'],
   outdir: "../dist/archive",
   bundle: true,
   format: "esm",
@@ -18,12 +21,14 @@ const SETTINGS = {
           watch: process.env['BUILD_MODE'] === 'dev',
         },
         {
-          from: ["../node_modules/libarchive.js/dist/worker-bundle.js"],
-          to: ["libarchive-worker-bundle.js"],
+          from: ["archive-wasm/pkg/archive_wasm_bg.wasm"],
+          to: ["archive_wasm_bg.wasm"],
+          watch: process.env['BUILD_MODE'] === 'dev',
         },
         {
-          from: ["../node_modules/libarchive.js/dist/libarchive.wasm"],
-          to: ["libarchive.wasm"],
+          from: ["archive-wasm/pkg/archive_wasm.js"],
+          to: ["archive_wasm.js"],
+          watch: process.env['BUILD_MODE'] === 'dev',
         },
         {
             from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
