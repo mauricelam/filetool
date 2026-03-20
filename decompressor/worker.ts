@@ -1,8 +1,4 @@
 
-// This worker handles decompression.
-// It loads the compiled WebAssembly module, receives a file,
-// decompresses it, and sends the result back to the main thread.
-
 import init, { decode } from './decompressor-wasm/pkg/decompressor_wasm.js';
 
 const decompressorModulePromise = (async () => {
