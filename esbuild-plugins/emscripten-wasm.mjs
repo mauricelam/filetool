@@ -25,6 +25,23 @@ const ensureDir = (dir) => {
   }
 };
 
+/**
+ * esbuild plugin to build and manage Emscripten WebAssembly modules.
+ *
+ * This plugin runs a specified build command (e.g., `make`) to produce WASM artifacts,
+ * and can optionally manage the resolution of these artifacts within the bundle.
+ *
+ * @param {Object} options - Plugin options.
+ * @param {string} options.name - The name of the WASM module (for logging).
+ * @param {string} options.projectDir - The directory containing the C/C++ project.
+ * @param {string} options.command - The shell command to run to build the WASM module.
+ * @param {string[]} [options.artifacts=[]] - List of artifacts produced by the build command.
+ * @param {boolean} [options.resolveArtifacts=false] - If true, the plugin will provide an `onResolve` rule for `.js` artifacts in the `artifacts` list, mapping them to their build location.
+ * @param {string[]} [options.watchFiles=[]] - List of source files/patterns to watch for changes in dev mode.
+ * @param {Object} [options.env={}] - Additional environment variables for the build command.
+ *
+ * @returns {import('esbuild').Plugin} The esbuild plugin.
+ */
 export const emscriptenWasm = (options) => {
   return {
     name: 'emscripten-wasm',

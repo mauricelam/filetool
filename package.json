@@ -19,6 +19,7 @@
     "dmg-viewer",
     "esbuild-plugins",
     "ffmpeg",
+    "ghidra",
     "file-type-detector",
     "filetool-common",
     "flatbuffers",

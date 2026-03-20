@@ -179,18 +179,20 @@ pub fn extract_arsc(
                 .get_spec_as_str(spec_id)
                 .unwrap_or_else(|e| format!("{e}"));
 
+            let entries = match entry {
+                Entry::Complex(complex_entry) => {
+                    Some(complex_entry.to_hash_map(&resources.packages, *package_id))
+                }
+                _ => None,
+            };
+
             result.push(ArscResource {
                 package_id: *package_id,
                 type_name: spec_str,
                 entry_id: *entry_id,
                 name: entry_name,
                 value,
-                entries: match entry {
-                    Entry::Complex(complex_entry) => {
-                        Some(complex_entry.to_hash_map(&resources.packages, *package_id))
-                    }
-                    _ => None,
-                },
+                entries,
             });
         }
     }
