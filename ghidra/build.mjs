@@ -13,7 +13,7 @@ const SETTINGS = {
   bundle: true,
   format: "esm",
   platform: "browser",
-  external: ['require', 'fs', 'path', 'node:fs', 'node:path', 'node:crypto'],
+  external: ['require', 'fs', 'path', 'node:fs', 'node:path', 'node:crypto', 'crypto'],
   plugins: [
     copy({
       assets: [
@@ -34,7 +34,7 @@ const SETTINGS = {
     emscriptenWasm({
       name: 'ghidra',
       projectDir: 'ghidra-decompiler',
-      command: `make -f Makefile.wasm ghidra_decompiler.js`,
+      command: `make -j -f Makefile.wasm ghidra_decompiler.js`,
       artifacts: ['ghidra_decompiler.js', 'ghidra_decompiler.wasm'],
     }),
     {
