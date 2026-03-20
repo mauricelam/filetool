@@ -203,7 +203,7 @@ pub struct FileToArchive {
 #[derive(Serialize, Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct ZipOptions {
-    pub compression_level: Option<i32>, // 0-9
+    pub compression_level: Option<i32>, // 0-9. 0 = Stored.
 }
 
 #[wasm_bindgen]
@@ -214,12 +214,21 @@ pub fn create_zip(files: JsValue, options: JsValue) -> Result<Vec<u8>, JsValue> 
     let mut buf = Vec::new();
     {
         let mut zip = zip::ZipWriter::new(Cursor::new(&mut buf));
-        let mut zip_options: FileOptions<'_, ()> = FileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
 
-        if let Some(level) = options.compression_level {
-            zip_options = zip_options.compression_level(Some(level as i64));
+        let mut method = zip::CompressionMethod::Deflated;
+        let mut level: Option<i64> = None;
+
+        if let Some(l) = options.compression_level {
+            if l == 0 {
+                method = zip::CompressionMethod::Stored;
+            } else {
+                level = Some(l as i64);
+            }
         }
+
+        let zip_options: FileOptions<'_, ()> = FileOptions::default()
+            .compression_method(method)
+            .compression_level(level);
 
         for file in files {
             zip.start_file(file.name, zip_options)

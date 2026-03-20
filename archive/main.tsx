@@ -9,7 +9,7 @@ const ROOT = createRoot(document.getElementById('root')!)
 interface ArchiveEntryInfo {
     name: string;
     size: number;
-    is_directory: bool;
+    is_directory: boolean;
 }
 
 interface FileToArchive {
@@ -100,6 +100,8 @@ const FormatDialog: React.FC<{
 
     if (!isOpen) return null;
 
+    const isStored = compressionLevel === 0 && format === 'zip';
+
     return (
         <div
             style={{
@@ -162,7 +164,7 @@ const FormatDialog: React.FC<{
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <label style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                            Compression Level: {compressionLevel}
+                            Compression Level: {compressionLevel} {isStored ? '(Stored)' : ''}
                         </label>
                         <input
                             type="range"
@@ -172,7 +174,7 @@ const FormatDialog: React.FC<{
                             onChange={(e) => setCompressionLevel(parseInt(e.target.value))}
                         />
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
-                            <span>Fastest</span>
+                            <span>{format === 'zip' ? 'Stored' : 'Fastest'}</span>
                             <span>Best</span>
                         </div>
                     </div>
@@ -327,6 +329,8 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
         }
     };
 
+    const isStored = compressionLevel === 0 && format === 'zip';
+
     return (
         <div style={{ padding: '40px', maxWidth: '600px', margin: '0 auto' }}>
             <h2 style={{ marginBottom: '24px' }}>Create Archive</h2>
@@ -354,7 +358,7 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontWeight: 'bold' }}>Compression Level: {compressionLevel}</label>
+                    <label style={{ fontWeight: 'bold' }}>Compression Level: {compressionLevel} {isStored ? '(Stored)' : ''}</label>
                     <input
                         type="range"
                         min="0"
@@ -362,6 +366,10 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
                         value={compressionLevel}
                         onChange={(e) => setCompressionLevel(parseInt(e.target.value))}
                     />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
+                        <span>{format === 'zip' ? 'Stored' : 'Fastest'}</span>
+                        <span>Best</span>
+                    </div>
                 </div>
 
                 <div style={{ marginTop: '10px' }}>
