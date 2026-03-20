@@ -49,7 +49,7 @@
     "start": "node serve.mts",
     "watch:workspaces": "turbo watch build",
     "serve": "run-p --silent \"watch:workspaces\" start",
-    "build": "node -e \"const skip = process.env.SKIP_HANDLERS ? process.env.SKIP_HANDLERS.split(',').map(h => '--filter=!@filetool/' + h) : []; const args = ['turbo', 'build', ...skip]; console.log('Running:', 'npx', args.join(' ')); const result = require('child_process').spawnSync('npx', args, { stdio: 'inherit', shell: true }); process.exit(result.status ?? 1);\"",
+    "build": "turbo build",
     "zip-dist": "cd dist && zip -r dist.zip . -x dist.zip",
     "test": "turbo test",
     "test:integration": "npm run build && node tests/integration/build.mjs && playwright test"

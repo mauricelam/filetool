@@ -64,7 +64,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npm run build -- --filter=!@filetool/ffmpeg
         env:
           SKIP_HANDLERS: ffmpeg
 
