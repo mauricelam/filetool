@@ -36,15 +36,8 @@ const SETTINGS = {
       projectDir: 'ghidra-decompiler',
       command: `make -j -f Makefile.wasm ghidra_decompiler.js`,
       artifacts: ['ghidra_decompiler.js', 'ghidra_decompiler.wasm'],
+      resolveArtifacts: true,
     }),
-    {
-      name: 'ghidra-resolver',
-      setup(build) {
-        build.onResolve({ filter: /^\.\/ghidra_decompiler\.js$/ }, args => {
-          return { path: path.join(projectDir, 'ghidra-decompiler', 'ghidra_decompiler.js') };
-        });
-      }
-    }
   ],
   loader: {
     '.css': 'css',

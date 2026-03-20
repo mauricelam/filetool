@@ -34,6 +34,7 @@ export const emscriptenWasm = (options) => {
         projectDir,
         command,
         artifacts = [],
+        resolveArtifacts = false,
         watchFiles = [],
         env = {}
       } = options;
@@ -97,6 +98,17 @@ export const emscriptenWasm = (options) => {
       build.onStart(() => {
         buildWasm();
       });
+
+      if (resolveArtifacts) {
+        artifacts.forEach(artifact => {
+          if (artifact.endsWith('.js')) {
+            const filter = new RegExp(`^\\.\\/${artifact.replace(/\./g, '\\.')}$`);
+            build.onResolve({ filter }, args => {
+              return { path: path.join(process.cwd(), projectDir, artifact) };
+            });
+          }
+        });
+      }
 
       if (watchFiles.length > 0 && process.env['BUILD_MODE'] === 'dev') {
         const fullWatchPaths = watchFiles.map(p => path.join(projectDir, p));
