@@ -108,28 +108,35 @@ function App() {
         return <ResourceTableViewer resources={resources} />;
     }
 
-    return <XmlViewer content={xmlContent} />;
+    return <XmlViewer content={xmlContent} filename="AndroidManifest.xml" />;
 }
 
-function XmlViewer({ content }: { content: string }) {
+function XmlViewer({ content, filename }: { content: string, filename: string }) {
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+
+    const handleIframeLoad = () => {
+        if (iframeRef.current) {
+            const file = new File([content], filename, { type: 'text/xml' });
+            iframeRef.current.contentWindow?.postMessage({
+                action: 'respondFile',
+                file: file,
+            }, '*');
+        }
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0 }}>Binary XML Content</h3>
             </div>
-            <pre style={{
-                flex: 1,
-                overflow: 'auto',
-                backgroundColor: '#f5f5f5',
-                padding: '10px',
-                borderRadius: '4px',
-                margin: 0,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-all',
-                fontFamily: 'monospace'
-            }}>
-                {content}
-            </pre>
+            <div style={{ flex: 1, position: 'relative', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
+                <iframe
+                    ref={iframeRef}
+                    src="../textviewer/index.html"
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                    onLoad={handleIframeLoad}
+                />
+            </div>
         </div>
     );
 }
