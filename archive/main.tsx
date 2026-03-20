@@ -1,11 +1,21 @@
 import { createRoot } from 'react-dom/client'
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { ColumnView } from '../components/ColumnView';
 import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { PreviewComponent } from '../components/PreviewComponent';
-import { ArchiveMetadata, ArchiveEntryInfo, FileToArchive } from './archive-wasm/pkg/archive_wasm';
 
 const ROOT = createRoot(document.getElementById('root')!)
+
+interface ArchiveEntryInfo {
+    name: string;
+    size: number;
+    is_directory: bool;
+}
+
+interface FileToArchive {
+    name: string;
+    data: Uint8Array;
+}
 
 // Worker management
 let worker: Worker | null = null;
@@ -15,7 +25,7 @@ let messageId = 0;
 function getWorker(): Promise<Worker> {
     if (worker) return Promise.resolve(worker);
     return new Promise((resolve, reject) => {
-        worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+        worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
         worker.onmessage = (e) => {
             const { type, metadata, data, entryName, message, id } = e.data;
             if (type === 'ready') {
@@ -42,9 +52,12 @@ function getWorker(): Promise<Worker> {
 async function callWorker(action: string, args: any): Promise<any> {
     const w = await getWorker();
     const id = ++messageId;
+    const transferables = [];
+    if (args.data instanceof ArrayBuffer) transferables.push(args.data);
+
     return new Promise((resolve, reject) => {
         pendingPromises[id] = { resolve, reject };
-        w.postMessage({ action, ...args, id }, args.data instanceof ArrayBuffer ? [args.data] : []);
+        w.postMessage({ action, ...args, id }, transferables);
     });
 }
 
@@ -80,8 +93,11 @@ const SUPPORTED_DOWNLOAD_FORMATS = [
 const FormatDialog: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onSelect: (format: string) => void;
+    onSelect: (format: string, options: any) => void;
 }> = ({ isOpen, onClose, onSelect }) => {
+    const [format, setFormat] = useState('zip');
+    const [compressionLevel, setCompressionLevel] = useState(6);
+
     if (!isOpen) return null;
 
     return (
@@ -107,7 +123,7 @@ const FormatDialog: React.FC<{
                     backgroundColor: 'white',
                     padding: '20px',
                     borderRadius: '8px',
-                    minWidth: '300px',
+                    minWidth: '350px',
                     position: 'relative'
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -128,24 +144,54 @@ const FormatDialog: React.FC<{
                         <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
                     </svg>
                 </button>
-                <h3 style={{ margin: '0 0 16px 0' }}>Select Archive Format</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {SUPPORTED_DOWNLOAD_FORMATS.map(format => (
-                        <button
-                            key={format.id}
-                            onClick={() => onSelect(format.id)}
-                            style={{
-                                padding: '8px 16px',
-                                border: '1px solid #ccc',
-                                borderRadius: '4px',
-                                background: 'white',
-                                cursor: 'pointer',
-                                textAlign: 'left'
-                            }}
+                <h3 style={{ margin: '0 0 16px 0' }}>Archive Options</h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Format</label>
+                        <select
+                            value={format}
+                            onChange={(e) => setFormat(e.target.value)}
+                            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
                         >
-                            {format.name}
-                        </button>
-                    ))}
+                            {SUPPORTED_DOWNLOAD_FORMATS.map(f => (
+                                <option key={f.id} value={f.id}>{f.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                            Compression Level: {compressionLevel}
+                        </label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="9"
+                            value={compressionLevel}
+                            onChange={(e) => setCompressionLevel(parseInt(e.target.value))}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
+                            <span>Fastest</span>
+                            <span>Best</span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => onSelect(format, { compression_level: compressionLevel })}
+                        style={{
+                            padding: '10px',
+                            backgroundColor: '#0066cc',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            marginTop: '8px'
+                        }}
+                    >
+                        Download Archive
+                    </button>
                 </div>
             </div>
         </div>
@@ -155,6 +201,7 @@ const FormatDialog: React.FC<{
 interface ArchiveViewerMetadata {
     fileName: string;
     description: string;
+    format: string;
     fileCount: number;
     uncompressedSize: number;
     compressedSize: number;
@@ -210,7 +257,7 @@ const MetadataViewer: React.FC<{ metadata: ArchiveViewerMetadata | null, onBack:
                             </tr>
                             <tr>
                                 <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Format</td>
-                                <td style={{ padding: '8px 0' }}>{metadata.description}</td>
+                                <td style={{ padding: '8px 0' }}>{metadata.description} ({metadata.format})</td>
                             </tr>
                         </tbody>
                     </table>
@@ -246,8 +293,9 @@ const MetadataViewer: React.FC<{ metadata: ArchiveViewerMetadata | null, onBack:
 
 const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
     const [isCompressing, setIsCompressing] = useState(false);
-    const [format, setFormat] = useState('tar.gz');
+    const [format, setFormat] = useState('zip');
     const [filename, setFilename] = useState('archive');
+    const [compressionLevel, setCompressionLevel] = useState(6);
 
     const handleCreate = async () => {
         setIsCompressing(true);
@@ -258,7 +306,10 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
             })));
 
             const action = format === 'zip' ? 'create_zip' : 'create_tar_gz';
-            const { data } = await callWorker(action, { files: filesToArchive });
+            const { data } = await callWorker(action, {
+                files: filesToArchive,
+                options: { compression_level: compressionLevel }
+            });
 
             const blob = new Blob([data], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
@@ -301,6 +352,18 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
                         ))}
                     </select>
                 </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontWeight: 'bold' }}>Compression Level: {compressionLevel}</label>
+                    <input
+                        type="range"
+                        min="0"
+                        max="9"
+                        value={compressionLevel}
+                        onChange={(e) => setCompressionLevel(parseInt(e.target.value))}
+                    />
+                </div>
+
                 <div style={{ marginTop: '10px' }}>
                     <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Files to include ({files.length}):</div>
                     <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px', padding: '8px' }}>
@@ -329,6 +392,12 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
         </div>
     );
 };
+
+interface FileEntry {
+    _path: string;
+    _size: number;
+    _is_file: boolean;
+}
 
 const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const [archiveFile, setArchiveFile] = useState<File | null>(initialFile);
@@ -361,7 +430,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                                     _path: entry.name,
                                     _size: entry.size,
                                     _is_file: true
-                                };
+                                } as FileEntry;
                                 totalUncompressedSize += entry.size;
                             } else {
                                 current[part] = current[part] || {};
@@ -384,6 +453,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                 setMetadata({
                     fileName: archiveFile.name,
                     description: description || wasmMetadata.format,
+                    format: wasmMetadata.format,
                     fileCount: entries.filter(e => !e.is_directory).length,
                     uncompressedSize: totalUncompressedSize,
                     compressedSize: archiveFile.size
@@ -396,8 +466,8 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         loadArchive();
     }, [archiveFile]);
 
-    const handleFileDownload = async (format: string) => {
-        if (!archiveFile) return;
+    const handleFileDownload = async (format: string, options: any) => {
+        if (!archiveFile || !metadata) return;
         setIsCompressing(true);
         try {
             // Re-archive all files
@@ -407,13 +477,20 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
 
             const filesToArchive: FileToArchive[] = await Promise.all(
                 entries.filter(e => !e.is_directory).map(async e => {
-                    const { data } = await callWorker('extract', { data: buffer.slice(0), entryName: e.name });
+                    const { data } = await callWorker('extract', {
+                        data: buffer.slice(0),
+                        format: metadata.format,
+                        entryName: e.name
+                    });
                     return { name: e.name, data: new Uint8Array(data) };
                 })
             );
 
             const action = format === 'zip' ? 'create_zip' : 'create_tar_gz';
-            const { data } = await callWorker(action, { files: filesToArchive });
+            const { data } = await callWorker(action, {
+                files: filesToArchive,
+                options
+            });
 
             const blob = new Blob([data], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
@@ -430,11 +507,15 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         }
     };
 
-    const handleOpenFile = async (file: any) => {
-        if (!archiveFile) return;
+    const handleOpenFile = async (file: FileEntry) => {
+        if (!archiveFile || !metadata) return;
         try {
             const buffer = await archiveFile.arrayBuffer();
-            const { data } = await callWorker('extract', { data: buffer, entryName: file._path });
+            const { data } = await callWorker('extract', {
+                data: buffer,
+                format: metadata.format,
+                entryName: file._path
+            });
             const extractedFile = new File([data], file._path.split('/').pop()!, { type: 'application/octet-stream' });
             window.parent?.postMessage({
                 action: 'openFile',
@@ -445,11 +526,15 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         }
     };
 
-    const handleDownloadFile = async (file: any) => {
-        if (!archiveFile) return;
+    const handleDownloadFile = async (file: FileEntry) => {
+        if (!archiveFile || !metadata) return;
         try {
             const buffer = await archiveFile.arrayBuffer();
-            const { data } = await callWorker('extract', { data: buffer, entryName: file._path });
+            const { data } = await callWorker('extract', {
+                data: buffer,
+                format: metadata.format,
+                entryName: file._path
+            });
             const blob = new Blob([data], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
@@ -464,15 +549,16 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
 
     const renderFileActions = (file: any, path: string[]) => {
         if (!window.parent || !file._is_file) return null;
+        const fileEntry = file as FileEntry;
 
         return (
             <div className="file-actions">
-                <button onClick={() => handleOpenFile(file)} title="Open">
+                <button onClick={() => handleOpenFile(fileEntry)} title="Open">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
                         <path d="M216-144q-29.7 0-50.85-21.15Q144-186.3 144-216v-528q0-29.7 21.15-50.85Q186.3-816 216-816h264v72H216v528h528v-264h72v264q0 29.7-21.15 50.85Q773.7-144 744-144H216Zm171-192-51-51 357-357H576v-72h240v240h-72v-117L387-336Z" />
                     </svg>
                 </button>
-                <button onClick={() => handleDownloadFile(file)} title="Download">
+                <button onClick={() => handleDownloadFile(fileEntry)} title="Download">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
                         <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
                     </svg>
@@ -481,8 +567,8 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         );
     };
 
-    const getDexFiles = (obj: any): any[] => {
-        const results: any[] = [];
+    const getDexFiles = (obj: any): FileEntry[] => {
+        const results: FileEntry[] = [];
         const find = (o: any) => {
             for (const key in o) {
                 const item = o[key];
@@ -502,7 +588,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     };
 
     const handleOpenMultiDex = async () => {
-        if (!archiveFile) return;
+        if (!archiveFile || !metadata) return;
         const dexFiles = getDexFiles(filesObject);
 
         if (dexFiles.length === 0) return;
@@ -512,7 +598,11 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
 
             const buffer = await archiveFile.arrayBuffer();
             const extractedFiles = await Promise.all(dexFiles.map(async f => {
-                const { data } = await callWorker('extract', { data: buffer.slice(0), entryName: f._path });
+                const { data } = await callWorker('extract', {
+                    data: buffer.slice(0),
+                    format: metadata.format,
+                    entryName: f._path
+                });
                 return new File([data], f._path.split('/').pop()!, { type: 'application/octet-stream' });
             }));
 
@@ -534,11 +624,16 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     };
 
     const renderFilePreview = (file: any, path: string[]) => {
+        const fileEntry = file as FileEntry;
         async function extractFile(): Promise<File> {
-            if (!archiveFile) throw new Error('No archive file');
+            if (!archiveFile || !metadata) throw new Error('No archive file');
             const buffer = await archiveFile.arrayBuffer();
-            const { data } = await callWorker('extract', { data: buffer, entryName: file._path });
-            return new File([data], file._path.split('/').pop()!, { type: 'application/octet-stream' });
+            const { data } = await callWorker('extract', {
+                data: buffer,
+                format: metadata.format,
+                entryName: fileEntry._path
+            });
+            return new File([data], fileEntry._path.split('/').pop()!, { type: 'application/octet-stream' });
         }
         return <PreviewComponent path={path} filePromise={extractFile} />;
     };
@@ -617,8 +712,8 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             <FormatDialog
                 isOpen={isFormatDialogOpen}
                 onClose={() => setIsFormatDialogOpen(false)}
-                onSelect={(format) => {
-                    handleFileDownload(format);
+                onSelect={(format, options) => {
+                    handleFileDownload(format, options);
                     setIsFormatDialogOpen(false);
                 }}
             />

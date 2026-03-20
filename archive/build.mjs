@@ -1,9 +1,7 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
-import { execSync } from 'child_process';
-
-execSync('npx wasm-pack build --target web --out-dir pkg archive/archive-wasm', { stdio: 'inherit', cwd: '..' });
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
   entryPoints: ['main.tsx', './worker.ts'],
@@ -13,21 +11,15 @@ const SETTINGS = {
   platform: "browser",
   external: ['require', 'fs', 'path', 'crypto'],
   plugins: [
+    rustWasm({
+        projectDir: './archive-wasm',
+        outName: 'archive_wasm'
+    }),
     copy({
       assets: [
         {
           from: ["index.html"],
           to: ["index.html"],
-          watch: process.env['BUILD_MODE'] === 'dev',
-        },
-        {
-          from: ["archive-wasm/pkg/archive_wasm_bg.wasm"],
-          to: ["archive_wasm_bg.wasm"],
-          watch: process.env['BUILD_MODE'] === 'dev',
-        },
-        {
-          from: ["archive-wasm/pkg/archive_wasm.js"],
-          to: ["archive_wasm.js"],
           watch: process.env['BUILD_MODE'] === 'dev',
         },
         {
