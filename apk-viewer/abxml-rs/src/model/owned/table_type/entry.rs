@@ -98,6 +98,10 @@ impl SimpleEntry {
         self.value_type
     }
 
+    pub fn get_value_data(&self) -> u32 {
+        self.value_data
+    }
+
     pub fn get_value(&self) -> u32 {
         self.value_data
     }
@@ -238,6 +242,10 @@ impl ComplexEntry {
 
     pub fn get_key(&self) -> u32 {
         self.key_index
+    }
+
+    pub fn get_parent_id(&self) -> u32 {
+        self.parent_entry_id
     }
 
     pub fn get_referent_id(&self, value: u32) -> Option<u32> {

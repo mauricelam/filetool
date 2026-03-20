@@ -65,6 +65,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          SKIP_HANDLERS: ffmpeg
 
       - name: Prepare for deployment
         run: |

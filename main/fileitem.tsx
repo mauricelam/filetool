@@ -470,12 +470,13 @@ export function FileItem(
 }
 
 export function FileListItem(
-    { file, selected, onClick, onRemove }: { file: File, selected: boolean, onClick: () => void, onRemove: () => void }
+    { file, selected, multiSelected, onClick, onRemove }: { file: File, selected: boolean, multiSelected?: boolean, onClick: (e: React.MouseEvent) => void, onRemove: () => void }
 ) {
     const [isHovered, setHovered] = useState(false);
     const icon = getIcon(file.name);
     return (
         <div
+            className="file-list-item"
             onClick={onClick}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
@@ -484,7 +485,7 @@ export function FileListItem(
                 alignItems: 'center',
                 padding: '4px',
                 cursor: 'pointer',
-                backgroundColor: selected ? '#e6f3ff' : (isHovered ? '#f0f0f0' : 'transparent'),
+                backgroundColor: selected || multiSelected ? '#e6f3ff' : (isHovered ? '#f0f0f0' : 'transparent'),
                 border: selected ? '1px solid #0066cc' : '1px solid transparent',
                 borderRadius: '4px',
                 justifyContent: 'space-between'
@@ -495,6 +496,7 @@ export function FileListItem(
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
+                    fontSize: '13px'
                 }}>{file.name}</span>
             </div>
             <div

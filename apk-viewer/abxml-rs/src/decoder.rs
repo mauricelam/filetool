@@ -4,10 +4,7 @@ use std::io::{Cursor, Read};
 
 use anyhow::{Context, Error};
 
-use crate::{
-    visitor::{Executor, ModelVisitor, Resources, XmlVisitor},
-    STR_ARSC,
-};
+use crate::visitor::{Executor, ModelVisitor, Resources, XmlVisitor};
 
 #[derive(Debug)]
 pub struct BufferedDecoder {
@@ -35,8 +32,8 @@ impl BufferedDecoder {
         })
     }
 
-    pub fn get_decoder(&self) -> Result<Decoder<'_>, Error> {
-        Decoder::from_buffer(&self.buffer)
+    pub fn get_decoder<'a>(&'a self, buffer_android: &'a [u8]) -> Result<Decoder<'a>, Error> {
+        Decoder::from_buffer(buffer_android, &self.buffer)
     }
 }
 
@@ -48,12 +45,12 @@ pub struct Decoder<'a> {
 }
 
 impl<'a> Decoder<'a> {
-    pub fn from_buffer(buffer_apk: &'a [u8]) -> Result<Self, Error> {
+    pub fn from_buffer(buffer_android: &'a [u8], buffer_apk: &'a [u8]) -> Result<Self, Error> {
         let visitor = ModelVisitor::default();
 
         let mut decoder = Self {
             visitor,
-            buffer_android: STR_ARSC,
+            buffer_android,
             buffer_apk,
         };
 
@@ -65,10 +62,10 @@ impl<'a> Decoder<'a> {
         Ok(decoder)
     }
 
-    pub fn from_arsc(buffer: &'a [u8]) -> Result<ModelVisitor<'a>, Error> {
+    pub fn from_arsc(buffer_android: &'a [u8], buffer: &'a [u8]) -> Result<ModelVisitor<'a>, Error> {
         let mut visitor = ModelVisitor::default();
 
-        Executor::arsc(STR_ARSC, &mut visitor).context("could not read Android lib resources")?;
+        Executor::arsc(buffer_android, &mut visitor).context("could not read Android lib resources")?;
         Executor::arsc(buffer, &mut visitor).context("could not read ARSC resources")?;
 
         Ok(visitor)
@@ -98,9 +95,10 @@ mod tests {
     fn it_can_not_decode_an_empty_binary_xml() {
         // Empty resources.arsc file
         let buffer = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let buffer_android = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
         let owned = BufferedDecoder::from(buffer);
-        let decoder = owned.get_decoder().unwrap();
+        let decoder = owned.get_decoder(&buffer_android).unwrap();
 
         // Empty binary XML file
         let another = vec![3, 0, 0, 0, 0, 0, 0, 0];
@@ -111,8 +109,9 @@ mod tests {
     #[test]
     fn it_can_create_a_buffer_decoder_from_read() {
         let buffer = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let buffer_android = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
         let owned = BufferedDecoder::from_read(Cursor::new(buffer)).unwrap();
-        let _ = owned.get_decoder().unwrap();
+        let _ = owned.get_decoder(&buffer_android).unwrap();
     }
 }

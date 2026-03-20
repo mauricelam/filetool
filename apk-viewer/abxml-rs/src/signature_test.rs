@@ -38,9 +38,10 @@ mod tests {
     fn test_signature_extraction_real_apk() {
         let path = "../../tests/fixtures/Tasker.6.6.20.apk";
         let bytes = std::fs::read(path).expect("Could not read Tasker APK");
+        let dummy_arsc = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
         let mut apk = Apk::<std::io::Cursor<&[u8]>>::from_bytes(&bytes).expect("Failed to load APK");
-        let metadata = apk.get_metadata_with_bytes(&bytes).expect("Failed to get metadata");
+        let metadata = apk.get_metadata_with_bytes(&bytes, &dummy_arsc).expect("Failed to get metadata");
 
         // Based on the user's apksigner output:
         // Verified using v2 scheme (APK Signature Scheme v2): true

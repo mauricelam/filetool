@@ -63,7 +63,7 @@ pub struct ArscResource {
 }
 
 impl<Reader: Read + Seek> Apk<Reader> {
-    pub fn get_metadata_with_bytes(&mut self, bytes: &[u8]) -> Result<ApkMetadata, Error> {
+    pub fn get_metadata_with_bytes(&mut self, bytes: &[u8], buffer_android: &[u8]) -> Result<ApkMetadata, Error> {
         let mut v1_signature = false;
         let mut jar_signatures = Vec::new();
         let mut uncompressed_size = 0;
@@ -108,7 +108,7 @@ impl<Reader: Read + Seek> Apk<Reader> {
             let mut contents = Vec::new();
             manifest_file.read_to_end(&mut contents)?;
 
-            let decoder = self.decoder.get_decoder()?;
+            let decoder = self.decoder.get_decoder(buffer_android)?;
             let xml_visitor = decoder.xml_visitor(&contents)?;
             if let Some(root) = xml_visitor.get_roots().first() {
                 manifest_info = Some(Self::extract_manifest_info(root));
@@ -127,10 +127,10 @@ impl<Reader: Read + Seek> Apk<Reader> {
         })
     }
 
-    pub fn get_metadata(&mut self) -> Result<ApkMetadata, Error> {
+    pub fn get_metadata(&mut self, buffer_android: &[u8]) -> Result<ApkMetadata, Error> {
         // This is a fallback if bytes are not available, but for now we expect them
         // in our current use case.
-        self.get_metadata_with_bytes(&[])
+        self.get_metadata_with_bytes(&[], buffer_android)
     }
 
     #[cfg(test)]
@@ -354,12 +354,12 @@ impl<Reader: Read + Seek> Apk<Reader> {
         })
     }
 
-    pub fn export_string(&mut self) -> Result<Vec<(String, Vec<u8>)>, Error> {
+    pub fn export_string(&mut self, buffer_android: &[u8]) -> Result<Vec<(String, Vec<u8>)>, Error> {
         use crate::visitor::XmlVisitor;
 
         let decoder = self
             .decoder
-            .get_decoder()
+            .get_decoder(buffer_android)
             .context("could not get the decoder")?;
 
         let mut result = Vec::new();
@@ -399,12 +399,12 @@ impl<Reader: Read + Seek> Apk<Reader> {
 
     /// It exports to target output_path the contents of the APK, transcoding the binary XML files
     /// found on it.
-    pub fn export<P: AsRef<Path>>(&mut self, output_path: P, force: bool) -> Result<(), Error> {
+    pub fn export<P: AsRef<Path>>(&mut self, output_path: P, force: bool, buffer_android: &[u8]) -> Result<(), Error> {
         use crate::visitor::XmlVisitor;
 
         let decoder = self
             .decoder
-            .get_decoder()
+            .get_decoder(buffer_android)
             .context("could not get the decoder")?;
 
         if fs::create_dir_all(&output_path).is_err() && force {
@@ -475,10 +475,10 @@ impl<Reader: Read + Seek> Apk<Reader> {
         Ok(())
     }
 
-    pub fn list_resources(&mut self) -> Result<Vec<ArscResource>, Error> {
+    pub fn list_resources(&mut self, buffer_android: &[u8]) -> Result<Vec<ArscResource>, Error> {
         let decoder = self
             .decoder
-            .get_decoder()
+            .get_decoder(buffer_android)
             .context("could not get the decoder")?;
 
         let resources = decoder.get_resources();
@@ -497,13 +497,16 @@ impl<Reader: Read + Seek> Apk<Reader> {
                     .unwrap_or_else(|_| format!("type_{}", type_id));
 
                 // Get entries for this type
-                for (entry_id, entry) in package.iter_entries() {
+                for (entry_id, entries) in package.iter_entries() {
                     if (entry_id >> 16) == *type_id {
-                        let entry_name = package.get_entries_string(*entry_id)
+                        let entry_name = package
+                            .get_entries_string(*entry_id)
                             .map(|s| s.to_string())
                             .unwrap_or_else(|_| format!("entry_{}", entry_id & 0xFFFF));
 
-                        let value = entry.get_value()
+                        let entry = entries.first().map(|(_c, e)| e).unwrap();
+                        let value = entry
+                            .get_value()
                             .map(|v| v.to_string())
                             .unwrap_or_else(|| "".to_string());
 

@@ -72,19 +72,24 @@ pub struct ApkResponse {
 }
 
 #[wasm_bindgen]
-pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> {
+pub fn decode_apk(
+    bytes: Vec<u8>,
+    system_resources: Vec<u8>,
+) -> Result<ApkResponse, wasm_bindgen::JsError> {
     info!("Decoding APK of size {} bytes", bytes.len());
     let mut apk = Apk::<File>::from_bytes(&bytes).map_err(|e| {
         error!("Failed to decode APK: {}", e);
         JsError::new(&format!("{e}"))
     })?;
 
-    let metadata = apk.get_metadata_with_bytes(&bytes).map_err(|e| {
-        error!("Failed to get APK metadata: {}", e);
-        JsError::new(&format!("{e}"))
-    })?;
+    let metadata = apk
+        .get_metadata_with_bytes(&bytes, &system_resources)
+        .map_err(|e| {
+            error!("Failed to get APK metadata: {}", e);
+            JsError::new(&format!("{e}"))
+        })?;
 
-    let strings = apk.export_string().map_err(|e| {
+    let strings = apk.export_string(&system_resources).map_err(|e| {
         error!("Failed to export strings: {}", e);
         JsError::new(&format!("{e}"))
     })?;
@@ -125,11 +130,14 @@ pub fn decode_apk(bytes: Vec<u8>) -> Result<ApkResponse, wasm_bindgen::JsError> 
 }
 
 #[wasm_bindgen]
-pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::JsError> {
+pub fn extract_arsc(
+    bytes: Vec<u8>,
+    system_resources: Vec<u8>,
+) -> Result<Vec<ArscResource>, wasm_bindgen::JsError> {
     info!("Extracting ARSC of size {} bytes", bytes.len());
-    let decoder = abxml::decoder::Decoder::from_arsc(&bytes).map_err(|e| {
+    let decoder = abxml::decoder::Decoder::from_arsc(&system_resources, &bytes).map_err(|e| {
         error!("Failed to decode ARSC: {}", e);
-        JsError::new(&format!("XX {e}"))
+        JsError::new(&format!("{e}"))
     })?;
 
     let resources = decoder.get_resources();
@@ -159,12 +167,16 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::J
         debug!("Type map: {type_map:?}");
 
         // Get entries for this type
-        for (entry_id, entry) in package.iter_entries() {
-            let entry_name = package
-                .format_reference(*entry_id, entry.get_key(), None)
-                .unwrap_or_else(|_| "Unknown".into());
-
-            let value = entry.to_string(&resources.packages, *package_id);
+        for (entry_id, entries_vec) in package.iter_entries() {
+            let (entry_name, value, entry_type) = if let Some((_, entry)) = entries_vec.first() {
+                let name = package
+                    .format_reference(*entry_id, entry.get_key(), None)
+                    .unwrap_or_else(|_| "Unknown".into());
+                let val = entry.to_string(&resources.packages, *package_id);
+                (name, val, Some(entry))
+            } else {
+                ("Unknown".into(), "Unknown".into(), None)
+            };
 
             let spec_id = u32::from(entry_id.get_spec());
             let spec_str = package
@@ -177,8 +189,8 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::J
                 entry_id: *entry_id,
                 name: entry_name,
                 value,
-                entries: match entry {
-                    Entry::Complex(complex_entry) => {
+                entries: match entry_type {
+                    Some(Entry::Complex(complex_entry)) => {
                         Some(complex_entry.to_hash_map(&resources.packages, *package_id))
                     }
                     _ => None,
@@ -192,11 +204,11 @@ pub fn extract_arsc(bytes: Vec<u8>) -> Result<Vec<ArscResource>, wasm_bindgen::J
 }
 
 #[wasm_bindgen]
-pub fn decode_xml(bytes: Vec<u8>) -> Result<String, wasm_bindgen::JsError> {
+pub fn decode_xml(bytes: Vec<u8>, system_resources: Vec<u8>) -> Result<String, wasm_bindgen::JsError> {
     info!("Decoding standalone XML of size {} bytes", bytes.len());
 
     let mut visitor = abxml::visitor::ModelVisitor::default();
-    abxml::visitor::Executor::arsc(abxml::STR_ARSC, &mut visitor).map_err(|e| {
+    abxml::visitor::Executor::arsc(&system_resources, &mut visitor).map_err(|e| {
         error!("Failed to load system resources: {}", e);
         JsError::new(&format!("{e}"))
     })?;
@@ -217,10 +229,12 @@ pub fn decode_xml(bytes: Vec<u8>) -> Result<String, wasm_bindgen::JsError> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_extract_arsc() {
         let bytes = include_bytes!("example_resources.arsc").to_vec();
-        let decoder = abxml::decoder::Decoder::from_arsc(&bytes).unwrap();
+        let decoder = abxml::decoder::Decoder::from_arsc(&bytes, &bytes).unwrap();
         decoder.get_resources();
     }
 }

@@ -34,7 +34,8 @@ Sent by a tool when it wants to open a new file in another tool (e.g., when extr
 {
     action: 'respondFile',
     file: File,  // The file to process
-    originalType: string  // Optional: The original MIME type of the file
+    originalType: string,  // Optional: The original MIME type of the file
+    additionalFiles: File[] // Optional: Additional associated files (e.g. multi-DEX)
 }
 ```
 Sent by the main window in response to a `requestFile` message. Contains the file to be processed by the tool.
