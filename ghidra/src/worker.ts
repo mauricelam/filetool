@@ -4,13 +4,16 @@ let decompilerModule: any = null;
 
 async function getDecompiler() {
     if (decompilerModule) return decompilerModule;
+    console.log('[GhidraWorker] Loading Ghidra Decompiler WASM...');
     decompilerModule = await GhidraDecompiler();
     decompilerModule._init_decompiler();
+    console.log('[GhidraWorker] Ghidra Decompiler WASM initialized.');
     return decompilerModule;
 }
 
 self.onmessage = async (e: MessageEvent) => {
     const { action, buffer, fileName, funcName, arch, sla, pspec, cspec, baseAddr } = e.data;
+    console.log('[GhidraWorker] Message received:', action, { fileName, funcName, arch });
 
     try {
         if (action === 'detect_architecture') {
@@ -20,7 +23,8 @@ self.onmessage = async (e: MessageEvent) => {
             module.HEAPU8.set(data, binPtr);
             const detectedId = module.ccall('detect_architecture', 'string', ['number', 'number'], [binPtr, data.length]);
             module._free(binPtr);
-            self.postMessage({ action: 'detected_architecture', arch: detectedId });
+            console.log('[GhidraWorker] Architecture detected:', detectedId);
+            self.postMessage({ action: 'detected_architecture', arch: detectedId || 'unknown' });
         } else if (action === 'decompile') {
             const module = await getDecompiler();
             const data = new Uint8Array(buffer);
@@ -45,6 +49,7 @@ self.onmessage = async (e: MessageEvent) => {
                 </bytechunk>
                 </binaryimage>`;
 
+            console.log(`[GhidraWorker] Decompiling ${funcName}...`);
             const resultPtr = module.ccall(
                 'decompile_pcode',
                 'number',
@@ -55,9 +60,11 @@ self.onmessage = async (e: MessageEvent) => {
             module._free_string(resultPtr);
             module._free(slaPtr);
 
+            console.log(`[GhidraWorker] Decompilation of ${funcName} complete.`);
             self.postMessage({ action: 'decompiled', code: result, funcName });
         }
     } catch (err: any) {
-        self.postMessage({ action: 'error', error: err.message });
+        console.error('[GhidraWorker] Error:', err);
+        self.postMessage({ action: 'error', error: err.message || String(err) });
     }
 };
