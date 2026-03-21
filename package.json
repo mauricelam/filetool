@@ -2,7 +2,7 @@
   "name": "filetool",
   "packageManager": "npm@11.6.2",
   "workspaces": [
-    "android-xml-viewer",
+    "android-xml",
     "apk-viewer",
     "archive",
     "binutils",

@@ -19,7 +19,7 @@ if (fs.existsSync(arscPath)) {
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
-  outdir: "../dist/android-xml-viewer",
+  outdir: "../dist/android-xml",
   bundle: true,
   format: "esm",
   platform: "browser",
