@@ -33,6 +33,8 @@ const GhidraApp = () => {
                     setStatus('Architecture detection failed. Please select manually.');
                 } else {
                     setStatus(`Detected: ${e.data.arch}`);
+                    // If we were waiting for detection to complete for "Ready" status
+                    setStatus(prev => prev.startsWith('Detecting') ? `Ready (${e.data.arch})` : prev);
                 }
             } else if (e.data.action === 'decompiled') {
                 setDecompiledCode(e.data.code);
@@ -58,7 +60,10 @@ const GhidraApp = () => {
             setStatus('Extracting symbols...');
             // Extract symbols using binutils (nm)
             try {
-                const nmWorker = new Worker(new URL('../binutils/worker.js', import.meta.url), { type: 'module' });
+                // In production and in Playwright, we are served under /filetool/
+                // Use absolute path for worker to be safe
+                // The URL for the worker should be relative to the base URL
+                const nmWorker = new Worker(new URL('/filetool/binutils/worker.js', window.location.origin), { type: 'module' });
                 const nmBuffer = await file.arrayBuffer();
                 let nmOutput = '';
                 nmWorker.onmessage = (ev) => {
@@ -76,7 +81,7 @@ const GhidraApp = () => {
                         console.log('[GhidraUI] Extracted symbols:', extractedSymbols.length);
                         setSymbols(extractedSymbols);
                         nmWorker.terminate();
-                        setStatus(prev => prev === 'Extracting symbols...' ? 'Ready' : prev);
+                        setStatus(prev => (prev === 'Extracting symbols...' || prev.startsWith('Ready')) ? `Ready (${extractedSymbols.length} symbols)` : prev);
                     }
                 };
                 nmWorker.onerror = (err) => {
@@ -162,6 +167,7 @@ const GhidraApp = () => {
                     {filteredSymbols.map(s => (
                         <div
                             key={s.name + s.address}
+                            className="symbol-item"
                             onClick={() => handleDecompile(s.name)}
                             style={{
                                 padding: '8px 12px',
