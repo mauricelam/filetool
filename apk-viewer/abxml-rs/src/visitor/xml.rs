@@ -132,9 +132,11 @@ impl<'a> XmlVisitor<'a> {
             let value = match current_value {
                 Value::StringReference(index) => (*string_table.get_string(index)?).clone(),
                 Value::ReferenceId(id) => AttributeHelper::resolve_reference(self.resources, id)
-                    .unwrap_or_else(|_| format!("@0x{:08X}", id)),
-                Value::AttributeReferenceId(id) => AttributeHelper::resolve_reference(self.resources, id)
-                    .unwrap_or_else(|_| format!("?0x{:08X}", id)),
+                    .context("could not resolve reference")?,
+                Value::AttributeReferenceId(id) => {
+                    AttributeHelper::resolve_reference(self.resources, id)
+                        .context("could not resolve attribute reference")?
+                }
                 Value::Integer(value) | Value::Flags(value) => {
                     let flag_resolution = AttributeHelper::resolve_flags(
                         &current_attribute,
@@ -340,7 +342,8 @@ impl AttributeHelper {
                             })
                             .unwrap_or_else(|_| {
                                 error!(
-                                    "Value should be added but there was an issue reading                                      the entry"
+                                    "Value should be added but there was an issue reading \
+                                     the entry"
                                 );
                             });
                     }
@@ -426,13 +429,13 @@ mod tests {
             let entry_ce1 = Entry::Complex(complex_entry1);
 
             let mut entries = Entries::new();
-        entries.insert((1 << 24) | 1, vec![("".to_string(), entry1)]);
-        entries.insert((2 << 24) | 1, vec![("".to_string(), entry2)]);
-        entries.insert((2 << 24) | 2, vec![("".to_string(), entry3)]);
-        entries.insert((2 << 24) | 3, vec![("".to_string(), entry_ce1)]);
-        entries.insert((2 << 24) | 4, vec![("".to_string(), entry4)]);
-        entries.insert((2 << 24) | 5, vec![("".to_string(), entry5)]);
-        entries.insert((2 << 24) | 6, vec![("".to_string(), entry6)]);
+            entries.insert((1 << 24) | 1, entry1);
+            entries.insert((2 << 24) | 1, entry2);
+            entries.insert((2 << 24) | 2, entry3);
+            entries.insert((2 << 24) | 3, entry_ce1);
+            entries.insert((2 << 24) | 4, entry4);
+            entries.insert((2 << 24) | 5, entry5);
+            entries.insert((2 << 24) | 6, entry6);
 
             Self { entries }
         }
@@ -461,14 +464,8 @@ mod tests {
         fn get_entry(&self, id: u32) -> Result<&Entry, Error> {
             self.entries
                 .get(&id)
-            .and_then(|v| v.first())
-            .map(|(_, e)| e)
                 .ok_or_else(|| format_err!("could not find entry"))
         }
-
-    fn get_all_entries(&self, id: u32) -> Option<&Vec<(String, Entry)>> {
-        self.entries.get(&id)
-    }
 
         fn get_entries_string(&self, str_id: u32) -> Result<Rc<String>, Error> {
             let st = FakeStringTable;

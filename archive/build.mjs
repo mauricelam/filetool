@@ -1,29 +1,26 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
+import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 const SETTINGS = {
-  entryPoints: ['main.tsx'],
+  entryPoints: ['main.tsx', './worker.ts'],
   outdir: "../dist/archive",
   bundle: true,
   format: "esm",
   platform: "browser",
   external: ['require', 'fs', 'path', 'crypto'],
   plugins: [
+    rustWasm({
+        projectDir: './archive-wasm',
+        outName: 'archive_wasm'
+    }),
     copy({
       assets: [
         {
           from: ["index.html"],
           to: ["index.html"],
           watch: process.env['BUILD_MODE'] === 'dev',
-        },
-        {
-          from: ["../node_modules/libarchive.js/dist/worker-bundle.js"],
-          to: ["libarchive-worker-bundle.js"],
-        },
-        {
-          from: ["../node_modules/libarchive.js/dist/libarchive.wasm"],
-          to: ["libarchive.wasm"],
         },
         {
             from: ["../node_modules/wasmagic/dist/libmagic-wrapper.wasm"],
