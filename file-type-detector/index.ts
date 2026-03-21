@@ -187,7 +187,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
     },
     {
         "name": "Android Binary XML",
-        "handler": "android-xml-viewer",
+        "handler": "android-xml",
         "mimetypes": [
             { "description": /Android binary XML/i },
             { "description": /Android package resource table \(ARSC\)/i },

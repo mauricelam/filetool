@@ -35,11 +35,11 @@ const runHandlerTest = async (page: Page, { handler, file }: HandlerTestOptions)
     return iframe;
 };
 
-test('should correctly process and display a standalone binary XML file in android-xml-viewer', async ({ page }) => {
+test('should correctly process and display a standalone binary XML file in android-xml', async ({ page }) => {
     const xmlContent = new Uint8Array([3, 0, 8, 0, 191, 0, 0, 0, 1, 0, 28, 0, 111, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 34, 0, 0, 0, 47, 0, 0, 0, 54, 0, 0, 0, 11, 0, 83, 111, 109, 101, 32, 115, 116, 114, 105, 110, 103, 0, 0, 15, 0, 65, 110, 111, 116, 104, 101, 114, 32, 115, 114, 116, 114, 105, 110, 103, 0, 0, 9, 0, 115, 116, 97, 114, 116, 95, 116, 97, 103, 0, 0, 3, 0, 107, 101, 121, 0, 0, 5, 0, 118, 97, 108, 117, 101, 0, 0, 2, 1, 16, 0, 56, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 3, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 4, 0, 0, 0, 3, 1, 16, 0, 24, 0, 0, 0, 3, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 90, 0, 0, 0]);
 
     const iframe = await runHandlerTest(page, {
-        handler: 'android-xml-viewer',
+        handler: 'android-xml',
         file: {
             content: xmlContent,
             name: 'test.xml',
@@ -52,11 +52,11 @@ test('should correctly process and display a standalone binary XML file in andro
     await expect(textviewer).toContainText('<start_tag key="value" />');
 });
 
-test('should correctly process and display a standalone ARSC file in android-xml-viewer', async ({ page }) => {
+test('should correctly process and display a standalone ARSC file in android-xml', async ({ page }) => {
     const arscContent = new Uint8Array([2, 0, 12, 0, 12, 0, 0, 0, 1, 0, 0, 0]);
 
     const iframe = await runHandlerTest(page, {
-        handler: 'android-xml-viewer',
+        handler: 'android-xml',
         file: {
             content: arscContent,
             name: 'test.arsc',
@@ -88,11 +88,11 @@ test('should correctly detect standalone binary XML file and offer Android Binar
 test('should correctly process and display a binary XML file with multiple roots', async ({ page }) => {
     const fs = await import('fs');
     const path = await import('path');
-    const fixturePath = path.join(__dirname, '..', '..', 'android-xml-viewer', 'example', 'multiple_roots.xml.bin');
+    const fixturePath = path.join(__dirname, '..', '..', 'android-xml', 'example', 'multiple_roots.xml.bin');
     const xmlContent = fs.readFileSync(fixturePath);
 
     const iframe = await runHandlerTest(page, {
-        handler: 'android-xml-viewer',
+        handler: 'android-xml',
         file: {
             content: new Uint8Array(xmlContent),
             name: 'multiple_roots.xml',
