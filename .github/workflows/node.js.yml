@@ -99,6 +99,7 @@ jobs:
 
       - run: npm run test:integration
       - run: npm run zip-dist
+        if: github.ref == 'refs/heads/main'
 
       - name: Build PR preview
         if: github.event_name == 'pull_request'
