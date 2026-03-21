@@ -168,34 +168,34 @@ pub fn extract_arsc(
 
         // Get entries for this type
         for (entry_id, entries_vec) in package.iter_entries() {
-            if let Some((_, entry)) = entries_vec.first() {
-                let entry_name = package
+            let (entry_name, value, entry_type) = if let Some((_, entry)) = entries_vec.first() {
+                let name = package
                     .format_reference(*entry_id, entry.get_key(), None)
                     .unwrap_or_else(|_| "Unknown".into());
+                let val = entry.to_string(&resources.packages, *package_id);
+                (name, val, Some(entry))
+            } else {
+                ("Unknown".into(), "Unknown".into(), None)
+            };
 
-                let value = entry.to_string(&resources.packages, *package_id);
+            let spec_id = u32::from(entry_id.get_spec());
+            let spec_str = package
+                .get_spec_as_str(spec_id)
+                .unwrap_or_else(|e| format!("{e}"));
 
-                let spec_id = u32::from(entry_id.get_spec());
-                let spec_str = package
-                    .get_spec_as_str(spec_id)
-                    .unwrap_or_else(|e| format!("{e}"));
-
-                let entries = match entry {
-                    Entry::Complex(complex_entry) => {
+            result.push(ArscResource {
+                package_id: *package_id,
+                type_name: spec_str,
+                entry_id: *entry_id,
+                name: entry_name,
+                value,
+                entries: match entry_type {
+                    Some(Entry::Complex(complex_entry)) => {
                         Some(complex_entry.to_hash_map(&resources.packages, *package_id))
                     }
                     _ => None,
-                };
-
-                result.push(ArscResource {
-                    package_id: *package_id,
-                    type_name: spec_str,
-                    entry_id: *entry_id,
-                    name: entry_name,
-                    value,
-                    entries,
-                });
-            }
+                },
+            });
         }
     }
 
