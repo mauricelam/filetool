@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './apk-wasm-bindings/pkg'
+import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue, decompress_brotli } from './apk-wasm-bindings/pkg'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
@@ -24,9 +24,10 @@ const initializeWasm = async () => {
             await init();
 
             // Load system resources
-            const response = await fetch('android.arsc');
-            if (!response.ok) throw new Error('Failed to fetch android.arsc');
-            systemResources = new Uint8Array(await response.arrayBuffer());
+            const response = await fetch('android.arsc.br');
+            if (!response.ok) throw new Error('Failed to fetch android.arsc.br');
+            const compressedResources = new Uint8Array(await response.arrayBuffer());
+            systemResources = decompress_brotli(compressedResources);
 
             wasmInitialized = true;
         } catch (error) {

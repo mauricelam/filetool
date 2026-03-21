@@ -6,6 +6,7 @@ use abxml::{
         Identifier, Library as LibraryTrait,
     },
 };
+use std::io::Read;
 use log::{debug, error, info};
 use serde_bytes::ByteBuf;
 use std::{collections::HashMap, fs::File};
@@ -89,6 +90,17 @@ pub struct ApkMetadata {
 pub struct ApkResponse {
     pub files: Vec<(String, ByteBuf)>,
     pub metadata: ApkMetadata,
+}
+
+#[wasm_bindgen]
+pub fn decompress_brotli(bytes: Vec<u8>) -> Result<Vec<u8>, wasm_bindgen::JsError> {
+    let mut decompressed = Vec::new();
+    let mut reader = brotli::Decompressor::new(&bytes[..], 4096);
+    reader.read_to_end(&mut decompressed).map_err(|e| {
+        error!("Failed to decompress Brotli: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+    Ok(decompressed)
 }
 
 #[wasm_bindgen]

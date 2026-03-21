@@ -2,7 +2,16 @@ import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import path from 'path';
+import fs from 'fs';
+import zlib from 'zlib';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
+
+// Compress resources.arsc to android.arsc.br
+const arscPath = "abxml-rs/resources/resources.arsc";
+const compressedArscPath = "android.arsc.br";
+const input = fs.readFileSync(arscPath);
+const compressed = zlib.brotliCompressSync(input);
+fs.writeFileSync(compressedArscPath, compressed);
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
@@ -24,8 +33,8 @@ const SETTINGS = {
           to: ["libmagic-wrapper.wasm"],
         },
         {
-          from: ["abxml-rs/resources/resources.arsc"],
-          to: ["android.arsc"],
+          from: ["android.arsc.br"],
+          to: ["android.arsc.br"],
         }
       ]
     }),

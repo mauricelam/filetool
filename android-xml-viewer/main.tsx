@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, extract_arsc, decode_xml } from './abxml-wasm-bindings/pkg'
+import init, { ArscResource, extract_arsc, decode_xml, decompress_brotli } from './abxml-wasm-bindings/pkg'
 import React, { useState, useEffect } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'
@@ -14,9 +14,10 @@ const initializeWasm = async () => {
             await init();
 
             // Load system resources
-            const response = await fetch('android.arsc');
-            if (!response.ok) throw new Error('Failed to fetch android.arsc');
-            systemResources = new Uint8Array(await response.arrayBuffer());
+            const response = await fetch('android.arsc.br');
+            if (!response.ok) throw new Error('Failed to fetch android.arsc.br');
+            const compressedResources = new Uint8Array(await response.arrayBuffer());
+            systemResources = decompress_brotli(compressedResources);
 
             wasmInitialized = true;
         } catch (error) {
