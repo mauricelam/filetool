@@ -25,18 +25,13 @@ const initializeWasm = async () => {
             await init();
 
             // Load system resources
-            const response = await fetch('android.arsc.zip');
-            if (!response.ok) throw new Error('Failed to fetch android.arsc.zip');
+            const response = await fetch('android.arsc.gz');
+            if (!response.ok) throw new Error('Failed to fetch android.arsc.gz');
 
-            // Decompress using fflate
-            const zipBuffer = new Uint8Array(await response.arrayBuffer());
-            const unzipped = fflate.unzipSync(zipBuffer);
-            const filenames = Object.keys(unzipped);
-            systemResources = unzipped['android.arsc'] || unzipped[filenames[0]];
-            if (!systemResources) {
-                throw new Error("android.arsc not found in compressed resource");
-            }
-
+            const ds = new DecompressionStream('gzip');
+            const decompressedStream = response.body!.pipeThrough(ds);
+            systemResources = new Uint8Array(await new Response(decompressedStream).arrayBuffer());
+            
             wasmInitialized = true;
         } catch (error) {
             console.error('Failed to initialize WebAssembly:', error);
