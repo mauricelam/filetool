@@ -14,16 +14,18 @@
   "dependencies": {
     "@mantine/core": "^7.17.8",
     "@mantine/hooks": "^7.17.8",
+    "adm-zip": "^0.5.16",
+    "fflate": "^0.6.10",
     "file-type-detector": "file:../file-type-detector",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@filetool/components": "*",
+    "@filetool/esbuild-plugins": "*",
     "chokidar": "^3.5.3",
     "esbuild": "^0.27.2",
     "esbuild-plugin-copy": "^2.1.0",
-    "esbuild-plugin-wasm": "^1.1.0",
-    "@filetool/components": "*",
-    "@filetool/esbuild-plugins": "*"
+    "esbuild-plugin-wasm": "^1.1.0"
   }
 }

@@ -152,7 +152,7 @@ pub fn extract_arsc(
         }
 
         // Iterate through all type specs
-        let _type_map: HashMap<u32, String> = package
+        let type_map: HashMap<u32, String> = package
             .iter_specs()
             .map(|(type_id, _type_spec)| {
                 (
@@ -164,15 +164,19 @@ pub fn extract_arsc(
                 )
             })
             .collect();
+        debug!("Type map: {type_map:?}");
 
         // Get entries for this type
         for (entry_id, entries_vec) in package.iter_entries() {
-            let entry = &entries_vec[0].1;
-            let entry_name = package
-                .format_reference(*entry_id, entry.get_key(), None)
-                .unwrap_or_else(|_| "Unknown".into());
-
-            let value = entry.to_string(&resources.packages, *package_id);
+            let (entry_name, value, entry_type) = if let Some((_, entry)) = entries_vec.first() {
+                let name = package
+                    .format_reference(*entry_id, entry.get_key(), None)
+                    .unwrap_or_else(|_| "Unknown".into());
+                let val = entry.to_string(&resources.packages, *package_id);
+                (name, val, Some(entry))
+            } else {
+                ("Unknown".into(), "Unknown".into(), None)
+            };
 
             let spec_id = u32::from(entry_id.get_spec());
             let spec_str = package
@@ -185,8 +189,8 @@ pub fn extract_arsc(
                 entry_id: *entry_id,
                 name: entry_name,
                 value,
-                entries: match entry {
-                    Entry::Complex(complex_entry) => {
+                entries: match entry_type {
+                    Some(Entry::Complex(complex_entry)) => {
                         Some(complex_entry.to_hash_map(&resources.packages, *package_id))
                     }
                     _ => None,

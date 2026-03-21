@@ -1,8 +1,6 @@
 use wasm_bindgen::prelude::*;
 use lzfse_rust::LzfseDecoder;
 use flate2::read::{GzDecoder, ZlibDecoder};
-use bzip2::read::BzDecoder;
-use ruzstd::StreamingDecoder;
 use std::io::Read;
 use serde::{Serialize, Deserialize};
 use tsify::Tsify;
@@ -26,24 +24,6 @@ pub fn decode(compressed: &[u8]) -> Result<DecompressionResult, JsValue> {
         let mut decompressed = Vec::new();
         if let Ok(_) = d.read_to_end(&mut decompressed) {
             return Ok(DecompressionResult { data: decompressed, format: "GZIP".to_string() });
-        }
-    }
-
-    // Try BZIP2: 42 5A 68
-    if compressed.starts_with(b"BZh") {
-        let mut d = BzDecoder::new(compressed);
-        let mut decompressed = Vec::new();
-        if let Ok(_) = d.read_to_end(&mut decompressed) {
-            return Ok(DecompressionResult { data: decompressed, format: "BZIP2".to_string() });
-        }
-    }
-
-    // Try Zstd: 28 B5 2F FD
-    if compressed.starts_with(&[0x28, 0xB5, 0x2F, 0xFD]) {
-        let mut d = StreamingDecoder::new(compressed).map_err(|e| JsValue::from_str(&format!("Zstd error: {}", e)))?;
-        let mut decompressed = Vec::new();
-        if let Ok(_) = d.read_to_end(&mut decompressed) {
-            return Ok(DecompressionResult { data: decompressed, format: "Zstd".to_string() });
         }
     }
 

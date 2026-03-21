@@ -9,3 +9,4 @@ playwright-report/
 **/target/
 setools/build/
 .turbo/
+android.arsc.zip
