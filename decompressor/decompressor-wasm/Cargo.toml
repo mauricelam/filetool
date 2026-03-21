@@ -12,7 +12,5 @@ lzfse_rust = "0.2.0"
 flate2 = "1.0"
 lzma-rs = "0.3"
 brotli = "7.0"
-bzip2 = "0.6"
-ruzstd = "0.7.3"
 serde = { version = "1.0", features = ["derive"] }
 tsify = "0.4.5"

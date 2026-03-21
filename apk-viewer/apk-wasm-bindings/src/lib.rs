@@ -188,10 +188,13 @@ pub fn extract_arsc(
 
         // Get entries for this type
         for (entry_id, all_entries) in package.iter_entries() {
-            let first_entry = all_entries.first().unwrap();
-            let entry_name = package
-                .format_reference(*entry_id, first_entry.1.get_key(), None)
-                .unwrap_or_else(|_| "Unknown".into());
+            let entry_name = if let Some((_, first_entry)) = all_entries.first() {
+                package
+                    .format_reference(*entry_id, first_entry.get_key(), None)
+                    .unwrap_or_else(|_| "Unknown".into())
+            } else {
+                "Unknown".into()
+            };
 
             let spec_id = u32::from(entry_id.get_spec());
             let spec_str = package

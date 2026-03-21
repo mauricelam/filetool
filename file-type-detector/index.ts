@@ -99,7 +99,7 @@ export interface HandlerDefinition {
     mimetypes: MimeMatch[]
 }
 
-export const HANDLERS: HandlerDefinition[] = [
+const ALL_HANDLERS: HandlerDefinition[] = [
     { "name": "CyberChef", "handler": "cyberchef", "mimetypes": [MIME_MATCH_ANY] },
     {
         "name": "reStructuredText Viewer",
@@ -275,6 +275,13 @@ export const HANDLERS: HandlerDefinition[] = [
         ]
     },
 ];
+
+// @ts-ignore - Process might be defined at build time
+const SKIP_HANDLERS = (typeof process !== 'undefined' && process.env?.SKIP_HANDLERS)
+    ? process.env.SKIP_HANDLERS.split(',')
+    : [];
+
+export const HANDLERS = ALL_HANDLERS.filter(h => !SKIP_HANDLERS.includes(h.handler));
 
 export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: string, filename: string): HandlerDefinition[] {
     const getScore = (handler: HandlerDefinition) => {
