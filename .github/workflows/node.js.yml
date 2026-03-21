@@ -10,14 +10,24 @@ on:
   pull_request:
     branches: ["main"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
     permissions:
+      contents: read
       pages: write # to deploy to Pages
       id-token: write # to verify the deployment originates from an appropriate source
+      pull-requests: write
 
     runs-on: ubuntu-latest
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
     strategy:
       matrix:
@@ -89,6 +99,63 @@ jobs:
 
       - run: npm run test:integration
       - run: npm run zip-dist
+        if: github.ref == 'refs/heads/main'
+
+      - name: Build PR preview
+        if: github.event_name == 'pull_request'
+        run: |
+          rm -rf dist/ffmpeg
+          SKIP_HANDLERS=ffmpeg npm run build -- --filter=!@filetool/ffmpeg
+        env:
+          SKIP_HANDLERS: ffmpeg
+
+      - name: Prepare for deployment
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p cloudflare-deploy/filetool
+          cp -r dist/* cloudflare-deploy/filetool/
+          cat <<EOF > cloudflare-deploy/_headers
+          /filetool/ffmpeg/*
+            Cross-Origin-Opener-Policy: same-origin
+            Cross-Origin-Embedder-Policy: require-corp
+          EOF
+          cat <<EOF > cloudflare-deploy/_redirects
+          / /filetool/ 302
+          EOF
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        if: github.event_name == 'pull_request' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy cloudflare-deploy --project-name=filetool --branch=${{ github.head_ref }} --commit-dirty=true
+
+      - name: Post preview link
+        if: github.event_name == 'pull_request' && steps.deploy.outputs.deployment-url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Cloudflare Pages preview is ready! \n\nView it at: ${'${{ steps.deploy.outputs.deployment-url }}'}/filetool/`
+            })
+
+      - name: Comment on PR if secrets are missing
+        if: github.event_name == 'pull_request' && (env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == '') && github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ Cloudflare Pages preview deployment was skipped because `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_ACCOUNT_ID` are not configured in repository secrets.'
+            })
+
       - name: Upload artifact
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
