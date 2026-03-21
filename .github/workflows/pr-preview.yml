@@ -82,12 +82,25 @@ jobs:
           EOF
 
       - name: Deploy to Cloudflare Pages
+        id: deploy
         if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy cloudflare-deploy --project-name=filetool --branch=${{ github.head_ref }} --commit-dirty=true
+
+      - name: Post preview link
+        if: steps.deploy.outputs.deployment-url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Cloudflare Pages preview is ready! \n\nView it at: ${'${{ steps.deploy.outputs.deployment-url }}'}/filetool/`
+            })
 
       - name: Comment on PR if secrets are missing
         if: (env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == '') && github.event.action == 'opened'

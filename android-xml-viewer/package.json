@@ -12,8 +12,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "adm-zip": "^0.5.16",
+    "fflate": "^0.6.10",
     "file-type-detector": "file:../file-type-detector",
-    "pako": "^2.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-tabs": "^6.0.2"

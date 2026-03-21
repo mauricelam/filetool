@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './apk-wasm-bindings/pkg'
-import pako from 'pako'
+import * as fflate from 'fflate'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
@@ -25,10 +25,17 @@ const initializeWasm = async () => {
             await init();
 
             // Load system resources
-            const response = await fetch('android.arsc.gz');
-            if (!response.ok) throw new Error('Failed to fetch android.arsc.gz');
-            const compressed = new Uint8Array(await response.arrayBuffer());
-            systemResources = pako.ungzip(compressed);
+            const response = await fetch('android.arsc.zip');
+            if (!response.ok) throw new Error('Failed to fetch android.arsc.zip');
+
+            // Decompress using fflate
+            const zipBuffer = new Uint8Array(await response.arrayBuffer());
+            const unzipped = fflate.unzipSync(zipBuffer);
+            const filenames = Object.keys(unzipped);
+            systemResources = unzipped['android.arsc'] || unzipped[filenames[0]];
+            if (!systemResources) {
+                throw new Error("android.arsc not found in compressed resource");
+            }
 
             wasmInitialized = true;
         } catch (error) {
