@@ -273,6 +273,14 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             { "description": /SE ?Linux policy/i }
         ]
     },
+    {
+        "name": "HPROF Viewer",
+        "handler": "hprof",
+        "mimetypes": [
+            { "filename": /\.hprof$/i },
+            { "description": /JAVA PROFILE/i }
+        ]
+    },
 ];
 
 // @ts-ignore - Process might be defined at build time
