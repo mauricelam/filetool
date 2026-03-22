@@ -59,6 +59,7 @@ impl HprofParser {
 
             let mut curr = header_len;
             let mut index = 0;
+            // Iterate manually to be safer with large/corrupt files
             while curr + 9 <= data.len() {
                 record_offsets.push(curr);
 
@@ -93,6 +94,7 @@ impl HprofParser {
                 curr += 9 + length;
                 index += 1;
             }
+            drop(hprof);
         }
 
         HprofParser { data, header_len, record_offsets, metadata }
@@ -137,7 +139,14 @@ impl HprofParser {
 
     pub fn get_record_detail(&self, index: usize) -> Result<JsValue, JsValue> {
         let offset = *self.record_offsets.get(index).ok_or_else(|| JsValue::from_str("Record index out of bounds"))?;
+        if offset + 9 > self.data.len() {
+            return Err(JsValue::from_str("Record header truncated"));
+        }
         let length = u32::from_be_bytes(self.data[offset + 5..offset + 9].try_into().map_err(|_| "Invalid offset data")?) as usize;
+
+        if offset + 9 + length > self.data.len() {
+            return Err(JsValue::from_str("Record data truncated"));
+        }
 
         let mut mini_data = Vec::with_capacity(self.header_len + 9 + length);
         mini_data.extend_from_slice(&self.data[..self.header_len]);

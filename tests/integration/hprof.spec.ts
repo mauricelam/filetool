@@ -12,22 +12,23 @@ test('HPROF viewer should display file content', async ({ page }) => {
     await expect(page.locator('#output')).toContainText('ID Size: 4 bytes');
 
     // Check if records are listed in the sidebar
-    await expect(page.locator('.record-item').filter({ hasText: 'Utf8' })).toBeVisible();
-    await expect(page.locator('.record-item').filter({ hasText: 'LoadClass' })).toBeVisible();
-    await expect(page.locator('.record-item').filter({ hasText: 'HeapDumpSegment' })).toBeVisible();
+    await expect(page.locator('.record-item').filter({ hasText: 'Utf8' }).first()).toBeVisible();
+    await expect(page.locator('.record-item').filter({ hasText: 'LoadClass' }).first()).toBeVisible();
+    await expect(page.locator('.record-item').filter({ hasText: 'HeapDumpSegment' }).first()).toBeVisible();
 
     // Click on the Utf8 record and check details
-    await page.locator('.record-item').filter({ hasText: 'Utf8' }).click();
+    await page.locator('.record-item').filter({ hasText: 'Utf8' }).first().click();
     await expect(page.locator('#detail-pre')).toContainText('Utf8: java.lang.Object');
 
     // Click on the LoadClass record and check details
-    await page.locator('.record-item').filter({ hasText: 'LoadClass' }).click();
+    await page.locator('.record-item').filter({ hasText: 'LoadClass' }).first().click();
     await expect(page.locator('#detail-pre')).toContainText('LoadClass: class_serial=1');
 
     // Click on the HeapDumpSegment record and check details
-    await page.locator('.record-item').filter({ hasText: 'HeapDumpSegment' }).click();
+    await page.locator('.record-item').filter({ hasText: 'HeapDumpSegment' }).first().click();
 
     // Check if sub-records are listed
     await expect(page.locator('h4').filter({ hasText: 'Sub-records' })).toBeVisible();
-    await expect(page.locator('pre').filter({ hasText: 'GcRootJniGlobal' })).toBeVisible();
+    // In our simplified test file, we have GcRootJniGlobal and Class
+    await expect(page.locator('pre').filter({ hasText: 'GcRootJniGlobal' }).first()).toBeVisible();
 });
