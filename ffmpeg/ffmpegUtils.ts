@@ -17,43 +17,28 @@ export async function getFFmpegWasmURL(useSharedArrayBuffer: boolean): Promise<s
   }
 
   const wasmFileName = useSharedArrayBuffer ? 'ffmpeg-core-mt.wasm' : 'ffmpeg-core.wasm';
-  const chunks: Uint8Array[] = [];
-  let chunkIndex = 0;
+  const gzipUrl = new URL(`${wasmFileName}.gz`, import.meta.url).toString();
 
-  while (true) {
-    const chunkUrl = new URL(`${wasmFileName}.${chunkIndex}`, import.meta.url).toString();
-    try {
-      const response = await fetch(chunkUrl);
-      if (!response.ok) {
-        if (chunkIndex === 0) {
-          // If the first chunk is not found, maybe it's not split. Fall back to original file.
-          return new URL(wasmFileName, import.meta.url).toString();
-        }
-        break;
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      chunks.push(new Uint8Array(arrayBuffer));
-      chunkIndex++;
-    } catch (e) {
-      if (chunkIndex === 0) {
-        return new URL(wasmFileName, import.meta.url).toString();
-      }
-      break;
+  try {
+    const response = await fetch(gzipUrl);
+    if (!response.ok) {
+      // Fall back to original file if .gz is not found (e.g. in dev mode or if build didn't gzip)
+      return new URL(wasmFileName, import.meta.url).toString();
     }
-  }
 
-  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const combinedWasm = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combinedWasm.set(chunk, offset);
-    offset += chunk.length;
-  }
+    // Use native DecompressionStream to handle the gzip decompression
+    const ds = new (window as any).DecompressionStream('gzip');
+    const decompressedStream = response.body!.pipeThrough(ds);
+    const decompressedBuffer = await new Response(decompressedStream).arrayBuffer();
 
-  const blob = new Blob([combinedWasm], { type: 'application/wasm' });
-  cachedWasmURL = URL.createObjectURL(blob);
-  cachedIsShared = useSharedArrayBuffer;
-  return cachedWasmURL;
+    const blob = new Blob([decompressedBuffer], { type: 'application/wasm' });
+    cachedWasmURL = URL.createObjectURL(blob);
+    cachedIsShared = useSharedArrayBuffer;
+    return cachedWasmURL;
+  } catch (e) {
+    console.warn('Failed to fetch or decompress gzipped WASM, falling back to original:', e);
+    return new URL(wasmFileName, import.meta.url).toString();
+  }
 }
 
 export function getFFmpegWorkerURL(useSharedArrayBuffer: boolean): string {

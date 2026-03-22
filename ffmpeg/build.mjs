@@ -3,31 +3,21 @@ import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 
 const OUTDIR = "../dist/ffmpeg";
 
-async function splitWasmFiles(outdir) {
+async function gzipWasmFiles(outdir) {
   const files = fs.readdirSync(outdir);
   for (const file of files) {
     if (file.endsWith('.wasm')) {
       const filepath = path.join(outdir, file);
-      const stats = fs.statSync(filepath);
-      const maxSize = 20 * 1024 * 1024; // 20MB
-
-      if (stats.size > maxSize) {
-        console.log(`Splitting ${file} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
-        const buffer = fs.readFileSync(filepath);
-        let offset = 0;
-        let chunkIndex = 0;
-        while (offset < buffer.length) {
-          const chunk = buffer.subarray(offset, offset + maxSize);
-          fs.writeFileSync(`${filepath}.${chunkIndex}`, chunk);
-          offset += maxSize;
-          chunkIndex++;
-        }
-        fs.unlinkSync(filepath);
-        console.log(`Split ${file} into ${chunkIndex} chunks`);
-      }
+      console.log(`Compressing ${file}`);
+      const buffer = fs.readFileSync(filepath);
+      const compressed = zlib.gzipSync(buffer, { level: 9 });
+      fs.writeFileSync(`${filepath}.gz`, compressed);
+      fs.unlinkSync(filepath);
+      console.log(`Compressed ${file}: ${(buffer.length / 1024 / 1024).toFixed(2)} MB -> ${(compressed.length / 1024 / 1024).toFixed(2)} MB`);
     }
   }
 }
@@ -80,10 +70,10 @@ if (process.env['BUILD_MODE'] === 'dev') {
     plugins: [
       ...SETTINGS.plugins,
       {
-        name: 'wasm-splitter',
+        name: 'wasm-compressor',
         setup(build) {
           build.onEnd(async () => {
-            await splitWasmFiles(OUTDIR);
+            await gzipWasmFiles(OUTDIR);
           });
         },
       },
@@ -95,5 +85,5 @@ if (process.env['BUILD_MODE'] === 'dev') {
     ...SETTINGS,
     minify: true,
   });
-  await splitWasmFiles(OUTDIR);
+  await gzipWasmFiles(OUTDIR);
 }
