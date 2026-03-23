@@ -96,6 +96,7 @@ function App({ file }: { file: File }) {
         const buffer = await file.arrayBuffer();
         let currentOutput = ''
         currentWorker.onmessage = (e) => {
+            if (typeof e.data !== 'string') return;
             if (currentOutput === 'Running...') {
                 currentOutput = ''
             }
