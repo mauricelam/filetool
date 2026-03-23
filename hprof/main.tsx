@@ -3,39 +3,98 @@ import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry } from '
 import React, { ReactElement, useState, useEffect, useMemo, useRef } from 'react'
 import { Graphviz } from 'graphviz-react';
 
-window.onmessage = (e) => {
-    if (e.data.action === 'respondFile') {
-        handleFile(e.data.file)
-    }
-}
-
-if (window.parent) {
-    window.parent.postMessage({ 'action': 'requestFile' })
-}
-
 const rootElement = document.getElementById('output')
+if (!rootElement) throw new Error("Root element #output not found");
 const root = createRoot(rootElement)
 
-async function handleFile(file: File) {
-    await init()
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    const parser = new HprofParser(bytes)
-    root.render(<HprofViewer parser={parser} fileName={file.name} />)
+function App() {
+    const [parser, setParser] = useState<HprofParser | null>(null)
+    const [fileName, setFileName] = useState<string>('')
+    const [error, setError] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        const handleMessage = async (e: MessageEvent) => {
+            if (e.data.action === 'respondFile') {
+                setLoading(true)
+                setError(null)
+                try {
+                    await init()
+                    const file = e.data.file as File
+                    const bytes = new Uint8Array(await file.arrayBuffer())
+                    const p = new HprofParser(bytes)
+                    setParser(p)
+                    setFileName(file.name)
+                } catch (err) {
+                    console.error("Failed to handle file:", err)
+                    setError(err instanceof Error ? err.message : String(err))
+                } finally {
+                    setLoading(false)
+                }
+            }
+        }
+
+        window.addEventListener('message', handleMessage)
+
+        if (window.parent) {
+            window.parent.postMessage({ 'action': 'requestFile' }, '*')
+        }
+
+        // For testing without the main app
+        if (window.location.search.includes('test=true')) {
+            setLoading(true)
+            fetch('test.hprof')
+                .then(r => {
+                    if (!r.ok) throw new Error("test.hprof not found")
+                    return r.arrayBuffer()
+                })
+                .then(async buf => {
+                    await init()
+                    const p = new HprofParser(new Uint8Array(buf))
+                    setParser(p)
+                    setFileName('test.hprof')
+                })
+                .catch(e => {
+                    console.error("Test load failed", e)
+                    setError("Test load failed: " + e.message)
+                })
+                .finally(() => setLoading(false))
+        }
+
+        return () => window.removeEventListener('message', handleMessage)
+    }, [])
+
+    if (error) {
+        return (
+            <div style={{ padding: '20px', color: '#721c24', background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px', margin: '20px' }}>
+                <h3 style={{ marginTop: 0 }}>Error Loading HPROF</h3>
+                <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
+            </div>
+        )
+    }
+
+    if (loading) {
+        return (
+            <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#666' }}>
+                <div className="spinner" style={{ border: '4px solid #f3f3f3', borderTop: '4px solid #3498db', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 2s linear infinite', marginBottom: '10px' }}></div>
+                <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                Parsing HPROF file...
+            </div>
+        )
+    }
+
+    if (!parser) {
+        return (
+            <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+                Waiting for file...
+            </div>
+        )
+    }
+
+    return <HprofViewer parser={parser} fileName={fileName} />
 }
 
-// For testing without the main app
-if (window.location.search.includes('test=true')) {
-    fetch('test.hprof')
-        .then(r => {
-            if (!r.ok) throw new Error("test.hprof not found")
-            return r.arrayBuffer()
-        })
-        .then(buf => handleFile(new File([buf], 'test.hprof')))
-        .catch(e => {
-            console.error("Test load failed", e)
-            root.render(<div id="error">Test load failed: {e.message}</div>)
-        })
-}
+root.render(<App />)
 
 interface HeapSummaryEntry {
     tag: string;
@@ -75,14 +134,18 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
             setHeader(parser.get_header())
             updateList('', 0)
         } catch (e) {
-            console.error("Failed to load HPROF data", e)
+            console.error("Failed to load HPROF header/initial list", e)
         }
     }, [parser])
 
     const updateList = (query: string, newOffset: number) => {
-        const result = parser.search_records(query, newOffset, PAGE_SIZE)
-        setRecords(result.records)
-        setTotalMatchingRecords(result.total_count)
+        try {
+            const result = parser.search_records(query, newOffset, PAGE_SIZE)
+            setRecords(result.records)
+            setTotalMatchingRecords(result.total_count)
+        } catch (e) {
+            console.error("Search failed", e)
+        }
     }
 
     useEffect(() => {
@@ -129,14 +192,15 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
-        setRecordDetail(parser.get_record_detail(index))
-        setHeapDumpOffset(0)
         try {
+            setRecordDetail(parser.get_record_detail(index))
+            setHeapDumpOffset(0)
             const summary = parser.get_heap_dump_summary(index)
             setHeapDumpSummary(summary)
             const subRecords = parser.get_heap_dump_records(index, 0, SUB_RECORD_PAGE_SIZE)
             setHeapDumpRecords(subRecords)
         } catch (e) {
+            console.error("Failed to load record details", e)
             setHeapDumpSummary([])
             setHeapDumpRecords([])
         }
