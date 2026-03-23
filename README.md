@@ -76,7 +76,7 @@ window.onmessage = (e) => {
 | [Apache Parquet](https://github.com/apache/parquet-format) | Parquet files |
 | [SELinux Policy](https://github.com/SELinuxProject/setools) | SELinux policy files |
 | [Graphviz Viewer](https://gitlab.com/graphviz/graphviz) | .dot, .gv |
-| [CheerpJ](https://labs.leaningtech.com/cheerpj3) | JVM in browser |
+| [CheerpJ](https://labs.leaningtech.com/cheerpj) | JVM in browser |
 | [ClassyShark](https://github.com/google/android-classyshark) | Android executable inspection |
 | [SquashFS](https://github.com/plougher/squashfs-tools) | .squashfs, .sqfs |
 | Archive | ZIP, GZIP, XZ, APK, RAR, 7Z, JAR, LZH |
