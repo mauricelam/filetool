@@ -21,10 +21,11 @@ async function loadFFmpeg() {
     const ffmpeg = new FFmpeg()
     ffmpeg.on('log', ({ message }) => { console.log(message) })
     console.log("SharedArrayBuffer:", window.SharedArrayBuffer)
+    const isShared = !!window.SharedArrayBuffer;
     await ffmpeg.load({
-        coreURL: getFFmpegCoreURL(!!window.SharedArrayBuffer),
-        wasmURL: getFFmpegWasmURL(!!window.SharedArrayBuffer),
-        workerURL: getFFmpegWorkerURL(!!window.SharedArrayBuffer)
+        coreURL: getFFmpegCoreURL(isShared),
+        wasmURL: await getFFmpegWasmURL(isShared),
+        workerURL: getFFmpegWorkerURL(isShared)
     })
     return ffmpeg
 }
@@ -110,10 +111,11 @@ export async function extractVideoInfo(file: File): Promise<{ info: VideoInfo; r
 
     try {
         const ffmpeg = new FFmpeg();
+        const isShared = !!window.SharedArrayBuffer;
         await ffmpeg.load({
-            coreURL: getFFmpegCoreURL(!!window.SharedArrayBuffer),
-            wasmURL: getFFmpegWasmURL(!!window.SharedArrayBuffer),
-            workerURL: getFFmpegWorkerURL(!!window.SharedArrayBuffer)
+            coreURL: getFFmpegCoreURL(isShared),
+            wasmURL: await getFFmpegWasmURL(isShared),
+            workerURL: getFFmpegWorkerURL(isShared)
         });
 
         await ffmpeg.writeFile(file.name, new Uint8Array(await file.arrayBuffer()));
