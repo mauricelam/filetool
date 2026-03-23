@@ -24,6 +24,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install zlib1g-dev
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+
       - name: Set up Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
