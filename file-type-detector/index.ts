@@ -246,7 +246,8 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             "application/x-brotli", { "filename": /\.br$/i },
             "application/x-lzma", { "filename": /\.lzma$/i },
             "application/x-xz", { "filename": /\.xz$/i },
-            "application/zlib", { "filename": /\.zlib$/i }
+            "application/zlib", { "filename": /\.zlib$/i },
+            "application/x-bzip2", "application/x-bzip", { "filename": /\.bz2$/i }
         ]
     },
     {
@@ -272,6 +273,14 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             { "filename": /sepolicy/i },
             { "filename": /policy\.\d+$/i },
             { "description": /SE ?Linux policy/i }
+        ]
+    },
+    {
+        "name": "HPROF Viewer",
+        "handler": "hprof",
+        "mimetypes": [
+            { "filename": /\.hprof$/i },
+            { "description": /JAVA PROFILE/i }
         ]
     },
 ];

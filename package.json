@@ -25,6 +25,7 @@
     "flatbuffers",
     "graphviz",
     "hex_viewer",
+    "hprof",
     "imagemagick",
     "img-viewer",
     "jqviewer",
