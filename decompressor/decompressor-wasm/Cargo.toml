@@ -12,5 +12,6 @@ lzfse_rust = "0.2.0"
 flate2 = "1.0"
 lzma-rs = "0.3"
 brotli = "7.0"
+bzip2 = { version = "0.5", features = ["libbz2-rs-sys"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 tsify = "0.4.5"
