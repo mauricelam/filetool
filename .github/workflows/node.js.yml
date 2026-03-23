@@ -102,6 +102,14 @@ jobs:
       - run: npm run zip-dist
         if: github.ref == 'refs/heads/main'
 
+      - name: Build PR preview
+        if: github.event_name == 'pull_request'
+        run: |
+          rm -rf dist/ffmpeg
+          SKIP_HANDLERS=ffmpeg npm run build -- --filter=!@filetool/ffmpeg
+        env:
+          SKIP_HANDLERS: ffmpeg
+
       - name: Prepare for deployment
         if: github.event_name == 'pull_request'
         run: |
