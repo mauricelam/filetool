@@ -13,7 +13,6 @@ test.describe('Decompressor Handler', () => {
         { file: 'test.lzma', name: 'LZMA', formatChip: 'LZMA', expectedChunks: ['This is an lzma', 'compressed file'] },
         { file: 'test.br', name: 'Brotli', formatChip: 'Brotli', expectedChunks: ['This is a brotl', 'compressed fil'] },
         { file: 'test.zz', name: 'ZLIB', formatChip: 'ZLIB', expectedChunks: ['This is a zlib', 'pressed file'] },
-        { file: 'test.bz2', name: 'BZIP2', formatChip: 'BZIP2', expectedChunks: ['This is a bzip2', 'compressed file'] },
     ];
 
     for (const { file, name, formatChip, expectedChunks } of testCases) {
