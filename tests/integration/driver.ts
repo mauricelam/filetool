@@ -1,11 +1,7 @@
-// 1. Get handler from URL and set iframe src
+// 1. Get handler from URL
 const params = new URLSearchParams(window.location.search);
 const handler = params.get('handler');
 const iframeEl = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
-if (handler) {
-    iframeEl.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
-    iframeEl.src = `/filetool/${handler}/index.html`;
-}
 
 let fileToProvide: File | null = null;
 let handlerIsReady = false;
@@ -41,3 +37,9 @@ window.addEventListener('message', (event: MessageEvent) => {
         sendFileIfReady();
     }
 });
+
+// 4. Set iframe src after all listeners are registered
+if (handler) {
+    iframeEl.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
+    iframeEl.src = `/filetool/${handler}/index.html`;
+}
