@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
-import init, { HprofParser, HprofHeader, RecordInfo } from './hprof-wasm/pkg'
+import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry } from './hprof-wasm/pkg'
 import React, { ReactElement, useState, useEffect, useMemo, useRef } from 'react'
+import { Graphviz } from 'graphviz-react';
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -46,6 +47,9 @@ const SUB_RECORD_PAGE_SIZE = 50;
 
 function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: string }): ReactElement {
     const [header, setHeader] = useState<HprofHeader | null>(null)
+    const [activeTab, setActiveTab] = useState<'records' | 'instances' | 'graph'>('records')
+
+    // Records state
     const [records, setRecords] = useState<RecordInfo[]>([])
     const [totalMatchingRecords, setTotalMatchingRecords] = useState(0)
     const [selectedRecordIndex, setSelectedRecordIndex] = useState<number | null>(null)
@@ -55,6 +59,14 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [heapDumpOffset, setHeapDumpOffset] = useState(0)
     const [filter, setFilter] = useState('')
     const [offset, setOffset] = useState(0)
+
+    // Instance counts state
+    const [instanceCounts, setInstanceCounts] = useState<InstanceCountEntry[]>([])
+    const [instancesLoading, setInstancesLoading] = useState(false)
+
+    // Graph state
+    const [dot, setDot] = useState<string | null>(null)
+    const [graphLoading, setGraphLoading] = useState(false)
 
     const listRef = useRef<HTMLDivElement>(null);
 
@@ -74,31 +86,46 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     }
 
     useEffect(() => {
+        if (activeTab !== 'records') return;
         const timer = setTimeout(() => {
             setOffset(0)
             updateList(filter, 0)
             if (listRef.current) listRef.current.scrollTop = 0;
         }, 300)
         return () => clearTimeout(timer)
-    }, [filter])
+    }, [filter, activeTab])
 
-    const handleNextPage = () => {
-        const newOffset = offset + PAGE_SIZE
-        if (newOffset < totalMatchingRecords) {
-            setOffset(newOffset)
-            updateList(filter, newOffset)
-            if (listRef.current) listRef.current.scrollTop = 0;
+    useEffect(() => {
+        if (activeTab === 'instances' && instanceCounts.length === 0) {
+            setInstancesLoading(true)
+            setTimeout(() => {
+                try {
+                    const counts = parser.get_instance_counts()
+                    setInstanceCounts(counts)
+                } catch (e) {
+                    console.error("Failed to get instance counts", e)
+                } finally {
+                    setInstancesLoading(false)
+                }
+            }, 0)
         }
-    }
+    }, [activeTab, instanceCounts.length, parser])
 
-    const handlePrevPage = () => {
-        const newOffset = Math.max(0, offset - PAGE_SIZE)
-        if (newOffset !== offset) {
-            setOffset(newOffset)
-            updateList(filter, newOffset)
-            if (listRef.current) listRef.current.scrollTop = 0;
+    useEffect(() => {
+        if (activeTab === 'graph' && !dot) {
+            setGraphLoading(true)
+            setTimeout(() => {
+                try {
+                    const d = parser.get_class_reference_graph()
+                    setDot(d)
+                } catch (e) {
+                    console.error("Failed to get reference graph", e)
+                } finally {
+                    setGraphLoading(false)
+                }
+            }, 0)
         }
-    }
+    }, [activeTab, dot, parser])
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
@@ -133,166 +160,202 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         return heapDumpSummary.reduce((acc, entry) => acc + entry.count, 0)
     }, [heapDumpSummary])
 
+    const tabStyle = (tab: string) => ({
+        padding: '10px 20px',
+        cursor: 'pointer',
+        borderBottom: activeTab === tab ? '2px solid #007bff' : 'none',
+        color: activeTab === tab ? '#007bff' : '#666',
+        fontWeight: activeTab === tab ? 'bold' : 'normal',
+    } as const);
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', fontFamily: 'sans-serif' }}>
             <div style={{ padding: '10px', borderBottom: '1px solid #ccc', background: '#f5f5f5' }}>
-                <h2 style={{ margin: '0 0 10px 0' }}>HPROF Viewer: {fileName}</h2>
-                {header && (
-                    <div style={{ fontSize: '0.9em', color: '#666' }}>
-                        Format: {header.label} | ID Size: {header.id_size} bytes |
-                        Timestamp: {new Date(Number(header.timestamp_millis)).toLocaleString()}
-                    </div>
-                )}
-            </div>
-
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Records List */}
-                <div style={{ width: '300px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #ccc' }}>
-                    <div style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
-                        <input
-                            type="text"
-                            placeholder="Filter records..."
-                            value={filter}
-                            onChange={e => setFilter(e.target.value)}
-                            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }}
-                        />
-                        <div style={{ fontSize: '0.8em', marginTop: '8px', display: 'flex', justifyContent: 'space-between', color: '#888' }}>
-                            <span>{totalMatchingRecords.toLocaleString()} matches</span>
-                            <span>{offset + 1}-{Math.min(offset + PAGE_SIZE, totalMatchingRecords)}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
-                            <button
-                                onClick={handlePrevPage}
-                                disabled={offset === 0}
-                                style={{ flex: 1, padding: '5px', cursor: offset === 0 ? 'default' : 'pointer' }}
-                            >
-                                Previous
-                            </button>
-                            <button
-                                onClick={handleNextPage}
-                                disabled={offset + PAGE_SIZE >= totalMatchingRecords}
-                                style={{ flex: 1, padding: '5px', cursor: offset + PAGE_SIZE >= totalMatchingRecords ? 'default' : 'pointer' }}
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                    <div ref={listRef} style={{ flex: 1, overflowY: 'auto' }}>
-                        {records.map(record => (
-                            <div
-                                key={record.index}
-                                onClick={() => handleRecordClick(record.index)}
-                                className="record-item"
-                                data-tag={record.tag}
-                                style={{
-                                    padding: '10px',
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid #eee',
-                                    background: selectedRecordIndex === record.index ? '#e3f2fd' : 'transparent',
-                                    fontSize: '0.9em'
-                                }}
-                            >
-                                <div style={{ fontWeight: 'bold' }}>{record.tag}</div>
-                                <div style={{ fontSize: '0.8em', color: '#666' }}>
-                                    Index: {record.index} | Time: +{record.micros_since_header_ts}µs
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Record Detail */}
-                <div style={{ flex: 1, padding: '20px', overflowY: 'auto', background: '#fff' }}>
-                    {selectedRecordIndex !== null ? (
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                <h3 style={{ margin: 0 }}>Record Details (Index {selectedRecordIndex})</h3>
-                                <div style={{ fontSize: '0.9em', color: '#888' }}>Record ID: {selectedRecordIndex}</div>
-                            </div>
-
-                            {heapDumpSummary.length > 0 && (
-                                <div id="heap-dump-summary" style={{ marginBottom: '20px', padding: '15px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '4px' }}>
-                                    <h4 style={{ margin: '0 0 10px 0' }}>Heap Dump Summary</h4>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '1px solid #eee' }}>
-                                                <th style={{ textAlign: 'left', padding: '8px' }}>Type</th>
-                                                <th style={{ textAlign: 'right', padding: '8px' }}>Count</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {heapDumpSummary.map((entry) => (
-                                                <tr key={entry.tag} className="summary-row" style={{ borderBottom: '1px solid #eee' }}>
-                                                    <td style={{ padding: '8px' }}>{entry.tag}</td>
-                                                    <td style={{ textAlign: 'right', padding: '8px' }}>{entry.count.toLocaleString()}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-
-                            {heapDumpRecords.length > 0 && (
-                                <div style={{ marginBottom: '20px' }}>
-                                    <h4 style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Sub-records (showing {heapDumpRecords.length} of {totalSubRecords.toLocaleString()})</span>
-                                    </h4>
-                                    <div style={{ border: '1px solid #ddd', borderRadius: '4px' }}>
-                                        {heapDumpRecords.map((r, i) => (
-                                            <pre key={i} style={{
-                                                fontSize: '0.85em',
-                                                background: i % 2 === 0 ? '#fff' : '#fcfcfc',
-                                                padding: '12px',
-                                                borderBottom: i === heapDumpRecords.length - 1 ? 'none' : '1px solid #eee',
-                                                margin: 0,
-                                                whiteSpace: 'pre-wrap',
-                                                fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace'
-                                            }}>
-                                                {r}
-                                            </pre>
-                                        ))}
-                                    </div>
-                                    {heapDumpRecords.length < totalSubRecords && (
-                                        <button
-                                            onClick={loadMoreSubRecords}
-                                            style={{
-                                                width: '100%',
-                                                padding: '10px',
-                                                marginTop: '10px',
-                                                cursor: 'pointer',
-                                                background: '#f5f5f5',
-                                                border: '1px solid #ddd',
-                                                borderRadius: '4px'
-                                            }}
-                                        >
-                                            Load More Sub-records
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-
-                            {!heapDumpSummary.length && (
-                                <pre id="detail-pre" style={{
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-all',
-                                    background: '#f8f8f8',
-                                    padding: '15px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #eee',
-                                    fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
-                                    fontSize: '0.9em',
-                                    lineHeight: '1.4'
-                                }}>
-                                    {recordDetail}
-                                </pre>
-                            )}
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-                            Select a record to see details
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ margin: 0 }}>HPROF Viewer: {fileName}</h2>
+                    {header && (
+                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                            Format: {header.label} | ID Size: {header.id_size} bytes |
+                            Timestamp: {new Date(Number(header.timestamp_millis)).toLocaleString()}
                         </div>
                     )}
                 </div>
+                <div style={{ display: 'flex', marginTop: '10px', borderBottom: '1px solid #ddd' }}>
+                    <div style={tabStyle('records')} onClick={() => setActiveTab('records')}>Records</div>
+                    <div style={tabStyle('instances')} onClick={() => setActiveTab('instances')}>Instance Counts</div>
+                    <div style={tabStyle('graph')} onClick={() => setActiveTab('graph')}>Reference Graph</div>
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {activeTab === 'records' && (
+                    <>
+                        {/* Records List */}
+                        <div style={{ width: '300px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #ccc' }}>
+                            <div style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Filter records..."
+                                    value={filter}
+                                    onChange={e => setFilter(e.target.value)}
+                                    style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }}
+                                />
+                                <div style={{ fontSize: '0.8em', marginTop: '8px', display: 'flex', justifyContent: 'space-between', color: '#888' }}>
+                                    <span>{totalMatchingRecords.toLocaleString()} matches</span>
+                                    <span>{offset + 1}-{Math.min(offset + PAGE_SIZE, totalMatchingRecords)}</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
+                                    <button
+                                        onClick={() => { setOffset(Math.max(0, offset - PAGE_SIZE)); updateList(filter, Math.max(0, offset - PAGE_SIZE)); }}
+                                        disabled={offset === 0}
+                                        style={{ flex: 1, padding: '5px' }}
+                                    >Prev</button>
+                                    <button
+                                        onClick={() => { setOffset(offset + PAGE_SIZE); updateList(filter, offset + PAGE_SIZE); }}
+                                        disabled={offset + PAGE_SIZE >= totalMatchingRecords}
+                                        style={{ flex: 1, padding: '5px' }}
+                                    >Next</button>
+                                </div>
+                            </div>
+                            <div ref={listRef} style={{ flex: 1, overflowY: 'auto' }}>
+                                {records.map(record => (
+                                    <div
+                                        key={record.index}
+                                        onClick={() => handleRecordClick(record.index)}
+                                        className="record-item"
+                                        style={{
+                                            padding: '10px',
+                                            cursor: 'pointer',
+                                            borderBottom: '1px solid #eee',
+                                            background: selectedRecordIndex === record.index ? '#e3f2fd' : 'transparent',
+                                            fontSize: '0.9em'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 'bold' }}>{record.tag}</div>
+                                        <div style={{ fontSize: '0.8em', color: '#666' }}>
+                                            Index: {record.index} | Time: +{record.micros_since_header_ts}µs
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Record Detail */}
+                        <div style={{ flex: 1, padding: '20px', overflowY: 'auto', background: '#fff' }}>
+                            {selectedRecordIndex !== null ? (
+                                <div>
+                                    <h3 style={{ marginBottom: '15px' }}>Record Details (Index {selectedRecordIndex})</h3>
+
+                                    {heapDumpSummary.length > 0 && (
+                                        <div id="heap-dump-summary" style={{ marginBottom: '20px', padding: '15px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '4px' }}>
+                                            <h4 style={{ margin: '0 0 10px 0' }}>Heap Dump Summary</h4>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '1px solid #eee' }}>
+                                                        <th style={{ textAlign: 'left', padding: '8px' }}>Type</th>
+                                                        <th style={{ textAlign: 'right', padding: '8px' }}>Count</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {heapDumpSummary.map((entry) => (
+                                                        <tr key={entry.tag} style={{ borderBottom: '1px solid #eee' }}>
+                                                            <td style={{ padding: '8px' }}>{entry.tag}</td>
+                                                            <td style={{ textAlign: 'right', padding: '8px' }}>{entry.count.toLocaleString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
+                                    {heapDumpRecords.length > 0 && (
+                                        <div style={{ marginBottom: '20px' }}>
+                                            <h4 style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>Sub-records (showing {heapDumpRecords.length} of {totalSubRecords.toLocaleString()})</span>
+                                            </h4>
+                                            <div style={{ border: '1px solid #ddd', borderRadius: '4px' }}>
+                                                {heapDumpRecords.map((r, i) => (
+                                                    <pre key={i} style={{
+                                                        fontSize: '0.85em',
+                                                        background: i % 2 === 0 ? '#fff' : '#fcfcfc',
+                                                        padding: '12px',
+                                                        borderBottom: i === heapDumpRecords.length - 1 ? 'none' : '1px solid #eee',
+                                                        margin: 0,
+                                                        whiteSpace: 'pre-wrap',
+                                                        fontFamily: 'monospace'
+                                                    }}>{r}</pre>
+                                                ))}
+                                            </div>
+                                            {heapDumpRecords.length < totalSubRecords && (
+                                                <button onClick={loadMoreSubRecords} style={{ width: '100%', padding: '10px', marginTop: '10px', cursor: 'pointer' }}>Load More</button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {!heapDumpSummary.length && (
+                                        <pre id="detail-pre" style={{
+                                            whiteSpace: 'pre-wrap',
+                                            wordBreak: 'break-all',
+                                            background: '#f8f8f8',
+                                            padding: '15px',
+                                            borderRadius: '4px',
+                                            border: '1px solid #eee',
+                                            fontFamily: 'monospace'
+                                        }}>{recordDetail}</pre>
+                                    )}
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#999' }}>Select a record to see details</div>
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {activeTab === 'instances' && (
+                    <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+                        <h3>Instance Counts</h3>
+                        {instancesLoading ? (
+                            <div style={{ padding: '20px', color: '#666' }}>Analyzing heap dump... this might take a moment.</div>
+                        ) : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                                <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0 }}>
+                                    <tr>
+                                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid #ddd' }}>Class Name</th>
+                                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd' }}>Count</th>
+                                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd' }}>Total Size</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {instanceCounts.map((entry, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                                            <td style={{ padding: '10px' }}>{entry.class_name}</td>
+                                            <td style={{ textAlign: 'right', padding: '10px' }}>{entry.count.toLocaleString()}</td>
+                                            <td style={{ textAlign: 'right', padding: '10px' }}>{entry.total_size.toLocaleString()} bytes</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'graph' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between' }}>
+                            <h3 style={{ margin: 0 }}>Reference Graph</h3>
+                            <div style={{ fontSize: '0.85em', color: '#888' }}>Top 20+ classes by instance count</div>
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                            {graphLoading ? (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building graph structure...</div>
+                            ) : dot ? (
+                                <Graphviz dot={dot} options={{ width: '100%', height: '100%', fit: true, zoom: true }} />
+                            ) : (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     )

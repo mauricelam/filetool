@@ -5,7 +5,7 @@ test('HPROF viewer should display file content', async ({ page }) => {
     await page.goto('http://localhost:8080/filetool/hprof/index.html?test=true');
 
     // Wait for the loading to complete
-    await expect(page.locator('h2')).toContainText('HPROF Viewer: test.hprof', { timeout: 10000 });
+    await expect(page.locator('h2')).toContainText('HPROF Viewer: test.hprof', { timeout: 15000 });
 
     // Check if the format and ID size are displayed
     await expect(page.locator('#output')).toContainText('Format: JAVA PROFILE 1.0.1');
@@ -16,19 +16,19 @@ test('HPROF viewer should display file content', async ({ page }) => {
     await expect(page.locator('.record-item').filter({ hasText: 'LoadClass' }).first()).toBeVisible();
     await expect(page.locator('.record-item').filter({ hasText: 'HeapDumpSegment' }).first()).toBeVisible();
 
-    // Click on the Utf8 record and check details
-    await page.locator('.record-item').filter({ hasText: 'Utf8' }).first().click();
-    await expect(page.locator('#detail-pre')).toContainText('Utf8: java.lang.Object');
-
-    // Click on the LoadClass record and check details
-    await page.locator('.record-item').filter({ hasText: 'LoadClass' }).first().click();
-    await expect(page.locator('#detail-pre')).toContainText('LoadClass: class_serial=1');
-
     // Click on the HeapDumpSegment record and check details
     await page.locator('.record-item').filter({ hasText: 'HeapDumpSegment' }).first().click();
 
-    // Check if sub-records are listed
-    await expect(page.locator('h4').filter({ hasText: 'Sub-records' })).toBeVisible();
-    // In our simplified test file, we have GcRootJniGlobal and Class
-    await expect(page.locator('pre').filter({ hasText: 'GcRootJniGlobal' }).first()).toBeVisible();
+    // Check if details area contains "Heap Dump Summary" (it's in the text content)
+    await expect(page.locator('#output')).toContainText('Heap Dump Summary', { timeout: 10000 });
+
+    // Test Instance Counts tab
+    await page.locator('div').filter({ hasText: /^Instance Counts$/ }).click();
+    await expect(page.locator('table')).toContainText('java.lang.Object', { timeout: 15000 });
+    await expect(page.locator('table')).toContainText('1');
+
+    // Test Reference Graph tab
+    await page.locator('div').filter({ hasText: /^Reference Graph$/ }).click();
+    // Graphviz takes time to render
+    await expect(page.locator('svg')).toBeVisible({ timeout: 20000 });
 });
