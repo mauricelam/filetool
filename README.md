@@ -62,8 +62,7 @@ window.onmessage = (e) => {
 
 | Handler | Supported File Types |
 |---------|---------------------|
-| Hex | All files |
-| [CyberChef](https://github.com/gchq/CyberChef) | All manner of "cyber" operations (Hex, Base64, etc.) |
+| [CyberChef](https://github.com/gchq/CyberChef) | Hex, Base64, and other "cyber" operations |
 | [ffmpeg](https://github.com/FFmpeg/FFmpeg) | 3GPP, AAC, MPEG, F4V, FLAC, FLV, HLS, MP4, MKV, WebM, MP3, Ogg, SWF, WAV, AVI, QuickTime |
 | [ImageMagick](https://github.com/ImageMagick/ImageMagick) | JPEG, PNG, WebP, GIF, JXL, ICO, PNM, TIFF, PSD, HEIF, Fonts, APNG, AVIF, RAW |
 | [Ghidra](https://github.com/NationalSecurityAgency/ghidra) | Mach-O, Executables, Shared Libraries |
@@ -76,7 +75,7 @@ window.onmessage = (e) => {
 | [Apache Parquet](https://github.com/apache/parquet-format) | Parquet files |
 | [SELinux Policy](https://github.com/SELinuxProject/setools) | SELinux policy files |
 | [Graphviz Viewer](https://gitlab.com/graphviz/graphviz) | .dot, .gv |
-| [CheerpJ](https://labs.leaningtech.com/cheerpj) | JVM in browser |
+| [CheerpJ](https://leaningtech.com/cheerpj/) | JVM in browser |
 | [ClassyShark](https://github.com/google/android-classyshark) | Android executable inspection |
 | [SquashFS](https://github.com/plougher/squashfs-tools) | .squashfs, .sqfs |
 | Archive | ZIP, GZIP, XZ, APK, RAR, 7Z, JAR, LZH |
