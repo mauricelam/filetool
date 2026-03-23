@@ -39,11 +39,11 @@ const SETTINGS = {
         },
         { from: ["../node_modules/@ffmpeg/ffmpeg/dist/esm/*.js"], to: ["./"] },
         {
-          from: ["../node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js"],
+          from: ["node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js"],
           to: ["./ffmpeg-core.js"],
         },
         {
-          from: ["../node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm"],
+          from: ["node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm"],
           to: ["./ffmpeg-core.wasm"],
         },
         {

@@ -27,15 +27,6 @@ pub fn decode(compressed: &[u8]) -> Result<DecompressionResult, JsValue> {
         }
     }
 
-    // Try BZIP2: 42 5A 68 (BZh)
-    if compressed.starts_with(b"BZh") {
-        let mut d = bzip2::read::BzDecoder::new(&compressed[..]);
-        let mut decompressed = Vec::new();
-        if let Ok(_) = d.read_to_end(&mut decompressed) {
-            return Ok(DecompressionResult { data: decompressed, format: "BZIP2".to_string() });
-        }
-    }
-
     // Try XZ: FD 37 7A 58 5A 00
     if compressed.starts_with(&[0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) {
         let mut decompressed = Vec::new();

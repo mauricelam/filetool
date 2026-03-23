@@ -623,7 +623,6 @@ export default {
     "chart.lock": ["helm"],
     "chart.yaml": ["helm"],
     "horusec-config.json": ["horusec"],
-    "hprof": ["java"],
     ".htmlhintrc": ["htmlhint"],
     ".huskyrc": ["husky"],
     "husky.config.js": ["husky"],
