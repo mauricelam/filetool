@@ -5,11 +5,15 @@ use serde::{Serialize, Deserialize};
 use std::convert::TryInto;
 use std::collections::HashMap;
 
+mod normalize;
+use normalize::normalize_hprof;
+
 #[wasm_bindgen]
 pub struct HprofParser {
     data: Vec<u8>,
     record_offsets: Vec<usize>,
     metadata: Vec<RecordInfo>,
+    id_size: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -51,10 +55,13 @@ impl HprofParser {
     pub fn new(data: Vec<u8>) -> Self {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
+        let data = normalize_hprof(&data);
         let mut record_offsets = Vec::new();
         let mut metadata = Vec::new();
+        let mut id_size = 4;
 
         if let Ok(hprof) = parse_hprof(&data) {
+            id_size = match hprof.header().id_size() { IdSize::U32 => 4, IdSize::U64 => 8 };
             let mut pos = 0;
             while pos < data.len() && data[pos] != 0 { pos += 1; }
             pos += 13;
@@ -79,7 +86,7 @@ impl HprofParser {
                 index += 1;
             }
         }
-        HprofParser { data, record_offsets, metadata }
+        HprofParser { data, record_offsets, metadata, id_size }
     }
 
     pub fn get_header(&self) -> Result<JsValue, JsValue> {
@@ -114,17 +121,19 @@ impl HprofParser {
         let tag = self.data[offset];
         let mut detail = format!("Record Tag: {}", self.metadata[index].tag);
         if tag == 0x01 {
-             let mut pos = 0; while pos < self.data.len() && self.data[pos] != 0 { pos += 1; } pos += 1;
-             let id_size = u32::from_be_bytes(self.data[pos..pos+4].try_into().unwrap_or([0,0,0,4])) as usize;
-             if let Ok(s) = std::str::from_utf8(&self.data[offset+9+id_size..offset+9+length]) { detail = format!("Utf8: {}", s); }
+             if let Ok(s) = std::str::from_utf8(&self.data[offset+9+(self.id_size as usize)..offset+9+length]) { detail = format!("Utf8: {}", s); }
         }
         Ok(JsValue::from_str(&detail))
     }
 
     pub fn get_heap_dump_summary(&self, index: usize) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
-        let record = hprof.records_iter().nth(index).ok_or("No record")?.unwrap();
-        if let Some(Ok(segment)) = record.as_heap_dump_segment() {
+        let record = hprof.records_iter().nth(index).ok_or("No record")?
+            .map_err(|e| JsValue::from_str(&format!("Error getting record: {:?}", e)))?;
+        let tag = record.tag();
+        if tag == RecordTag::HeapDump || tag == RecordTag::HeapDumpSegment {
+            let segment = record.as_heap_dump_segment().ok_or("Expected heap dump segment")?
+                .map_err(|e| JsValue::from_str(&format!("Error parsing segment: {:?}", e)))?;
             let mut counts = HashMap::new();
             for sub in segment.sub_records() {
                 if let Ok(s) = sub {
@@ -167,7 +176,8 @@ impl HprofParser {
                 RecordTag::LoadClass => if let Some(Ok(l)) = record.as_load_class() {
                     class_id_to_name_id.insert(l.class_obj_id(), l.class_name_id());
                 },
-                RecordTag::HeapDump | RecordTag::HeapDumpSegment => if let Some(Ok(seg)) = record.as_heap_dump_segment() {
+                RecordTag::HeapDump | RecordTag::HeapDumpSegment => if let Some(res) = record.as_heap_dump_segment() {
+                    if let Ok(seg) = res {
                     for sub in seg.sub_records() {
                         if let Ok(s) = sub {
                             match s {
@@ -180,6 +190,7 @@ impl HprofParser {
                                 _ => {}
                             }
                         }
+                    }
                     }
                 },
                 _ => {}
