@@ -31,7 +31,7 @@ const initializeWasm = async () => {
             const ds = new DecompressionStream('gzip');
             const decompressedStream = response.body!.pipeThrough(ds);
             systemResources = new Uint8Array(await new Response(decompressedStream).arrayBuffer());
-            
+
             wasmInitialized = true;
         } catch (error) {
             console.error('Failed to initialize WebAssembly:', error);

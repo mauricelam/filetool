@@ -8,11 +8,12 @@ import loader from "@binutils-wasm/binutils";
 //     size: (f: string) => ['--format=SysV', f],
 // }
 
-self.onmessage = (e: MessageEvent) => {
+self.onmessage = async (e: MessageEvent) => {
     console.log('Running util', e.data.action, e.data.flags)
-    run_binutil(e.data.action, e.data.flags, e.data.buffer, e.data.fileName, (line) => {
+    await run_binutil(e.data.action, e.data.flags, e.data.buffer, e.data.fileName, (line) => {
         self.postMessage(line)
     })
+    self.postMessage({ action: 'done' })
 }
 
 async function run_binutil(util: string, flags: string[], buffer: ArrayBuffer, fileName: string, callback: (line: string) => void) {
