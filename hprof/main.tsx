@@ -138,7 +138,7 @@ function GraphvizView({ dot }: { dot: string }) {
                         const newTransform = currentTransform.translate(-event.deltaX / currentTransform.k, -event.deltaY / currentTransform.k);
                         svg.call(zoom.transform, newTransform);
                     }
-                });
+                }, { passive: false });
             });
     }, [dot]);
 
@@ -177,6 +177,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     // Graph state
     const [dot, setDot] = useState<string | null>(null)
     const [graphLoading, setGraphLoading] = useState(false)
+    const [minEdgeCount, setMinEdgeCount] = useState(0)
 
     // Hierarchy state
     const [hierarchyDot, setHierarchyDot] = useState<string | null>(null)
@@ -234,11 +235,11 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     }, [activeTab, instanceCounts.length, parser])
 
     useEffect(() => {
-        if (activeTab === 'graph' && !dot) {
+        if (activeTab === 'graph') {
             setGraphLoading(true)
             setTimeout(() => {
                 try {
-                    const d = parser.get_class_reference_graph()
+                    const d = parser.get_class_reference_graph(minEdgeCount)
                     setDot(d)
                 } catch (e) {
                     console.error("Failed to get reference graph", e)
@@ -247,7 +248,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 }
             }, 0)
         }
-    }, [activeTab, dot, parser])
+    }, [activeTab, minEdgeCount, parser])
 
     useEffect(() => {
         if (activeTab === 'hierarchy' && !hierarchyDot) {
@@ -498,9 +499,20 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
 
                 {activeTab === 'graph' && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h3 style={{ margin: 0 }}>Reference Graph</h3>
-                            <div style={{ fontSize: '0.85em', color: '#888' }}>Top 20+ classes by instance count</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                    Min Edge Count:
+                                    <input
+                                        type="number"
+                                        value={minEdgeCount}
+                                        onChange={(e) => setMinEdgeCount(Math.max(0, parseInt(e.target.value) || 0))}
+                                        style={{ marginLeft: '5px', width: '50px', padding: '2px 5px' }}
+                                    />
+                                </div>
+                                <div style={{ fontSize: '0.85em', color: '#888' }}>Top 20+ classes by instance count</div>
+                            </div>
                         </div>
                         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                             {graphLoading ? (

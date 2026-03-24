@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use jvm_hprof::{parse_hprof, RecordTag, IdSize, Id};
-use jvm_hprof::heap_dump::{SubRecord};
+use jvm_hprof::heap_dump::{SubRecord, FieldType};
 use serde::{Serialize, Deserialize};
 use std::convert::TryInto;
 use std::collections::HashMap;
@@ -232,13 +232,19 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&result)?)
     }
 
-    pub fn get_class_reference_graph(&self) -> Result<String, JsValue> {
+    pub fn get_class_reference_graph(&self, min_edge_count: usize) -> Result<String, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
         let mut class_id_to_name_id = HashMap::new();
         let mut obj_id_to_class_id = HashMap::new();
         let mut class_total_sizes: HashMap<Id, usize> = HashMap::new();
+
+        let mut class_id_to_super_id = HashMap::new();
         let mut class_id_to_instance_size = HashMap::new();
+        let mut class_id_to_static_fields = HashMap::new();
+        let mut class_id_to_instance_fields = HashMap::new();
+        let mut all_class_fields = HashMap::new();
+
         let id_size = hprof.header().id_size();
         let id_bytes = match id_size { IdSize::U32 => 4, IdSize::U64 => 8 };
 
@@ -255,7 +261,36 @@ impl HprofParser {
                     for sub in seg.sub_records() {
                         if let Ok(s) = sub {
                             match s {
-                                jvm_hprof::heap_dump::SubRecord::Class(c) => { class_id_to_instance_size.insert(c.obj_id(), c.instance_size_bytes() as usize); }
+                                jvm_hprof::heap_dump::SubRecord::Class(c) => {
+                                    let cid = c.obj_id();
+                                    class_total_sizes.entry(cid).or_insert(0);
+                                    class_id_to_instance_size.insert(cid, c.instance_size_bytes());
+                                    if let Some(sid) = c.super_class_obj_id() {
+                                        class_id_to_super_id.insert(cid, sid);
+                                    }
+
+                                    let mut statics = Vec::new();
+                                    for sf in c.static_fields() {
+                                        if let Ok(sf) = sf {
+                                            let name = utf8_map.get(&sf.name_id()).cloned().unwrap_or_else(|| format!("?{:?}", sf.name_id()));
+                                            statics.push((name, format!("{:?}", sf.value())));
+                                        }
+                                    }
+                                    class_id_to_static_fields.insert(cid, statics);
+
+                                    let mut instances = Vec::new();
+                                    let mut field_types = Vec::new();
+                                    for ifd in c.instance_field_descriptors() {
+                                        if let Ok(ifd) = ifd {
+                                            let name = utf8_map.get(&ifd.name_id()).cloned().unwrap_or_else(|| format!("?{:?}", ifd.name_id()));
+                                            let ftype = ifd.field_type();
+                                            instances.push((name, format!("{:?}", ftype)));
+                                            field_types.push(ftype);
+                                        }
+                                    }
+                                    class_id_to_instance_fields.insert(cid, instances);
+                                    all_class_fields.insert(cid, field_types);
+                                }
                                 jvm_hprof::heap_dump::SubRecord::Instance(i) => { obj_id_to_class_id.insert(i.obj_id(), i.class_obj_id()); }
                                 jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => { obj_id_to_class_id.insert(a.obj_id(), a.array_class_obj_id()); }
                                 _ => {}
@@ -277,7 +312,35 @@ impl HprofParser {
                             jvm_hprof::heap_dump::SubRecord::Instance(i) => {
                                 let scid = i.class_obj_id();
                                 let isize = class_id_to_instance_size.get(&scid).cloned().unwrap_or(0);
-                                *class_total_sizes.entry(scid).or_insert(0) += isize;
+                                *class_total_sizes.entry(scid).or_insert(0) += isize as usize;
+                                *class_total_sizes.entry(i.obj_id()).or_insert(0) += 0; // ensure class exists
+
+                                // Record references from this instance's fields
+                                let mut curr_cid = Some(scid);
+                                let mut data_offset = 0;
+                                let data = i.fields();
+                                while let Some(cid) = curr_cid {
+                                    if let Some(fields) = all_class_fields.get(&cid) {
+                                        for &ftype in fields {
+                                            if matches!(ftype, FieldType::ObjectId) {
+                                                if data_offset + id_bytes <= data.len() {
+                                                    let ref_id_val = match id_size {
+                                                        IdSize::U32 => u32::from_be_bytes(data[data_offset..data_offset+4].try_into().unwrap()) as u64,
+                                                        IdSize::U64 => u64::from_be_bytes(data[data_offset..data_offset+8].try_into().unwrap()),
+                                                    };
+                                                    if ref_id_val != 0 {
+                                                        let ref_id = Id::from(ref_id_val);
+                                                        if let Some(&tcid) = obj_id_to_class_id.get(&ref_id) {
+                                                            *class_refs.entry((scid, tcid)).or_insert(0) += 1;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            data_offset += val_size(ftype as u8, id_bytes);
+                                        }
+                                    }
+                                    curr_cid = class_id_to_super_id.get(&cid).cloned();
+                                }
                             }
                             jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => {
                                 let scid = a.array_class_obj_id();
@@ -298,19 +361,56 @@ impl HprofParser {
             }
         }
 
-        let mut dot = String::from("digraph G {\n  rankdir=LR;\n  node [shape=box, style=filled, color=lightblue];\n");
+        let mut dot = String::from("digraph G {\n  rankdir=LR;\n  node [shape=none, margin=0];\n");
         let max_s = *class_total_sizes.values().max().unwrap_or(&1) as f64;
         let max_r = *class_refs.values().max().unwrap_or(&1) as f64;
+
         for (&cid, &size) in &class_total_sizes {
-            if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 { continue; }
             let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", cid));
-            let scale = 1.0 + (size as f64 / max_s * 4.0);
-            dot.push_str(&format!("  \"{:?}\" [label=\"{}\\n({} bytes)\", fontsize={}];\n", cid, name, size, 10.0 * scale));
+            if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
+
+            let mut label = format!(r##"<table border="0" cellborder="1" cellspacing="0">
+  <tr><td colspan="2" bgcolor="#eeeeee"><b>{} ({:?})</b></td></tr>"##, name, cid);
+
+            if let Some(&sid) = class_id_to_super_id.get(&cid) {
+                label.push_str(&format!("  <tr><td colspan=\"2\">Superclass: {:?}</td></tr>", sid));
+            }
+            if let Some(&isize) = class_id_to_instance_size.get(&cid) {
+                label.push_str(&format!("  <tr><td>Instance size (bytes)</td><td>{}</td></tr>", isize));
+            }
+
+            if let Some(statics) = class_id_to_static_fields.get(&cid) {
+                if !statics.is_empty() {
+                    label.push_str("  <tr><td colspan=\"2\" bgcolor=\"#f9f9f9\">Static fields</td></tr>");
+                    for (f_name, f_val) in statics {
+                        label.push_str(&format!("  <tr><td>{}</td><td>{}</td></tr>", f_name, f_val.replace("<", "&lt;").replace(">", "&gt;")));
+                    }
+                }
+            }
+
+            if let Some(instances) = class_id_to_instance_fields.get(&cid) {
+                if !instances.is_empty() {
+                    label.push_str("  <tr><td colspan=\"2\" bgcolor=\"#f9f9f9\">Instance field descriptors</td></tr>");
+                    for (f_name, f_type) in instances {
+                        label.push_str(&format!("  <tr><td>{}</td><td>{}</td></tr>", f_name, f_type));
+                    }
+                }
+            }
+
+            if name.starts_with("[") {
+                label.push_str("  <tr><td colspan=\"2\">(array contents)</td></tr>");
+            }
+
+            label.push_str("</table>");
+
+            dot.push_str(&format!("  \"{:?}\" [label=<{}>];\n", cid, label));
         }
+
         for (&(src, tgt), &count) in &class_refs {
+            if count < min_edge_count { continue; }
             if class_total_sizes.contains_key(&src) && class_total_sizes.contains_key(&tgt) {
-                let pen = 1.0 + (count as f64 / max_r * 8.0);
-                dot.push_str(&format!("  \"{:?}\" -> \"{:?}\" [penwidth={}, label=\"{}\"];\n", src, tgt, pen, count));
+                let pen = 1.0 + (count as f64 / max_r * 8.0).min(8.0);
+                dot.push_str(&format!("  \"{:?}\" -> \"{:?}\" [penwidth={}, label=\"x{}\"];\n", src, tgt, pen, count));
             }
         }
         dot.push_str("}\n");
@@ -404,5 +504,16 @@ impl HprofParser {
 }
 
 fn val_size(tag: u8, id_size: usize) -> usize {
-    match tag { 2 => id_size, 4 => 1, 5 => 2, 6 => 4, 7 => 8, 8 => 1, 9 => 2, 10 => 4, 11 => 8, _ => 0 }
+    match tag {
+        2 => id_size, // Object
+        4 => 1,       // Boolean
+        5 => 2,       // Char
+        6 => 4,       // Float
+        7 => 8,       // Double
+        8 => 1,       // Byte
+        9 => 2,       // Short
+        10 => 4,      // Int
+        11 => 8,      // Long
+        _ => 0,
+    }
 }
