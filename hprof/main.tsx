@@ -1,7 +1,8 @@
 import { createRoot } from 'react-dom/client'
 import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry } from './hprof-wasm/pkg'
 import React, { ReactElement, useState, useEffect, useMemo, useRef } from 'react'
-import { Graphviz } from 'graphviz-react';
+import * as d3 from 'd3';
+import { graphviz } from 'd3-graphviz';
 
 const rootElement = document.getElementById('output')
 if (!rootElement) throw new Error("Root element #output not found");
@@ -92,6 +93,56 @@ function App() {
     }
 
     return <HprofViewer parser={parser} fileName={fileName} />
+}
+
+function GraphvizView({ dot }: { dot: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const graphvizRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        if (!graphvizRef.current) {
+            graphvizRef.current = graphviz(containerRef.current, {
+                useWorker: false,
+                width: '100%',
+                height: '100%',
+                fit: true,
+                zoom: true,
+            });
+        }
+
+        graphvizRef.current
+            .renderDot(dot)
+            .on('end', () => {
+                const svg = d3.select(containerRef.current).select('svg');
+                if (svg.empty()) return;
+
+                const zoom = graphvizRef.current.zoomBehavior();
+                if (!zoom) return;
+
+                // Intercept the wheel event to distinguish between pan and zoom
+                const originalWheel = svg.on('wheel.zoom');
+                svg.on('wheel.zoom', (event: WheelEvent) => {
+                    if (event.ctrlKey || event.metaKey) {
+                        // Zoom behavior: call the original d3-zoom wheel handler
+                        if (originalWheel) {
+                            originalWheel.call(svg.node() as any, event);
+                        }
+                    } else {
+                        // Pan behavior
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+
+                        const currentTransform = d3.zoomTransform(svg.node() as any);
+                        const newTransform = currentTransform.translate(-event.deltaX / currentTransform.k, -event.deltaY / currentTransform.k);
+                        svg.call(zoom.transform, newTransform);
+                    }
+                });
+            });
+    }, [dot]);
+
+    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }
 
 root.render(<App />)
@@ -413,7 +464,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                             {graphLoading ? (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building graph structure...</div>
                             ) : dot ? (
-                                <Graphviz dot={dot} options={{ width: '100%', height: '100%', fit: true, zoom: true }} />
+                                <GraphvizView dot={dot} />
                             ) : (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
                             )}
