@@ -12,7 +12,7 @@ async function getDecompiler() {
 }
 
 self.onmessage = async (e: MessageEvent) => {
-    const { action, buffer, fileName, funcName, arch, sla, pspec, cspec, baseAddr } = e.data;
+    const { action, buffer, fileName, funcName, arch, sla, pspec, cspec, segments, baseAddr } = e.data;
     console.log('[GhidraWorker] Message received:', action, { fileName, funcName, arch });
 
     try {
@@ -42,12 +42,27 @@ self.onmessage = async (e: MessageEvent) => {
                 return hex.join('');
             };
 
-            const imageXml = `
-                <binaryimage arch="${arch}">
-                <bytechunk space="ram" offset="${baseAddr || '0x0'}">
-                ${bytesToHex(data)}
-                </bytechunk>
-                </binaryimage>`;
+            let imageXml = '';
+            if (segments && segments.length > 0) {
+                imageXml = `<binaryimage arch="${arch}">\n`;
+                for (const seg of segments) {
+                    const offset = parseInt(seg.offset, 16);
+                    const vaddr = seg.vaddr;
+                    const filesiz = parseInt(seg.filesiz, 16);
+                    if (filesiz > 0) {
+                        const chunkData = data.slice(offset, offset + filesiz);
+                        imageXml += `<bytechunk space="ram" offset="${vaddr}">\n${bytesToHex(chunkData)}\n</bytechunk>\n`;
+                    }
+                }
+                imageXml += `</binaryimage>`;
+            } else {
+                imageXml = `
+                    <binaryimage arch="${arch}">
+                    <bytechunk space="ram" offset="${baseAddr || '0x0'}">
+                    ${bytesToHex(data)}
+                    </bytechunk>
+                    </binaryimage>`;
+            }
 
             console.log(`[GhidraWorker] Decompiling ${funcName}...`);
             const resultPtr = module.ccall(

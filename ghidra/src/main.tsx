@@ -8,6 +8,7 @@ const GhidraApp = () => {
     const [file, setFile] = useState<File | null>(null);
     const [arch, setArch] = useState<string>('');
     const [symbols, setSymbols] = useState<any[]>([]);
+    const [segments, setSegments] = useState<any[]>([]);
     const [selectedFunc, setSelectedFunc] = useState<string>('');
     const [decompiledCode, setDecompiledCode] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
@@ -57,7 +58,7 @@ const GhidraApp = () => {
             const buffer = await file.arrayBuffer();
             worker.postMessage({ action: 'detect_architecture', buffer: buffer.slice(0) }, [buffer]);
 
-            setStatus('Extracting symbols...');
+            setStatus('Extracting symbols and segments...');
             // Extract symbols using binutils (nm)
             try {
                 // In production and in Playwright, we are served under /filetool/
@@ -92,6 +93,43 @@ const GhidraApp = () => {
             } catch (err) {
                 console.error('[GhidraUI] Failed to start NM worker:', err);
                 setStatus('Failed to start symbol extraction.');
+            }
+
+            // Extract segments using readelf
+            try {
+                const readelfWorker = new Worker(new URL('/filetool/binutils/worker.js', window.location.origin), { type: 'module' });
+                const readelfBuffer = await file.arrayBuffer();
+                let readelfOutput = '';
+                readelfWorker.onmessage = (ev) => {
+                    if (typeof ev.data === 'string') {
+                        readelfOutput += ev.data + '\n';
+                    } else if (ev.data.action === 'done') {
+                        const extractedSegments: any[] = [];
+                        const lines = readelfOutput.split('\n');
+                        for (let i = 0; i < lines.length; i++) {
+                            const line = lines[i].trim();
+                            if (line.startsWith('LOAD')) {
+                                // Next line contains FileSiz
+                                const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
+                                const parts = line.split(/\s+/);
+                                const nextParts = nextLine.split(/\s+/);
+                                if (parts.length >= 4 && nextParts.length >= 1) {
+                                    extractedSegments.push({
+                                        offset: parts[1],
+                                        vaddr: parts[2],
+                                        filesiz: nextParts[0]
+                                    });
+                                }
+                            }
+                        }
+                        console.log('[GhidraUI] Extracted segments:', extractedSegments);
+                        setSegments(extractedSegments);
+                        readelfWorker.terminate();
+                    }
+                };
+                readelfWorker.postMessage({ action: 'readelf', buffer: readelfBuffer, flags: ['-l'], fileName: file.name }, [readelfBuffer]);
+            } catch (err) {
+                console.error('[GhidraUI] Failed to start Readelf worker:', err);
             }
         };
 
@@ -139,6 +177,7 @@ const GhidraApp = () => {
                 sla,
                 pspec,
                 cspec,
+                segments,
                 baseAddr: '0x0'
             }, [buffer, sla]);
         } catch (err: any) {
