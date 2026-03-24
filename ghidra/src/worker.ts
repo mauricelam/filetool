@@ -25,6 +25,19 @@ function bytesToHex(bytes: Uint8Array) {
     return hexDecoder.decode(hex);
 }
 
+function escapeXml(unsafe: string) {
+    return unsafe.replace(/[<>&"']/g, (c) => {
+        switch (c) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '"': return '&quot;';
+            case "'": return '&apos;';
+            default: return c;
+        }
+    });
+}
+
 async function getDecompiler() {
     if (decompilerModule) return decompilerModule;
     console.log('[GhidraWorker] Loading Ghidra Decompiler WASM...');
@@ -35,7 +48,7 @@ async function getDecompiler() {
 }
 
 self.onmessage = async (e: MessageEvent) => {
-    const { action, buffer, fileName, funcName, arch, sla, pspec, cspec, segments, baseAddr } = e.data;
+    const { action, buffer, fileName, funcName, arch, sla, pspec, cspec, segments, symbols, baseAddr } = e.data;
     console.log('[GhidraWorker] Message received:', action, { fileName, funcName, arch });
 
     try {
@@ -56,27 +69,31 @@ self.onmessage = async (e: MessageEvent) => {
             const slaPtr = module._malloc(slaData.length);
             module.HEAPU8.set(slaData, slaPtr);
 
-            let imageXml = '';
+            let imageXmlParts = [`<binaryimage arch="${arch}">\n`];
             if (segments && segments.length > 0) {
-                imageXml = `<binaryimage arch="${arch}">\n`;
                 for (const seg of segments) {
                     const offset = parseInt(seg.offset, 16);
                     const vaddr = seg.vaddr;
                     const filesiz = parseInt(seg.filesiz, 16);
                     if (filesiz > 0) {
                         const chunkData = data.slice(offset, offset + filesiz);
-                        imageXml += `<bytechunk space="ram" offset="${vaddr}">\n${bytesToHex(chunkData)}\n</bytechunk>\n`;
+                        imageXmlParts.push(`<bytechunk space="ram" offset="${vaddr}">\n${bytesToHex(chunkData)}\n</bytechunk>\n`);
                     }
                 }
-                imageXml += `</binaryimage>`;
             } else {
-                imageXml = `
-                    <binaryimage arch="${arch}">
-                    <bytechunk space="ram" offset="${baseAddr || '0x0'}">
-                    ${bytesToHex(data)}
-                    </bytechunk>
-                    </binaryimage>`;
+                imageXmlParts.push(`<bytechunk space="ram" offset="${baseAddr || '0x0'}">\n${bytesToHex(data)}\n</bytechunk>\n`);
             }
+
+            if (symbols && symbols.length > 0) {
+                for (const sym of symbols) {
+                    if (sym.address !== '?') {
+                        imageXmlParts.push(`<symbol space="ram" offset="${sym.address}" name="${escapeXml(sym.name)}"/>\n`);
+                    }
+                }
+            }
+
+            imageXmlParts.push(`</binaryimage>`);
+            const imageXml = imageXmlParts.join('');
 
             console.log(`[GhidraWorker] Decompiling ${funcName}...`);
             const resultPtr = module.ccall(

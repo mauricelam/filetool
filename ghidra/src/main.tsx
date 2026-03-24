@@ -188,6 +188,7 @@ const GhidraApp = () => {
                 pspec,
                 cspec,
                 segments,
+                symbols,
                 baseAddr: '0x0'
             }, [buffer, sla]);
         } catch (err: any) {
@@ -197,7 +198,8 @@ const GhidraApp = () => {
         }
     };
 
-    const filteredSymbols = symbols.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredSymbols = useMemo(() => symbols.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase())), [symbols, searchTerm]);
+    const displayedSymbols = useMemo(() => filteredSymbols.slice(0, 500), [filteredSymbols]);
 
     return (
         <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
@@ -213,7 +215,7 @@ const GhidraApp = () => {
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {filteredSymbols.length === 0 && <div style={{ padding: '10px' }}>{symbols.length > 0 ? 'No matches' : 'No symbols found'}</div>}
-                    {filteredSymbols.map(s => (
+                    {displayedSymbols.map(s => (
                         <div
                             key={s.name + s.address}
                             className="symbol-item"
@@ -229,6 +231,11 @@ const GhidraApp = () => {
                             <div style={{ fontSize: '0.8em', color: '#666' }}>{s.address} ({s.type})</div>
                         </div>
                     ))}
+                    {filteredSymbols.length > 500 && (
+                        <div style={{ padding: '10px', fontSize: '0.8em', color: '#666', textAlign: 'center', borderTop: '1px solid #eee' }}>
+                            Showing top 500 of {filteredSymbols.length} matches. Use search to find others.
+                        </div>
+                    )}
                 </div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>

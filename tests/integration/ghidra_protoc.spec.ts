@@ -38,7 +38,13 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
         await expect(iframe.getByText(/Detected: AARCH64:LE:64:v8A/)).toBeVisible({ timeout: 60000 });
 
         // Wait for symbols to load.
-        await expect(iframe.locator('div').filter({ hasText: /^main$/ }).first()).toBeVisible({ timeout: 120000 });
+        await expect(iframe.getByPlaceholder('Search symbols...')).toBeVisible({ timeout: 120000 });
+
+        // Search for main explicitly to ensure it's in the list
+        await iframe.getByPlaceholder('Search symbols...').fill('main');
+        await page.waitForTimeout(1000); // Wait for filtering
+
+        await expect(iframe.locator('div').filter({ hasText: /^main$/ }).first()).toBeVisible({ timeout: 10000 });
 
         // Click on main to decompile
         await iframe.locator('div').filter({ hasText: /^main$/ }).first().click();
