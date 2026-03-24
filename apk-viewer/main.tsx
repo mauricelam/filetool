@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { ArscResource, ApkMetadata } from './wasm/pkg'
+import type { ArscResource, ApkMetadata } from './wasm/pkg'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
@@ -79,10 +79,18 @@ function App() {
     });
 
     useEffect(() => {
-        const worker = new Worker(new URL('worker.js', import.meta.url), { type: 'module' });
+        console.log('App: Initializing worker...');
+        const worker = new Worker(new URL('worker.ts', import.meta.url), { type: 'module' });
         workerRef.current = worker;
 
+        worker.onerror = (e) => {
+            console.error('App: Worker error:', e);
+            setError('Worker failed to start. Check console for details.');
+            setLoading(false);
+        };
+
         worker.onmessage = (e) => {
+            console.log('App: Worker message:', e.data.action);
             const { action, payload } = e.data;
             switch (action) {
                 case 'init-complete':
@@ -129,15 +137,19 @@ function App() {
 
         const initialize = async () => {
             try {
+                console.log('App: Fetching android.arsc.gz...');
                 const response = await fetch('android.arsc.gz');
-                if (!response.ok) throw new Error('Failed to fetch android.arsc.gz');
+                if (!response.ok) throw new Error(`Failed to fetch android.arsc.gz: ${response.statusText}`);
 
+                console.log('App: Decompressing system resources...');
                 const ds = new DecompressionStream('gzip');
                 const decompressedStream = response.body!.pipeThrough(ds);
                 const systemResources = new Uint8Array(await new Response(decompressedStream).arrayBuffer());
 
-                worker.postMessage({ action: 'init', payload: { systemResources } });
+                console.log('App: Sending init to worker...');
+                worker.postMessage({ action: 'init', payload: { systemResources } }, [systemResources.buffer]);
             } catch (err) {
+                console.error('App: Initialization error:', err);
                 setError((err as Error).message);
                 setLoading(false);
             }

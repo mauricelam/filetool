@@ -15,6 +15,7 @@ use zip::read::ZipArchive;
 use crate::{
     decoder::BufferedDecoder,
     model::{Element, Library as LibraryTrait},
+    visitor::XmlVisitor,
 };
 
 #[derive(Debug)]
@@ -531,7 +532,6 @@ impl<Reader: Read + Seek> Apk<Reader> {
     }
 
     pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {
-        use crate::visitor::XmlVisitor;
         let mut current_file = self.handler.by_name(name).context("could not find file")?;
         let mut contents = Vec::new();
         current_file.read_to_end(&mut contents).context("could not read file")?;
