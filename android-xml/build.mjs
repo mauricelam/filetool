@@ -30,8 +30,8 @@ const SETTINGS = {
       ]
     }),
     rustWasm({
-      projectDir: 'abxml-wasm-bindings',
-      outName: 'abxml-wasm-bindings',
+      projectDir: 'wasm',
+      outName: 'wasm',
       watchPaths: [
         'src/**/*.rs',
         'Cargo.toml',

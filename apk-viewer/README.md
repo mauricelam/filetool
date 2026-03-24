@@ -59,8 +59,8 @@ apk-viewer/
 ├── index.html             # Entry point
 ├── main.tsx               # Main React component
 ├── package.json           # Dependencies and scripts
-├── abxml-rs/             # Rust library source
-├── abxml-wasm-bindings/  # WebAssembly bindings
+├── abxml-rs/              # Rust library source
+├── wasm/                  # WebAssembly bindings
 └── README.md              # This file
 ```
 
@@ -68,7 +68,7 @@ apk-viewer/
 
 - **main.tsx** - React component that handles file parsing and XML tree display
 - **abxml-rs/** - Rust library containing the core XML parsing logic
-- **abxml-wasm-bindings/** - WebAssembly bindings that expose the Rust library to JavaScript
+- **wasm/** - WebAssembly bindings that expose the Rust library to JavaScript
 
 The handler uses a Rust library compiled to WebAssembly to parse Android binary XML files. The parsed XML structure is displayed in a tree view component.
 

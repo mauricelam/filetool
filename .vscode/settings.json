@@ -3,6 +3,6 @@
         "apk-viewer/abxml-rs/Cargo.toml",
         "classfile/classfile-wasm/Cargo.toml",
         "rustdexviewer/dexviewer/Cargo.toml",
-        "apk-viewer/abxml-wasm-bindings/Cargo.toml"
+        "apk-viewer/wasm/Cargo.toml"
     ]
 }

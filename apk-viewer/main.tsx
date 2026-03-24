@@ -1,6 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './apk-wasm-bindings/pkg'
-import * as fflate from 'fflate'
+import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './wasm/pkg'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
