@@ -5,7 +5,7 @@ import { runHandlerTest } from './test-utils';
 
 test('Android HPROF viewer should display file content', async ({ page }) => {
     test.setTimeout(90000);
-    const filePath = path.resolve(__dirname, '../../hprof/testdata/android.hprof');
+    const filePath = path.resolve(__dirname, '../../hprof/example/android.hprof');
     const fileContent = fs.readFileSync(filePath);
 
     const iframe = await runHandlerTest(page, {
@@ -43,7 +43,7 @@ test('Android HPROF viewer should display file content', async ({ page }) => {
 });
 
 test('Java HPROF (8-byte ID) viewer should display file content', async ({ page }) => {
-    const filePath = path.resolve(__dirname, '../../hprof/testdata/java.hprof');
+    const filePath = path.resolve(__dirname, '../../hprof/example/java.hprof');
     const fileContent = fs.readFileSync(filePath);
 
     const iframe = await runHandlerTest(page, {
