@@ -1,6 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, extract_arsc, decode_xml } from './abxml-wasm-bindings/pkg'
-import * as fflate from 'fflate'
+import init, { ArscResource, extract_arsc, decode_xml } from './wasm/pkg'
 import React, { useState, useEffect, useRef } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
 import 'react-tabs/style/react-tabs.css'

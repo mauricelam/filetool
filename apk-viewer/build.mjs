@@ -2,7 +2,6 @@ import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import path from 'path';
-import fs from 'fs';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 
@@ -32,8 +31,8 @@ const SETTINGS = {
       ]
     }),
     rustWasm({
-      projectDir: 'apk-wasm-bindings',
-      outName: 'apk-wasm-bindings',
+      projectDir: 'wasm',
+      outName: 'wasm',
       watchPaths: [
         'src/**/*.rs',
         'Cargo.toml',
