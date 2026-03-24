@@ -40,6 +40,27 @@ function App() {
             window.parent.postMessage({ 'action': 'requestFile' }, '*')
         }
 
+        // For testing without the main app
+        if (window.location.search.includes('test=true')) {
+            setLoading(true)
+            fetch('test.hprof')
+                .then(r => {
+                    if (!r.ok) throw new Error("test.hprof not found")
+                    return r.arrayBuffer()
+                })
+                .then(async buf => {
+                    await init()
+                    const p = new HprofParser(new Uint8Array(buf))
+                    setParser(p)
+                    setFileName('test.hprof')
+                })
+                .catch(e => {
+                    console.error("Test load failed", e)
+                    setError("Test load failed: " + e.message)
+                })
+                .finally(() => setLoading(false))
+        }
+
         return () => window.removeEventListener('message', handleMessage)
     }, [])
 
