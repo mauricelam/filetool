@@ -86,4 +86,23 @@ test.describe('Decompressor Handler', () => {
         // Verify the filename in the UI is test.unknown.decoded
         await expect(iframe.getByText('test.unknown.decoded', { exact: true })).toBeVisible();
     });
+
+    test('should NOT strip extension if it does not match the format', async ({ page }) => {
+        const filePath = path.join(__dirname, '../../decompressor/example/test.gz');
+        const fileBuffer = fs.readFileSync(filePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'decompressor',
+            file: {
+                content: Uint8Array.from(fileBuffer),
+                name: 'test.bz2', // Misleading extension for a GZIP file
+                type: 'application/octet-stream'
+            },
+        });
+
+        // Wait for decompression to complete. format is GZIP (from magic bytes)
+        await expect(iframe.getByText('GZIP', { exact: true })).toBeVisible({ timeout: 10000 });
+
+        // Since format is GZIP but extension is .bz2, it should NOT strip .bz2
+        await expect(iframe.getByText('test.bz2.decoded', { exact: true })).toBeVisible();
+    });
 });
