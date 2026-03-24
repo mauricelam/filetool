@@ -336,10 +336,12 @@ impl HprofParser {
                                                     }
                                                 }
                                             }
-                                            data_offset += val_size(ftype as u8, id_bytes);
+                                            data_offset += field_size(ftype, id_bytes);
                                         }
+                                        curr_cid = class_id_to_super_id.get(&cid).cloned();
+                                    } else {
+                                        break;
                                     }
-                                    curr_cid = class_id_to_super_id.get(&cid).cloned();
                                 }
                             }
                             jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => {
@@ -503,17 +505,16 @@ impl HprofParser {
     }
 }
 
-fn val_size(tag: u8, id_size: usize) -> usize {
-    match tag {
-        2 => id_size, // Object
-        4 => 1,       // Boolean
-        5 => 2,       // Char
-        6 => 4,       // Float
-        7 => 8,       // Double
-        8 => 1,       // Byte
-        9 => 2,       // Short
-        10 => 4,      // Int
-        11 => 8,      // Long
-        _ => 0,
+fn field_size(ftype: FieldType, id_size: usize) -> usize {
+    match ftype {
+        FieldType::ObjectId => id_size,
+        FieldType::Boolean => 1,
+        FieldType::Char => 2,
+        FieldType::Float => 4,
+        FieldType::Double => 8,
+        FieldType::Byte => 1,
+        FieldType::Short => 2,
+        FieldType::Int => 4,
+        FieldType::Long => 8,
     }
 }
