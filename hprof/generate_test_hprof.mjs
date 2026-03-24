@@ -74,8 +74,9 @@ writeU32(subRecords, 0);
 writeU32(subRecords, 0);
 writeU32(subRecords, 0);
 writeU32(subRecords, 8); // instance size
-writeU16(subRecords, 0);
-writeU16(subRecords, 0);
+writeU16(subRecords, 0); // constant pool size
+writeU16(subRecords, 0); // static fields count
+writeU16(subRecords, 0); // instance fields count
 
 // CLASS DUMP Child
 subRecords.push(Buffer.from([0x20]));
@@ -88,8 +89,9 @@ writeU32(subRecords, 0);
 writeU32(subRecords, 0);
 writeU32(subRecords, 0);
 writeU32(subRecords, 4); // instance size 4
-writeU16(subRecords, 0); // static fields
-writeU16(subRecords, 1); // instance fields
+writeU16(subRecords, 0); // constant pool size
+writeU16(subRecords, 0); // static fields count
+writeU16(subRecords, 1); // instance fields count
   writeU32(subRecords, 12); // name id 12 (myField)
   subRecords.push(Buffer.from([2])); // type 2 (object)
 
