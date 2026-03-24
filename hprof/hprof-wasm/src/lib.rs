@@ -232,6 +232,54 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&result)?)
     }
 
+    pub fn get_reference_weights(&self) -> Result<JsValue, JsValue> {
+        let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
+        let mut obj_id_to_class_id = HashMap::new();
+        let id_size = hprof.header().id_size();
+
+        for record in hprof.records_iter() {
+            let record = match record { Ok(r) => r, Err(_) => continue };
+            if let Some(Ok(seg)) = record.as_heap_dump_segment() {
+                for sub in seg.sub_records() {
+                    if let Ok(s) = sub {
+                        match s {
+                            jvm_hprof::heap_dump::SubRecord::Instance(i) => { obj_id_to_class_id.insert(i.obj_id(), i.class_obj_id()); }
+                            jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => { obj_id_to_class_id.insert(a.obj_id(), a.array_class_obj_id()); }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut class_refs: HashMap<(Id, Id), usize> = HashMap::new();
+        for record in hprof.records_iter() {
+            let record = match record { Ok(r) => r, Err(_) => continue };
+            if let Some(Ok(seg)) = record.as_heap_dump_segment() {
+                for sub in seg.sub_records() {
+                    if let Ok(s) = sub {
+                        match s {
+                            jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => {
+                                let scid = a.array_class_obj_id();
+                                for elem in a.elements(id_size) {
+                                    if let Ok(Some(tid)) = elem {
+                                        if let Some(&tcid) = obj_id_to_class_id.get(&tid) {
+                                            *class_refs.entry((scid, tcid)).or_insert(0) += 1;
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        let weights: Vec<usize> = class_refs.values().cloned().collect();
+        Ok(serde_wasm_bindgen::to_value(&weights)?)
+    }
+
     pub fn get_class_reference_graph(&self, min_edge_count: usize) -> Result<String, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();

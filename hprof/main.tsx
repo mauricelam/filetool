@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry } from './hprof-wasm/pkg'
-import React, { ReactElement, useState, useEffect, useMemo, useRef } from 'react'
+import React, { ReactElement, useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import * as d3 from 'd3';
 import { graphviz } from 'd3-graphviz';
 
@@ -121,6 +121,9 @@ function GraphvizView({ dot }: { dot: string }) {
                 const zoom = graphvizRef.current.zoomBehavior();
                 if (!zoom) return;
 
+                // Remove maximum zoom level
+                zoom.scaleExtent([0, Infinity]);
+
                 // Intercept the wheel event to distinguish between pan and zoom
                 const originalWheel = svg.on('wheel.zoom');
                 svg.on('wheel.zoom', (event: WheelEvent) => {
@@ -134,8 +137,12 @@ function GraphvizView({ dot }: { dot: string }) {
                         event.preventDefault();
                         event.stopImmediatePropagation();
 
+                        const multiplier = 20;
                         const currentTransform = d3.zoomTransform(svg.node() as any);
-                        const newTransform = currentTransform.translate(-event.deltaX / currentTransform.k, -event.deltaY / currentTransform.k);
+                        const newTransform = currentTransform.translate(
+                            (-event.deltaX * multiplier) / currentTransform.k,
+                            (-event.deltaY * multiplier) / currentTransform.k
+                        );
                         svg.call(zoom.transform, newTransform);
                     }
                 }, { passive: false });
@@ -143,6 +150,133 @@ function GraphvizView({ dot }: { dot: string }) {
     }, [dot]);
 
     return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+}
+
+function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
+    return (
+        <div
+            onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onMouseDown(e);
+            }}
+            style={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: '4px',
+                cursor: 'col-resize',
+                zIndex: 10,
+                transition: 'background-color 0.2s',
+            }}
+            className="resize-handle"
+        />
+    );
+}
+
+function InstanceCountsView({ entries, loading }: { entries: InstanceCountEntry[], loading: boolean }) {
+    const [sortConfig, setSortConfig] = useState<{ key: keyof InstanceCountEntry, direction: 'asc' | 'desc' }>({ key: 'total_size', direction: 'desc' });
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+        class_name: 500,
+        count: 150,
+        total_size: 200,
+    });
+
+    const handleResize = useCallback((column: string) => (e: React.MouseEvent) => {
+        const startX = e.pageX;
+        const startWidth = columnWidths[column];
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const newWidth = Math.max(50, startWidth + (moveEvent.pageX - startX));
+            setColumnWidths(prev => ({ ...prev, [column]: newWidth }));
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }, [columnWidths]);
+
+    const sortedEntries = useMemo(() => {
+        const items = [...entries];
+        items.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            let comparison = 0;
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                comparison = aValue.localeCompare(bValue);
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                comparison = aValue - bValue;
+            }
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+        });
+        return items;
+    }, [entries, sortConfig]);
+
+    const handleSort = (key: keyof InstanceCountEntry) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+
+    const SortIndicator = ({ colKey }: { colKey: keyof InstanceCountEntry }) => (
+        <span style={{ marginLeft: '4px' }}>
+            {sortConfig.key === colKey && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+        </span>
+    );
+
+    if (loading) {
+        return <div style={{ padding: '20px', color: '#666' }}>Analyzing heap dump... this might take a moment.</div>;
+    }
+
+    return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <style>
+                {`
+                    .resize-handle:hover {
+                        background-color: #007bff;
+                    }
+                    th {
+                        user-select: none;
+                    }
+                `}
+            </style>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0, zIndex: 1 }}>
+                        <tr>
+                            <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid #ddd', width: columnWidths.class_name, position: 'relative', cursor: 'pointer' }} onClick={() => handleSort('class_name')}>
+                                Class Name <SortIndicator colKey="class_name" />
+                                <ResizeHandle onMouseDown={handleResize('class_name')} />
+                            </th>
+                            <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd', width: columnWidths.count, position: 'relative', cursor: 'pointer' }} onClick={() => handleSort('count')}>
+                                Count <SortIndicator colKey="count" />
+                                <ResizeHandle onMouseDown={handleResize('count')} />
+                            </th>
+                            <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd', width: columnWidths.total_size, position: 'relative', cursor: 'pointer' }} onClick={() => handleSort('total_size')}>
+                                Total Size <SortIndicator colKey="total_size" />
+                                <ResizeHandle onMouseDown={handleResize('total_size')} />
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedEntries.map((entry, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.class_name}</td>
+                                <td style={{ textAlign: 'right', padding: '10px' }}>{entry.count.toLocaleString()}</td>
+                                <td style={{ textAlign: 'right', padding: '10px' }}>{entry.total_size.toLocaleString()} bytes</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
 }
 
 root.render(<App />)
@@ -178,6 +312,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [dot, setDot] = useState<string | null>(null)
     const [graphLoading, setGraphLoading] = useState(false)
     const [minEdgeCount, setMinEdgeCount] = useState(0)
+    const [weightsInitialized, setWeightsInitialized] = useState(false)
 
     // Hierarchy state
     const [hierarchyDot, setHierarchyDot] = useState<string | null>(null)
@@ -233,6 +368,23 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
             }, 0)
         }
     }, [activeTab, instanceCounts.length, parser])
+
+    useEffect(() => {
+        if (activeTab === 'graph' && !weightsInitialized) {
+            try {
+                const weights = parser.get_reference_weights();
+                if (weights && weights.length > 0) {
+                    const sorted = [...weights].sort((a, b) => a - b);
+                    const median = sorted[Math.floor(sorted.length / 2)];
+                    setMinEdgeCount(median);
+                }
+                setWeightsInitialized(true);
+            } catch (e) {
+                console.error("Failed to get weights", e);
+                setWeightsInitialized(true);
+            }
+        }
+    }, [activeTab, weightsInitialized, parser]);
 
     useEffect(() => {
         if (activeTab === 'graph') {
@@ -472,31 +624,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 )}
 
                 {activeTab === 'instances' && (
-                    <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-                        <h3>Instance Counts</h3>
-                        {instancesLoading ? (
-                            <div style={{ padding: '20px', color: '#666' }}>Analyzing heap dump... this might take a moment.</div>
-                        ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-                                <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0 }}>
-                                    <tr>
-                                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid #ddd' }}>Class Name</th>
-                                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd' }}>Count</th>
-                                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd' }}>Total Size</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {instanceCounts.map((entry, idx) => (
-                                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                                            <td style={{ padding: '10px' }}>{entry.class_name}</td>
-                                            <td style={{ textAlign: 'right', padding: '10px' }}>{entry.count.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'right', padding: '10px' }}>{entry.total_size.toLocaleString()} bytes</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
+                    <InstanceCountsView entries={instanceCounts} loading={instancesLoading} />
                 )}
 
                 {activeTab === 'graph' && (
