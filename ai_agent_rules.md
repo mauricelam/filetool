@@ -9,3 +9,4 @@
 5. When commenting, make sure the comments explain the overall architecture structure of a method / class / module / package, and not just about the action you immediately performed. To explain that an action was done in response to the user prompt, put that in the commit message.
 6. When using Rust wasm builds, use `wasm-bindgen` to create bindings, and `tsify` to create TypeScript types.
 7. When using emsdk, install it in a temporary directory outside of this project.
+8. This project utilizes turborepo for build caching and parallelization. When setting up the build, always include a turbo.json file.
