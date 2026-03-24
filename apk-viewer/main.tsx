@@ -79,8 +79,8 @@ function App() {
     });
 
     useEffect(() => {
-        console.log('App: Initializing worker from URL:', new URL('worker.js', import.meta.url).href);
-        const worker = new Worker('worker.js', { type: 'module' });
+        console.log('App: Initializing worker from URL:', new URL('worker.js', window.location.href).href);
+        const worker = new Worker(new URL('worker.js', window.location.href), { type: 'module' });
         workerRef.current = worker;
 
         worker.onerror = (e) => {
