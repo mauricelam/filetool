@@ -46,6 +46,12 @@ const SUPPORTED_DOWNLOAD_FORMATS = [
         name: 'TAR.GZ',
         format: ArchiveFormat.PAX,
         compression: ArchiveCompression.GZIP
+    },
+    {
+        id: 'tar',
+        name: 'TAR',
+        format: ArchiveFormat.PAX,
+        compression: null
     }
 ];
 

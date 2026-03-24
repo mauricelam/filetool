@@ -112,6 +112,15 @@ const DecompressorViewer: React.FC = () => {
         }
     };
 
+    const handleOpenInParent = async () => {
+        if (!decompressedFile) return;
+        const buffer = await decompressedFile.arrayBuffer();
+        window.parent?.postMessage({
+            action: 'openFile',
+            file: decompressedFile,
+        }, '/', [buffer]);
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'sans-serif', overflow: 'hidden' }}>
             <div style={{
@@ -148,7 +157,26 @@ const DecompressorViewer: React.FC = () => {
                         <div style={{ flex: 1 }} />
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            <label htmlFor="handler-select" style={{ fontSize: '12px' }}>Open with:</label>
+                            <button
+                                onClick={handleOpenInParent}
+                                style={{
+                                    fontSize: '12px',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: '#fff',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor">
+                                    <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h240v240h-80v-144L388-332Z"/>
+                                </svg>
+                                Open
+                            </button>
+                            <label htmlFor="handler-select" style={{ fontSize: '12px', marginLeft: '8px' }}>Open with:</label>
                             <select
                                 id="handler-select"
                                 value={activeHandler?.handler || ''}
