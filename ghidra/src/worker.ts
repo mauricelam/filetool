@@ -2,6 +2,29 @@ import GhidraDecompiler from './ghidra_decompiler.js';
 
 let decompilerModule: any = null;
 
+const byteToHexMap: Uint8Array = new Uint8Array(256 * 2);
+for (let i = 0; i < 256; i++) {
+    const s = i.toString(16).padStart(2, '0');
+    byteToHexMap[i * 2] = s.charCodeAt(0);
+    byteToHexMap[i * 2 + 1] = s.charCodeAt(1);
+}
+
+const hexDecoder = new TextDecoder();
+
+function bytesToHex(bytes: Uint8Array) {
+    const hex = new Uint8Array(bytes.length * 2 + 64);
+    for (let i = 0; i < bytes.length; i++) {
+        const b = bytes[i];
+        hex[i * 2] = byteToHexMap[b * 2];
+        hex[i * 2 + 1] = byteToHexMap[b * 2 + 1];
+    }
+    // Add some padding zeros just in case Ghidra expects it (matched original behavior)
+    for (let i = 0; i < 64; i++) {
+        hex[bytes.length * 2 + i] = 48; // '0'
+    }
+    return hexDecoder.decode(hex);
+}
+
 async function getDecompiler() {
     if (decompilerModule) return decompilerModule;
     console.log('[GhidraWorker] Loading Ghidra Decompiler WASM...');
@@ -32,22 +55,6 @@ self.onmessage = async (e: MessageEvent) => {
             const slaData = new Uint8Array(sla);
             const slaPtr = module._malloc(slaData.length);
             module.HEAPU8.set(slaData, slaPtr);
-
-            const byteToHex: string[] = [];
-            for (let i = 0; i < 256; i++) {
-                byteToHex.push(i.toString(16).padStart(2, '0'));
-            }
-
-            const bytesToHex = (bytes: Uint8Array) => {
-                const hex = new Array(bytes.length + 32);
-                for (let i = 0; i < bytes.length; i++) {
-                    hex[i] = byteToHex[bytes[i]];
-                }
-                for (let i = 0; i < 32; i++) {
-                    hex[bytes.length + i] = '00';
-                }
-                return hex.join('');
-            };
 
             let imageXml = '';
             if (segments && segments.length > 0) {

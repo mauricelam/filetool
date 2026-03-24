@@ -109,16 +109,26 @@ const GhidraApp = () => {
                         for (let i = 0; i < lines.length; i++) {
                             const line = lines[i].trim();
                             if (line.startsWith('LOAD')) {
-                                // Next line contains FileSiz
-                                const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
                                 const parts = line.split(/\s+/);
-                                const nextParts = nextLine.split(/\s+/);
-                                if (parts.length >= 4 && nextParts.length >= 1) {
+                                if (parts.length >= 5) {
+                                    // Format: LOAD offset vaddr paddr filesiz memsiz flags align
                                     extractedSegments.push({
                                         offset: parts[1],
                                         vaddr: parts[2],
-                                        filesiz: nextParts[0]
+                                        filesiz: parts[4]
                                     });
+                                } else if (parts.length >= 4) {
+                                    // Format: LOAD offset vaddr paddr
+                                    // Next line: filesiz memsiz flags align
+                                    const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
+                                    const nextParts = nextLine.split(/\s+/);
+                                    if (nextParts.length >= 2) {
+                                        extractedSegments.push({
+                                            offset: parts[1],
+                                            vaddr: parts[2],
+                                            filesiz: nextParts[0]
+                                        });
+                                    }
                                 }
                             }
                         }
