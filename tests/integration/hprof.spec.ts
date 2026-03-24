@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { runHandlerTest } from './test-utils';
 
 test('HPROF viewer should display file content', async ({ page }) => {
-    const filePath = path.resolve(__dirname, '../fixtures/hprof/test.hprof');
+    const filePath = path.resolve(__dirname, '../../hprof/example/test.hprof');
     const fileContent = fs.readFileSync(filePath);
 
     const iframe = await runHandlerTest(page, {
