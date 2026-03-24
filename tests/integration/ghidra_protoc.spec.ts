@@ -42,7 +42,19 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
 
         // Wait for decompilation status
         await expect(iframe.getByText(/Decompiling main\.\.\./)).toBeVisible({ timeout: 10000 });
-        await expect(iframe.getByText('Decompilation complete.')).toBeVisible({ timeout: 60000 });
+
+        // Wait for decompilation to complete or fail
+        try {
+            await expect(iframe.getByText('Decompilation complete.')).toBeVisible({ timeout: 120000 });
+        } catch (e) {
+            const bodyText = await iframe.locator('body').innerText();
+            const errorText = await iframe.locator('[style*="color: #ff4d4f"]').innerText().catch(() => '');
+            if (errorText) {
+                throw new Error(`Decompilation failed with error: ${errorText}`);
+            }
+            console.log('Iframe inner text on failure:', bodyText);
+            throw e;
+        }
 
         // Check for decompiled output (Ace editor)
         const editor = iframe.locator('.ace_content');

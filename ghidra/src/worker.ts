@@ -33,12 +33,19 @@ self.onmessage = async (e: MessageEvent) => {
             const slaPtr = module._malloc(slaData.length);
             module.HEAPU8.set(slaData, slaPtr);
 
+            const byteToHex: string[] = [];
+            for (let i = 0; i < 256; i++) {
+                byteToHex.push(i.toString(16).padStart(2, '0'));
+            }
+
             const bytesToHex = (bytes: Uint8Array) => {
-                const hex = [];
+                const hex = new Array(bytes.length + 32);
                 for (let i = 0; i < bytes.length; i++) {
-                    hex.push(bytes[i].toString(16).padStart(2, '0'));
+                    hex[i] = byteToHex[bytes[i]];
                 }
-                for (let i = 0; i < 32; i++) hex.push('00');
+                for (let i = 0; i < 32; i++) {
+                    hex[bytes.length + i] = '00';
+                }
                 return hex.join('');
             };
 
