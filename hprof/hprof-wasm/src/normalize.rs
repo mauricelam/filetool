@@ -127,7 +127,7 @@ pub fn normalize_hprof(data: &[u8]) -> Vec<u8> {
             let mut rpos = 0;
             while rpos < record_data.len() {
                 let sub_tag = record_data[rpos];
-                let sub_len: usize;
+                let mut sub_len: usize;
                 let mut just_copy = true;
                 let mut new_sub_tag = sub_tag;
 
