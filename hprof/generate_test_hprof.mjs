@@ -32,23 +32,37 @@ writeU64(chunks, Date.now());
 chunks.push(Buffer.from([0x01]));
 writeU32(chunks, 100);
 writeU32(chunks, 4 + 16);
-writeU32(chunks, 1);
+writeU32(chunks, 10); // name id 10
 chunks.push(Buffer.from("java.lang.Object", 'utf8'));
+
+chunks.push(Buffer.from([0x01]));
+writeU32(chunks, 101);
+writeU32(chunks, 4 + 14);
+writeU32(chunks, 11); // name id 11
+chunks.push(Buffer.from("com.test.Child", 'utf8'));
 
 chunks.push(Buffer.from([0x02]));
 writeU32(chunks, 200);
 writeU32(chunks, 4 + 4 + 4 + 4);
-writeU32(chunks, 1);
-writeU32(chunks, 0x1234);
-writeU32(chunks, 1);
-writeU32(chunks, 1);
+writeU32(chunks, 1); // class serial
+writeU32(chunks, 0x1234); // obj id
+writeU32(chunks, 1); // stack trace
+writeU32(chunks, 10); // name id 10
+
+chunks.push(Buffer.from([0x02]));
+writeU32(chunks, 201);
+writeU32(chunks, 4 + 4 + 4 + 4);
+writeU32(chunks, 2); // class serial
+writeU32(chunks, 0x1235); // obj id
+writeU32(chunks, 1); // stack trace
+writeU32(chunks, 11); // name id 11
 
 const subRecords = [];
 subRecords.push(Buffer.from([0x01]));
 writeU32(subRecords, 0x5678);
 writeU32(subRecords, 0x9012);
 
-subRecords.push(Buffer.from([0x20]));
+subRecords.push(Buffer.from([0x20])); // CLASS DUMP Object
 writeU32(subRecords, 0x1234);
 writeU32(subRecords, 0);
 writeU32(subRecords, 0);
@@ -62,10 +76,24 @@ writeU16(subRecords, 0);
 writeU16(subRecords, 0);
 writeU16(subRecords, 0);
 
+subRecords.push(Buffer.from([0x20])); // CLASS DUMP Child
+writeU32(subRecords, 0x1235);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0x1234); // super is Object
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 24);
+writeU16(subRecords, 0);
+writeU16(subRecords, 0);
+writeU16(subRecords, 0);
+
 subRecords.push(Buffer.from([0x21])); // INSTANCE DUMP
 writeU32(subRecords, 0x5678); // object id
 writeU32(subRecords, 0); // stack trace
-writeU32(subRecords, 0x1234); // class id
+writeU32(subRecords, 0x1235); // class id (Child)
 writeU32(subRecords, 0); // data length
 
 const heapDumpContent = Buffer.concat(subRecords);

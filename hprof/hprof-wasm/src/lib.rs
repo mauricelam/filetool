@@ -153,8 +153,32 @@ impl HprofParser {
         } else { Err(JsValue::from_str("Record is not a heap dump")) }
     }
 
-    pub fn get_heap_dump_records(&self, _index: usize, _offset: usize, _limit: usize) -> Result<JsValue, JsValue> {
-        Ok(serde_wasm_bindgen::to_value(&Vec::<String>::new())?)
+    pub fn get_heap_dump_records(&self, index: usize, offset: usize, limit: usize) -> Result<JsValue, JsValue> {
+        let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
+        let record = hprof.records_iter().nth(index).ok_or("No record")?
+            .map_err(|e| JsValue::from_str(&format!("Error getting record: {:?}", e)))?;
+        let id_size = hprof.header().id_size();
+        let tag = record.tag();
+        if tag == RecordTag::HeapDump || tag == RecordTag::HeapDumpSegment {
+            let segment = record.as_heap_dump_segment().ok_or("Expected heap dump segment")?
+                .map_err(|e| JsValue::from_str(&format!("Error parsing segment: {:?}", e)))?;
+            let mut results = Vec::new();
+            for sub in segment.sub_records().skip(offset).take(limit) {
+                if let Ok(s) = sub {
+                    let desc = match s {
+                        SubRecord::Class(c) => format!("Class ID: {:?}, Super: {:?}, Instance Size: {}", c.obj_id(), c.super_class_obj_id(), c.instance_size_bytes()),
+                        SubRecord::Instance(i) => format!("Instance ID: {:?}, Class ID: {:?}", i.obj_id(), i.class_obj_id()),
+                        SubRecord::ObjectArray(a) => format!("Object Array ID: {:?}, Class ID: {:?}, Length: {}", a.obj_id(), a.array_class_obj_id(), a.elements(id_size).count()),
+                        SubRecord::PrimitiveArray(a) => format!("Primitive Array ID: {:?}", a.obj_id()),
+                        SubRecord::GcRootUnknown(r) => format!("Root Unknown: {:?}", r.obj_id()),
+                        SubRecord::GcRootThreadObj(r) => format!("Root Thread Object: Thread Serial: {}, Stack Depth: {}", r.thread_serial(), r.stack_trace_serial()),
+                        _ => format!("{:?}", s),
+                    };
+                    results.push(desc);
+                }
+            }
+            Ok(serde_wasm_bindgen::to_value(&results)?)
+        } else { Err(JsValue::from_str("Record is not a heap dump")) }
     }
 
     pub fn get_instance_counts(&self) -> Result<JsValue, JsValue> {
@@ -328,6 +352,54 @@ impl HprofParser {
         }
         dot.push_str("}\n");
         Ok(dot)
+    }
+
+    pub fn get_all_instances(&self, limit: usize) -> Result<JsValue, JsValue> {
+        let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
+        let mut utf8_map = HashMap::new();
+        let mut class_id_to_name_id = HashMap::new();
+
+        // Pass 1: Collect UTF-8 strings and class mappings
+        for record in hprof.records_iter() {
+            let record = match record { Ok(r) => r, Err(_) => continue };
+            match record.tag() {
+                RecordTag::Utf8 => if let Some(Ok(u)) = record.as_utf_8() {
+                    if let Ok(s) = u.text_as_str() { utf8_map.insert(u.name_id(), s.to_string()); }
+                },
+                RecordTag::LoadClass => if let Some(Ok(l)) = record.as_load_class() {
+                    class_id_to_name_id.insert(l.class_obj_id(), l.class_name_id());
+                },
+                _ => {}
+            }
+        }
+
+        let mut instances = Vec::new();
+        for record in hprof.records_iter() {
+            let record = match record { Ok(r) => r, Err(_) => continue };
+            if let Some(Ok(seg)) = record.as_heap_dump_segment() {
+                for sub in seg.sub_records() {
+                    if let Ok(sub) = sub {
+                        match sub {
+                            SubRecord::Instance(i) => {
+                                let name = class_id_to_name_id.get(&i.class_obj_id()).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", i.class_obj_id()));
+                                instances.push(format!("ID: {:?}, Class: {}", i.obj_id(), name));
+                            }
+                            SubRecord::ObjectArray(a) => {
+                                let name = class_id_to_name_id.get(&a.array_class_obj_id()).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", a.array_class_obj_id()));
+                                instances.push(format!("Object Array ID: {:?}, Class: {}", a.obj_id(), name));
+                            }
+                            SubRecord::PrimitiveArray(a) => {
+                                instances.push(format!("Primitive Array ID: {:?}", a.obj_id()));
+                            }
+                            _ => {}
+                        }
+                        if instances.len() >= limit { break; }
+                    }
+                }
+            }
+            if instances.len() >= limit { break; }
+        }
+        Ok(serde_wasm_bindgen::to_value(&instances)?)
     }
 }
 

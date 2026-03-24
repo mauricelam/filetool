@@ -157,7 +157,7 @@ const SUB_RECORD_PAGE_SIZE = 50;
 
 function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: string }): ReactElement {
     const [header, setHeader] = useState<HprofHeader | null>(null)
-    const [activeTab, setActiveTab] = useState<'records' | 'instances' | 'graph'>('records')
+    const [activeTab, setActiveTab] = useState<'records' | 'instances' | 'graph' | 'hierarchy' | 'all-instances'>('records')
 
     // Records state
     const [records, setRecords] = useState<RecordInfo[]>([])
@@ -177,6 +177,14 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     // Graph state
     const [dot, setDot] = useState<string | null>(null)
     const [graphLoading, setGraphLoading] = useState(false)
+
+    // Hierarchy state
+    const [hierarchyDot, setHierarchyDot] = useState<string | null>(null)
+    const [hierarchyLoading, setHierarchyLoading] = useState(false)
+
+    // All instances state
+    const [allInstances, setAllInstances] = useState<string[]>([])
+    const [allInstancesLoading, setAllInstancesLoading] = useState(false)
 
     const listRef = useRef<HTMLDivElement>(null);
 
@@ -241,6 +249,38 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         }
     }, [activeTab, dot, parser])
 
+    useEffect(() => {
+        if (activeTab === 'hierarchy' && !hierarchyDot) {
+            setHierarchyLoading(true)
+            setTimeout(() => {
+                try {
+                    const d = parser.get_class_hierarchy()
+                    setHierarchyDot(d)
+                } catch (e) {
+                    console.error("Failed to get class hierarchy", e)
+                } finally {
+                    setHierarchyLoading(false)
+                }
+            }, 0)
+        }
+    }, [activeTab, hierarchyDot, parser])
+
+    useEffect(() => {
+        if (activeTab === 'all-instances' && allInstances.length === 0) {
+            setAllInstancesLoading(true)
+            setTimeout(() => {
+                try {
+                    const instances = parser.get_all_instances(1000)
+                    setAllInstances(instances)
+                } catch (e) {
+                    console.error("Failed to get all instances", e)
+                } finally {
+                    setAllInstancesLoading(false)
+                }
+            }, 0)
+        }
+    }, [activeTab, allInstances.length, parser])
+
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
         try {
@@ -299,6 +339,8 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                     <div style={tabStyle('records')} onClick={() => setActiveTab('records')}>Records</div>
                     <div style={tabStyle('instances')} onClick={() => setActiveTab('instances')}>Instance Counts</div>
                     <div style={tabStyle('graph')} onClick={() => setActiveTab('graph')}>Reference Graph</div>
+                    <div style={tabStyle('hierarchy')} onClick={() => setActiveTab('hierarchy')}>Hierarchy</div>
+                    <div style={tabStyle('all-instances')} onClick={() => setActiveTab('all-instances')}>All Objects</div>
                 </div>
             </div>
 
@@ -469,6 +511,47 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'hierarchy' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between' }}>
+                            <h3 style={{ margin: 0 }}>Class Hierarchy</h3>
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                            {hierarchyLoading ? (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building hierarchy...</div>
+                            ) : hierarchyDot ? (
+                                <GraphvizView dot={hierarchyDot} />
+                            ) : (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate hierarchy.</div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'all-instances' && (
+                    <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+                        <h3>All Objects (Limit 1000)</h3>
+                        {allInstancesLoading ? (
+                            <div style={{ padding: '20px', color: '#666' }}>Extracting objects...</div>
+                        ) : (
+                            <div style={{ border: '1px solid #ddd', borderRadius: '4px' }}>
+                                {allInstances.map((instance, idx) => (
+                                    <pre key={idx} style={{
+                                        fontSize: '0.85em',
+                                        background: idx % 2 === 0 ? '#fff' : '#fcfcfc',
+                                        padding: '12px',
+                                        borderBottom: idx === allInstances.length - 1 ? 'none' : '1px solid #eee',
+                                        margin: 0,
+                                        whiteSpace: 'pre-wrap',
+                                        fontFamily: 'monospace'
+                                    }}>{instance}</pre>
+                                ))}
+                                {allInstances.length === 0 && <div style={{ padding: '20px', color: '#999' }}>No instances found.</div>}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
