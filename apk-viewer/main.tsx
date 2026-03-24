@@ -79,8 +79,8 @@ function App() {
     });
 
     useEffect(() => {
-        console.log('App: Initializing worker...');
-        const worker = new Worker(new URL('worker.ts', import.meta.url), { type: 'module' });
+        console.log('App: Initializing worker from URL:', new URL('worker.js', import.meta.url).href);
+        const worker = new Worker('worker.js', { type: 'module' });
         workerRef.current = worker;
 
         worker.onerror = (e) => {

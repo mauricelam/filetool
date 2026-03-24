@@ -15,7 +15,6 @@ use zip::read::ZipArchive;
 use crate::{
     decoder::BufferedDecoder,
     model::{Element, Library as LibraryTrait},
-    visitor::XmlVisitor,
 };
 
 #[derive(Debug)]
