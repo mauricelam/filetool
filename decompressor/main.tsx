@@ -10,6 +10,16 @@ const formatSize = (bytes: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+const getDecompressedFileName = (originalName: string): string => {
+    const extensions = ['.gz', '.br', '.lzma', '.xz', '.zlib', '.zz', '.bz2', '.lzfse'];
+    for (const ext of extensions) {
+        if (originalName.toLowerCase().endsWith(ext)) {
+            return originalName.slice(0, -ext.length);
+        }
+    }
+    return `${originalName}.decoded`;
+};
+
 const DecompressorViewer: React.FC = () => {
     const [file, setFile] = useState<File | null>(null);
     const [decompressedFile, setDecompressedFile] = useState<File | null>(null);
@@ -38,7 +48,7 @@ const DecompressorViewer: React.FC = () => {
                     setStatus('');
 
                     setDecompressedFile(prev => {
-                        const fileName = file?.name ? `${file.name}.decoded` : 'decompressed.bin';
+                        const fileName = file?.name ? getDecompressedFileName(file.name) : 'decompressed.bin';
                         const decodedFile = new File([data], fileName);
 
                         // Async handler detection

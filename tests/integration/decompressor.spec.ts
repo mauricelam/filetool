@@ -48,4 +48,42 @@ test.describe('Decompressor Handler', () => {
             await expect(iframe.getByText('savings', { exact: false })).toBeVisible();
         });
     }
+
+    test('should decompress a .tar.gz file and name it .tar', async ({ page }) => {
+        const filePath = path.join(__dirname, '../../decompressor/example/test.gz');
+        const fileBuffer = fs.readFileSync(filePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'decompressor',
+            file: {
+                content: Uint8Array.from(fileBuffer),
+                name: 'test.tar.gz',
+                type: 'application/octet-stream'
+            },
+        });
+
+        // Wait for decompression to complete by checking for the format chip
+        await expect(iframe.getByText('GZIP', { exact: true })).toBeVisible({ timeout: 10000 });
+
+        // Verify the filename in the UI is test.tar
+        await expect(iframe.getByText('test.tar', { exact: true })).toBeVisible();
+    });
+
+    test('should fallback to .decoded if extension is unknown', async ({ page }) => {
+        const filePath = path.join(__dirname, '../../decompressor/example/test.gz');
+        const fileBuffer = fs.readFileSync(filePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'decompressor',
+            file: {
+                content: Uint8Array.from(fileBuffer),
+                name: 'test.unknown',
+                type: 'application/octet-stream'
+            },
+        });
+
+        // Wait for decompression to complete
+        await expect(iframe.getByText('GZIP', { exact: true })).toBeVisible({ timeout: 10000 });
+
+        // Verify the filename in the UI is test.unknown.decoded
+        await expect(iframe.getByText('test.unknown.decoded', { exact: true })).toBeVisible();
+    });
 });
