@@ -287,6 +287,8 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         try {
             setRecordDetail(parser.get_record_detail(index))
             setHeapDumpOffset(0)
+            setHeapDumpSummary([])
+            setHeapDumpRecords([])
             const summary = parser.get_heap_dump_summary(index)
             setHeapDumpSummary(summary)
             const subRecords = parser.get_heap_dump_records(index, 0, SUB_RECORD_PAGE_SIZE)
