@@ -1,3 +1,28 @@
+//! HPROF Normalization Module
+//!
+//! This module provides functionality to normalize Android-specific HPROF files (version 1.0.3)
+//! into standard JVM HPROF files (version 1.0.2).
+//!
+//! ### Why this exists
+//! Android's ART virtual machine generates HPROF files with a "JAVA PROFILE 1.0.3" header.
+//! These files contain several non-standard "heap dump" sub-record tags that are not
+//! recognized by standard HPROF parsers (like `jvm-hprof`, `jhat`, or `MAT`).
+//!
+//! Specifically, Android adds:
+//! - `0xFE` (HEAP_DUMP_INFO): Metadata about which heap (zygote, app, image) subsequent records belong to.
+//! - `0x89`..`0x8F`, `0x90`: Various Android-specific root tags (Interned String, Finalizing, etc.).
+//! - `0xC3`: A variant of primitive array dump that includes the count and type but no data.
+//!
+//! By normalizing these files to 1.0.2, we allow standard tools to parse the heap dump
+//! while stripping out information that they wouldn't know how to display anyway.
+//!
+//! ### Implementation Source
+//! This logic is ported from the Android Open Source Project (AOSP) `hprof-conv` utility.
+//! Source: https://cs.android.com/android/platform/superproject/main/+/main:dalvik/tools/hprof-conv/HprofConv.c
+//!
+//! Copyright (C) 2009 The Android Open Source Project
+//! Licensed under the Apache License, Version 2.0.
+
 use std::convert::TryInto;
 
 fn get_u16(data: &[u8], pos: usize) -> u16 {
@@ -107,6 +132,7 @@ pub fn normalize_hprof(data: &[u8]) -> Vec<u8> {
                 let mut new_sub_tag = sub_tag;
 
                 match sub_tag {
+                    // Standard 1.0.2 tags
                     0xFF => sub_len = id_size,
                     0x01 => sub_len = id_size * 2,
                     0x02 => sub_len = id_size + 8,
@@ -146,38 +172,48 @@ pub fn normalize_hprof(data: &[u8]) -> Vec<u8> {
                         let basic_len = compute_basic_len(basic_tag, id_size).unwrap_or(0);
                         sub_len = id_size + 9 + count * basic_len;
                     }
+
+                    // Android 1.0.3 extensions
                     0xFE => {
                         // HEAP_DUMP_INFO
                         just_copy = false;
                         sub_len = id_size + 4;
                     }
-                    0x89 | 0x8A | 0x8B | 0x8C | 0x8D | 0x90 => {
+                    0x89 | 0x8A | 0x8B | 0x8C | 0x8D | 0x8E | 0x8F | 0x90 => {
                         new_sub_tag = 0xFF; // ROOT_UNKNOWN
                         sub_len = id_size;
-                    }
-                    0x8E => {
-                        // ROOT_JNI_MONITOR
-                        new_sub_tag = 0xFF;
-                        just_copy = false;
-                        normalized_record.push(0xFF);
-                        normalized_record
-                            .extend_from_slice(&record_data[rpos + 1..(rpos + 1 + id_size).min(record_data.len())]);
-                        sub_len = id_size + 8;
+                        if sub_tag == 0x8E {
+                            sub_len = id_size + 8;
+                        }
                     }
                     0xC3 => {
                         // PRIMITIVE_ARRAY_NODATA_DUMP
+                        // Convert to standard PRIMITIVE_ARRAY_DUMP (0x23) with count 0.
                         new_sub_tag = 0x23;
                         just_copy = false;
                         normalized_record.push(0x23);
-                        normalized_record
-                            .extend_from_slice(&record_data[rpos + 1..(rpos + 1 + id_size + 4).min(record_data.len())]); // id + stack
-                        normalized_record.extend_from_slice(&[0, 0, 0, 0]); // count = 0
-                        if rpos + 1 + id_size + 4 + 4 < record_data.len() {
-                            normalized_record.push(record_data[rpos + 1 + id_size + 4 + 4]); // basic type
+                        // Copy ID and Stack Trace
+                        let id_and_stack_end = rpos + 1 + id_size + 4;
+                        if id_and_stack_end + 5 <= record_data.len() {
+                            normalized_record.extend_from_slice(&record_data[rpos + 1..id_and_stack_end]);
+                            // Count (set to 0)
+                            normalized_record.extend_from_slice(&[0, 0, 0, 0]);
+                            // Type (is at id_and_stack_end + 4 in 1.0.3)
+                            normalized_record.push(record_data[id_and_stack_end + 4]);
                         }
                         sub_len = id_size + 9;
                     }
-                    _ => break,
+                    _ => {
+                        web_sys::console::log_1(
+                            &format!(
+                                "Unknown HPROF sub-tag 0x{:02X} at offset {}",
+                                sub_tag,
+                                pos + 9 + rpos
+                            )
+                            .into(),
+                        );
+                        break;
+                    }
                 }
 
                 if just_copy {
@@ -244,7 +280,8 @@ mod tests {
         record.push(0xC3);
         record.extend_from_slice(&[0x12, 0x34, 0x56, 0x78]); // obj id
         record.extend_from_slice(&[0, 0, 0, 0]); // stack trace
-        record.push(10); // int
+        record.extend_from_slice(&[0, 0, 0, 88]); // count in 1.0.3
+        record.push(10); // int type
 
         data.push(tag);
         data.extend_from_slice(&ts.to_be_bytes());
@@ -268,8 +305,6 @@ mod tests {
         assert_eq!(normalized_record[5], 0x23);
         assert_eq!(&normalized_record[6..10], &[0x12, 0x34, 0x56, 0x78]);
         assert_eq!(&normalized_record[14..18], &[0, 0, 0, 0]); // count 0
-        if normalized_record.len() > 18 {
-            assert_eq!(normalized_record[18], 10); // int type
-        }
+        assert_eq!(normalized_record[18], 10); // type int
     }
 }

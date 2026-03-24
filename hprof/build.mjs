@@ -25,6 +25,10 @@ await esbuild.build({
                 {
                     from: './index.html',
                     to: 'index.html'
+                },
+                {
+                    from: './test.hprof',
+                    to: 'test.hprof'
                 }
             ]
         })

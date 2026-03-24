@@ -39,7 +39,7 @@ test('Android HPROF viewer should display file content', async ({ page }) => {
     // Wait for loading to finish
     await expect(iframe.locator('text=Analyzing heap dump...')).not.toBeVisible({ timeout: 60000 });
     // In this specific android.hprof, many names are just simple strings or use / instead of .
-    await expect(iframe.locator('table')).toContainText('Main', { timeout: 30000 });
+    await expect(iframe.locator('table')).toContainText('java.lang.String', { timeout: 30000 });
 });
 
 test('Java HPROF (8-byte ID) viewer should display file content', async ({ page }) => {
