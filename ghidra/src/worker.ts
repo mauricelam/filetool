@@ -76,7 +76,7 @@ self.onmessage = async (e: MessageEvent) => {
                     const vaddr = seg.vaddr;
                     const filesiz = parseInt(seg.filesiz, 16);
                     if (filesiz > 0) {
-                        const chunkData = data.slice(offset, offset + filesiz);
+                        const chunkData = data.subarray(offset, offset + filesiz);
                         imageXmlParts.push(`<bytechunk space="ram" offset="${vaddr}">\n${bytesToHex(chunkData)}\n</bytechunk>\n`);
                     }
                 }
@@ -85,15 +85,32 @@ self.onmessage = async (e: MessageEvent) => {
             }
 
             if (symbols && symbols.length > 0) {
+                // Limit to 1000 symbols to avoid huge XML and potential crash, but prioritize 'main'
+                const limit = 1000;
+                let count = 0;
+                const seenAddresses = new Set<string>();
+
+                // Prioritize the target function and ensure it's included
+                const targetSym = symbols.find(s => s.name === funcName && s.address !== '?');
+                if (targetSym) {
+                    imageXmlParts.push(`<symbol space="ram" offset="${targetSym.address}" name="${escapeXml(targetSym.name)}"/>\n`);
+                    seenAddresses.add(targetSym.address);
+                    count++;
+                }
+
                 for (const sym of symbols) {
-                    if (sym.address !== '?') {
+                    if (count >= limit) break;
+                    if (sym.address !== '?' && !seenAddresses.has(sym.address)) {
                         imageXmlParts.push(`<symbol space="ram" offset="${sym.address}" name="${escapeXml(sym.name)}"/>\n`);
+                        seenAddresses.add(sym.address);
+                        count++;
                     }
                 }
             }
 
             imageXmlParts.push(`</binaryimage>`);
             const imageXml = imageXmlParts.join('');
+            console.log(`[GhidraWorker] Image XML size: ${imageXml.length} characters`);
 
             console.log(`[GhidraWorker] Decompiling ${funcName}...`);
             const resultPtr = module.ccall(

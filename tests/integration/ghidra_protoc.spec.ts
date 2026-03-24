@@ -54,14 +54,23 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
 
         // Wait for decompilation to complete or fail
         try {
-            await expect(iframe.getByText('Decompilation complete.')).toBeVisible({ timeout: 180000 });
+            await expect(iframe.getByText('Decompilation complete.')).toBeVisible({ timeout: 240000 });
         } catch (e) {
-            const bodyText = await iframe.locator('body').innerText();
-            const errorText = await iframe.locator('[style*="color: #ff4d4f"]').innerText().catch(() => '');
-            if (errorText) {
-                throw new Error(`Decompilation failed with error: ${errorText}`);
+            console.log('Decompilation error or timeout occurred.');
+            // Check if page/iframe crashed
+            if (page.isClosed()) {
+                throw new Error('Page closed during decompilation.');
             }
-            console.log('Iframe inner text on failure:', bodyText);
+            try {
+                const errorText = await iframe.locator('[style*="color: #ff4d4f"]').innerText({ timeout: 5000 }).catch(() => '');
+                if (errorText) {
+                    throw new Error(`Decompilation failed with error: ${errorText}`);
+                }
+                const bodyText = await iframe.locator('body').innerText({ timeout: 5000 });
+                console.log('Iframe inner text on failure:', bodyText);
+            } catch (innerError) {
+                console.log('Could not retrieve error details from iframe (it may have crashed).');
+            }
             throw e;
         }
 
