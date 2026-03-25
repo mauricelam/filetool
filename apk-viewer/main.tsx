@@ -189,7 +189,9 @@ function App() {
     }, []);
 
     const handleItemClick = (level: number, key: string, content: any) => {
-        const fullPath = selectedFilePath ? [...selectedFilePath.slice(0, level), key].join('/') : key;
+        const nextPath = [...(selectedFilePath || []).slice(0, level), key];
+        setSelectedFilePath(nextPath);
+        const fullPath = nextPath.join('/');
 
         if (key.endsWith('.arsc')) {
             if (content instanceof Uint8Array) {
@@ -245,14 +247,12 @@ function App() {
 
     if (loading && view === 'file' && !metadata) {
         return (
-            <MantineProvider>
-                <Center style={{ height: '100%' }}>
-                    <Stack align="center">
-                        <Loader size="xl" />
-                        <Text>Loading APK...</Text>
-                    </Stack>
-                </Center>
-            </MantineProvider>
+            <Center style={{ height: '100%' }}>
+                <Stack align="center">
+                    <Loader size="xl" />
+                    <Text>Loading APK...</Text>
+                </Stack>
+            </Center>
         );
     }
 
@@ -330,7 +330,7 @@ function App() {
     }
 
     return (
-        <MantineProvider>
+        <>
             {content}
             {loading && (
                 <div style={{
@@ -348,7 +348,7 @@ function App() {
                     <Loader size="xl" />
                 </div>
             )}
-        </MantineProvider>
+        </>
     );
 }
 
@@ -1011,4 +1011,8 @@ function MetadataViewer({ metadata, onBack }: { metadata: ApkMetadata | null, on
 }
 
 // Initial render
-OUTPUT.render(<App />);
+OUTPUT.render(
+    <MantineProvider>
+        <App />
+    </MantineProvider>
+);
