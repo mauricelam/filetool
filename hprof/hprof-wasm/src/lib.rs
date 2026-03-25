@@ -59,6 +59,7 @@ pub struct HierarchyNode {
 pub struct HierarchyLink {
     pub source: String,
     pub target: String,
+    pub count: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -587,10 +588,163 @@ impl HprofParser {
             let cname = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", cid_str));
             let sname = class_id_to_name_id.get(&sid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", sid_str));
 
-            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname });
-            nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname });
+            if cname == "java.lang.Object" {
+                continue;
+            }
 
-            links.push(HierarchyLink { source: cid_str, target: sid_str });
+            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname });
+
+            if sname != "java.lang.Object" {
+                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname });
+                links.push(HierarchyLink { source: cid_str, target: sid_str, count: None });
+            }
+        }
+
+        let data = HierarchyData {
+            nodes: nodes.into_values().collect(),
+            links,
+        };
+
+        Ok(serde_wasm_bindgen::to_value(&data)?)
+    }
+
+    pub fn get_class_reference_graph_json(&self, min_edge_count: usize) -> Result<JsValue, JsValue> {
+        let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
+        let mut utf8_map = HashMap::new();
+        let mut class_id_to_name_id = HashMap::new();
+        let mut obj_id_to_class_id = HashMap::new();
+        let mut class_total_sizes: HashMap<Id, usize> = HashMap::new();
+
+        let mut class_id_to_super_id = HashMap::new();
+        let mut class_id_to_instance_size = HashMap::new();
+        let mut all_class_fields = HashMap::new();
+
+        let id_size = hprof.header().id_size();
+        let id_bytes = match id_size { IdSize::U32 => 4, IdSize::U64 => 8 };
+
+        for record in hprof.records_iter() {
+            let record = match record { Ok(r) => r, Err(_) => continue };
+            match record.tag() {
+                RecordTag::Utf8 => if let Some(Ok(u)) = record.as_utf_8() {
+                    if let Ok(s) = u.text_as_str() { utf8_map.insert(u.name_id(), s.to_string()); }
+                },
+                RecordTag::LoadClass => if let Some(Ok(l)) = record.as_load_class() {
+                    class_id_to_name_id.insert(l.class_obj_id(), l.class_name_id());
+                },
+                RecordTag::HeapDump | RecordTag::HeapDumpSegment => if let Some(Ok(seg)) = record.as_heap_dump_segment() {
+                    for sub in seg.sub_records() {
+                        if let Ok(s) = sub {
+                            match s {
+                                jvm_hprof::heap_dump::SubRecord::Class(c) => {
+                                    let cid = c.obj_id();
+                                    class_total_sizes.entry(cid).or_insert(0);
+                                    class_id_to_instance_size.insert(cid, c.instance_size_bytes());
+                                    if let Some(sid) = c.super_class_obj_id() {
+                                        class_id_to_super_id.insert(cid, sid);
+                                    }
+
+                                    let mut field_types = Vec::new();
+                                    for ifd in c.instance_field_descriptors() {
+                                        if let Ok(ifd) = ifd {
+                                            field_types.push(ifd.field_type());
+                                        }
+                                    }
+                                    all_class_fields.insert(cid, field_types);
+                                }
+                                jvm_hprof::heap_dump::SubRecord::Instance(i) => { obj_id_to_class_id.insert(i.obj_id(), i.class_obj_id()); }
+                                jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => { obj_id_to_class_id.insert(a.obj_id(), a.array_class_obj_id()); }
+                                _ => {}
+                            }
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+
+        let mut class_refs: HashMap<(Id, Id), usize> = HashMap::new();
+        for record in hprof.records_iter() {
+            let record = match record { Ok(r) => r, Err(_) => continue };
+            if let Some(Ok(seg)) = record.as_heap_dump_segment() {
+                for sub in seg.sub_records() {
+                    if let Ok(s) = sub {
+                        match s {
+                            jvm_hprof::heap_dump::SubRecord::Instance(i) => {
+                                let scid = i.class_obj_id();
+                                let isize = class_id_to_instance_size.get(&scid).cloned().unwrap_or(0);
+                                *class_total_sizes.entry(scid).or_insert(0) += isize as usize;
+                                *class_total_sizes.entry(i.obj_id()).or_insert(0) += 0; // ensure class exists
+
+                                // Record references from this instance's fields
+                                let mut hierarchy = Vec::new();
+                                let mut curr = Some(scid);
+                                while let Some(cid) = curr {
+                                    hierarchy.push(cid);
+                                    curr = class_id_to_super_id.get(&cid).cloned();
+                                }
+                                hierarchy.reverse();
+                                let mut data_offset = 0;
+                                let data = i.fields();
+                                for cid in hierarchy {
+                                    if let Some(fields) = all_class_fields.get(&cid) {
+                                        for &ftype in fields {
+                                            if matches!(ftype, FieldType::ObjectId) {
+                                                if data_offset + id_bytes <= data.len() {
+                                                    let ref_id_val = match id_size {
+                                                        IdSize::U32 => u32::from_be_bytes(data[data_offset..data_offset+4].try_into().unwrap()) as u64,
+                                                        IdSize::U64 => u64::from_be_bytes(data[data_offset..data_offset+8].try_into().unwrap()),
+                                                    };
+                                                    if ref_id_val != 0 {
+                                                        let ref_id = Id::from(ref_id_val);
+                                                        if let Some(&tcid) = obj_id_to_class_id.get(&ref_id) {
+                                                            *class_refs.entry((scid, tcid)).or_insert(0) += 1;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            data_offset += field_size(ftype, id_bytes);
+                                        }
+                                    }
+                                }
+                            }
+                            jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => {
+                                let scid = a.array_class_obj_id();
+                                let size = a.elements(id_size).count() * id_bytes;
+                                *class_total_sizes.entry(scid).or_insert(0) += size;
+                                for elem in a.elements(id_size) {
+                                    if let Ok(Some(tid)) = elem {
+                                        if let Some(&tcid) = obj_id_to_class_id.get(&tid) {
+                                            *class_refs.entry((scid, tcid)).or_insert(0) += 1;
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut nodes = HashMap::new();
+        let mut links = Vec::new();
+        let max_s = *class_total_sizes.values().max().unwrap_or(&1) as f64;
+
+        for (&cid, &size) in &class_total_sizes {
+            let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", cid));
+            if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
+
+            let cid_str = format!("{:?}", cid);
+            nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name });
+        }
+
+        for (&(src, tgt), &count) in &class_refs {
+            if count < min_edge_count { continue; }
+            let src_str = format!("{:?}", src);
+            let tgt_str = format!("{:?}", tgt);
+            if nodes.contains_key(&src_str) && nodes.contains_key(&tgt_str) {
+                links.push(HierarchyLink { source: src_str, target: tgt_str, count: Some(count) });
+            }
         }
 
         let data = HierarchyData {

@@ -12,6 +12,7 @@ interface HierarchyNode extends d3.SimulationNodeDatum {
 interface HierarchyLink extends d3.SimulationLinkDatum<HierarchyNode> {
     source: string | HierarchyNode;
     target: string | HierarchyNode;
+    count?: number;
 }
 
 interface HierarchyData {
@@ -110,8 +111,12 @@ function App() {
     return <HprofViewer parser={parser} fileName={fileName} />
 }
 
-function HierarchyForceGraph({ data }: { data: HierarchyData }) {
+function ForceGraph({ data }: { data: HierarchyData }) {
     const svgRef = useRef<SVGSVGElement>(null);
+
+    const maxCount = useMemo(() => {
+        return Math.max(...data.links.map(l => l.count || 0), 1);
+    }, [data.links]);
 
     useEffect(() => {
         if (!svgRef.current || !data.nodes.length) return;
@@ -133,8 +138,8 @@ function HierarchyForceGraph({ data }: { data: HierarchyData }) {
         svg.call(zoom);
 
         const simulation = d3.forceSimulation<HierarchyNode>(data.nodes)
-            .force("link", d3.forceLink<HierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(100))
-            .force("charge", d3.forceManyBody().strength(-300))
+            .force("link", d3.forceLink<HierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-500))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("x", d3.forceX(width / 2).strength(0.1))
             .force("y", d3.forceY(height / 2).strength(0.1));
@@ -145,7 +150,7 @@ function HierarchyForceGraph({ data }: { data: HierarchyData }) {
             .selectAll("line")
             .data(data.links)
             .join("line")
-            .attr("stroke-width", 2);
+            .attr("stroke-width", d => 1 + (d.count ? (d.count / maxCount * 8) : 1));
 
         const node = container.append("g")
             .selectAll("g")
@@ -417,6 +422,8 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [graphLoading, setGraphLoading] = useState(false)
     const [minEdgeCount, setMinEdgeCount] = useState(0)
     const [weightsInitialized, setWeightsInitialized] = useState(false)
+    const [graphMode, setGraphMode] = useState<'static' | 'force'>('static')
+    const [forceGraphData, setForceGraphData] = useState<HierarchyData | null>(null)
 
     // Hierarchy state
     const [hierarchyData, setHierarchyData] = useState<HierarchyData | null>(null)
@@ -495,8 +502,13 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
             setGraphLoading(true)
             setTimeout(() => {
                 try {
-                    const d = parser.get_class_reference_graph(minEdgeCount)
-                    setDot(d)
+                    if (graphMode === 'static') {
+                        const d = parser.get_class_reference_graph(minEdgeCount)
+                        setDot(d)
+                    } else {
+                        const d = (parser as any).get_class_reference_graph_json(minEdgeCount)
+                        setForceGraphData(d)
+                    }
                 } catch (e) {
                     console.error("Failed to get reference graph", e)
                 } finally {
@@ -504,7 +516,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 }
             }, 0)
         }
-    }, [activeTab, minEdgeCount, parser])
+    }, [activeTab, minEdgeCount, graphMode, parser])
 
     useEffect(() => {
         if (activeTab === 'hierarchy' && !hierarchyData) {
@@ -737,6 +749,17 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                             <h3 style={{ margin: 0 }}>Reference Graph</h3>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                                 <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                    Mode:
+                                    <select
+                                        value={graphMode}
+                                        onChange={(e) => setGraphMode(e.target.value as any)}
+                                        style={{ marginLeft: '5px', padding: '2px 5px' }}
+                                    >
+                                        <option value="static">Static</option>
+                                        <option value="force">Force</option>
+                                    </select>
+                                </div>
+                                <div style={{ fontSize: '0.85em', color: '#666' }}>
                                     Min Edge Count:
                                     <input
                                         type="number"
@@ -751,11 +774,11 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                             {graphLoading ? (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building graph structure...</div>
-                            ) : dot ? (
-                                <GraphvizView dot={dot} />
+                            ) : (graphMode === 'static' ? (
+                                dot ? <GraphvizView dot={dot} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
                             ) : (
-                                <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
-                            )}
+                                forceGraphData ? <ForceGraph data={forceGraphData} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
+                            ))}
                         </div>
                     </div>
                 )}
@@ -764,12 +787,13 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                         <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between' }}>
                             <h3 style={{ margin: 0 }}>Class Hierarchy</h3>
+                            <div style={{ fontSize: '0.85em', color: '#888' }}>Skipping java.lang.Object</div>
                         </div>
                         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                             {hierarchyLoading ? (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building hierarchy...</div>
                             ) : hierarchyData ? (
-                                <HierarchyForceGraph data={hierarchyData} />
+                                <ForceGraph data={hierarchyData} />
                             ) : (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate hierarchy.</div>
                             )}
