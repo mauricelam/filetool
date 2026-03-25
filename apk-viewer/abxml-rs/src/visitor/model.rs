@@ -315,9 +315,7 @@ impl<'a> LibraryBuilder<'a> for Library<'a> {
     }
 
     fn add_entries(&mut self, entries: Entries) {
-        for (id, new_values) in entries {
-            self.entries.entry(id).or_default().extend(new_values);
-        }
+        self.entries.extend(entries);
     }
 
     fn add_type_spec(&mut self, type_spec: Self::TypeSpec) -> Result<(), Error> {

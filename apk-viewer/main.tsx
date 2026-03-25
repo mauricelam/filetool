@@ -665,42 +665,29 @@ function ResourceValues({ resource, onNavigateToFile, onNavigateToResource }: {
     const defaultValue = resource.values.find(v => v.config === 'default') || resource.values[0];
     const otherValues = resource.values.filter(v => v !== defaultValue);
 
-    const showAll = resource.values.length <= 5;
-
     return (
         <Stack gap={4}>
             <Box>
-                {resource.values.length > 1 && <Text size="xs" c="dimmed" fw={700}>{defaultValue.config}:</Text>}
+                {resource.values.length > 1 && <Text size="xs" c="dimmed" fw={700}>default:</Text>}
                 <ArscConfigValueRenderer configValue={defaultValue} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
             </Box>
 
             {otherValues.length > 0 && (
-                showAll ? (
-                    <Stack gap={8} mt={4}>
-                        {otherValues.map((cv, i) => (
-                            <Box key={i} pl="md" style={{ borderLeft: '2px solid #eee' }}>
-                                <Text size="xs" c="dimmed" fw={700}>{cv.config}:</Text>
-                                <ArscConfigValueRenderer configValue={cv} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
-                            </Box>
-                        ))}
-                    </Stack>
-                ) : (
-                    <>
-                        <Button variant="subtle" size="compact-xs" onClick={toggle} style={{ width: 'fit-content' }}>
-                            {opened ? 'Hide' : `Show ${otherValues.length} more configurations`}
-                        </Button>
-                        <Collapse in={opened}>
-                            <Stack gap={8} mt={4}>
-                                {otherValues.map((cv, i) => (
-                                    <Box key={i} pl="md" style={{ borderLeft: '2px solid #eee' }}>
-                                        <Text size="xs" c="dimmed" fw={700}>{cv.config}:</Text>
-                                        <ArscConfigValueRenderer configValue={cv} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
-                                    </Box>
-                                ))}
-                            </Stack>
-                        </Collapse>
-                    </>
-                )
+                <>
+                    <Button variant="subtle" size="compact-xs" onClick={toggle} style={{ width: 'fit-content' }}>
+                        {opened ? 'Hide' : `Show ${otherValues.length} more configurations`}
+                    </Button>
+                    <Collapse in={opened}>
+                        <Stack gap={8} mt={4}>
+                            {otherValues.map((cv, i) => (
+                                <Box key={i} pl="md" style={{ borderLeft: '2px solid #eee' }}>
+                                    <Text size="xs" c="dimmed" fw={700}>{cv.config}:</Text>
+                                    <ArscConfigValueRenderer configValue={cv} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
+                                </Box>
+                            ))}
+                        </Stack>
+                    </Collapse>
+                </>
             )}
         </Stack>
     );
@@ -711,27 +698,17 @@ function ArscConfigValueRenderer({ configValue, onNavigateToFile, onNavigateToRe
     onNavigateToFile: (path: string) => void,
     onNavigateToResource: (resId: number) => void
 }) {
-    const [opened, { toggle }] = useDisclosure(false);
-    const entries = configValue.entries || [];
-    const tooManyEntries = entries.length > 10;
-    const displayedEntries = tooManyEntries && !opened ? entries.slice(0, 5) : entries;
-
     return (
         <Stack gap={4}>
             <ArscValueRenderer value={configValue.value} onNavigateToFile={() => onNavigateToFile(configValue.value.value)} onNavigateToResource={onNavigateToResource} />
-            {entries.length > 0 && (
+            {configValue.entries && (
                 <Box pl="md" style={{ borderLeft: '2px solid #eee' }}>
-                    {displayedEntries.map(([key, val], i) => (
+                    {configValue.entries.map(([key, val], i) => (
                         <Group key={i} gap="xs" wrap="nowrap">
                             <Text size="xs" fw={700} style={{ whiteSpace: 'nowrap' }}>{key}:</Text>
                             <ArscValueRenderer value={val} onNavigateToFile={onNavigateToFile} onNavigateToResource={onNavigateToResource} />
                         </Group>
                     ))}
-                    {tooManyEntries && (
-                        <Button variant="subtle" size="compact-xs" onClick={toggle} mt={4}>
-                            {opened ? 'Show less' : `Show ${entries.length - 5} more entries`}
-                        </Button>
-                    )}
                 </Box>
             )}
         </Stack>

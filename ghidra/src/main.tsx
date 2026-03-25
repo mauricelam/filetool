@@ -177,6 +177,20 @@ const GhidraApp = () => {
                 fetch(proc.compilers[0].spec).then(r => { if (!r.ok) throw new Error(`Failed to fetch ${proc.compilers[0].spec}`); return r.text(); }),
             ]);
 
+            const targetSym = symbols.find(s => s.name === funcName && s.address !== '?');
+            let optimizedSymbols = symbols;
+            if (targetSym) {
+                const targetAddr = parseInt(targetSym.address, 16);
+                // Pre-filter symbols to only pass those within a 2MB range to the worker
+                // This reduces the message payload size significantly.
+                optimizedSymbols = symbols.filter(s => {
+                    if (s.address === '?' || s.name === funcName) return true;
+                    const addr = parseInt(s.address, 16);
+                    return addr >= targetAddr - 1048576 && addr <= targetAddr + 1048576;
+                });
+                console.log(`[GhidraUI] Pre-filtered symbols for worker: ${optimizedSymbols.length} / ${symbols.length}`);
+            }
+
             const buffer = await fileRef.current.arrayBuffer();
             worker.postMessage({
                 action: 'decompile',
@@ -188,7 +202,7 @@ const GhidraApp = () => {
                 pspec,
                 cspec,
                 segments,
-                symbols,
+                symbols: optimizedSymbols,
                 baseAddr: '0x0'
             }, [buffer, sla]);
         } catch (err: any) {
