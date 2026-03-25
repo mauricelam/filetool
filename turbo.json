@@ -7,8 +7,7 @@
             ],
             "outputs": [
                 "dist/**",
-                "build/**",
-                "../dist/**"
+                "build/**"
             ],
             "inputs": [
                 "$TURBO_DEFAULT$",
