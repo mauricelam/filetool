@@ -36,6 +36,7 @@ export function App() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [files, setFiles] = useState<AppFile[]>([]);
     const [groups, setGroups] = useState<AppGroup[]>([]);
+    const [sidebarOrder, setSidebarOrder] = useState<string[]>([]);
     const [pastedText, setPastedText] = useState<string | null>(null);
 
     const generateId = () => crypto.randomUUID();
@@ -78,6 +79,7 @@ export function App() {
             parentId: null
         }));
         setFiles(cur => [...cur, ...newAppFiles]);
+        setSidebarOrder(cur => [...cur, ...newAppFiles.map(f => f.id)]);
         if (newAppFiles.length > 0) {
             setSelectedId(newAppFiles[newAppFiles.length - 1].id);
         }
@@ -85,10 +87,20 @@ export function App() {
 
     const removeFile = (id: string) => {
         setFiles(cur => cur.filter(f => f.id !== id));
-        setGroups(cur => cur.map(g => ({
-            ...g,
-            fileIds: g.fileIds.filter(fid => fid !== id)
-        })).filter(g => g.fileIds.length > 0));
+        setGroups(cur => {
+            const newGroups = cur.map(g => ({
+                ...g,
+                fileIds: g.fileIds.filter(fid => fid !== id)
+            })).filter(g => g.fileIds.length > 0);
+
+            // If a group was removed because it became empty, remove it from sidebarOrder
+            const removedGroupIds = cur.filter(g => !newGroups.some(ng => ng.id === g.id)).map(g => g.id);
+            if (removedGroupIds.length > 0) {
+                setSidebarOrder(order => order.filter(oid => !removedGroupIds.includes(oid)));
+            }
+            return newGroups;
+        });
+        setSidebarOrder(cur => cur.filter(f => f !== id));
 
         if (selectedId === id) {
             setSelectedId(null);
@@ -99,12 +111,55 @@ export function App() {
         setGroups(cur => cur.map(g => g.id === id ? { ...g, isExpanded: !g.isExpanded } : g));
     };
 
+    const handleUpdateFileParent = (fileId: string, parentId: string | null) => {
+        setFiles(cur => cur.map(f => f.id === fileId ? { ...f, parentId } : f));
+        setGroups(cur => {
+            // Remove from all groups
+            let newGroups = cur.map(g => ({
+                ...g,
+                fileIds: g.fileIds.filter(fid => fid !== fileId)
+            }));
+            // Add to new group if specified
+            if (parentId) {
+                newGroups = newGroups.map(g => g.id === parentId ? {
+                    ...g,
+                    fileIds: g.fileIds.includes(fileId) ? g.fileIds : [...g.fileIds, fileId],
+                    isExpanded: true
+                } : g);
+                // When moving into a group, it should be removed from sidebarOrder
+                setSidebarOrder(order => order.filter(oid => oid !== fileId));
+            } else {
+                // When moving out of a group, it should be added to sidebarOrder if it's not there
+                setSidebarOrder(order => order.includes(fileId) ? order : [...order, fileId]);
+            }
+            return newGroups.filter(g => g.fileIds.length > 0);
+        });
+    };
+
     const removeGroup = (id: string) => {
         setGroups(cur => cur.filter(g => g.id !== id));
-        setFiles(cur => cur.map(f => f.parentId === id ? { ...f, parentId: null } : f));
+        setFiles(cur => {
+            const affectedFiles = cur.filter(f => f.parentId === id);
+            const newFiles = cur.map(f => f.parentId === id ? { ...f, parentId: null } : f);
+
+            // Add moved files to sidebarOrder after the removed group
+            setSidebarOrder(order => {
+                const idx = order.indexOf(id);
+                if (idx === -1) return order.filter(oid => oid !== id);
+                const newOrder = [...order];
+                newOrder.splice(idx, 1, ...affectedFiles.map(f => f.id));
+                return newOrder;
+            });
+
+            return newFiles;
+        });
         if (selectedId === id) {
             setSelectedId(null);
         }
+    };
+
+    const handleGroupAll = () => {
+        handleGroupFiles(files.map(f => f.id));
     };
 
     const handleGroupFiles = (ids: string[]) => {
@@ -121,13 +176,27 @@ export function App() {
             isExpanded: true
         };
 
-        setGroups(cur => [
-            ...cur.map(g => ({
-                ...g,
-                fileIds: g.fileIds.filter(fid => !ids.includes(fid))
-            })).filter(g => g.fileIds.length > 0),
-            newGroup
-        ]);
+        setGroups(cur => {
+            const newGroups = [
+                ...cur.map(g => ({
+                    ...g,
+                    fileIds: g.fileIds.filter(fid => !ids.includes(fid))
+                })).filter(g => g.fileIds.length > 0),
+                newGroup
+            ];
+
+            // Update sidebarOrder: remove grouped items, insert group at the position of the first item
+            setSidebarOrder(order => {
+                const firstIdx = order.findIndex(oid => ids.includes(oid));
+                const filteredOrder = order.filter(oid => !ids.includes(oid));
+                if (firstIdx === -1) return [...filteredOrder, groupId];
+                const newOrder = [...filteredOrder];
+                newOrder.splice(firstIdx, 0, groupId);
+                return newOrder;
+            });
+
+            return newGroups;
+        });
         setFiles(cur => cur.map(f => ids.includes(f.id) ? { ...f, parentId: groupId } : f));
         setSelectedId(groupId);
     };
@@ -174,9 +243,11 @@ export function App() {
 
                     setFiles(cur => [...cur, newFile, ...groupFiles]);
                     setGroups(cur => [...cur, newGroup]);
+                    setSidebarOrder(cur => [...cur, groupId]);
                     setSelectedId(groupId);
                 } else {
                     setFiles(cur => [...cur, newFile]);
+                    setSidebarOrder(cur => [...cur, fileId]);
                     setSelectedId(fileId);
                 }
             }
@@ -221,13 +292,17 @@ export function App() {
                     <FileList
                         files={files}
                         groups={groups}
+                        sidebarOrder={sidebarOrder}
+                        setSidebarOrder={setSidebarOrder}
                         selectedId={selectedId}
                         onSelect={setSelectedId}
                         onRemoveFile={removeFile}
                         onRemoveGroup={removeGroup}
                         onAddFiles={handleAddFiles}
                         onGroupFiles={handleGroupFiles}
+                        onGroupAll={handleGroupAll}
                         onToggleGroup={toggleGroup}
+                        onUpdateFileParent={handleUpdateFileParent}
                     />
                     <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
                         {selectedFile &&
