@@ -127,27 +127,6 @@ jobs:
           / /filetool/ 302
           EOF
 
-      - name: Delete previous deployments
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
-        run: |
-          echo "Listing deployments for branch: $BRANCH_NAME"
-          DEPLOYMENTS=$(npx wrangler pages deployment list --project-name=filetool --environment=preview --json)
-
-          # Use jq to filter deployments for the specific branch and get their IDs
-          # We check if branch matches the PR's head branch in common metadata locations
-          IDS=$(echo "$DEPLOYMENTS" | jq -r ".[] | select(.deployment_trigger.metadata.branch == env.BRANCH_NAME or .meta.branch == env.BRANCH_NAME) | .id")
-
-          if [ -z "$IDS" ]; then
-            echo "No deployments found for branch: $BRANCH_NAME"
-          else
-            for ID in $IDS; do
-              echo "Deleting deployment: $ID"
-              npx wrangler pages deployment delete "$ID" --project-name=filetool --force
-            done
-          fi
-        env:
-          BRANCH_NAME: ${{ github.head_ref }}
-
       - name: Deploy to Cloudflare Pages
         id: deploy
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
