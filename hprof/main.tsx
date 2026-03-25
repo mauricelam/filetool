@@ -7,6 +7,7 @@ import { graphviz } from 'd3-graphviz';
 interface HierarchyNode extends d3.SimulationNodeDatum {
     id: string;
     name: string;
+    size?: number;
 }
 
 interface HierarchyLink extends d3.SimulationLinkDatum<HierarchyNode> {
@@ -118,6 +119,10 @@ function ForceGraph({ data }: { data: HierarchyData }) {
         return Math.max(...data.links.map(l => l.count || 0), 1);
     }, [data.links]);
 
+    const maxSize = useMemo(() => {
+        return Math.max(...data.nodes.map(n => n.size || 0), 1);
+    }, [data.nodes]);
+
     useEffect(() => {
         if (!svgRef.current || !data.nodes.length) return;
 
@@ -137,9 +142,17 @@ function ForceGraph({ data }: { data: HierarchyData }) {
 
         svg.call(zoom);
 
-        const simulation = d3.forceSimulation<HierarchyNode>(data.nodes)
+        // Pre-calculate node sizes for collision and rendering
+        // We use a dummy SVG to measure text if getBBox is only available after append
+        const nodeData = data.nodes.map(n => {
+            const scale = n.size ? Math.sqrt(n.size / maxSize) : 0;
+            const fontSize = 12 + scale * 12;
+            return { ...n, fontSize };
+        });
+
+        const simulation = d3.forceSimulation<HierarchyNode>(nodeData)
             .force("link", d3.forceLink<HierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(150))
-            .force("charge", d3.forceManyBody().strength(-500))
+            .force("charge", d3.forceManyBody().strength(-1000))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("x", d3.forceX(width / 2).strength(0.1))
             .force("y", d3.forceY(height / 2).strength(0.1));
@@ -154,9 +167,10 @@ function ForceGraph({ data }: { data: HierarchyData }) {
 
         const node = container.append("g")
             .selectAll("g")
-            .data(data.nodes)
+            .data(nodeData)
             .join("g")
-            .call(d3.drag<SVGGElement, HierarchyNode>()
+            .attr("cursor", "move")
+            .call(d3.drag<SVGGElement, any>()
                 .on("start", (event, d) => {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
@@ -170,36 +184,54 @@ function ForceGraph({ data }: { data: HierarchyData }) {
                     if (!event.active) simulation.alphaTarget(0);
                     d.fx = null;
                     d.fy = null;
-                }) as any);
+                }));
 
-        node.append("circle")
-            .attr("r", 8)
-            .attr("fill", "#007bff")
-            .attr("stroke", "#fff")
-            .attr("stroke-width", 1.5);
+        const rects = node.append("rect")
+            .attr("fill", "#fff")
+            .attr("stroke", "#007bff")
+            .attr("stroke-width", 1.5)
+            .attr("rx", 4)
+            .attr("ry", 4);
 
-        node.append("text")
+        const texts = node.append("text")
             .text(d => d.name)
-            .attr("x", 12)
-            .attr("y", 4)
-            .style("font-size", "12px")
+            .attr("text-anchor", "middle")
+            .attr("dominant-baseline", "middle")
             .style("font-family", "sans-serif")
             .style("pointer-events", "none")
-            .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
+            .style("font-size", (d: any) => `${d.fontSize}px`);
+
+        // Update rect sizes based on text BBox
+        node.each(function(d: any) {
+            const textNode = d3.select(this).select("text").node() as SVGTextElement;
+            const bbox = textNode.getBBox();
+            const paddingX = 10;
+            const paddingY = 6;
+            d.width = bbox.width + paddingX;
+            d.height = bbox.height + paddingY;
+            d3.select(this).select("rect")
+                .attr("x", -d.width / 2)
+                .attr("y", -d.height / 2)
+                .attr("width", d.width)
+                .attr("height", d.height);
+        });
+
+        // Add collision force after we know the dimensions
+        simulation.force("collide", d3.forceCollide().radius((d: any) => Math.max(d.width, d.height) / 2 + 10));
 
         simulation.on("tick", () => {
             link
-                .attr("x1", d => (d.source as HierarchyNode).x!)
-                .attr("y1", d => (d.source as HierarchyNode).y!)
-                .attr("x2", d => (d.target as HierarchyNode).x!)
-                .attr("y2", d => (d.target as HierarchyNode).y!);
+                .attr("x1", d => (d.source as any).x!)
+                .attr("y1", d => (d.source as any).y!)
+                .attr("x2", d => (d.target as any).x!)
+                .attr("y2", d => (d.target as any).y!);
 
             node
                 .attr("transform", d => `translate(${d.x},${d.y})`);
         });
 
         return () => simulation.stop();
-    }, [data]);
+    }, [data, maxSize, maxCount]);
 
     return <svg ref={svgRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />;
 }

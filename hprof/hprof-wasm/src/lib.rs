@@ -53,6 +53,7 @@ pub struct InstanceCountEntry {
 pub struct HierarchyNode {
     pub id: String,
     pub name: String,
+    pub size: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -592,10 +593,10 @@ impl HprofParser {
                 continue;
             }
 
-            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname });
+            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0 });
 
             if sname != "java.lang.Object" {
-                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname });
+                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0 });
                 links.push(HierarchyLink { source: cid_str, target: sid_str, count: None });
             }
         }
@@ -735,7 +736,7 @@ impl HprofParser {
             if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
 
             let cid_str = format!("{:?}", cid);
-            nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name });
+            nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name, size: size as u64 });
         }
 
         for (&(src, tgt), &count) in &class_refs {

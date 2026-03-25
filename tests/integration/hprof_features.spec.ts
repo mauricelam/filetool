@@ -30,12 +30,12 @@ test('HPROF viewer should support static and force graph modes', async ({ page }
 
     // Switch to force mode
     await iframe.locator('select').first().selectOption('force');
-    // Force graph uses circles for nodes
-    await expect(iframe.locator('circle').first()).toBeVisible({ timeout: 10000 });
+    // Force graph uses rects for nodes
+    await expect(iframe.locator('rect').first()).toBeVisible({ timeout: 10000 });
 
     // Test Hierarchy tab (should not contain java.lang.Object in the graph)
     await iframe.locator('div').filter({ hasText: /^Hierarchy$/ }).click();
-    await expect(iframe.locator('circle').first()).toBeVisible({ timeout: 10000 });
+    await expect(iframe.locator('rect').first()).toBeVisible({ timeout: 10000 });
     // It shouldn't be in the SVG
     await expect(iframe.locator('svg')).not.toContainText('java.lang.Object');
 });
