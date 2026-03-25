@@ -39,7 +39,7 @@ test('should correctly show diff between two files', async ({ page }) => {
     // Check if the iframe is created and contains the diff
     const iframe = page.frameLocator('iframe[data-handler="diffviewer"]');
 
-    await expect(iframe.getByText('Diffing: file1.txt (left) vs file2.txt (right)')).toBeVisible({ timeout: 15000 });
+    await expect(iframe.getByText(/Diffing: file1\.txt vs file2\.txt/)).toBeVisible({ timeout: 15000 });
 
     // Check for some diff content
     await expect(iframe.locator('.diff-code-deleted', { hasText: 'line 2' })).toBeVisible();
