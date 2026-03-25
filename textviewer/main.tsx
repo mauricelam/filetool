@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import AceEditor from 'react-ace';
 
 import "ace-builds/src-noconflict/theme-monokai";
@@ -25,8 +25,34 @@ import "ace-builds/src-noconflict/mode-typescript";
 import "ace-builds/src-noconflict/mode-properties";
 import "ace-builds/src-noconflict/mode-ini";
 import "ace-builds/src-noconflict/mode-diff";
+import "ace-builds/src-noconflict/mode-text";
 
 import { RespondFileMessage } from 'common/messages';
+
+const SUPPORTED_MODES = [
+    'text',
+    'javascript',
+    'typescript',
+    'python',
+    'java',
+    'xml',
+    'html',
+    'json',
+    'yaml',
+    'c_cpp',
+    'sh',
+    'rust',
+    'golang',
+    'markdown',
+    'ruby',
+    'php',
+    'csharp',
+    'css',
+    'sql',
+    'properties',
+    'ini',
+    'diff'
+].sort();
 
 if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' });
@@ -73,25 +99,63 @@ function getAceMode(filename: string, mimeType: string): string {
 }
 
 function TextViewer({ content, filename, mimeType }: { content: string, filename: string, mimeType: string }) {
-    const mode = getAceMode(filename, mimeType);
+    const [mode, setMode] = useState(() => getAceMode(filename, mimeType));
+
+    // Update mode when file changes
+    useEffect(() => {
+        setMode(getAceMode(filename, mimeType));
+    }, [filename, mimeType]);
+
     return (
-        <AceEditor
-            mode={mode}
-            theme="monokai"
-            value={content}
-            readOnly={true}
-            width="100%"
-            height="100%"
-            name="textviewer-editor"
-            onLoad={(editor) => {
-                // Ensure the editor's main element has the id="textviewer" for backward compatibility with tests
-                editor.container.id = 'textviewer';
-            }}
-            setOptions={{
-                useWorker: false,
-                showFoldWidgets: true,
-                showPrintMargin: false,
-            }}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+            <div style={{
+                padding: '4px 8px',
+                background: '#272822',
+                borderBottom: '1px solid #444',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: '8px'
+            }}>
+                <label htmlFor="mode-select" style={{ color: '#ccc', fontSize: '12px', fontFamily: 'sans-serif' }}>Language:</label>
+                <select
+                    id="mode-select"
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value)}
+                    style={{
+                        background: '#3e3d32',
+                        color: '#f8f8f2',
+                        border: '1px solid #75715e',
+                        borderRadius: '2px',
+                        fontSize: '12px',
+                        padding: '2px 4px'
+                    }}
+                >
+                    {SUPPORTED_MODES.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                    ))}
+                </select>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+                <AceEditor
+                    mode={mode}
+                    theme="monokai"
+                    value={content}
+                    readOnly={true}
+                    width="100%"
+                    height="100%"
+                    name="textviewer-editor"
+                    onLoad={(editor) => {
+                        // Ensure the editor's main element has the id="textviewer" for backward compatibility with tests
+                        editor.container.id = 'textviewer';
+                    }}
+                    setOptions={{
+                        useWorker: false,
+                        showFoldWidgets: true,
+                        showPrintMargin: false,
+                    }}
+                />
+            </div>
+        </div>
     )
 }
