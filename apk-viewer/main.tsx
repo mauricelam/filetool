@@ -1,15 +1,13 @@
 import { createRoot } from 'react-dom/client'
-import init, { ArscResource, decode_apk, extract_arsc, ApkMetadata, ArscValue } from './wasm/pkg'
+import type { ArscResource, ApkMetadata } from './wasm/pkg'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
-import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse } from '@mantine/core';
+import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse, Loader, Center } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import '@mantine/core/styles.css';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
-let wasmInitialized = false;
-let systemResources: Uint8Array | null = null;
 
 interface ResourceTableState {
     selectedType: string;
@@ -18,40 +16,19 @@ interface ResourceTableState {
     scrollTop?: number;
 }
 
-const initializeWasm = async () => {
-    if (!wasmInitialized) {
-        try {
-            await init();
-
-            // Load system resources
-            const response = await fetch('android.arsc.gz');
-            if (!response.ok) throw new Error('Failed to fetch android.arsc.gz');
-
-            const ds = new DecompressionStream('gzip');
-            const decompressedStream = response.body!.pipeThrough(ds);
-            systemResources = new Uint8Array(await new Response(decompressedStream).arrayBuffer());
-
-            wasmInitialized = true;
-        } catch (error) {
-            console.error('Failed to initialize WebAssembly:', error);
-            throw error;
-        }
-    }
-};
-
-function pathToTree(paths: [string, string][]): { [key: string]: any } {
+function pathToTree(paths: string[]): { [key: string]: any } {
     const result = {}
-    function addToTree(tree: { [key: string]: any }, pathComponents: string[], content: string) {
+    function addToTree(tree: { [key: string]: any }, pathComponents: string[]) {
         if (pathComponents.length === 1) {
-            tree[pathComponents[0]] = content
+            tree[pathComponents[0]] = { _isPending: true };
         } else {
             tree[pathComponents[0]] = tree[pathComponents[0]] || {}
-            addToTree(tree[pathComponents[0]], pathComponents.slice(1), content)
+            addToTree(tree[pathComponents[0]], pathComponents.slice(1))
         }
     }
-    for (const [path, content] of paths) {
+    for (const path of paths) {
         const pathComponents = path.split('/')
-        addToTree(result, pathComponents, content)
+        addToTree(result, pathComponents)
     }
     return result
 }
@@ -88,6 +65,11 @@ function App() {
     const [resources, setResources] = useState<ArscResource[]>([]);
     const [metadata, setMetadata] = useState<ApkMetadata | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [extractingFile, setExtractingFile] = useState<string | null>(null);
+
+    const workerRef = useRef<Worker | null>(null);
+    const pendingExtractsRef = useRef<Map<string, (content: Uint8Array) => void>>(new Map());
 
     // State for ResourceTableViewer to persist across view changes
     const [resTableState, setResTableState] = useState<ResourceTableState>({
@@ -97,48 +79,130 @@ function App() {
     });
 
     useEffect(() => {
-        // Request file from parent window
-        if (window.parent) {
-            window.parent.postMessage({ 'action': 'requestFile' });
-        }
+        console.log('App: Initializing worker from URL:', new URL('worker.js', window.location.href).href);
+        const worker = new Worker(new URL('worker.js', window.location.href), { type: 'module' });
+        workerRef.current = worker;
 
-        // Set up message handler
-        const handleMessage = async (e: MessageEvent) => {
+        worker.onerror = (e) => {
+            console.error('App: Worker error:', e);
+            setError('Worker failed to start. Check console for details.');
+            setLoading(false);
+        };
+
+        worker.onmessage = (e) => {
+            console.log('App: Worker message:', e.data.action);
+            const { action, payload } = e.data;
+            switch (action) {
+                case 'init-complete':
+                    if (window.parent) {
+                        window.parent.postMessage({ 'action': 'requestFile' });
+                    }
+                    break;
+                case 'decode-minimal-complete':
+                    setMetadata(payload.metadata);
+                    setFileTree(pathToTree(payload.fileNames));
+                    setLoading(false);
+                    break;
+                case 'extract-file-complete':
+                    const callback = pendingExtractsRef.current.get(payload.name);
+                    if (callback) {
+                        callback(payload.content);
+                        pendingExtractsRef.current.delete(payload.name);
+                    }
+                    // Update file tree with content
+                    const pathArr = payload.name.split('/');
+                    setFileTree(prev => {
+                        const next = { ...prev };
+                        let current = next;
+                        for (let i = 0; i < pathArr.length - 1; i++) {
+                            current[pathArr[i]] = { ...current[pathArr[i]] };
+                            current = current[pathArr[i]];
+                        }
+                        current[pathArr[pathArr.length - 1]] = payload.content;
+                        return next;
+                    });
+                    setExtractingFile(null);
+                    break;
+                case 'extract-arsc-complete':
+                    setResources(payload.resources);
+                    setView('resource');
+                    setLoading(false);
+                    break;
+                case 'error':
+                    setError(payload.message);
+                    setLoading(false);
+                    break;
+            }
+        };
+
+        const initialize = async () => {
+            try {
+                console.log('App: Fetching android.arsc.gz...');
+                const response = await fetch('android.arsc.gz');
+                if (!response.ok) throw new Error(`Failed to fetch android.arsc.gz: ${response.statusText}`);
+
+                console.log('App: Decompressing system resources...');
+                const ds = new DecompressionStream('gzip');
+                const decompressedStream = response.body!.pipeThrough(ds);
+                const systemResources = new Uint8Array(await new Response(decompressedStream).arrayBuffer());
+
+                console.log('App: Sending init to worker...');
+                worker.postMessage({ action: 'init', payload: { systemResources } }, [systemResources.buffer]);
+            } catch (err) {
+                console.error('App: Initialization error:', err);
+                setError((err as Error).message);
+                setLoading(false);
+            }
+        };
+
+        initialize();
+
+        const handleMessage = (e: MessageEvent) => {
             if (e.data.action === 'respondFile') {
-                try {
-                    await handleFile(e.data.file);
-                } catch (error) {
-                    console.error('Error handling file:', error);
-                    setError((error as Error).message);
-                }
+                const file = e.data.file;
+                file.arrayBuffer().then(buffer => {
+                    worker.postMessage({
+                        action: 'decode-minimal',
+                        payload: { apkBytes: new Uint8Array(buffer) }
+                    });
+                });
             }
         };
 
         window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
+        return () => {
+            worker.terminate();
+            window.removeEventListener('message', handleMessage);
+        };
     }, []);
 
-    const handleFile = async (file: File) => {
-        if (!wasmInitialized) {
-            await initializeWasm();
-        }
-        if (!systemResources) throw new Error("System resources not loaded");
-        const fileBytes = new Uint8Array(await file.arrayBuffer());
-
-        const decoded = decode_apk(fileBytes, systemResources)
-        const tree = pathToTree(decoded.files.map(([path, content]) => [path, new Uint8Array(content)] as any))
-        setFileTree(tree);
-        setMetadata(decoded.metadata);
-        setView('file');
-    }
+    const extractFile = useCallback((name: string): Promise<Uint8Array> => {
+        return new Promise((resolve) => {
+            if (pendingExtractsRef.current.has(name)) {
+                // Already extracting, should probably handle this better but for now just wait
+                return;
+            }
+            pendingExtractsRef.current.set(name, resolve);
+            setExtractingFile(name);
+            workerRef.current?.postMessage({ action: 'extract-file', payload: { name } });
+        });
+    }, []);
 
     const handleItemClick = (level: number, key: string, content: any) => {
-        // Check if it's an ARSC file
-        if (key.endsWith('.arsc') && content instanceof Uint8Array) {
-            if (!systemResources) throw new Error("System resources not loaded");
-            const resources = extract_arsc(content, systemResources);
-            setResources(resources);
-            setView('resource');
+        const nextPath = [...(selectedFilePath || []).slice(0, level), key];
+        setSelectedFilePath(nextPath);
+        const fullPath = nextPath.join('/');
+
+        if (key.endsWith('.arsc')) {
+            if (content instanceof Uint8Array) {
+                setLoading(true);
+                workerRef.current?.postMessage({ action: 'extract-arsc', payload: { arscBytes: content } });
+            } else if (content._isPending) {
+                setLoading(true);
+                extractFile(fullPath).then(bytes => {
+                    workerRef.current?.postMessage({ action: 'extract-arsc', payload: { arscBytes: bytes } });
+                });
+            }
         }
     };
 
@@ -163,14 +227,33 @@ function App() {
             setPreviewPath(pathArr);
             setPreviewContent(current);
             setView('file-preview');
+        } else if (current?._isPending) {
+            setLoading(true);
+            extractFile(path).then(bytes => {
+                setPreviewPath(pathArr);
+                setPreviewContent(bytes);
+                setView('file-preview');
+                setLoading(false);
+            });
         } else {
             setSelectedFilePath(pathArr);
             setView('file');
         }
-    }, [fileTree]);
+    }, [fileTree, extractFile]);
 
     if (error) {
         return <div style={{ color: 'red', padding: '10px' }}>Error: {error}</div>;
+    }
+
+    if (loading && view === 'file' && !metadata) {
+        return (
+            <Center style={{ height: '100%' }}>
+                <Stack align="center">
+                    <Loader size="xl" />
+                    <Text>Loading APK...</Text>
+                </Stack>
+            </Center>
+        );
     }
 
     let content;
@@ -235,34 +318,70 @@ function App() {
                     </div>
                 )}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <FileViewer files={fileTree} onItemClick={handleItemClick} selectedPath={selectedFilePath} />
+                    <FileViewer
+                        files={fileTree}
+                        onItemClick={handleItemClick}
+                        selectedPath={selectedFilePath}
+                        extractFile={extractFile}
+                    />
                 </div>
             </div>
         );
     }
 
     return (
-        <MantineProvider>
+        <>
             {content}
-        </MantineProvider>
+            {loading && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <Loader size="xl" />
+                </div>
+            )}
+        </>
     );
 }
 
-function FileViewer({ files, onItemClick, selectedPath }: {
+function FileViewer({ files, onItemClick, selectedPath, extractFile }: {
     files: { [key: string]: any },
     onItemClick: (level: number, key: string, content: any) => void,
     selectedPath?: string[],
+    extractFile: (name: string) => Promise<Uint8Array>
 }) {
-    const handleOpenFile = async (file: Uint8Array, filename: string) => {
-        const extractedFile = new File([file.buffer as ArrayBuffer], filename);
+    const handleOpenFile = async (file: any, path: string[]) => {
+        const filename = path[path.length - 1];
+        let bytes: Uint8Array;
+        if (file instanceof Uint8Array) {
+            bytes = file;
+        } else {
+            bytes = await extractFile(path.join('/'));
+        }
+        const extractedFile = new File([bytes.buffer as ArrayBuffer], filename);
         window.parent?.postMessage({
             action: 'openFile',
             file: extractedFile
         }, "/", [await extractedFile.arrayBuffer()]);
     };
 
-    const handleDownloadFile = async (file: Uint8Array, filename: string) => {
-        const extractedFile = new File([file.buffer as ArrayBuffer], filename);
+    const handleDownloadFile = async (file: any, path: string[]) => {
+        const filename = path[path.length - 1];
+        let bytes: Uint8Array;
+        if (file instanceof Uint8Array) {
+            bytes = file;
+        } else {
+            bytes = await extractFile(path.join('/'));
+        }
+        const extractedFile = new File([bytes.buffer as ArrayBuffer], filename);
         const url = URL.createObjectURL(extractedFile);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -272,16 +391,16 @@ function FileViewer({ files, onItemClick, selectedPath }: {
     };
 
     const renderFileActions = (file: any, path: string[]) => {
-        if (!window.parent || !(file instanceof Uint8Array)) return null;
+        if (!window.parent) return null;
 
         return (
             <div className="file-actions">
-                <ActionIcon variant="subtle" onClick={() => handleOpenFile(file, path[path.length - 1])} title="Open">
+                <ActionIcon variant="subtle" onClick={(e) => { e.stopPropagation(); handleOpenFile(file, path); }} title="Open">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
                         <path d="M216-144q-29.7 0-50.85-21.15Q144-186.3 144-216v-528q0-29.7 21.15-50.85Q186.3-816 216-816h264v72H216v528h528v-264h72v264q0 29.7-21.15 50.85Q773.7-144 744-144H216Zm171-192-51-51 357-357H576v-72h240v240h-72v-117L387-336Z" />
                     </svg>
                 </ActionIcon>
-                <ActionIcon variant="subtle" onClick={() => handleDownloadFile(file, path[path.length - 1])} title="Download">
+                <ActionIcon variant="subtle" onClick={(e) => { e.stopPropagation(); handleDownloadFile(file, path); }} title="Download">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
                         <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
                     </svg>
@@ -290,21 +409,22 @@ function FileViewer({ files, onItemClick, selectedPath }: {
         );
     };
 
-    const getDexFiles = (obj: any): { name: string, content: Uint8Array }[] => {
-        const results: { name: string, content: Uint8Array }[] = [];
-        const find = (o: any) => {
+    const getDexFiles = (obj: any, path: string = ''): { name: string, path: string, content: any }[] => {
+        const results: { name: string, path: string, content: any }[] = [];
+        const find = (o: any, p: string) => {
             for (const key in o) {
                 const item = o[key];
-                if (item instanceof Uint8Array) {
+                const fullP = p ? `${p}/${key}` : key;
+                if (item instanceof Uint8Array || item?._isPending) {
                     if (key.toLowerCase().endsWith('.dex')) {
-                        results.push({ name: key, content: item });
+                        results.push({ name: key, path: fullP, content: item });
                     }
                 } else if (item && typeof item === 'object') {
-                    find(item);
+                    find(item, fullP);
                 }
             }
         };
-        find(obj);
+        find(obj, path);
         return results;
     };
 
@@ -317,9 +437,13 @@ function FileViewer({ files, onItemClick, selectedPath }: {
             // Sort to have classes.dex first if possible
             dexFiles.sort((a, b) => a.name.localeCompare(b.name));
 
-            const extractedFiles = dexFiles.map(f => new File([f.content.buffer as ArrayBuffer], f.name));
-            const primaryFile = extractedFiles[0];
-            const additionalFiles = extractedFiles.slice(1);
+            const resolvedFiles = await Promise.all(dexFiles.map(async f => {
+                const bytes = f.content instanceof Uint8Array ? f.content : await extractFile(f.path);
+                return new File([bytes.buffer as ArrayBuffer], f.name);
+            }));
+
+            const primaryFile = resolvedFiles[0];
+            const additionalFiles = resolvedFiles.slice(1);
 
             window.parent?.postMessage({
                 action: 'openFile',
@@ -335,11 +459,12 @@ function FileViewer({ files, onItemClick, selectedPath }: {
         }
     };
 
-    const renderFilePreview = (file: Uint8Array, path: string[]) => {
-        const extractFile = async () => {
-            return new File([file.buffer as ArrayBuffer], path[path.length - 1]);
+    const renderFilePreview = (file: any, path: string[]) => {
+        const extractFilePromise = async () => {
+            const bytes = file instanceof Uint8Array ? file : await extractFile(path.join('/'));
+            return new File([bytes.buffer as ArrayBuffer], path[path.length - 1]);
         };
-        return <PreviewComponent path={path} filePromise={extractFile} />;
+        return <PreviewComponent path={path} filePromise={extractFilePromise} />;
     };
 
     const hasMultipleDex = getDexFiles(files).length > 1;
@@ -885,11 +1010,9 @@ function MetadataViewer({ metadata, onBack }: { metadata: ApkMetadata | null, on
     );
 }
 
-// Initialize WebAssembly when the component mounts
-initializeWasm().catch(error => {
-    console.error('Failed to initialize WebAssembly:', error);
-    OUTPUT.render(<div style={{ color: 'red', padding: '10px' }}>Error: Failed to initialize WebAssembly module</div>);
-});
-
 // Initial render
-OUTPUT.render(<App />);
+OUTPUT.render(
+    <MantineProvider>
+        <App />
+    </MantineProvider>
+);

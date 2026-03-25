@@ -525,4 +525,25 @@ impl<Reader: Read + Seek> Apk<Reader> {
 
         Ok(result)
     }
+
+    pub fn get_file_names(&self) -> Vec<String> {
+        self.handler.file_names().map(|s| s.to_string()).collect()
+    }
+
+    pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {
+        let mut current_file = self.handler.by_name(name).context("could not find file")?;
+        let mut contents = Vec::new();
+        current_file.read_to_end(&mut contents).context("could not read file")?;
+
+        if (name.starts_with("res/") && name.ends_with(".xml")) || name == "AndroidManifest.xml" {
+            if let Ok(decoder) = self.decoder.get_decoder(buffer_android) {
+                if let Ok(xml_visitor) = decoder.xml_visitor(&contents) {
+                    if let Ok(decoded) = xml_visitor.into_string() {
+                        return Ok(decoded.into_bytes());
+                    }
+                }
+            }
+        }
+        Ok(contents)
+    }
 }

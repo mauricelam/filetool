@@ -6,7 +6,7 @@ import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
 
 
 const SETTINGS = {
-  entryPoints: ['main.tsx'],
+  entryPoints: ['main.tsx', 'worker.ts'],
   outdir: "../dist/apk-viewer",
   bundle: true,
   format: "esm",

@@ -149,6 +149,82 @@ pub fn decode_apk(
     })
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ApkMinimalResponse {
+    pub metadata: ApkMetadata,
+    pub file_names: Vec<String>,
+}
+
+#[wasm_bindgen]
+pub fn decode_apk_minimal(
+    bytes: Vec<u8>,
+    system_resources: Vec<u8>,
+) -> Result<ApkMinimalResponse, wasm_bindgen::JsError> {
+    info!("Decoding APK minimal of size {} bytes", bytes.len());
+    let mut apk = Apk::<File>::from_bytes(&bytes).map_err(|e| {
+        error!("Failed to decode APK: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+
+    let metadata = apk
+        .get_metadata_with_bytes(&bytes, &system_resources)
+        .map_err(|e| {
+            error!("Failed to get APK metadata: {}", e);
+            JsError::new(&format!("{e}"))
+        })?;
+
+    let file_names = apk.get_file_names();
+
+    Ok(ApkMinimalResponse {
+        metadata: ApkMetadata {
+            manifest: metadata.manifest.map(|m| ManifestInfo {
+                package: m.package,
+                version_code: m.version_code,
+                version_name: m.version_name,
+                min_sdk_version: m.min_sdk_version,
+                target_sdk_version: m.target_sdk_version,
+            }),
+            v1_signature: metadata.v1_signature,
+            v2_signature: metadata.v2_signature,
+            v3_signature: metadata.v3_signature,
+            signers: metadata
+                .signers
+                .into_iter()
+                .map(|s| SignerInfo {
+                    sha256_digest: s.sha256_digest,
+                    sha1_digest: s.sha1_digest,
+                    md5_digest: s.md5_digest,
+                    subject: s.subject,
+                })
+                .collect(),
+            jar_signatures: metadata.jar_signatures,
+            file_count: metadata.file_count,
+            uncompressed_size: metadata.uncompressed_size,
+        },
+        file_names,
+    })
+}
+
+#[wasm_bindgen]
+pub fn extract_file(
+    bytes: Vec<u8>,
+    name: String,
+    system_resources: Vec<u8>,
+) -> Result<Vec<u8>, wasm_bindgen::JsError> {
+    let mut apk = Apk::<File>::from_bytes(&bytes).map_err(|e| {
+        error!("Failed to decode APK: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+
+    let contents = apk.extract_file(&name, &system_resources).map_err(|e| {
+        error!("Failed to extract file: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+
+    Ok(contents)
+}
+
 #[wasm_bindgen]
 pub fn extract_arsc(
     bytes: Vec<u8>,
