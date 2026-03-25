@@ -49,6 +49,24 @@ pub struct InstanceCountEntry {
     pub total_size: usize,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct HierarchyNode {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct HierarchyLink {
+    pub source: String,
+    pub target: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct HierarchyData {
+    pub nodes: Vec<HierarchyNode>,
+    pub links: Vec<HierarchyLink>,
+}
+
 #[wasm_bindgen]
 impl HprofParser {
     #[wasm_bindgen(constructor)]
@@ -127,9 +145,17 @@ impl HprofParser {
     }
 
     pub fn get_heap_dump_summary(&self, index: usize) -> Result<JsValue, JsValue> {
-        let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
-        let record = hprof.records_iter().nth(index).ok_or("No record")?
-            .map_err(|e| JsValue::from_str(&format!("Error getting record: {:?}", e)))?;
+        let record_offset = *self.record_offsets.get(index).ok_or_else(|| JsValue::from_str("Record index out of bounds"))?;
+        let length = u32::from_be_bytes(self.data[record_offset+5..record_offset+9].try_into().unwrap()) as usize;
+        let mut record_data = Vec::with_capacity(length + 13 + 9);
+        record_data.extend_from_slice(b"JAVA PROFILE 1.0.2\0");
+        record_data.extend_from_slice(&self.id_size.to_be_bytes());
+        record_data.extend_from_slice(&[0; 8]);
+        record_data.extend_from_slice(&self.data[record_offset..record_offset+9+length]);
+
+        let hprof = parse_hprof(&record_data).map_err(|e| JsValue::from_str(&format!("Error parsing record slice: {:?}", e)))?;
+        let record = hprof.records_iter().next().ok_or("No record in slice")?
+            .map_err(|e| JsValue::from_str(&format!("Error getting record from slice: {:?}", e)))?;
         let tag = record.tag();
         if tag == RecordTag::HeapDump || tag == RecordTag::HeapDumpSegment {
             let segment = record.as_heap_dump_segment().ok_or("Expected heap dump segment")?
@@ -154,9 +180,17 @@ impl HprofParser {
     }
 
     pub fn get_heap_dump_records(&self, index: usize, offset: usize, limit: usize) -> Result<JsValue, JsValue> {
-        let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
-        let record = hprof.records_iter().nth(index).ok_or("No record")?
-            .map_err(|e| JsValue::from_str(&format!("Error getting record: {:?}", e)))?;
+        let record_offset = *self.record_offsets.get(index).ok_or_else(|| JsValue::from_str("Record index out of bounds"))?;
+        let length = u32::from_be_bytes(self.data[record_offset+5..record_offset+9].try_into().unwrap()) as usize;
+        let mut record_data = Vec::with_capacity(length + 13 + 9);
+        record_data.extend_from_slice(b"JAVA PROFILE 1.0.2\0");
+        record_data.extend_from_slice(&self.id_size.to_be_bytes());
+        record_data.extend_from_slice(&[0; 8]);
+        record_data.extend_from_slice(&self.data[record_offset..record_offset+9+length]);
+
+        let hprof = parse_hprof(&record_data).map_err(|e| JsValue::from_str(&format!("Error parsing record slice: {:?}", e)))?;
+        let record = hprof.records_iter().next().ok_or("No record in slice")?
+            .map_err(|e| JsValue::from_str(&format!("Error getting record from slice: {:?}", e)))?;
         let id_size = hprof.header().id_size();
         let tag = record.tag();
         if tag == RecordTag::HeapDump || tag == RecordTag::HeapDumpSegment {
@@ -235,7 +269,10 @@ impl HprofParser {
     pub fn get_reference_weights(&self) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut obj_id_to_class_id = HashMap::new();
+        let mut class_id_to_super_id = HashMap::new();
+        let mut all_class_fields = HashMap::new();
         let id_size = hprof.header().id_size();
+        let id_bytes = match id_size { IdSize::U32 => 4, IdSize::U64 => 8 };
 
         for record in hprof.records_iter() {
             let record = match record { Ok(r) => r, Err(_) => continue };
@@ -243,6 +280,15 @@ impl HprofParser {
                 for sub in seg.sub_records() {
                     if let Ok(s) = sub {
                         match s {
+                            jvm_hprof::heap_dump::SubRecord::Class(c) => {
+                                let cid = c.obj_id();
+                                if let Some(sid) = c.super_class_obj_id() { class_id_to_super_id.insert(cid, sid); }
+                                let mut field_types = Vec::new();
+                                for ifd in c.instance_field_descriptors() {
+                                    if let Ok(ifd) = ifd { field_types.push(ifd.field_type()); }
+                                }
+                                all_class_fields.insert(cid, field_types);
+                            }
                             jvm_hprof::heap_dump::SubRecord::Instance(i) => { obj_id_to_class_id.insert(i.obj_id(), i.class_obj_id()); }
                             jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => { obj_id_to_class_id.insert(a.obj_id(), a.array_class_obj_id()); }
                             _ => {}
@@ -259,6 +305,39 @@ impl HprofParser {
                 for sub in seg.sub_records() {
                     if let Ok(s) = sub {
                         match s {
+                            jvm_hprof::heap_dump::SubRecord::Instance(i) => {
+                                let scid = i.class_obj_id();
+                                let mut hierarchy = Vec::new();
+                                let mut curr = Some(scid);
+                                while let Some(cid) = curr {
+                                    hierarchy.push(cid);
+                                    curr = class_id_to_super_id.get(&cid).cloned();
+                                }
+                                hierarchy.reverse();
+                                let mut data_offset = 0;
+                                let data = i.fields();
+                                for cid in hierarchy {
+                                    if let Some(fields) = all_class_fields.get(&cid) {
+                                        for &ftype in fields {
+                                            if matches!(ftype, FieldType::ObjectId) {
+                                                if data_offset + id_bytes <= data.len() {
+                                                    let ref_id_val = match id_size {
+                                                        IdSize::U32 => u32::from_be_bytes(data[data_offset..data_offset+4].try_into().unwrap()) as u64,
+                                                        IdSize::U64 => u64::from_be_bytes(data[data_offset..data_offset+8].try_into().unwrap()),
+                                                    };
+                                                    if ref_id_val != 0 {
+                                                        let ref_id = Id::from(ref_id_val);
+                                                        if let Some(&tcid) = obj_id_to_class_id.get(&ref_id) {
+                                                            *class_refs.entry((scid, tcid)).or_insert(0) += 1;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            data_offset += field_size(ftype, id_bytes);
+                                        }
+                                    }
+                                }
+                            }
                             jvm_hprof::heap_dump::SubRecord::ObjectArray(a) => {
                                 let scid = a.array_class_obj_id();
                                 for elem in a.elements(id_size) {
@@ -364,10 +443,16 @@ impl HprofParser {
                                 *class_total_sizes.entry(i.obj_id()).or_insert(0) += 0; // ensure class exists
 
                                 // Record references from this instance's fields
-                                let mut curr_cid = Some(scid);
+                                let mut hierarchy = Vec::new();
+                                let mut curr = Some(scid);
+                                while let Some(cid) = curr {
+                                    hierarchy.push(cid);
+                                    curr = class_id_to_super_id.get(&cid).cloned();
+                                }
+                                hierarchy.reverse();
                                 let mut data_offset = 0;
                                 let data = i.fields();
-                                while let Some(cid) = curr_cid {
+                                for cid in hierarchy {
                                     if let Some(fields) = all_class_fields.get(&cid) {
                                         for &ftype in fields {
                                             if matches!(ftype, FieldType::ObjectId) {
@@ -386,9 +471,6 @@ impl HprofParser {
                                             }
                                             data_offset += field_size(ftype, id_bytes);
                                         }
-                                        curr_cid = class_id_to_super_id.get(&cid).cloned();
-                                    } else {
-                                        break;
                                     }
                                 }
                             }
@@ -467,6 +549,58 @@ impl HprofParser {
         Ok(dot)
     }
 
+    pub fn get_class_hierarchy_json(&self) -> Result<JsValue, JsValue> {
+        let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
+        let mut utf8_map = HashMap::new();
+        let mut class_id_to_name_id = HashMap::new();
+        let mut class_id_to_super_id = HashMap::new();
+
+        for record in hprof.records_iter() {
+            let record = match record { Ok(r) => r, Err(_) => continue };
+            match record.tag() {
+                RecordTag::Utf8 => if let Some(Ok(u)) = record.as_utf_8() {
+                    if let Ok(s) = u.text_as_str() { utf8_map.insert(u.name_id(), s.to_string()); }
+                },
+                RecordTag::LoadClass => if let Some(Ok(l)) = record.as_load_class() {
+                    class_id_to_name_id.insert(l.class_obj_id(), l.class_name_id());
+                },
+                RecordTag::HeapDump | RecordTag::HeapDumpSegment => if let Some(Ok(seg)) = record.as_heap_dump_segment() {
+                    for sub in seg.sub_records() {
+                        if let Ok(jvm_hprof::heap_dump::SubRecord::Class(c)) = sub {
+                             if let Some(super_id) = c.super_class_obj_id() {
+                                 class_id_to_super_id.insert(c.obj_id(), super_id);
+                             }
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+
+        let mut nodes = HashMap::new();
+        let mut links = Vec::new();
+
+        for (cid, sid) in class_id_to_super_id {
+            let cid_str = format!("{:?}", cid);
+            let sid_str = format!("{:?}", sid);
+
+            let cname = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", cid_str));
+            let sname = class_id_to_name_id.get(&sid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", sid_str));
+
+            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname });
+            nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname });
+
+            links.push(HierarchyLink { source: cid_str, target: sid_str });
+        }
+
+        let data = HierarchyData {
+            nodes: nodes.into_values().collect(),
+            links,
+        };
+
+        Ok(serde_wasm_bindgen::to_value(&data)?)
+    }
+
     pub fn get_class_hierarchy(&self) -> Result<String, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -508,9 +642,10 @@ impl HprofParser {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
         let mut class_id_to_name_id = HashMap::new();
+        let mut heap_dump_indices = Vec::new();
 
         // Pass 1: Collect UTF-8 strings and class mappings
-        for record in hprof.records_iter() {
+        for (idx, record) in hprof.records_iter().enumerate() {
             let record = match record { Ok(r) => r, Err(_) => continue };
             match record.tag() {
                 RecordTag::Utf8 => if let Some(Ok(u)) = record.as_utf_8() {
@@ -519,13 +654,27 @@ impl HprofParser {
                 RecordTag::LoadClass => if let Some(Ok(l)) = record.as_load_class() {
                     class_id_to_name_id.insert(l.class_obj_id(), l.class_name_id());
                 },
+                RecordTag::HeapDump | RecordTag::HeapDumpSegment => {
+                    heap_dump_indices.push(idx);
+                }
                 _ => {}
             }
         }
 
         let mut instances = Vec::new();
-        for record in hprof.records_iter() {
-            let record = match record { Ok(r) => r, Err(_) => continue };
+        for &idx in &heap_dump_indices {
+            let record_offset = self.record_offsets[idx];
+            let length = u32::from_be_bytes(self.data[record_offset+5..record_offset+9].try_into().unwrap()) as usize;
+            let mut record_data = Vec::with_capacity(length + 13 + 9);
+            record_data.extend_from_slice(b"JAVA PROFILE 1.0.2\0");
+            record_data.extend_from_slice(&self.id_size.to_be_bytes());
+            record_data.extend_from_slice(&[0; 8]);
+            record_data.extend_from_slice(&self.data[record_offset..record_offset+9+length]);
+
+            let sub_hprof = parse_hprof(&record_data).map_err(|e| JsValue::from_str(&format!("Error parsing record slice: {:?}", e)))?;
+            let record = sub_hprof.records_iter().next().ok_or("No record in slice")?
+                .map_err(|e| JsValue::from_str(&format!("Error getting record from slice: {:?}", e)))?;
+
             if let Some(Ok(seg)) = record.as_heap_dump_segment() {
                 for sub in seg.sub_records() {
                     if let Ok(sub) = sub {

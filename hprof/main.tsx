@@ -4,6 +4,21 @@ import React, { ReactElement, useState, useEffect, useMemo, useRef, useCallback 
 import * as d3 from 'd3';
 import { graphviz } from 'd3-graphviz';
 
+interface HierarchyNode extends d3.SimulationNodeDatum {
+    id: string;
+    name: string;
+}
+
+interface HierarchyLink extends d3.SimulationLinkDatum<HierarchyNode> {
+    source: string | HierarchyNode;
+    target: string | HierarchyNode;
+}
+
+interface HierarchyData {
+    nodes: HierarchyNode[];
+    links: HierarchyLink[];
+}
+
 const rootElement = document.getElementById('output')
 if (!rootElement) throw new Error("Root element #output not found");
 const root = createRoot(rootElement)
@@ -93,6 +108,95 @@ function App() {
     }
 
     return <HprofViewer parser={parser} fileName={fileName} />
+}
+
+function HierarchyForceGraph({ data }: { data: HierarchyData }) {
+    const svgRef = useRef<SVGSVGElement>(null);
+
+    useEffect(() => {
+        if (!svgRef.current || !data.nodes.length) return;
+
+        const width = svgRef.current.clientWidth || 800;
+        const height = svgRef.current.clientHeight || 600;
+
+        const svg = d3.select(svgRef.current);
+        svg.selectAll("*").remove();
+
+        const container = svg.append("g");
+
+        const zoom = d3.zoom<SVGSVGElement, unknown>()
+            .scaleExtent([0.1, 10])
+            .on("zoom", (event) => {
+                container.attr("transform", event.transform);
+            });
+
+        svg.call(zoom);
+
+        const simulation = d3.forceSimulation<HierarchyNode>(data.nodes)
+            .force("link", d3.forceLink<HierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(100))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("x", d3.forceX(width / 2).strength(0.1))
+            .force("y", d3.forceY(height / 2).strength(0.1));
+
+        const link = container.append("g")
+            .attr("stroke", "#999")
+            .attr("stroke-opacity", 0.6)
+            .selectAll("line")
+            .data(data.links)
+            .join("line")
+            .attr("stroke-width", 2);
+
+        const node = container.append("g")
+            .selectAll("g")
+            .data(data.nodes)
+            .join("g")
+            .call(d3.drag<SVGGElement, HierarchyNode>()
+                .on("start", (event, d) => {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                })
+                .on("drag", (event, d) => {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                })
+                .on("end", (event, d) => {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }) as any);
+
+        node.append("circle")
+            .attr("r", 8)
+            .attr("fill", "#007bff")
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 1.5);
+
+        node.append("text")
+            .text(d => d.name)
+            .attr("x", 12)
+            .attr("y", 4)
+            .style("font-size", "12px")
+            .style("font-family", "sans-serif")
+            .style("pointer-events", "none")
+            .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => (d.source as HierarchyNode).x!)
+                .attr("y1", d => (d.source as HierarchyNode).y!)
+                .attr("x2", d => (d.target as HierarchyNode).x!)
+                .attr("y2", d => (d.target as HierarchyNode).y!);
+
+            node
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        return () => simulation.stop();
+    }, [data]);
+
+    return <svg ref={svgRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />;
 }
 
 function GraphvizView({ dot }: { dot: string }) {
@@ -315,7 +419,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [weightsInitialized, setWeightsInitialized] = useState(false)
 
     // Hierarchy state
-    const [hierarchyDot, setHierarchyDot] = useState<string | null>(null)
+    const [hierarchyData, setHierarchyData] = useState<HierarchyData | null>(null)
     const [hierarchyLoading, setHierarchyLoading] = useState(false)
 
     // All instances state
@@ -403,12 +507,12 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     }, [activeTab, minEdgeCount, parser])
 
     useEffect(() => {
-        if (activeTab === 'hierarchy' && !hierarchyDot) {
+        if (activeTab === 'hierarchy' && !hierarchyData) {
             setHierarchyLoading(true)
             setTimeout(() => {
                 try {
-                    const d = parser.get_class_hierarchy()
-                    setHierarchyDot(d)
+                    const d = parser.get_class_hierarchy_json()
+                    setHierarchyData(d)
                 } catch (e) {
                     console.error("Failed to get class hierarchy", e)
                 } finally {
@@ -416,7 +520,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 }
             }, 0)
         }
-    }, [activeTab, hierarchyDot, parser])
+    }, [activeTab, hierarchyData, parser])
 
     useEffect(() => {
         if (activeTab === 'all-instances' && allInstances.length === 0) {
@@ -664,8 +768,8 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                             {hierarchyLoading ? (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building hierarchy...</div>
-                            ) : hierarchyDot ? (
-                                <GraphvizView dot={hierarchyDot} />
+                            ) : hierarchyData ? (
+                                <HierarchyForceGraph data={hierarchyData} />
                             ) : (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate hierarchy.</div>
                             )}
