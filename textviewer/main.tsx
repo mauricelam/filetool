@@ -83,6 +83,10 @@ function TextViewer({ content, filename, mimeType }: { content: string, filename
             width="100%"
             height="100%"
             name="textviewer-editor"
+            onLoad={(editor) => {
+                // Ensure the editor's main element has the id="textviewer" for backward compatibility with tests
+                editor.container.id = 'textviewer';
+            }}
             setOptions={{
                 useWorker: false,
                 showFoldWidgets: true,
