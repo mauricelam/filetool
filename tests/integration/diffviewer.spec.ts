@@ -4,8 +4,8 @@ test('should correctly show diff between two files', async ({ page }) => {
     await page.goto('/filetool/');
 
     // Wait for the drop target to be ready
-    // const dropTarget = page.locator('#droptarget');
-    // await expect(dropTarget).toBeVisible({ timeout: 30000 });
+    const dropTarget = page.locator('#droptarget');
+    await expect(dropTarget).toBeVisible({ timeout: 30000 });
 
     // Dispatch the 'openFiles' event with multiple mock File objects
     await page.evaluate(() => {
