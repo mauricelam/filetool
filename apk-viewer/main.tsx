@@ -245,12 +245,14 @@ function App() {
 
     if (loading && view === 'file' && !metadata) {
         return (
-            <Center style={{ height: '100%' }}>
-                <Stack align="center">
-                    <Loader size="xl" />
-                    <Text>Loading APK...</Text>
-                </Stack>
-            </Center>
+            <MantineProvider>
+                <Center style={{ height: '100%' }}>
+                    <Stack align="center">
+                        <Loader size="xl" />
+                        <Text>Loading APK...</Text>
+                    </Stack>
+                </Center>
+            </MantineProvider>
         );
     }
 
