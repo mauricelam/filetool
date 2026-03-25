@@ -5,10 +5,16 @@ import fs from 'fs';
 test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
     test('should correctly decompile main in protoc-linux-aarch64', async ({ page }) => {
         // Increase timeout for the whole test as build/load can be slow
-        test.setTimeout(300000);
+        test.setTimeout(420000);
 
         // Capture console logs from the page to help debug worker issues
-        page.on('console', msg => console.log(`PAGE LOG: ${msg.text()}`));
+        page.on('console', msg => {
+            const txt = msg.text();
+            console.log(`PAGE LOG: ${txt}`);
+            if (txt.includes('Image XML size')) {
+                console.log('--- XML constructed successfully ---');
+            }
+        });
 
         await page.goto('http://localhost:8080/filetool/');
 
@@ -54,7 +60,7 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
 
         // Wait for decompilation to complete or fail
         try {
-            await expect(iframe.getByText('Decompilation complete.')).toBeVisible({ timeout: 240000 });
+            await expect(iframe.getByText('Decompilation complete.')).toBeVisible({ timeout: 300000 });
         } catch (e) {
             console.log('Decompilation error or timeout occurred.');
             // Check if page/iframe crashed

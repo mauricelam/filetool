@@ -12,15 +12,11 @@ for (let i = 0; i < 256; i++) {
 const hexDecoder = new TextDecoder();
 
 function bytesToHex(bytes: Uint8Array) {
-    const hex = new Uint8Array(bytes.length * 2 + 64);
+    const hex = new Uint8Array(bytes.length * 2);
     for (let i = 0; i < bytes.length; i++) {
         const b = bytes[i];
         hex[i * 2] = byteToHexMap[b * 2];
         hex[i * 2 + 1] = byteToHexMap[b * 2 + 1];
-    }
-    // Add some padding zeros just in case Ghidra expects it (matched original behavior)
-    for (let i = 0; i < 64; i++) {
-        hex[bytes.length * 2 + i] = 48; // '0'
     }
     return hexDecoder.decode(hex);
 }
@@ -70,18 +66,30 @@ self.onmessage = async (e: MessageEvent) => {
             module.HEAPU8.set(slaData, slaPtr);
 
             let imageXmlParts = [`<binaryimage arch="${arch}">\n`];
+            const CHUNK_SIZE = 64 * 1024; // 64KB chunks to keep XML tags manageable
+
             if (segments && segments.length > 0) {
                 for (const seg of segments) {
-                    const offset = parseInt(seg.offset, 16);
-                    const vaddr = seg.vaddr;
+                    const baseOffset = parseInt(seg.offset, 16);
+                    const baseVaddr = parseInt(seg.vaddr, 16);
                     const filesiz = parseInt(seg.filesiz, 16);
-                    if (filesiz > 0) {
-                        const chunkData = data.subarray(offset, offset + filesiz);
+
+                    for (let i = 0; i < filesiz; i += CHUNK_SIZE) {
+                        const currentChunkSize = Math.min(CHUNK_SIZE, filesiz - i);
+                        const chunkData = data.subarray(baseOffset + i, baseOffset + i + currentChunkSize);
+                        const vaddr = '0x' + (baseVaddr + i).toString(16);
                         imageXmlParts.push(`<bytechunk space="ram" offset="${vaddr}">\n${bytesToHex(chunkData)}\n</bytechunk>\n`);
                     }
                 }
             } else {
-                imageXmlParts.push(`<bytechunk space="ram" offset="${baseAddr || '0x0'}">\n${bytesToHex(data)}\n</bytechunk>\n`);
+                const filesiz = data.length;
+                const baseVaddr = parseInt(baseAddr || '0x0', 16);
+                for (let i = 0; i < filesiz; i += CHUNK_SIZE) {
+                    const currentChunkSize = Math.min(CHUNK_SIZE, filesiz - i);
+                    const chunkData = data.subarray(i, i + currentChunkSize);
+                    const vaddr = '0x' + (baseVaddr + i).toString(16);
+                    imageXmlParts.push(`<bytechunk space="ram" offset="${vaddr}">\n${bytesToHex(chunkData)}\n</bytechunk>\n`);
+                }
             }
 
             if (symbols && symbols.length > 0) {
