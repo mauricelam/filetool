@@ -125,6 +125,7 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                             else iframeRefs.current.delete(frame.id);
                         }}
                         src={frame.handler}
+                        data-handler={frame.handler}
                         style={{ display: isActive ? 'block' : 'none' }}
                         title={frame.file.name}
                         sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"

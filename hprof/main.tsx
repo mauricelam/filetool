@@ -1,7 +1,23 @@
 import { createRoot } from 'react-dom/client'
 import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry } from './hprof-wasm/pkg'
-import React, { ReactElement, useState, useEffect, useMemo, useRef } from 'react'
-import { Graphviz } from 'graphviz-react';
+import React, { ReactElement, useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import * as d3 from 'd3';
+import { graphviz } from 'd3-graphviz';
+
+interface HierarchyNode extends d3.SimulationNodeDatum {
+    id: string;
+    name: string;
+}
+
+interface HierarchyLink extends d3.SimulationLinkDatum<HierarchyNode> {
+    source: string | HierarchyNode;
+    target: string | HierarchyNode;
+}
+
+interface HierarchyData {
+    nodes: HierarchyNode[];
+    links: HierarchyLink[];
+}
 
 const rootElement = document.getElementById('output')
 if (!rootElement) throw new Error("Root element #output not found");
@@ -94,6 +110,279 @@ function App() {
     return <HprofViewer parser={parser} fileName={fileName} />
 }
 
+function HierarchyForceGraph({ data }: { data: HierarchyData }) {
+    const svgRef = useRef<SVGSVGElement>(null);
+
+    useEffect(() => {
+        if (!svgRef.current || !data.nodes.length) return;
+
+        const width = svgRef.current.clientWidth || 800;
+        const height = svgRef.current.clientHeight || 600;
+
+        const svg = d3.select(svgRef.current);
+        svg.selectAll("*").remove();
+
+        const container = svg.append("g");
+
+        const zoom = d3.zoom<SVGSVGElement, unknown>()
+            .scaleExtent([0.1, 10])
+            .on("zoom", (event) => {
+                container.attr("transform", event.transform);
+            });
+
+        svg.call(zoom);
+
+        const simulation = d3.forceSimulation<HierarchyNode>(data.nodes)
+            .force("link", d3.forceLink<HierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(100))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("x", d3.forceX(width / 2).strength(0.1))
+            .force("y", d3.forceY(height / 2).strength(0.1));
+
+        const link = container.append("g")
+            .attr("stroke", "#999")
+            .attr("stroke-opacity", 0.6)
+            .selectAll("line")
+            .data(data.links)
+            .join("line")
+            .attr("stroke-width", 2);
+
+        const node = container.append("g")
+            .selectAll("g")
+            .data(data.nodes)
+            .join("g")
+            .call(d3.drag<SVGGElement, HierarchyNode>()
+                .on("start", (event, d) => {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                })
+                .on("drag", (event, d) => {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                })
+                .on("end", (event, d) => {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }) as any);
+
+        node.append("circle")
+            .attr("r", 8)
+            .attr("fill", "#007bff")
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 1.5);
+
+        node.append("text")
+            .text(d => d.name)
+            .attr("x", 12)
+            .attr("y", 4)
+            .style("font-size", "12px")
+            .style("font-family", "sans-serif")
+            .style("pointer-events", "none")
+            .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => (d.source as HierarchyNode).x!)
+                .attr("y1", d => (d.source as HierarchyNode).y!)
+                .attr("x2", d => (d.target as HierarchyNode).x!)
+                .attr("y2", d => (d.target as HierarchyNode).y!);
+
+            node
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        return () => simulation.stop();
+    }, [data]);
+
+    return <svg ref={svgRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />;
+}
+
+function GraphvizView({ dot }: { dot: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const graphvizRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        if (!graphvizRef.current) {
+            graphvizRef.current = graphviz(containerRef.current, {
+                useWorker: false,
+                width: '100%',
+                height: '100%',
+                fit: true,
+                zoom: true,
+            });
+        }
+
+        graphvizRef.current
+            .renderDot(dot)
+            .on('end', () => {
+                const svg = d3.select(containerRef.current).select('svg');
+                if (svg.empty()) return;
+
+                const zoom = graphvizRef.current.zoomBehavior();
+                if (!zoom) return;
+
+                // Remove maximum zoom level
+                zoom.scaleExtent([0, Infinity]);
+
+                // Intercept the wheel event to distinguish between pan and zoom
+                const originalWheel = svg.on('wheel.zoom');
+                svg.on('wheel.zoom', (event: WheelEvent) => {
+                    if (event.ctrlKey || event.metaKey) {
+                        // Zoom behavior: call the original d3-zoom wheel handler
+                        if (originalWheel) {
+                            originalWheel.call(svg.node() as any, event);
+                        }
+                    } else {
+                        // Pan behavior
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+
+                        const multiplier = 20;
+                        const currentTransform = d3.zoomTransform(svg.node() as any);
+                        const newTransform = currentTransform.translate(
+                            (-event.deltaX * multiplier) / currentTransform.k,
+                            (-event.deltaY * multiplier) / currentTransform.k
+                        );
+                        svg.call(zoom.transform, newTransform);
+                    }
+                }, { passive: false });
+            });
+    }, [dot]);
+
+    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+}
+
+function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
+    return (
+        <div
+            onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onMouseDown(e);
+            }}
+            style={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: '4px',
+                cursor: 'col-resize',
+                zIndex: 10,
+                transition: 'background-color 0.2s',
+            }}
+            className="resize-handle"
+        />
+    );
+}
+
+function InstanceCountsView({ entries, loading }: { entries: InstanceCountEntry[], loading: boolean }) {
+    const [sortConfig, setSortConfig] = useState<{ key: keyof InstanceCountEntry, direction: 'asc' | 'desc' }>({ key: 'total_size', direction: 'desc' });
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+        class_name: 500,
+        count: 150,
+        total_size: 200,
+    });
+
+    const handleResize = useCallback((column: string) => (e: React.MouseEvent) => {
+        const startX = e.pageX;
+        const startWidth = columnWidths[column];
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const newWidth = Math.max(50, startWidth + (moveEvent.pageX - startX));
+            setColumnWidths(prev => ({ ...prev, [column]: newWidth }));
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }, [columnWidths]);
+
+    const sortedEntries = useMemo(() => {
+        const items = [...entries];
+        items.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            let comparison = 0;
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                comparison = aValue.localeCompare(bValue);
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                comparison = aValue - bValue;
+            }
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+        });
+        return items;
+    }, [entries, sortConfig]);
+
+    const handleSort = (key: keyof InstanceCountEntry) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+
+    const SortIndicator = ({ colKey }: { colKey: keyof InstanceCountEntry }) => (
+        <span style={{ marginLeft: '4px' }}>
+            {sortConfig.key === colKey && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+        </span>
+    );
+
+    if (loading) {
+        return <div style={{ padding: '20px', color: '#666' }}>Analyzing heap dump... this might take a moment.</div>;
+    }
+
+    return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <style>
+                {`
+                    .resize-handle:hover {
+                        background-color: #007bff;
+                    }
+                    th {
+                        user-select: none;
+                    }
+                `}
+            </style>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0, zIndex: 1 }}>
+                        <tr>
+                            <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid #ddd', width: columnWidths.class_name, position: 'relative', cursor: 'pointer' }} onClick={() => handleSort('class_name')}>
+                                Class Name <SortIndicator colKey="class_name" />
+                                <ResizeHandle onMouseDown={handleResize('class_name')} />
+                            </th>
+                            <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd', width: columnWidths.count, position: 'relative', cursor: 'pointer' }} onClick={() => handleSort('count')}>
+                                Count <SortIndicator colKey="count" />
+                                <ResizeHandle onMouseDown={handleResize('count')} />
+                            </th>
+                            <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd', width: columnWidths.total_size, position: 'relative', cursor: 'pointer' }} onClick={() => handleSort('total_size')}>
+                                Total Size <SortIndicator colKey="total_size" />
+                                <ResizeHandle onMouseDown={handleResize('total_size')} />
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedEntries.map((entry, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.class_name}</td>
+                                <td style={{ textAlign: 'right', padding: '10px' }}>{entry.count.toLocaleString()}</td>
+                                <td style={{ textAlign: 'right', padding: '10px' }}>{entry.total_size.toLocaleString()} bytes</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
 root.render(<App />)
 
 interface HeapSummaryEntry {
@@ -106,7 +395,7 @@ const SUB_RECORD_PAGE_SIZE = 50;
 
 function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: string }): ReactElement {
     const [header, setHeader] = useState<HprofHeader | null>(null)
-    const [activeTab, setActiveTab] = useState<'records' | 'instances' | 'graph'>('records')
+    const [activeTab, setActiveTab] = useState<'records' | 'instances' | 'graph' | 'hierarchy' | 'all-instances'>('records')
 
     // Records state
     const [records, setRecords] = useState<RecordInfo[]>([])
@@ -126,6 +415,16 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     // Graph state
     const [dot, setDot] = useState<string | null>(null)
     const [graphLoading, setGraphLoading] = useState(false)
+    const [minEdgeCount, setMinEdgeCount] = useState(0)
+    const [weightsInitialized, setWeightsInitialized] = useState(false)
+
+    // Hierarchy state
+    const [hierarchyData, setHierarchyData] = useState<HierarchyData | null>(null)
+    const [hierarchyLoading, setHierarchyLoading] = useState(false)
+
+    // All instances state
+    const [allInstances, setAllInstances] = useState<string[]>([])
+    const [allInstancesLoading, setAllInstancesLoading] = useState(false)
 
     const listRef = useRef<HTMLDivElement>(null);
 
@@ -175,11 +474,28 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     }, [activeTab, instanceCounts.length, parser])
 
     useEffect(() => {
-        if (activeTab === 'graph' && !dot) {
+        if (activeTab === 'graph' && !weightsInitialized) {
+            try {
+                const weights = parser.get_reference_weights();
+                if (weights && weights.length > 0) {
+                    const sorted = [...weights].sort((a, b) => a - b);
+                    const median = sorted[Math.floor(sorted.length / 2)];
+                    setMinEdgeCount(median);
+                }
+                setWeightsInitialized(true);
+            } catch (e) {
+                console.error("Failed to get weights", e);
+                setWeightsInitialized(true);
+            }
+        }
+    }, [activeTab, weightsInitialized, parser]);
+
+    useEffect(() => {
+        if (activeTab === 'graph') {
             setGraphLoading(true)
             setTimeout(() => {
                 try {
-                    const d = parser.get_class_reference_graph()
+                    const d = parser.get_class_reference_graph(minEdgeCount)
                     setDot(d)
                 } catch (e) {
                     console.error("Failed to get reference graph", e)
@@ -188,13 +504,47 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 }
             }, 0)
         }
-    }, [activeTab, dot, parser])
+    }, [activeTab, minEdgeCount, parser])
+
+    useEffect(() => {
+        if (activeTab === 'hierarchy' && !hierarchyData) {
+            setHierarchyLoading(true)
+            setTimeout(() => {
+                try {
+                    const d = parser.get_class_hierarchy_json()
+                    setHierarchyData(d)
+                } catch (e) {
+                    console.error("Failed to get class hierarchy", e)
+                } finally {
+                    setHierarchyLoading(false)
+                }
+            }, 0)
+        }
+    }, [activeTab, hierarchyData, parser])
+
+    useEffect(() => {
+        if (activeTab === 'all-instances' && allInstances.length === 0) {
+            setAllInstancesLoading(true)
+            setTimeout(() => {
+                try {
+                    const instances = parser.get_all_instances(1000)
+                    setAllInstances(instances)
+                } catch (e) {
+                    console.error("Failed to get all instances", e)
+                } finally {
+                    setAllInstancesLoading(false)
+                }
+            }, 0)
+        }
+    }, [activeTab, allInstances.length, parser])
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
         try {
             setRecordDetail(parser.get_record_detail(index))
             setHeapDumpOffset(0)
+            setHeapDumpSummary([])
+            setHeapDumpRecords([])
             const summary = parser.get_heap_dump_summary(index)
             setHeapDumpSummary(summary)
             const subRecords = parser.get_heap_dump_records(index, 0, SUB_RECORD_PAGE_SIZE)
@@ -248,6 +598,8 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                     <div style={tabStyle('records')} onClick={() => setActiveTab('records')}>Records</div>
                     <div style={tabStyle('instances')} onClick={() => setActiveTab('instances')}>Instance Counts</div>
                     <div style={tabStyle('graph')} onClick={() => setActiveTab('graph')}>Reference Graph</div>
+                    <div style={tabStyle('hierarchy')} onClick={() => setActiveTab('hierarchy')}>Hierarchy</div>
+                    <div style={tabStyle('all-instances')} onClick={() => setActiveTab('all-instances')}>All Objects</div>
                 </div>
             </div>
 
@@ -376,48 +728,76 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 )}
 
                 {activeTab === 'instances' && (
-                    <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-                        <h3>Instance Counts</h3>
-                        {instancesLoading ? (
-                            <div style={{ padding: '20px', color: '#666' }}>Analyzing heap dump... this might take a moment.</div>
-                        ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-                                <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0 }}>
-                                    <tr>
-                                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid #ddd' }}>Class Name</th>
-                                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd' }}>Count</th>
-                                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '2px solid #ddd' }}>Total Size</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {instanceCounts.map((entry, idx) => (
-                                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                                            <td style={{ padding: '10px' }}>{entry.class_name}</td>
-                                            <td style={{ textAlign: 'right', padding: '10px' }}>{entry.count.toLocaleString()}</td>
-                                            <td style={{ textAlign: 'right', padding: '10px' }}>{entry.total_size.toLocaleString()} bytes</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
+                    <InstanceCountsView entries={instanceCounts} loading={instancesLoading} />
                 )}
 
                 {activeTab === 'graph' && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h3 style={{ margin: 0 }}>Reference Graph</h3>
-                            <div style={{ fontSize: '0.85em', color: '#888' }}>Top 20+ classes by instance count</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                    Min Edge Count:
+                                    <input
+                                        type="number"
+                                        value={minEdgeCount}
+                                        onChange={(e) => setMinEdgeCount(Math.max(0, parseInt(e.target.value) || 0))}
+                                        style={{ marginLeft: '5px', width: '50px', padding: '2px 5px' }}
+                                    />
+                                </div>
+                                <div style={{ fontSize: '0.85em', color: '#888' }}>Top 20+ classes by instance count</div>
+                            </div>
                         </div>
                         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                             {graphLoading ? (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building graph structure...</div>
                             ) : dot ? (
-                                <Graphviz dot={dot} options={{ width: '100%', height: '100%', fit: true, zoom: true }} />
+                                <GraphvizView dot={dot} />
                             ) : (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'hierarchy' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', justifyContent: 'space-between' }}>
+                            <h3 style={{ margin: 0 }}>Class Hierarchy</h3>
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                            {hierarchyLoading ? (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building hierarchy...</div>
+                            ) : hierarchyData ? (
+                                <HierarchyForceGraph data={hierarchyData} />
+                            ) : (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate hierarchy.</div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'all-instances' && (
+                    <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+                        <h3>All Objects (Limit 1000)</h3>
+                        {allInstancesLoading ? (
+                            <div style={{ padding: '20px', color: '#666' }}>Extracting objects...</div>
+                        ) : (
+                            <div style={{ border: '1px solid #ddd', borderRadius: '4px' }}>
+                                {allInstances.map((instance, idx) => (
+                                    <pre key={idx} style={{
+                                        fontSize: '0.85em',
+                                        background: idx % 2 === 0 ? '#fff' : '#fcfcfc',
+                                        padding: '12px',
+                                        borderBottom: idx === allInstances.length - 1 ? 'none' : '1px solid #eee',
+                                        margin: 0,
+                                        whiteSpace: 'pre-wrap',
+                                        fontFamily: 'monospace'
+                                    }}>{instance}</pre>
+                                ))}
+                                {allInstances.length === 0 && <div style={{ padding: '20px', color: '#999' }}>No instances found.</div>}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
