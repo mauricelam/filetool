@@ -74,6 +74,7 @@ dependencies = [
  "console_log",
  "jvm-hprof",
  "log",
+ "once_cell",
  "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",

@@ -1,8 +1,9 @@
 import { createRoot } from 'react-dom/client'
-import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry } from './hprof-wasm/pkg'
+import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry, HierarchyData, InstanceInfo } from './hprof-wasm/pkg'
 import React, { ReactElement, useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import * as d3 from 'd3';
 import { graphviz } from 'd3-graphviz';
+import { sankey, sankeyLinkHorizontal, sankeyCenter } from 'd3-sankey';
 
 interface HierarchyNode extends d3.SimulationNodeDatum {
     id: string;
@@ -14,11 +15,22 @@ interface HierarchyLink extends d3.SimulationLinkDatum<HierarchyNode> {
     source: string | HierarchyNode;
     target: string | HierarchyNode;
     count?: number;
+    field_names?: string[];
 }
 
-interface HierarchyData {
-    nodes: HierarchyNode[];
-    links: HierarchyLink[];
+interface SankeyNode {
+    name: string;
+}
+
+interface SankeyLink {
+    source: number;
+    target: number;
+    value: number;
+}
+
+interface SankeyData {
+    nodes: SankeyNode[];
+    links: SankeyLink[];
 }
 
 const rootElement = document.getElementById('output')
@@ -118,7 +130,7 @@ interface ExtendedHierarchyNode extends HierarchyNode {
     height: number;
 }
 
-function ForceGraph({ data }: { data: HierarchyData }) {
+function ForceGraph({ data, onSelectNode }: { data: HierarchyData, onSelectNode?: (node: HierarchyNode) => void }) {
     const svgRef = useRef<SVGSVGElement>(null);
     const [selectedNode, setSelectedNode] = useState<ExtendedHierarchyNode | null>(null);
 
@@ -157,19 +169,27 @@ function ForceGraph({ data }: { data: HierarchyData }) {
         });
 
         const simulation = d3.forceSimulation<ExtendedHierarchyNode>(nodeData)
-            .force("link", d3.forceLink<ExtendedHierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(150))
-            .force("charge", d3.forceManyBody().strength(-1000))
+            .force("link", d3.forceLink<ExtendedHierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(200))
+            .force("charge", d3.forceManyBody().strength(-2000))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("x", d3.forceX(width / 2).strength(0.1))
             .force("y", d3.forceY(height / 2).strength(0.1));
 
-        const link = container.append("g")
+        const linkGroup = container.append("g")
             .attr("stroke", "#999")
             .attr("stroke-opacity", 0.6)
-            .selectAll("line")
+            .selectAll("g")
             .data(data.links)
-            .join("line")
+            .join("g");
+
+        const link = linkGroup.append("line")
             .attr("stroke-width", d => 1 + ((d.count as number) ? ((d.count as number) / maxCount * 8) : 1));
+
+        const linkLabel = linkGroup.append("text")
+            .attr("font-size", "10px")
+            .attr("fill", "#666")
+            .attr("text-anchor", "middle")
+            .text(d => d.field_names ? d.field_names.join(", ") : "");
 
         const node = container.append("g")
             .selectAll("g")
@@ -179,6 +199,7 @@ function ForceGraph({ data }: { data: HierarchyData }) {
             .on("click", (event, d) => {
                 event.stopPropagation();
                 setSelectedNode(d);
+                if (onSelectNode) onSelectNode(d);
             })
             .call(d3.drag<SVGGElement, ExtendedHierarchyNode>()
                 .on("start", (event, d) => {
@@ -227,7 +248,7 @@ function ForceGraph({ data }: { data: HierarchyData }) {
         });
 
         // Add collision force after we know the dimensions
-        simulation.force("collide", d3.forceCollide<ExtendedHierarchyNode>().radius(d => Math.max(d.width, d.height) / 2 + 10));
+        simulation.force("collide", d3.forceCollide<ExtendedHierarchyNode>().radius(d => Math.max(d.width, d.height) / 2 + 20));
 
         simulation.on("tick", () => {
             link
@@ -235,6 +256,10 @@ function ForceGraph({ data }: { data: HierarchyData }) {
                 .attr("y1", d => (d.source as unknown as ExtendedHierarchyNode).y!)
                 .attr("x2", d => (d.target as unknown as ExtendedHierarchyNode).x!)
                 .attr("y2", d => (d.target as unknown as ExtendedHierarchyNode).y!);
+
+            linkLabel
+                .attr("x", d => ((d.source as unknown as ExtendedHierarchyNode).x! + (d.target as unknown as ExtendedHierarchyNode).x!) / 2)
+                .attr("y", d => ((d.source as unknown as ExtendedHierarchyNode).y! + (d.target as unknown as ExtendedHierarchyNode).y!) / 2);
 
             node
                 .attr("transform", d => `translate(${d.x},${d.y})`);
@@ -359,7 +384,7 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
     );
 }
 
-function InstanceCountsView({ entries, loading }: { entries: InstanceCountEntry[], loading: boolean }) {
+function InstanceCountsView({ entries, loading, onSelectClass }: { entries: InstanceCountEntry[], loading: boolean, onSelectClass: (id: string, name: string) => void }) {
     const [sortConfig, setSortConfig] = useState<{ key: keyof InstanceCountEntry, direction: 'asc' | 'desc' }>({ key: 'total_size', direction: 'desc' });
     const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
         class_name: 500,
@@ -428,6 +453,10 @@ function InstanceCountsView({ entries, loading }: { entries: InstanceCountEntry[
                     th {
                         user-select: none;
                     }
+                    .clickable-row:hover {
+                        background-color: #f0f7ff !important;
+                        cursor: pointer;
+                    }
                 `}
             </style>
             <div style={{ flex: 1, overflow: 'auto' }}>
@@ -450,7 +479,7 @@ function InstanceCountsView({ entries, loading }: { entries: InstanceCountEntry[
                     </thead>
                     <tbody>
                         {sortedEntries.map((entry, idx) => (
-                            <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                            <tr key={idx} style={{ borderBottom: '1px solid #eee' }} className="clickable-row" onClick={() => onSelectClass(entry.class_id, entry.class_name)}>
                                 <td style={{ padding: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.class_name}</td>
                                 <td style={{ textAlign: 'right', padding: '10px' }}>{entry.count.toLocaleString()}</td>
                                 <td style={{ textAlign: 'right', padding: '10px' }}>{entry.total_size.toLocaleString()} bytes</td>
@@ -461,6 +490,254 @@ function InstanceCountsView({ entries, loading }: { entries: InstanceCountEntry[
             </div>
         </div>
     );
+}
+
+function ClassInstancesView({ parser, classId, className, onSelectInstance, onBack }: { parser: HprofParser, classId: string, className: string, onSelectInstance: (id: string) => void, onBack: () => void }) {
+    const [instances, setInstances] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [offset, setOffset] = useState(0);
+    const limit = 100;
+
+    useEffect(() => {
+        setLoading(true);
+        try {
+            const res = parser.get_class_instances(classId, offset, limit);
+            setInstances(res);
+        } catch (e) {
+            console.error("Failed to get instances", e);
+        } finally {
+            setLoading(false);
+        }
+    }, [classId, offset, parser]);
+
+    return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', overflow: 'hidden' }}>
+            <div style={{ marginBottom: '15px' }}>
+                <button onClick={onBack} style={{ marginBottom: '10px' }}>← Back to Classes</button>
+                <h3 style={{ margin: 0 }}>Instances of {className}</h3>
+                <div style={{ fontSize: '0.85em', color: '#666' }}>Class ID: {classId}</div>
+            </div>
+            {loading ? (
+                <div>Loading instances...</div>
+            ) : (
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <div style={{ border: '1px solid #ddd', borderRadius: '4px' }}>
+                        {instances.map(id => (
+                            <div key={id} onClick={() => onSelectInstance(id)} style={{ padding: '10px', borderBottom: '1px solid #eee', cursor: 'pointer' }} className="clickable-row">
+                                {id}
+                            </div>
+                        ))}
+                        {instances.length === 0 && <div style={{ padding: '20px', color: '#999' }}>No instances found in this range.</div>}
+                    </div>
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                        <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>Previous</button>
+                        <button disabled={instances.length < limit} onClick={() => setOffset(offset + limit)}>Next</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function InstanceDetailView({ parser, instanceId, onSelectInstance, onBack }: { parser: HprofParser, instanceId: string, onSelectInstance: (id: string) => void, onBack: () => void }) {
+    const [info, setInfo] = useState<InstanceInfo | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [retainedSize, setRetainedSize] = useState<number | null>(null);
+    const [calculatingRetained, setCalculatingRetained] = useState(false);
+    const [gcPath, setGcPath] = useState<string[] | null>(null);
+    const [findingGc, setFindingGc] = useState(false);
+
+    useEffect(() => {
+        setLoading(true);
+        setRetainedSize(null);
+        setGcPath(null);
+        try {
+            const res = parser.get_instance_info(instanceId);
+            setInfo(res);
+        } catch (e) {
+            console.error("Failed to get instance info", e);
+        } finally {
+            setLoading(false);
+        }
+    }, [instanceId, parser]);
+
+    const calculateRetained = () => {
+        setCalculatingRetained(true);
+        setTimeout(() => {
+            try {
+                const res = parser.calculate_retained_size(instanceId);
+                setRetainedSize(Number(res));
+            } catch (e) {
+                console.error("Failed to calculate retained size", e);
+            } finally {
+                setCalculatingRetained(false);
+            }
+        }, 0);
+    };
+
+    const findGcPath = () => {
+        setFindingGc(true);
+        setGcPath(null);
+        setTimeout(() => {
+            try {
+                const res = parser.get_shortest_path_to_gc_root(instanceId);
+                if (res) {
+                    setGcPath(res);
+                } else {
+                    setGcPath([]);
+                }
+            } catch (e) {
+                console.error("Failed to find GC path", e);
+                setGcPath(null);
+            } finally {
+                setFindingGc(false);
+            }
+        }, 0);
+    };
+
+    if (loading) return <div style={{ padding: '20px' }}>Loading instance details...</div>;
+    if (!info) return <div style={{ padding: '20px' }}>Instance not found.</div>;
+
+    return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', overflowY: 'auto' }}>
+            <div style={{ marginBottom: '20px' }}>
+                <button onClick={onBack} style={{ marginBottom: '10px' }}>← Back</button>
+                <h3 style={{ margin: 0 }}>Instance Detail: {info.class_name}</h3>
+                <div style={{ fontSize: '0.85em', color: '#666' }}>ID: {info.id}</div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                <div style={{ flex: 1, padding: '15px', background: '#f9f9f9', borderRadius: '4px', border: '1px solid #ddd' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Memory Usage</div>
+                    <div>Shallow Size: <b>{info.size.toLocaleString()} bytes</b></div>
+                    <div>
+                        Retained Size: {retainedSize !== null ? <b>{retainedSize.toLocaleString()} bytes</b> : (
+                            <button onClick={calculateRetained} disabled={calculatingRetained} style={{ marginLeft: '10px', fontSize: '0.8em' }}>
+                                {calculatingRetained ? 'Calculating...' : 'Calculate'}
+                            </button>
+                        )}
+                    </div>
+                </div>
+                <div style={{ flex: 1, padding: '15px', background: '#f9f9f9', borderRadius: '4px', border: '1px solid #ddd' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>GC Roots</div>
+                    {gcPath !== null ? (
+                        gcPath.length > 0 ? (
+                            <div style={{ fontSize: '0.9em' }}>
+                                {gcPath.map((step, i) => (
+                                    <div key={i} style={{ marginBottom: '4px' }}>
+                                        {i > 0 && <span style={{ color: '#999', margin: '0 5px' }}>↳</span>}
+                                        {step}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div style={{ color: '#999' }}>No path to GC root found.</div>
+                        )
+                    ) : (
+                        <button onClick={findGcPath} disabled={findingGc}>
+                            {findingGc ? 'Finding path...' : 'Find shortest path to GC root'}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <h4 style={{ marginBottom: '10px' }}>Fields</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' }}>
+                <thead>
+                    <tr style={{ background: '#f5f5f5' }}>
+                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #ddd' }}>Name</th>
+                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #ddd' }}>Type</th>
+                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #ddd' }}>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {info.fields.map((f, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                            <td style={{ padding: '10px' }}>{f.name}</td>
+                            <td style={{ padding: '10px', color: '#666' }}>{f.ftype}</td>
+                            <td style={{ padding: '10px' }}>
+                                {f.ref_id ? (
+                                    <span style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => onSelectInstance(f.ref_id!)}>
+                                        {f.value}
+                                    </span>
+                                ) : f.value}
+                            </td>
+                        </tr>
+                    ))}
+                    {info.fields.length === 0 && <tr><td colSpan={3} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No object fields found.</td></tr>}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function SankeyView({ data }: { data: SankeyData }) {
+    const svgRef = useRef<SVGSVGElement>(null);
+
+    useEffect(() => {
+        if (!svgRef.current || !data.nodes.length) return;
+
+        const width = svgRef.current.clientWidth || 800;
+        const height = svgRef.current.clientHeight || 600;
+
+        const svg = d3.select(svgRef.current);
+        svg.selectAll("*").remove();
+
+        const sankeyGenerator = sankey<SankeyNode, SankeyLink>()
+            .nodeWidth(15)
+            .nodePadding(10)
+            .extent([[1, 5], [width - 1, height - 5]])
+            .nodeId(d => (d as any).index)
+            .nodeAlign(sankeyCenter);
+
+        const { nodes, links } = sankeyGenerator({
+            nodes: data.nodes.map(d => ({ ...d })),
+            links: data.links.map(d => ({ ...d }))
+        });
+
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+        const g = svg.append("g");
+
+        g.append("g")
+            .selectAll("rect")
+            .data(nodes)
+            .join("rect")
+            .attr("x", d => (d as any).x0)
+            .attr("y", d => (d as any).y0)
+            .attr("height", d => (d as any).y1 - (d as any).y0)
+            .attr("width", d => (d as any).x1 - (d as any).x0)
+            .attr("fill", (d, i) => color(i.toString()))
+            .attr("stroke", "#000")
+            .append("title")
+            .text(d => `${d.name}\n${(d as any).value}`);
+
+        g.append("g")
+            .attr("fill", "none")
+            .attr("stroke-opacity", 0.5)
+            .selectAll("path")
+            .data(links)
+            .join("path")
+            .attr("d", sankeyLinkHorizontal())
+            .attr("stroke", d => color(((d.source as any).index).toString()))
+            .attr("stroke-width", d => Math.max(1, d.width!))
+            .append("title")
+            .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${d.value}`);
+
+        g.append("g")
+            .style("font", "10px sans-serif")
+            .selectAll("text")
+            .data(nodes)
+            .join("text")
+            .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 6)
+            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2)
+            .attr("dy", "0.35em")
+            .attr("text-anchor", d => (d as any).x0 < width / 2 ? "start" : "end")
+            .text(d => d.name);
+
+    }, [data]);
+
+    return <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />;
 }
 
 root.render(<App />)
@@ -475,7 +752,7 @@ const SUB_RECORD_PAGE_SIZE = 50;
 
 function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: string }): ReactElement {
     const [header, setHeader] = useState<HprofHeader | null>(null)
-    const [activeTab, setActiveTab] = useState<'records' | 'instances' | 'graph' | 'hierarchy' | 'all-instances'>('records')
+    const [activeTab, setActiveTab] = useState<'records' | 'instances' | 'graph' | 'hierarchy' | 'all-instances' | 'sankey'>('records')
 
     // Records state
     const [records, setRecords] = useState<RecordInfo[]>([])
@@ -491,6 +768,8 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     // Instance counts state
     const [instanceCounts, setInstanceCounts] = useState<InstanceCountEntry[]>([])
     const [instancesLoading, setInstancesLoading] = useState(false)
+    const [selectedClass, setSelectedClass] = useState<{ id: string, name: string } | null>(null);
+    const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
 
     // Graph state
     const [dot, setDot] = useState<string | null>(null)
@@ -507,6 +786,10 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     // All instances state
     const [allInstances, setAllInstances] = useState<string[]>([])
     const [allInstancesLoading, setAllInstancesLoading] = useState(false)
+
+    // Sankey state
+    const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
+    const [sankeyLoading, setSankeyLoading] = useState(false);
 
     const listRef = useRef<HTMLDivElement>(null);
 
@@ -625,6 +908,22 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         }
     }, [activeTab, allInstances.length, parser])
 
+    useEffect(() => {
+        if (activeTab === 'sankey' && !sankeyData) {
+            setSankeyLoading(true);
+            setTimeout(() => {
+                try {
+                    const d = parser.get_sankey_data();
+                    setSankeyData(d);
+                } catch (e) {
+                    console.error("Failed to get sankey data", e);
+                } finally {
+                    setSankeyLoading(false);
+                }
+            }, 0);
+        }
+    }, [activeTab, sankeyData, parser]);
+
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
         try {
@@ -669,6 +968,16 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         fontWeight: activeTab === tab ? 'bold' : 'normal',
     } as const);
 
+    const handleSelectClass = (id: string, name: string) => {
+        setSelectedClass({ id, name });
+        setSelectedInstanceId(null);
+    };
+
+    const handleSelectInstance = (id: string) => {
+        setSelectedInstanceId(id);
+        setActiveTab('instances'); // Ensure we are on the right tab if called from somewhere else
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', fontFamily: 'sans-serif' }}>
             <div style={{ padding: '10px', borderBottom: '1px solid #ccc', background: '#f5f5f5' }}>
@@ -685,6 +994,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                     <div style={tabStyle('records')} onClick={() => setActiveTab('records')}>Records</div>
                     <div style={tabStyle('instances')} onClick={() => setActiveTab('instances')}>Instance Counts</div>
                     <div style={tabStyle('graph')} onClick={() => setActiveTab('graph')}>Reference Graph</div>
+                    <div style={tabStyle('sankey')} onClick={() => setActiveTab('sankey')}>Memory Flow (Sankey)</div>
                     <div style={tabStyle('hierarchy')} onClick={() => setActiveTab('hierarchy')}>Hierarchy</div>
                     <div style={tabStyle('all-instances')} onClick={() => setActiveTab('all-instances')}>All Objects</div>
                 </div>
@@ -815,7 +1125,13 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 )}
 
                 {activeTab === 'instances' && (
-                    <InstanceCountsView entries={instanceCounts} loading={instancesLoading} />
+                    selectedInstanceId ? (
+                        <InstanceDetailView parser={parser} instanceId={selectedInstanceId} onBack={() => setSelectedInstanceId(null)} onSelectInstance={handleSelectInstance} />
+                    ) : selectedClass ? (
+                        <ClassInstancesView parser={parser} classId={selectedClass.id} className={selectedClass.name} onBack={() => setSelectedClass(null)} onSelectInstance={handleSelectInstance} />
+                    ) : (
+                        <InstanceCountsView entries={instanceCounts} loading={instancesLoading} onSelectClass={handleSelectClass} />
+                    )
                 )}
 
                 {activeTab === 'graph' && (
@@ -852,8 +1168,26 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                             ) : (graphMode === 'static' ? (
                                 dot ? <GraphvizView dot={dot} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
                             ) : (
-                                forceGraphData ? <ForceGraph data={forceGraphData} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
+                                forceGraphData ? <ForceGraph data={forceGraphData} onSelectNode={(node) => handleSelectClass(node.id, node.name)} /> : <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate graph.</div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'sankey' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#fff' }}>
+                            <h3 style={{ margin: 0 }}>Memory Flow (Top Classes)</h3>
+                            <div style={{ fontSize: '0.85em', color: '#666' }}>Visualization of reference counts between top 10 classes</div>
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                            {sankeyLoading ? (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Calculating flow...</div>
+                            ) : sankeyData ? (
+                                <SankeyView data={sankeyData} />
+                            ) : (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate Sankey diagram.</div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -868,7 +1202,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                             {hierarchyLoading ? (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Building hierarchy...</div>
                             ) : hierarchyData ? (
-                                <ForceGraph data={hierarchyData} />
+                                <ForceGraph data={hierarchyData} onSelectNode={(node) => handleSelectClass(node.id, node.name)} />
                             ) : (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Failed to generate hierarchy.</div>
                             )}
