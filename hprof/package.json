@@ -13,11 +13,13 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "graphviz-react": "^1.2.1"
+    "d3": "^7.9.0",
+    "d3-graphviz": "^5.6.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
+    "@types/d3": "^7.4.3",
     "esbuild": "^0.27.2",
     "esbuild-plugin-copy": "^2.1.1",
     "esbuild-plugin-wasm": "^1.1.0",
