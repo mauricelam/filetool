@@ -506,7 +506,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                         const d = parser.get_class_reference_graph(minEdgeCount)
                         setDot(d)
                     } else {
-                        const d = (parser as any).get_class_reference_graph_json(minEdgeCount)
+                        const d = parser.get_class_reference_graph_json(minEdgeCount)
                         setForceGraphData(d)
                     }
                 } catch (e) {
