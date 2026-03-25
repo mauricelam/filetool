@@ -4,9 +4,6 @@ import fs from 'fs';
 
 test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
     test('should correctly decompile main in protoc-linux-aarch64', async ({ page }) => {
-        // Increase timeout for the whole test as build/load can be slow
-        test.setTimeout(900000);
-
         // Capture console logs from the page to help debug worker issues
         page.on('console', msg => {
             const txt = msg.text();
