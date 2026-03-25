@@ -44,8 +44,8 @@ async function getDecompiler() {
 }
 
 self.onmessage = async (e: MessageEvent) => {
-    const { action, buffer, fileName, funcName, arch, sla, pspec, cspec, segments, symbols, baseAddr } = e.data;
-    console.log('[GhidraWorker] Message received:', action, { fileName, funcName, arch });
+    const { action, buffer, fileName, funcName, targetAddr, arch, sla, pspec, cspec, segments, symbols, baseAddr } = e.data;
+    console.log('[GhidraWorker] Message received:', action, { fileName, funcName, targetAddr, arch });
 
     try {
         if (action === 'detect_architecture') {
@@ -65,25 +65,31 @@ self.onmessage = async (e: MessageEvent) => {
             const slaPtr = module._malloc(slaData.length);
             module.HEAPU8.set(slaData, slaPtr);
 
-            // Find target function address for windowing
-            let targetVaddr: number | null = null;
-            if (symbols && symbols.length > 0) {
-                const targetSym = symbols.find(s => s.name === funcName && s.address !== '?');
-                if (targetSym) {
-                    targetVaddr = parseInt(targetSym.address, 16);
-                    console.log(`[GhidraWorker] Found target function ${funcName} at ${targetSym.address}`);
-                }
+            // Use passed targetAddr for windowing
+            const targetVaddr: number | null = (targetAddr && targetAddr !== 0) ? targetAddr : null;
+            if (targetVaddr) {
+                console.log(`[GhidraWorker] Windowing around 0x${targetVaddr.toString(16)}`);
             }
 
-            const WINDOW_SIZE = 256 * 1024; // 256KB window around function (512KB total)
+            const WINDOW_SIZE = 128 * 1024; // 128KB window around function (256KB total)
+            const MAX_TOTAL_SIZE = 1024 * 1024; // Limit to 1MB total if no target
             const CHUNK_SIZE = 32 * 1024; // 32KB chunks
             let imageXmlParts = [`<binaryimage arch="${arch}">\n`];
             let chunksIncluded = 0;
+            let totalBytes = 0;
 
             const shouldInclude = (vaddr: number, size: number) => {
-                if (targetVaddr === null) return true; // Include all if no target function found
+                if (targetVaddr === null) {
+                    if (totalBytes + size <= MAX_TOTAL_SIZE) {
+                        totalBytes += size;
+                        return true;
+                    }
+                    return false;
+                }
                 // Include if chunk overlaps with [target - WINDOW, target + WINDOW]
-                return vaddr + size >= targetVaddr - WINDOW_SIZE && vaddr <= targetVaddr + WINDOW_SIZE;
+                const included = vaddr + size >= targetVaddr - WINDOW_SIZE && vaddr <= targetVaddr + WINDOW_SIZE;
+                if (included) totalBytes += size;
+                return included;
             };
 
             if (segments && segments.length > 0) {
@@ -120,12 +126,12 @@ self.onmessage = async (e: MessageEvent) => {
             console.log(`[GhidraWorker] Included ${chunksIncluded} chunks in XML`);
 
             if (symbols && symbols.length > 0) {
-                // Limit to 200 symbols to avoid huge XML and potential crash, but prioritize 'main'
-                const limit = 200;
+                // Limit to 100 symbols to avoid huge XML and potential crash
+                const limit = 100;
                 let count = 0;
                 const seenAddresses = new Set<string>();
 
-                // Prioritize the target function and ensure it's included
+                // Prioritize the target function symbol
                 const targetSym = symbols.find(s => s.name === funcName && s.address !== '?');
                 if (targetSym) {
                     imageXmlParts.push(`<symbol space="ram" offset="${targetSym.address}" name="${escapeXml(targetSym.name)}"/>\n`);
@@ -137,8 +143,8 @@ self.onmessage = async (e: MessageEvent) => {
                     if (count >= limit) break;
                     if (sym.address !== '?' && !seenAddresses.has(sym.address)) {
                         const addr = parseInt(sym.address, 16);
-                        // Only include symbols within a slightly larger window than the code (1MB)
-                        if (targetVaddr === null || (addr >= targetVaddr - 524288 && addr <= targetVaddr + 524288)) {
+                        // Only include symbols within a small window (512KB around target)
+                        if (targetVaddr === null || (addr >= targetVaddr - 262144 && addr <= targetVaddr + 262144)) {
                             imageXmlParts.push(`<symbol space="ram" offset="${sym.address}" name="${escapeXml(sym.name)}"/>\n`);
                             seenAddresses.add(sym.address);
                             count++;

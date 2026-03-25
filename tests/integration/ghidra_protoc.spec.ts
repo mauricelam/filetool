@@ -50,7 +50,11 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
         await iframe.getByPlaceholder('Search symbols...').fill('main');
         await page.waitForTimeout(1000); // Wait for filtering
 
-        await expect(iframe.locator('div').filter({ hasText: /^main$/ }).first()).toBeVisible({ timeout: 10000 });
+        // Get function address for logging
+        const symEl = iframe.locator('div').filter({ hasText: /^main$/ }).first();
+        await expect(symEl).toBeVisible({ timeout: 20000 });
+        const symText = await symEl.innerText();
+        console.log(`Found main symbol: ${symText}`);
 
         // Click on main to decompile
         await iframe.locator('div').filter({ hasText: /^main$/ }).first().click();
