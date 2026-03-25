@@ -29,25 +29,41 @@ writeString(chunks, "JAVA PROFILE 1.0.1");
 writeU32(chunks, 4);
 writeU64(chunks, Date.now());
 
-chunks.push(Buffer.from([0x01]));
-writeU32(chunks, 100);
-writeU32(chunks, 4 + 16);
-writeU32(chunks, 1);
-chunks.push(Buffer.from("java.lang.Object", 'utf8'));
+// Utf8 strings
+const strings = [
+    [10, "java.lang.Object"],
+    [11, "com.test.Child"],
+    [12, "myField"]
+];
 
+for (const [id, s] of strings) {
+    chunks.push(Buffer.from([0x01]));
+    writeU32(chunks, 100 + id);
+    writeU32(chunks, 4 + s.length);
+    writeU32(chunks, id);
+    chunks.push(Buffer.from(s, 'utf8'));
+}
+
+// LoadClass
 chunks.push(Buffer.from([0x02]));
 writeU32(chunks, 200);
 writeU32(chunks, 4 + 4 + 4 + 4);
-writeU32(chunks, 1);
-writeU32(chunks, 0x1234);
-writeU32(chunks, 1);
-writeU32(chunks, 1);
+writeU32(chunks, 1); // class serial
+writeU32(chunks, 0x1234); // obj id
+writeU32(chunks, 1); // stack trace
+writeU32(chunks, 10); // name id 10 (Object)
+
+chunks.push(Buffer.from([0x02]));
+writeU32(chunks, 201);
+writeU32(chunks, 4 + 4 + 4 + 4);
+writeU32(chunks, 2); // class serial
+writeU32(chunks, 0x1235); // obj id
+writeU32(chunks, 1); // stack trace
+writeU32(chunks, 11); // name id 11 (Child)
 
 const subRecords = [];
-subRecords.push(Buffer.from([0x01]));
-writeU32(subRecords, 0x5678);
-writeU32(subRecords, 0x9012);
 
+// CLASS DUMP Object
 subRecords.push(Buffer.from([0x20]));
 writeU32(subRecords, 0x1234);
 writeU32(subRecords, 0);
@@ -57,16 +73,44 @@ writeU32(subRecords, 0);
 writeU32(subRecords, 0);
 writeU32(subRecords, 0);
 writeU32(subRecords, 0);
-writeU32(subRecords, 16);
-writeU16(subRecords, 0);
-writeU16(subRecords, 0);
-writeU16(subRecords, 0);
+writeU32(subRecords, 8); // instance size
+writeU16(subRecords, 0); // constant pool size
+writeU16(subRecords, 0); // static fields count
+writeU16(subRecords, 0); // instance fields count
 
-subRecords.push(Buffer.from([0x21])); // INSTANCE DUMP
-writeU32(subRecords, 0x5678); // object id
-writeU32(subRecords, 0); // stack trace
-writeU32(subRecords, 0x1234); // class id
-writeU32(subRecords, 0); // data length
+// CLASS DUMP Child
+subRecords.push(Buffer.from([0x20]));
+writeU32(subRecords, 0x1235);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0x1234); // super is Object
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+writeU32(subRecords, 4); // instance size 4
+writeU16(subRecords, 0); // constant pool size
+writeU16(subRecords, 0); // static fields count
+writeU16(subRecords, 1); // instance fields count
+  writeU32(subRecords, 12); // name id 12 (myField)
+  subRecords.push(Buffer.from([2])); // type 2 (object)
+
+// INSTANCE DUMP of Object
+subRecords.push(Buffer.from([0x21]));
+writeU32(subRecords, 0x9001); // object id
+writeU32(subRecords, 0);
+writeU32(subRecords, 0x1234); // class id (Object)
+writeU32(subRecords, 8); // data length
+writeU32(subRecords, 0);
+writeU32(subRecords, 0);
+
+// INSTANCE DUMP of Child referencing the Object instance
+subRecords.push(Buffer.from([0x21]));
+writeU32(subRecords, 0x9002); // object id
+writeU32(subRecords, 0);
+writeU32(subRecords, 0x1235); // class id (Child)
+writeU32(subRecords, 4); // data length
+writeU32(subRecords, 0x9001); // ref to Object instance
 
 const heapDumpContent = Buffer.concat(subRecords);
 chunks.push(Buffer.from([0x1C]));
@@ -75,4 +119,4 @@ writeU32(chunks, heapDumpContent.length);
 chunks.push(heapDumpContent);
 
 fs.writeFileSync('test.hprof', Buffer.concat(chunks));
-console.log("Minimal HPROF generated at: test.hprof");
+console.log("Updated HPROF generated at: test.hprof");
