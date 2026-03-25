@@ -1,3 +1,15 @@
+//! HPROF WebAssembly Backend
+//!
+//! This module provides high-performance parsing and analysis of JVM HPROF files
+//! for the web-based viewer. It utilizes the `jvm-hprof` crate for low-level parsing
+//! and exposes a set of specialized methods to the React frontend via `wasm-bindgen`.
+//!
+//! Key functionalities include:
+//! - Efficient record indexing and searching.
+//! - Extraction of instance counts and memory usage by class.
+//! - Generation of class hierarchy and reference graphs in both DOT and JSON formats.
+//! - Progressive loading of heap dump sub-records (instances, arrays, etc.).
+
 use wasm_bindgen::prelude::*;
 use jvm_hprof::{parse_hprof, RecordTag, IdSize, Id};
 use jvm_hprof::heap_dump::{SubRecord, FieldType};
@@ -8,6 +20,7 @@ use std::collections::HashMap;
 mod normalize;
 use normalize::normalize_hprof;
 
+/// The main parser instance, holding the raw data and pre-computed metadata.
 #[wasm_bindgen]
 pub struct HprofParser {
     data: Vec<u8>,
@@ -16,6 +29,7 @@ pub struct HprofParser {
     id_size: u32,
 }
 
+/// Basic header information extracted from the HPROF file.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HprofHeader {
     pub label: String,
@@ -23,6 +37,7 @@ pub struct HprofHeader {
     pub timestamp_millis: u64,
 }
 
+/// Metadata about a single top-level HPROF record.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RecordInfo {
     pub index: usize,
@@ -30,18 +45,21 @@ pub struct RecordInfo {
     pub micros_since_header_ts: u32,
 }
 
+/// Summary entry for sub-records found within a heap dump segment.
 #[derive(Serialize, Deserialize)]
 pub struct HeapSummaryEntry {
     pub tag: String,
     pub count: usize,
 }
 
+/// Search results containing a subset of records and the total match count.
 #[derive(Serialize, Deserialize)]
 pub struct SearchResult {
     pub total_count: usize,
     pub records: Vec<RecordInfo>,
 }
 
+/// Statistics for a specific Java class within the heap dump.
 #[derive(Serialize, Deserialize)]
 pub struct InstanceCountEntry {
     pub class_name: String,
@@ -49,20 +67,27 @@ pub struct InstanceCountEntry {
     pub total_size: usize,
 }
 
+/// Represents a node in the force-directed class hierarchy or reference graph.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HierarchyNode {
+    /// Unique identifier for the node (usually the object ID).
     pub id: String,
+    /// Human-readable name (usually the class name).
     pub name: String,
+    /// Weight/size of the node, used for visual scaling (e.g., total bytes).
     pub size: u64,
 }
 
+/// Represents a directed link between two nodes in the graph.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HierarchyLink {
     pub source: String,
     pub target: String,
+    /// Optional weight for the link (e.g., number of references).
     pub count: Option<usize>,
 }
 
+/// Container for graph data suitable for D3.js force-directed layouts.
 #[derive(Serialize, Deserialize)]
 pub struct HierarchyData {
     pub nodes: Vec<HierarchyNode>,
@@ -71,6 +96,8 @@ pub struct HierarchyData {
 
 #[wasm_bindgen]
 impl HprofParser {
+    /// Creates a new HprofParser by indexing all records in the provided data.
+    /// Handles normalization of Android-specific HPROF versions to standard format.
     #[wasm_bindgen(constructor)]
     pub fn new(data: Vec<u8>) -> Self {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -109,6 +136,7 @@ impl HprofParser {
         HprofParser { data, record_offsets, metadata, id_size }
     }
 
+    /// Returns the basic header information (version, ID size, timestamp).
     pub fn get_header(&self) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let header = hprof.header();
@@ -120,8 +148,10 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&info)?)
     }
 
+    /// Returns the total number of top-level records found in the file.
     pub fn get_total_records(&self) -> usize { self.metadata.len() }
 
+    /// Searches for records by tag name with pagination.
     pub fn search_records(&self, query: String, offset: usize, limit: usize) -> Result<JsValue, JsValue> {
         let query_lower = query.to_lowercase();
         let filtered: Vec<_> = self.metadata.iter()
@@ -135,6 +165,7 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&result)?)
     }
 
+    /// Returns a human-readable detail string for a specific record.
     pub fn get_record_detail(&self, index: usize) -> Result<JsValue, JsValue> {
         let offset = *self.record_offsets.get(index).ok_or_else(|| JsValue::from_str("Record index out of bounds"))?;
         let length = u32::from_be_bytes(self.data[offset + 5..offset + 9].try_into().map_err(|_| "Invalid offset data")?) as usize;
@@ -146,6 +177,7 @@ impl HprofParser {
         Ok(JsValue::from_str(&detail))
     }
 
+    /// Summarizes the sub-records (Class, Instance, etc.) within a HeapDump record.
     pub fn get_heap_dump_summary(&self, index: usize) -> Result<JsValue, JsValue> {
         let record_offset = *self.record_offsets.get(index).ok_or_else(|| JsValue::from_str("Record index out of bounds"))?;
         let length = u32::from_be_bytes(self.data[record_offset+5..record_offset+9].try_into().unwrap()) as usize;
@@ -181,6 +213,7 @@ impl HprofParser {
         } else { Err(JsValue::from_str("Record is not a heap dump")) }
     }
 
+    /// Returns a paginated list of human-readable strings for sub-records in a HeapDump.
     pub fn get_heap_dump_records(&self, index: usize, offset: usize, limit: usize) -> Result<JsValue, JsValue> {
         let record_offset = *self.record_offsets.get(index).ok_or_else(|| JsValue::from_str("Record index out of bounds"))?;
         let length = u32::from_be_bytes(self.data[record_offset+5..record_offset+9].try_into().unwrap()) as usize;
@@ -217,6 +250,7 @@ impl HprofParser {
         } else { Err(JsValue::from_str("Record is not a heap dump")) }
     }
 
+    /// Aggregates instance counts and total memory usage for all loaded classes.
     pub fn get_instance_counts(&self) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -268,6 +302,7 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&result)?)
     }
 
+    /// Computes the number of references between all classes to provide weight metadata for edge filtering.
     pub fn get_reference_weights(&self) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut obj_id_to_class_id = HashMap::new();
@@ -361,6 +396,7 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&weights)?)
     }
 
+    /// Generates a Graphviz DOT representation of the class reference graph.
     pub fn get_class_reference_graph(&self, min_edge_count: usize) -> Result<String, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -551,6 +587,8 @@ impl HprofParser {
         Ok(dot)
     }
 
+    /// Returns JSON data for the class hierarchy diagram.
+    /// Filters out `java.lang.Object` (and its link-equivalents) to reduce visual clutter.
     pub fn get_class_hierarchy_json(&self) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -589,13 +627,13 @@ impl HprofParser {
             let cname = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", cid_str));
             let sname = class_id_to_name_id.get(&sid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", sid_str));
 
-            if cname == "java.lang.Object" {
+            if cname == "java.lang.Object" || cname == "java/lang/Object" {
                 continue;
             }
 
             nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0 });
 
-            if sname != "java.lang.Object" {
+            if sname != "java.lang.Object" && sname != "java/lang/Object" {
                 nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0 });
                 links.push(HierarchyLink { source: cid_str, target: sid_str, count: None });
             }
@@ -609,6 +647,7 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&data)?)
     }
 
+    /// Returns JSON data for the class reference graph, including weighted links and node sizes.
     pub fn get_class_reference_graph_json(&self, min_edge_count: usize) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -756,6 +795,7 @@ impl HprofParser {
         Ok(serde_wasm_bindgen::to_value(&data)?)
     }
 
+    /// Generates a Graphviz DOT representation of the class hierarchy.
     pub fn get_class_hierarchy(&self) -> Result<String, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -793,6 +833,7 @@ impl HprofParser {
         Ok(dot)
     }
 
+    /// Extracts a limited number of instances and arrays from the heap dump as strings.
     pub fn get_all_instances(&self, limit: usize) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -857,6 +898,7 @@ impl HprofParser {
     }
 }
 
+/// Utility function to calculate the byte size of a primitive field or an object reference.
 fn field_size(ftype: FieldType, id_size: usize) -> usize {
     match ftype {
         FieldType::ObjectId => id_size,

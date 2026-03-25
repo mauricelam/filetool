@@ -22,16 +22,16 @@ test('HPROF viewer should support static and force graph modes', async ({ page }
     // Test Reference Graph tab
     await iframe.locator('div').filter({ hasText: /^Reference Graph$/ }).click();
 
-    // Check static mode (default)
-    await expect(iframe.locator('select').first()).toHaveValue('static');
+    // Check force mode (default)
+    await expect(iframe.locator('select').first()).toHaveValue('force');
+    // Force graph uses rects for nodes
+    await expect(iframe.locator('rect').first()).toBeVisible({ timeout: 10000 });
+
+    // Switch to static mode
+    await iframe.locator('select').first().selectOption('static');
     await expect(iframe.locator('svg')).toBeVisible({ timeout: 20000 });
     // Graphviz adds title tag to svg
     await expect(iframe.locator('svg title').first()).toBeAttached({ timeout: 10000 });
-
-    // Switch to force mode
-    await iframe.locator('select').first().selectOption('force');
-    // Force graph uses rects for nodes
-    await expect(iframe.locator('rect').first()).toBeVisible({ timeout: 10000 });
 
     // Test Hierarchy tab (should not contain java.lang.Object in the graph)
     await iframe.locator('div').filter({ hasText: /^Hierarchy$/ }).click();

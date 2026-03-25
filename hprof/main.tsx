@@ -112,11 +112,18 @@ function App() {
     return <HprofViewer parser={parser} fileName={fileName} />
 }
 
+interface ExtendedHierarchyNode extends HierarchyNode {
+    fontSize: number;
+    width: number;
+    height: number;
+}
+
 function ForceGraph({ data }: { data: HierarchyData }) {
     const svgRef = useRef<SVGSVGElement>(null);
+    const [selectedNode, setSelectedNode] = useState<ExtendedHierarchyNode | null>(null);
 
     const maxCount = useMemo(() => {
-        return Math.max(...data.links.map(l => l.count || 0), 1);
+        return Math.max(...data.links.map(l => (l.count as number) || 0), 1);
     }, [data.links]);
 
     const maxSize = useMemo(() => {
@@ -143,15 +150,14 @@ function ForceGraph({ data }: { data: HierarchyData }) {
         svg.call(zoom);
 
         // Pre-calculate node sizes for collision and rendering
-        // We use a dummy SVG to measure text if getBBox is only available after append
-        const nodeData = data.nodes.map(n => {
+        const nodeData: ExtendedHierarchyNode[] = data.nodes.map(n => {
             const scale = n.size ? Math.sqrt(n.size / maxSize) : 0;
             const fontSize = 12 + scale * 12;
-            return { ...n, fontSize };
+            return { ...n, fontSize, width: 0, height: 0 } as ExtendedHierarchyNode;
         });
 
-        const simulation = d3.forceSimulation<HierarchyNode>(nodeData)
-            .force("link", d3.forceLink<HierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(150))
+        const simulation = d3.forceSimulation<ExtendedHierarchyNode>(nodeData)
+            .force("link", d3.forceLink<ExtendedHierarchyNode, HierarchyLink>(data.links).id(d => d.id).distance(150))
             .force("charge", d3.forceManyBody().strength(-1000))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("x", d3.forceX(width / 2).strength(0.1))
@@ -163,14 +169,18 @@ function ForceGraph({ data }: { data: HierarchyData }) {
             .selectAll("line")
             .data(data.links)
             .join("line")
-            .attr("stroke-width", d => 1 + (d.count ? (d.count / maxCount * 8) : 1));
+            .attr("stroke-width", d => 1 + ((d.count as number) ? ((d.count as number) / maxCount * 8) : 1));
 
         const node = container.append("g")
             .selectAll("g")
             .data(nodeData)
             .join("g")
-            .attr("cursor", "move")
-            .call(d3.drag<SVGGElement, any>()
+            .attr("cursor", "pointer")
+            .on("click", (event, d) => {
+                event.stopPropagation();
+                setSelectedNode(d);
+            })
+            .call(d3.drag<SVGGElement, ExtendedHierarchyNode>()
                 .on("start", (event, d) => {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
@@ -186,23 +196,23 @@ function ForceGraph({ data }: { data: HierarchyData }) {
                     d.fy = null;
                 }));
 
-        const rects = node.append("rect")
+        node.append("rect")
             .attr("fill", "#fff")
             .attr("stroke", "#007bff")
             .attr("stroke-width", 1.5)
             .attr("rx", 4)
             .attr("ry", 4);
 
-        const texts = node.append("text")
+        node.append("text")
             .text(d => d.name)
             .attr("text-anchor", "middle")
             .attr("dominant-baseline", "middle")
             .style("font-family", "sans-serif")
             .style("pointer-events", "none")
-            .style("font-size", (d: any) => `${d.fontSize}px`);
+            .style("font-size", d => `${d.fontSize}px`);
 
         // Update rect sizes based on text BBox
-        node.each(function(d: any) {
+        node.each(function(d) {
             const textNode = d3.select(this).select("text").node() as SVGTextElement;
             const bbox = textNode.getBBox();
             const paddingX = 10;
@@ -217,23 +227,56 @@ function ForceGraph({ data }: { data: HierarchyData }) {
         });
 
         // Add collision force after we know the dimensions
-        simulation.force("collide", d3.forceCollide().radius((d: any) => Math.max(d.width, d.height) / 2 + 10));
+        simulation.force("collide", d3.forceCollide<ExtendedHierarchyNode>().radius(d => Math.max(d.width, d.height) / 2 + 10));
 
         simulation.on("tick", () => {
             link
-                .attr("x1", d => (d.source as any).x!)
-                .attr("y1", d => (d.source as any).y!)
-                .attr("x2", d => (d.target as any).x!)
-                .attr("y2", d => (d.target as any).y!);
+                .attr("x1", d => (d.source as unknown as ExtendedHierarchyNode).x!)
+                .attr("y1", d => (d.source as unknown as ExtendedHierarchyNode).y!)
+                .attr("x2", d => (d.target as unknown as ExtendedHierarchyNode).x!)
+                .attr("y2", d => (d.target as unknown as ExtendedHierarchyNode).y!);
 
             node
                 .attr("transform", d => `translate(${d.x},${d.y})`);
         });
 
+        svg.on("click", () => setSelectedNode(null));
+
         return () => simulation.stop();
     }, [data, maxSize, maxCount]);
 
-    return <svg ref={svgRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />;
+    return (
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <svg ref={svgRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />
+            {selectedNode && (
+                <div style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    background: 'rgba(255, 255, 255, 0.95)',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                    border: '1px solid #ddd',
+                    maxWidth: '300px',
+                    zIndex: 100,
+                    fontSize: '14px'
+                }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px', wordBreak: 'break-all' }}>{selectedNode.name}</div>
+                    <div style={{ color: '#666' }}>ID: {selectedNode.id}</div>
+                    {selectedNode.size! > 0 && (
+                        <div style={{ marginTop: '5px' }}>
+                            Total Size: <span style={{ fontWeight: 'bold' }}>{selectedNode.size?.toLocaleString()} bytes</span>
+                        </div>
+                    )}
+                    <button
+                        onClick={() => setSelectedNode(null)}
+                        style={{ marginTop: '10px', width: '100%', padding: '5px', cursor: 'pointer' }}
+                    >Close</button>
+                </div>
+            )}
+        </div>
+    );
 }
 
 function GraphvizView({ dot }: { dot: string }) {
@@ -454,7 +497,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [graphLoading, setGraphLoading] = useState(false)
     const [minEdgeCount, setMinEdgeCount] = useState(0)
     const [weightsInitialized, setWeightsInitialized] = useState(false)
-    const [graphMode, setGraphMode] = useState<'static' | 'force'>('static')
+    const [graphMode, setGraphMode] = useState<'static' | 'force'>('force')
     const [forceGraphData, setForceGraphData] = useState<HierarchyData | null>(null)
 
     // Hierarchy state
