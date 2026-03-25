@@ -86,6 +86,6 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
 
         // Check for decompiled output (Ace editor)
         const editor = iframe.locator('.ace_content');
-        await expect(editor).toContainText('int main');
+        await expect(editor).toContainText(' main(');
     });
 });
