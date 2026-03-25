@@ -284,6 +284,11 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             { "description": /JAVA PROFILE/i }
         ]
     },
+    {
+        "name": "Diff Viewer",
+        "handler": "diffviewer",
+        "mimetypes": []
+    },
 ];
 
 // @ts-ignore - Process might be defined at build time

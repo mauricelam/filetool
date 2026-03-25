@@ -400,6 +400,7 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
     const promotedHandlers = HANDLERS.filter(h => {
         if (h.handler === 'archive') return true;
         if (h.handler === 'dexviewer') return matchesGroup(h);
+        if (h.handler === 'diffviewer') return files.length >= 2;
         return false;
     });
 
