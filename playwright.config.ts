@@ -7,6 +7,8 @@ export default defineConfig({
     viewport: { width: 1920, height: 1200 },
     ignoreHTTPSErrors: true,
     baseURL: 'http://localhost:8080',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
   },
   webServer: {
     command: 'node serve.mts',
