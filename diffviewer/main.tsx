@@ -109,7 +109,7 @@ function DiffViewer({ file1, file2, diffs }: { file1: File, file2: File, diffs: 
                     <div style={{ padding: '4px', backgroundColor: '#f5f5f5', borderBottom: '1px solid #ccc', fontWeight: 'bold' }}>{file1.name}</div>
                     <div style={{ padding: '10px' }}>
                         {leftLines.map((line, i) => (
-                            <div key={i} style={{
+                            <div key={i} className={line.type === 'removed' ? 'diff-code-deleted' : ''} style={{
                                 backgroundColor: line.type === 'removed' ? '#ffebe9' : 'transparent',
                                 color: line.type === 'removed' ? 'red' : (line.type === 'empty' ? 'transparent' : 'black'),
                                 minHeight: '1.2em'
@@ -121,7 +121,7 @@ function DiffViewer({ file1, file2, diffs }: { file1: File, file2: File, diffs: 
                     <div style={{ padding: '4px', backgroundColor: '#f5f5f5', borderBottom: '1px solid #ccc', fontWeight: 'bold' }}>{file2.name}</div>
                     <div style={{ padding: '10px' }}>
                         {rightLines.map((line, i) => (
-                            <div key={i} style={{
+                            <div key={i} className={line.type === 'added' ? 'diff-code-inserted' : ''} style={{
                                 backgroundColor: line.type === 'added' ? '#e6ffec' : 'transparent',
                                 color: line.type === 'added' ? 'green' : (line.type === 'empty' ? 'transparent' : 'black'),
                                 minHeight: '1.2em'
