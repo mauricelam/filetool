@@ -35,12 +35,13 @@ test('HPROF viewer should display file content', async ({ page }) => {
     await expect(iframe.locator('#output')).toContainText('Heap Dump Summary', { timeout: 10000 });
 
     // Test Instance Counts tab
-    await iframe.locator('div').filter({ hasText: /^Instance Counts$/ }).click();
-    await expect(iframe.locator('table')).toContainText('java.lang.Object', { timeout: 15000 });
-    await expect(iframe.locator('table')).toContainText('1');
+    await iframe.getByRole('tab', { name: 'Instance Counts' }).click();
+    const instancesTable = iframe.getByRole('tabpanel', { name: 'Instance Counts' }).locator('table');
+    await expect(instancesTable).toContainText('java.lang.Object', { timeout: 15000 });
+    await expect(instancesTable).toContainText('1');
 
     // Test Reference Graph tab
-    await iframe.locator('div').filter({ hasText: /^Reference Graph$/ }).click();
-    // Graphviz takes time to render
-    await expect(iframe.locator('svg')).toBeVisible({ timeout: 20000 });
+    await iframe.getByRole('tab', { name: 'Reference Graph' }).click();
+    // Force graph uses g.nodes
+    await expect(iframe.locator('g.nodes')).toBeVisible({ timeout: 20000 });
 });

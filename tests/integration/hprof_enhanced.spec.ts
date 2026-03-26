@@ -24,7 +24,7 @@ test.describe('HPROF enhanced features', () => {
         await iframe.getByText('Instance Counts').click();
 
         // Click on a class to see instances
-        await expect(iframe.locator('table')).toBeVisible();
+        await expect(iframe.locator('table').nth(1)).toBeVisible();
 
         const classRow = iframe.locator('tr.clickable-row').first();
         const className = await classRow.locator('td').first().textContent();
@@ -81,8 +81,8 @@ test.describe('HPROF enhanced features', () => {
         await iframe.getByText('Memory Flow (Sankey)').click();
 
         // Should see the diagram
-        const svg = iframe.locator('svg');
-        await expect(svg).toBeVisible();
+        const svg = iframe.locator('svg').filter({ has: iframe.locator('rect') });
+        await expect(svg.last()).toBeVisible();
 
         // Wait for nodes (rects)
         await expect(iframe.locator('rect').first()).toBeAttached();
