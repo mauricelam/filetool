@@ -17,10 +17,11 @@ interface SidebarProps {
     onGroupFiles: (ids: string[]) => void;
     onGroupAll: () => void;
     onToggleGroup: (id: string) => void;
-    onUpdateFileParent: (fileId: string, parentId: string | null) => void;
+    onUpdateFileParent: (fileId: string, parentId: string | null, targetId?: string | null) => void;
+    onReorder: (ids: string[], targetId: string) => void;
 }
 
-export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selectedId, onSelect, onRemoveFile, onRemoveGroup, onAddFiles, onGroupFiles, onGroupAll, onToggleGroup, onUpdateFileParent }: SidebarProps) {
+export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selectedId, onSelect, onRemoveFile, onRemoveGroup, onAddFiles, onGroupFiles, onGroupAll, onToggleGroup, onUpdateFileParent, onReorder }: SidebarProps) {
     const [isDragOverSidebar, setIsDragOverSidebar] = useState(false);
     const [multiSelectedIds, setMultiSelectedIds] = useState<string[]>([]);
     const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
@@ -97,46 +98,45 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
     };
 
     const handleDragOverItem = (e: React.DragEvent, targetId: string) => {
+        if (!e.dataTransfer.types.includes('application/x-filetool-sidebar')) return;
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
     };
 
     const handleDropOnItem = (e: React.DragEvent, targetId: string) => {
-        e.preventDefault();
-        e.stopPropagation();
         const dragData = e.dataTransfer.getData('application/x-filetool-sidebar');
         if (!dragData) return;
+        e.preventDefault();
+        e.stopPropagation();
 
         const { ids } = JSON.parse(dragData);
         if (ids.includes(targetId)) return;
 
-        setSidebarOrder(prev => {
-            const filtered = prev.filter(id => !ids.includes(id));
-            const targetIdx = filtered.indexOf(targetId);
-            if (targetIdx === -1) return prev;
-            const newOrder = [...filtered];
-            newOrder.splice(targetIdx, 0, ...ids);
-            return newOrder;
-        });
+        const targetFile = files.find(f => f.id === targetId);
+        const targetParentId = targetFile?.parentId || null;
 
-        // When dropping on a file or group at the top level, those files should become top-level
+        // Reordering within the same level
+        onReorder(ids, targetId);
+
+        // Ensure parent is correct
         ids.forEach((id: string) => {
             if (files.find(f => f.id === id)) {
-                onUpdateFileParent(id, null);
+                onUpdateFileParent(id, targetParentId, targetId);
             }
         });
     };
 
     const handleDropOnGroup = (e: React.DragEvent, groupId: string) => {
-        e.preventDefault();
-        e.stopPropagation();
         const dragData = e.dataTransfer.getData('application/x-filetool-sidebar');
         if (!dragData) return;
+        e.preventDefault();
+        e.stopPropagation();
 
         const { ids } = JSON.parse(dragData);
         // Filter out groups being dragged into groups (not supported yet)
         const fileIds = ids.filter((id: string) => files.some(f => f.id === id));
+        if (fileIds.includes(groupId)) return;
 
         fileIds.forEach((id: string) => {
             onUpdateFileParent(id, groupId);

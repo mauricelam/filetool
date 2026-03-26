@@ -111,26 +111,72 @@ export function App() {
         setGroups(cur => cur.map(g => g.id === id ? { ...g, isExpanded: !g.isExpanded } : g));
     };
 
-    const handleUpdateFileParent = (fileId: string, parentId: string | null) => {
+    const handleReorder = (ids: string[], targetId: string) => {
+        const targetFile = files.find(f => f.id === targetId);
+        const targetParentId = targetFile?.parentId || null;
+
+        if (targetParentId) {
+            setGroups(cur => cur.map(g => {
+                if (g.id === targetParentId) {
+                    const filtered = g.fileIds.filter(fid => !ids.includes(fid));
+                    const targetIdx = filtered.indexOf(targetId);
+                    if (targetIdx === -1) return g;
+                    const newFileIds = [...filtered];
+                    newFileIds.splice(targetIdx, 0, ...ids);
+                    return { ...g, fileIds: newFileIds };
+                }
+                return g;
+            }));
+        } else {
+            setSidebarOrder(prev => {
+                const filtered = prev.filter(oid => !ids.includes(oid));
+                const targetIdx = filtered.indexOf(targetId);
+                if (targetIdx === -1) return prev;
+                const newOrder = [...filtered];
+                newOrder.splice(targetIdx, 0, ...ids);
+                return newOrder;
+            });
+        }
+    };
+
+    const handleUpdateFileParent = (fileId: string, parentId: string | null, targetId: string | null = null) => {
         setFiles(cur => cur.map(f => f.id === fileId ? { ...f, parentId } : f));
         setGroups(cur => {
-            // Remove from all groups
+            // Remove from all groups except current target parent if moving within it
             let newGroups = cur.map(g => ({
                 ...g,
                 fileIds: g.fileIds.filter(fid => fid !== fileId)
             }));
             // Add to new group if specified
             if (parentId) {
-                newGroups = newGroups.map(g => g.id === parentId ? {
-                    ...g,
-                    fileIds: g.fileIds.includes(fileId) ? g.fileIds : [...g.fileIds, fileId],
-                    isExpanded: true
-                } : g);
+                newGroups = newGroups.map(g => {
+                    if (g.id === parentId) {
+                        if (g.fileIds.includes(fileId)) return g;
+                        const newFileIds = [...g.fileIds];
+                        const targetIdx = targetId ? newFileIds.indexOf(targetId) : -1;
+                        if (targetIdx !== -1) {
+                            newFileIds.splice(targetIdx, 0, fileId);
+                        } else {
+                            newFileIds.push(fileId);
+                        }
+                        return { ...g, fileIds: newFileIds, isExpanded: true };
+                    }
+                    return g;
+                });
                 // When moving into a group, it should be removed from sidebarOrder
                 setSidebarOrder(order => order.filter(oid => oid !== fileId));
             } else {
                 // When moving out of a group, it should be added to sidebarOrder if it's not there
-                setSidebarOrder(order => order.includes(fileId) ? order : [...order, fileId]);
+                setSidebarOrder(order => {
+                    if (order.includes(fileId)) return order;
+                    const targetIdx = targetId ? order.indexOf(targetId) : -1;
+                    if (targetIdx !== -1) {
+                        const newOrder = [...order];
+                        newOrder.splice(targetIdx, 0, fileId);
+                        return newOrder;
+                    }
+                    return [...order, fileId];
+                });
             }
             return newGroups.filter(g => g.fileIds.length > 0);
         });
@@ -303,6 +349,7 @@ export function App() {
                         onGroupAll={handleGroupAll}
                         onToggleGroup={toggleGroup}
                         onUpdateFileParent={handleUpdateFileParent}
+                        onReorder={handleReorder}
                     />
                     <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
                         {selectedFile &&
