@@ -176,13 +176,13 @@ function ForceGraph({ data, onSelectNode }: { data: HierarchyData, onSelectNode?
             .force("y", d3.forceY(height / 2).strength(0.1));
 
         const linkGroup = container.append("g")
-            .attr("stroke", "#999")
-            .attr("stroke-opacity", 0.6)
             .selectAll("g")
             .data(data.links)
             .join("g");
 
         const link = linkGroup.append("line")
+            .attr("stroke", "#999")
+            .attr("stroke-opacity", 0.6)
             .attr("stroke-width", d => 1 + ((d.count as number) ? ((d.count as number) / maxCount * 8) : 1));
 
         const linkLabel = linkGroup.append("text")
@@ -219,8 +219,8 @@ function ForceGraph({ data, onSelectNode }: { data: HierarchyData, onSelectNode?
 
         node.append("rect")
             .attr("fill", "#fff")
-            .attr("stroke", "#007bff")
-            .attr("stroke-width", 1.5)
+            .attr("stroke", (d: any) => d.is_root ? "#d9534f" : "#007bff")
+            .attr("stroke-width", (d: any) => d.is_root ? 3 : 1.5)
             .attr("rx", 4)
             .attr("ry", 4);
 
@@ -267,8 +267,27 @@ function ForceGraph({ data, onSelectNode }: { data: HierarchyData, onSelectNode?
 
         svg.on("click", () => setSelectedNode(null));
 
+        // Highlight retention path logic
+        if (selectedNode) {
+            link.attr("stroke", (d: any) => {
+                if (d.target.id === selectedNode.id) return "#d9534f"; // Red: Direct retainers
+                if (d.source.id === selectedNode.id) return "#0275d8"; // Blue: Directly retained
+                return "#999";
+            })
+            .attr("stroke-opacity", (d: any) => {
+                const isRelated = d.target.id === selectedNode.id || d.source.id === selectedNode.id;
+                return isRelated ? 1 : 0.1;
+            });
+            node.attr("opacity", (d: any) => {
+                const isSelected = d.id === selectedNode.id;
+                const isRetainer = data.links.some(l => (l.target as any).id === selectedNode.id && (l.source as any).id === d.id);
+                const isRetained = data.links.some(l => (l.source as any).id === selectedNode.id && (l.target as any).id === d.id);
+                return isSelected || isRetainer || isRetained ? 1 : 0.1;
+            });
+        }
+
         return () => simulation.stop();
-    }, [data, maxSize, maxCount]);
+    }, [data, maxSize, maxCount, selectedNode]);
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -294,6 +313,13 @@ function ForceGraph({ data, onSelectNode }: { data: HierarchyData, onSelectNode?
                             Total Size: <span style={{ fontWeight: 'bold' }}>{selectedNode.size?.toLocaleString()} bytes</span>
                         </div>
                     )}
+                    {(selectedNode as any).is_root && (
+                        <div style={{ marginTop: '5px', color: '#d9534f', fontWeight: 'bold' }}>GC ROOT</div>
+                    )}
+                    <div style={{ marginTop: '10px', fontSize: '0.85em' }}>
+                        <div style={{ color: '#d9534f' }}>● Red edges: Direct retainers</div>
+                        <div style={{ color: '#0275d8' }}>● Blue edges: Directly retained</div>
+                    </div>
                     <button
                         onClick={() => setSelectedNode(null)}
                         style={{ marginTop: '10px', width: '100%', padding: '5px', cursor: 'pointer' }}
@@ -544,13 +570,13 @@ function InstanceDetailView({ parser, instanceId, onSelectInstance, onBack }: { 
     const [loading, setLoading] = useState(true);
     const [retainedSize, setRetainedSize] = useState<number | null>(null);
     const [calculatingRetained, setCalculatingRetained] = useState(false);
-    const [gcPath, setGcPath] = useState<string[] | null>(null);
+    const [gcPaths, setGcPaths] = useState<string[][] | null>(null);
     const [findingGc, setFindingGc] = useState(false);
 
     useEffect(() => {
         setLoading(true);
         setRetainedSize(null);
-        setGcPath(null);
+        setGcPaths(null);
         try {
             const res = parser.get_instance_info(instanceId);
             setInfo(res);
@@ -575,20 +601,22 @@ function InstanceDetailView({ parser, instanceId, onSelectInstance, onBack }: { 
         }, 0);
     };
 
-    const findGcPath = () => {
+    const findGcPaths = (all: boolean) => {
         setFindingGc(true);
-        setGcPath(null);
+        setGcPaths(null);
         setTimeout(() => {
             try {
-                const res = parser.get_shortest_path_to_gc_root(instanceId);
+                const res = all
+                    ? parser.get_all_paths_to_gc_root(instanceId, 5)
+                    : parser.get_shortest_path_to_gc_root(instanceId);
                 if (res) {
-                    setGcPath(res);
+                    setGcPaths(res);
                 } else {
-                    setGcPath([]);
+                    setGcPaths([]);
                 }
             } catch (e) {
                 console.error("Failed to find GC path", e);
-                setGcPath(null);
+                setGcPaths(null);
             } finally {
                 setFindingGc(false);
             }
@@ -620,23 +648,34 @@ function InstanceDetailView({ parser, instanceId, onSelectInstance, onBack }: { 
                 </div>
                 <div style={{ flex: 1, padding: '15px', background: '#f9f9f9', borderRadius: '4px', border: '1px solid #ddd' }}>
                     <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>GC Roots</div>
-                    {gcPath !== null ? (
-                        gcPath.length > 0 ? (
-                            <div style={{ fontSize: '0.9em' }}>
-                                {gcPath.map((step, i) => (
-                                    <div key={i} style={{ marginBottom: '4px' }}>
-                                        {i > 0 && <span style={{ color: '#999', margin: '0 5px' }}>↳</span>}
-                                        {step}
+                    {gcPaths !== null ? (
+                        gcPaths.length > 0 ? (
+                            <div style={{ fontSize: '0.85em' }}>
+                                {gcPaths.map((path, pi) => (
+                                    <div key={pi} style={{ marginBottom: '10px', borderBottom: pi < gcPaths.length - 1 ? '1px dashed #ccc' : 'none', paddingBottom: '5px' }}>
+                                        <div style={{ color: '#888', fontSize: '0.8em', marginBottom: '3px' }}>Path {pi + 1}:</div>
+                                        {path.map((step, i) => (
+                                            <div key={i} style={{ marginBottom: '2px', paddingLeft: `${i * 10}px` }}>
+                                                {i > 0 && <span style={{ color: '#999', margin: '0 5px' }}>↳</span>}
+                                                {step}
+                                            </div>
+                                        ))}
                                     </div>
                                 ))}
+                                {gcPaths.length === 5 && <div style={{ fontSize: '0.8em', color: '#999' }}>(showing first 5 paths)</div>}
                             </div>
                         ) : (
                             <div style={{ color: '#999' }}>No path to GC root found.</div>
                         )
                     ) : (
-                        <button onClick={findGcPath} disabled={findingGc}>
-                            {findingGc ? 'Finding path...' : 'Find shortest path to GC root'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => findGcPaths(false)} disabled={findingGc}>
+                                {findingGc ? 'Finding...' : 'Shortest Path'}
+                            </button>
+                            <button onClick={() => findGcPaths(true)} disabled={findingGc}>
+                                {findingGc ? 'Finding...' : 'Multiple Paths'}
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

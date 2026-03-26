@@ -55,7 +55,7 @@ test.describe('HPROF enhanced features', () => {
         await expect(calculateBtn).not.toBeVisible();
 
         // Find GC path
-        const gcBtn = iframe.getByRole('button', { name: 'Find shortest path to GC root' });
+        const gcBtn = iframe.getByRole('button', { name: 'Shortest Path' });
         await gcBtn.click();
 
         // It should either show path steps or "Root:"
