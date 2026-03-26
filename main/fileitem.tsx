@@ -470,7 +470,7 @@ export function FileItem(
 }
 
 export function FileListItem(
-    { file, selected, multiSelected, onClick, onRemove }: { file: File, selected: boolean, multiSelected?: boolean, onClick: (e: React.MouseEvent) => void, onRemove: () => void }
+    { file, selected, multiSelected, isDragOver, onClick, onRemove }: { file: File, selected: boolean, multiSelected?: boolean, isDragOver?: boolean, onClick: (e: React.MouseEvent) => void, onRemove: () => void }
 ) {
     const [isHovered, setHovered] = useState(false);
     const icon = getIcon(file.name);
@@ -485,8 +485,8 @@ export function FileListItem(
                 alignItems: 'center',
                 padding: '4px',
                 cursor: 'pointer',
-                backgroundColor: selected || multiSelected ? '#e6f3ff' : (isHovered ? '#f0f0f0' : 'transparent'),
-                border: selected ? '1px solid #0066cc' : '1px solid transparent',
+                backgroundColor: isDragOver ? '#d1e9ff' : (selected || multiSelected ? '#e6f3ff' : (isHovered ? '#f0f0f0' : 'transparent')),
+                border: selected ? '1px solid #0066cc' : (isDragOver ? '1px dashed #0066cc' : '1px solid transparent'),
                 borderRadius: '4px',
                 justifyContent: 'space-between'
             }}>

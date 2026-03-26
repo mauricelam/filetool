@@ -6,6 +6,7 @@ import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { IframeManager } from './IframeManager';
 import { FileList } from './FileList';
 import { PasteModal } from './PasteModal';
+import { DragItem } from './utils';
 import ICON_LOOKUP from './icons';
 
 export type HandlerConfig = {
@@ -36,6 +37,7 @@ export function App() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [files, setFiles] = useState<AppFile[]>([]);
     const [groups, setGroups] = useState<AppGroup[]>([]);
+    const [sidebarOrder, setSidebarOrder] = useState<string[]>([]);
     const [pastedText, setPastedText] = useState<string | null>(null);
 
     const generateId = () => crypto.randomUUID();
@@ -70,25 +72,82 @@ export function App() {
         return () => document.removeEventListener('paste', handlePaste);
     }, []);
 
-    const handleAddFiles = (newFiles: File[]) => {
-        const newAppFiles: AppFile[] = newFiles.map(file => ({
-            id: generateId(),
-            file,
-            pinnedHandlers: [],
-            parentId: null
-        }));
+    const handleAddFiles = (dragItems: File[] | DragItem[]) => {
+        // Normalize input to DragItem[]
+        const normalizedItems: DragItem[] = dragItems.map(item => {
+            if (item instanceof File) {
+                return { files: [item] };
+            }
+            return item;
+        });
+
+        const newAppFiles: AppFile[] = [];
+        const newGroups: AppGroup[] = [];
+        const topLevelIds: string[] = [];
+
+        normalizedItems.forEach(item => {
+            if (item.name && item.files.length > 0) {
+                // Directory: Create a group
+                const groupId = generateId();
+                const groupFileIds: string[] = [];
+                item.files.forEach(file => {
+                    const fileId = generateId();
+                    newAppFiles.push({
+                        id: fileId,
+                        file,
+                        pinnedHandlers: [],
+                        parentId: groupId
+                    });
+                    groupFileIds.push(fileId);
+                });
+                newGroups.push({
+                    id: groupId,
+                    name: item.name,
+                    fileIds: groupFileIds,
+                    pinnedHandlers: [],
+                    isExpanded: true
+                });
+                topLevelIds.push(groupId);
+            } else {
+                // Single file(s)
+                item.files.forEach(file => {
+                    const fileId = generateId();
+                    newAppFiles.push({
+                        id: fileId,
+                        file,
+                        pinnedHandlers: [],
+                        parentId: null
+                    });
+                    topLevelIds.push(fileId);
+                });
+            }
+        });
+
         setFiles(cur => [...cur, ...newAppFiles]);
-        if (newAppFiles.length > 0) {
-            setSelectedId(newAppFiles[newAppFiles.length - 1].id);
+        setGroups(cur => [...cur, ...newGroups]);
+        setSidebarOrder(cur => [...cur, ...topLevelIds]);
+
+        if (topLevelIds.length > 0) {
+            setSelectedId(topLevelIds[topLevelIds.length - 1]);
         }
     }
 
     const removeFile = (id: string) => {
         setFiles(cur => cur.filter(f => f.id !== id));
-        setGroups(cur => cur.map(g => ({
-            ...g,
-            fileIds: g.fileIds.filter(fid => fid !== id)
-        })).filter(g => g.fileIds.length > 0));
+        setGroups(cur => {
+            const newGroups = cur.map(g => ({
+                ...g,
+                fileIds: g.fileIds.filter(fid => fid !== id)
+            })).filter(g => g.fileIds.length > 0);
+
+            // If a group was removed because it became empty, remove it from sidebarOrder
+            const removedGroupIds = cur.filter(g => !newGroups.some(ng => ng.id === g.id)).map(g => g.id);
+            if (removedGroupIds.length > 0) {
+                setSidebarOrder(order => order.filter(oid => !removedGroupIds.includes(oid)));
+            }
+            return newGroups;
+        });
+        setSidebarOrder(cur => cur.filter(f => f !== id));
 
         if (selectedId === id) {
             setSelectedId(null);
@@ -99,12 +158,101 @@ export function App() {
         setGroups(cur => cur.map(g => g.id === id ? { ...g, isExpanded: !g.isExpanded } : g));
     };
 
+    const handleReorder = (ids: string[], targetId: string) => {
+        const targetFile = files.find(f => f.id === targetId);
+        const targetParentId = targetFile?.parentId || null;
+
+        if (targetParentId) {
+            setGroups(cur => cur.map(g => {
+                if (g.id === targetParentId) {
+                    const filtered = g.fileIds.filter(fid => !ids.includes(fid));
+                    const targetIdx = filtered.indexOf(targetId);
+                    if (targetIdx === -1) return g;
+                    const newFileIds = [...filtered];
+                    newFileIds.splice(targetIdx, 0, ...ids);
+                    return { ...g, fileIds: newFileIds };
+                }
+                return g;
+            }));
+        } else {
+            setSidebarOrder(prev => {
+                const filtered = prev.filter(oid => !ids.includes(oid));
+                const targetIdx = filtered.indexOf(targetId);
+                if (targetIdx === -1) return prev;
+                const newOrder = [...filtered];
+                newOrder.splice(targetIdx, 0, ...ids);
+                return newOrder;
+            });
+        }
+    };
+
+    const handleUpdateFileParent = (fileId: string, parentId: string | null, targetId: string | null = null) => {
+        setFiles(cur => cur.map(f => f.id === fileId ? { ...f, parentId } : f));
+        setGroups(cur => {
+            // Remove from all groups except current target parent if moving within it
+            let newGroups = cur.map(g => ({
+                ...g,
+                fileIds: g.fileIds.filter(fid => fid !== fileId)
+            }));
+            // Add to new group if specified
+            if (parentId) {
+                newGroups = newGroups.map(g => {
+                    if (g.id === parentId) {
+                        if (g.fileIds.includes(fileId)) return g;
+                        const newFileIds = [...g.fileIds];
+                        const targetIdx = targetId ? newFileIds.indexOf(targetId) : -1;
+                        if (targetIdx !== -1) {
+                            newFileIds.splice(targetIdx, 0, fileId);
+                        } else {
+                            newFileIds.push(fileId);
+                        }
+                        return { ...g, fileIds: newFileIds, isExpanded: true };
+                    }
+                    return g;
+                });
+                // When moving into a group, it should be removed from sidebarOrder
+                setSidebarOrder(order => order.filter(oid => oid !== fileId));
+            } else {
+                // When moving out of a group, it should be added to sidebarOrder if it's not there
+                setSidebarOrder(order => {
+                    if (order.includes(fileId)) return order;
+                    const targetIdx = targetId ? order.indexOf(targetId) : -1;
+                    if (targetIdx !== -1) {
+                        const newOrder = [...order];
+                        newOrder.splice(targetIdx, 0, fileId);
+                        return newOrder;
+                    }
+                    return [...order, fileId];
+                });
+            }
+            return newGroups.filter(g => g.fileIds.length > 0);
+        });
+    };
+
     const removeGroup = (id: string) => {
         setGroups(cur => cur.filter(g => g.id !== id));
-        setFiles(cur => cur.map(f => f.parentId === id ? { ...f, parentId: null } : f));
+        setFiles(cur => {
+            const affectedFiles = cur.filter(f => f.parentId === id);
+            const newFiles = cur.map(f => f.parentId === id ? { ...f, parentId: null } : f);
+
+            // Add moved files to sidebarOrder after the removed group
+            setSidebarOrder(order => {
+                const idx = order.indexOf(id);
+                if (idx === -1) return order.filter(oid => oid !== id);
+                const newOrder = [...order];
+                newOrder.splice(idx, 1, ...affectedFiles.map(f => f.id));
+                return newOrder;
+            });
+
+            return newFiles;
+        });
         if (selectedId === id) {
             setSelectedId(null);
         }
+    };
+
+    const handleGroupAll = () => {
+        handleGroupFiles(files.map(f => f.id));
     };
 
     const handleGroupFiles = (ids: string[]) => {
@@ -121,13 +269,27 @@ export function App() {
             isExpanded: true
         };
 
-        setGroups(cur => [
-            ...cur.map(g => ({
-                ...g,
-                fileIds: g.fileIds.filter(fid => !ids.includes(fid))
-            })).filter(g => g.fileIds.length > 0),
-            newGroup
-        ]);
+        setGroups(cur => {
+            const newGroups = [
+                ...cur.map(g => ({
+                    ...g,
+                    fileIds: g.fileIds.filter(fid => !ids.includes(fid))
+                })).filter(g => g.fileIds.length > 0),
+                newGroup
+            ];
+
+            // Update sidebarOrder: remove grouped items, insert group at the position of the first item
+            setSidebarOrder(order => {
+                const firstIdx = order.findIndex(oid => ids.includes(oid));
+                const filteredOrder = order.filter(oid => !ids.includes(oid));
+                if (firstIdx === -1) return [...filteredOrder, groupId];
+                const newOrder = [...filteredOrder];
+                newOrder.splice(firstIdx, 0, groupId);
+                return newOrder;
+            });
+
+            return newGroups;
+        });
         setFiles(cur => cur.map(f => ids.includes(f.id) ? { ...f, parentId: groupId } : f));
         setSelectedId(groupId);
     };
@@ -174,9 +336,11 @@ export function App() {
 
                     setFiles(cur => [...cur, newFile, ...groupFiles]);
                     setGroups(cur => [...cur, newGroup]);
+                    setSidebarOrder(cur => [...cur, groupId]);
                     setSelectedId(groupId);
                 } else {
                     setFiles(cur => [...cur, newFile]);
+                    setSidebarOrder(cur => [...cur, fileId]);
                     setSelectedId(fileId);
                 }
             }
@@ -221,13 +385,18 @@ export function App() {
                     <FileList
                         files={files}
                         groups={groups}
+                        sidebarOrder={sidebarOrder}
+                        setSidebarOrder={setSidebarOrder}
                         selectedId={selectedId}
                         onSelect={setSelectedId}
                         onRemoveFile={removeFile}
                         onRemoveGroup={removeGroup}
                         onAddFiles={handleAddFiles}
                         onGroupFiles={handleGroupFiles}
+                        onGroupAll={handleGroupAll}
                         onToggleGroup={toggleGroup}
+                        onUpdateFileParent={handleUpdateFileParent}
+                        onReorder={handleReorder}
                     />
                     <div id="result" style={files.length > 0 ? { flexGrow: 1, padding: '8px', position: 'relative', overflow: 'auto' } : {}}>
                         {selectedFile &&
