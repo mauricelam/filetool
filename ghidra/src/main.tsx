@@ -62,9 +62,9 @@ const GhidraApp = () => {
             // Extract symbols using binutils (nm)
             try {
                 // In production and in Playwright, we are served under /filetool/
-                // Use absolute path for worker to be safe
-                // The URL for the worker should be relative to the base URL
-                const nmWorker = new Worker(new URL('/filetool/binutils/worker.js', window.location.origin), { type: 'module' });
+                // Construct path for the binutils worker relative to this handler's location
+                const binutilsWorkerUrl = new URL('../binutils/worker.js', import.meta.url);
+                const nmWorker = new Worker(binutilsWorkerUrl, { type: 'module' });
                 const nmBuffer = await file.arrayBuffer();
                 let nmOutput = '';
                 nmWorker.onmessage = (ev) => {
@@ -97,7 +97,8 @@ const GhidraApp = () => {
 
             // Extract segments using readelf
             try {
-                const readelfWorker = new Worker(new URL('/filetool/binutils/worker.js', window.location.origin), { type: 'module' });
+                const binutilsWorkerUrl = new URL('../binutils/worker.js', import.meta.url);
+                const readelfWorker = new Worker(binutilsWorkerUrl, { type: 'module' });
                 const readelfBuffer = await file.arrayBuffer();
                 let readelfOutput = '';
                 readelfWorker.onmessage = (ev) => {
