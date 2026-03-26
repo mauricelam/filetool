@@ -1,32 +1,24 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
+import { runHandlerTest } from './test-utils';
 
 test('ffmpeg viewer UI update', async ({ page }) => {
     // Increase timeout for this test
     test.setTimeout(60000);
 
-    // Navigate to the driver page with the ffmpeg handler
-    await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=ffmpeg');
-
     const filePath = path.resolve('ffmpeg/example/big_buck_bunny.mp4');
     // Use only a small portion of the file for UI verification to speed up the test
     const fileBuffer = fs.readFileSync(filePath).subarray(0, 100 * 1024);
 
-    // Load the file into the driver
-    await page.evaluate(({ buffer, fileName }) => {
-        const fileContent = new Uint8Array(buffer);
-        window.postMessage({
-            action: 'setFile',
-            file: {
-                content: fileContent,
-                name: fileName,
-                type: 'video/mp4'
-            }
-        }, '*');
-    }, { buffer: Array.from(fileBuffer), fileName: 'big_buck_bunny.mp4' });
-
-    const iframe = page.frameLocator('iframe');
+    const iframe = await runHandlerTest(page, {
+        handler: 'ffmpeg',
+        file: {
+            content: fileBuffer,
+            name: 'big_buck_bunny.mp4',
+            type: 'video/mp4'
+        }
+    });
 
     // Wait for the UI to load - increase timeout
     await expect(iframe.locator('h3').first()).toBeVisible({ timeout: 40000 });

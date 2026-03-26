@@ -1,38 +1,24 @@
 import { test, expect } from '@playwright/test';
+import { runHandlerTest } from './test-utils';
 
 test('textviewer should display folding widgets for JSON file', async ({ page }) => {
-    await page.goto('/filetool/');
+    const content = JSON.stringify({
+        "project": "filetool",
+        "features": ["viewing", "editing", "searching"],
+        "details": {
+            "active": true,
+            "version": 1.0
+        }
+    }, null, 2);
 
-    // Wait for the drop target to be ready
-    const dropTarget = page.locator('#droptarget');
-    await expect(dropTarget).toBeVisible();
-
-    // Dispatch the 'openFiles' event with a mock JSON File object
-    await page.evaluate(() => {
-        const content = JSON.stringify({
-            "project": "filetool",
-            "features": ["viewing", "editing", "searching"],
-            "details": {
-                "active": true,
-                "version": 1.0
-            }
-        }, null, 2);
-        const file = new File([content], 'test.json', { type: 'application/json' });
-        window.dispatchEvent(new CustomEvent('openFiles', { detail: [file] }));
+    const iframe = await runHandlerTest(page, {
+        handler: 'textviewer',
+        file: {
+            content: content,
+            name: 'test.json',
+            type: 'application/json'
+        }
     });
-
-    // Check that the file is displayed in the sidebar
-    await expect(page.locator('.filename')).toHaveText('test.json');
-
-    // For JSON, JQ Viewer might be the default. We need to explicitly click Text Viewer.
-    const textViewerButton = page.locator('button', { hasText: 'Text Viewer' });
-    await textViewerButton.click();
-
-    // Wait for the iframe to be visible
-    const iframeLocator = page.locator('#framecontainer iframe');
-    await expect(iframeLocator).toBeVisible({ timeout: 10000 });
-
-    const iframe = page.frameLocator('#framecontainer iframe');
 
     // Check that the content is rendered in the Ace editor
     await expect(iframe.locator('.ace_content')).toContainText('project', { timeout: 15000 });
@@ -54,16 +40,10 @@ test('textviewer should display folding widgets for JSON file', async ({ page })
     // Change language to text
     await modeSelect.selectOption('text');
     await expect(modeSelect).toHaveValue('text');
-    // Folding should disappear in text mode (most likely)
-    // Actually Ace might still show some fold widgets depending on indentation,
-    // but the point is we can change it.
 });
 
 test('textviewer should display folding widgets for XML file', async ({ page }) => {
-    await page.goto('/filetool/');
-
-    await page.evaluate(() => {
-        const content = `
+    const content = `
 <root>
     <item id="1">
         <name>Item 1</name>
@@ -73,17 +53,17 @@ test('textviewer should display folding widgets for XML file', async ({ page }) 
         <name>Item 2</name>
     </item>
 </root>
-        `.trim();
-        const file = new File([content], 'test.xml', { type: 'text/xml' });
-        window.dispatchEvent(new CustomEvent('openFiles', { detail: [file] }));
+    `.trim();
+
+    const iframe = await runHandlerTest(page, {
+        handler: 'textviewer',
+        file: {
+            content: content,
+            name: 'test.xml',
+            type: 'text/xml'
+        }
     });
 
-    await expect(page.locator('.filename')).toHaveText('test.xml');
-
-    const textViewerButton = page.locator('button', { hasText: 'Text Viewer' });
-    await textViewerButton.click();
-
-    const iframe = page.frameLocator('#framecontainer iframe');
     await expect(iframe.locator('.ace_content')).toContainText('root', { timeout: 15000 });
 
     const foldWidgets = iframe.locator('.ace_fold-widget');

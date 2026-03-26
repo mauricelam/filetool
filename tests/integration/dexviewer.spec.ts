@@ -1,29 +1,23 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
+import { runHandlerTest } from './test-utils';
 
 test.describe('DEX Viewer Search', () => {
     test('should search for API usages and navigate to results in sidebar', async ({ page }) => {
         test.setTimeout(180000);
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
-
         const fileContent = fs.readFileSync(dexPath);
-        const contentArray = Array.from(new Uint8Array(fileContent));
 
-        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
+        const iframe = await runHandlerTest(page, {
+            handler: 'dexviewer',
+            file: {
+                content: fileContent,
+                name: 'classes.dex',
+                type: 'application/octet-stream'
+            }
+        });
 
-        await page.evaluate(({ contentArray, name }) => {
-            window.postMessage({
-                action: 'setFile',
-                file: {
-                    content: new Uint8Array(contentArray),
-                    name: name,
-                    type: 'application/octet-stream'
-                }
-            }, '*');
-        }, { contentArray, name: 'classes.dex' });
-
-        const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.package-tree')).toBeVisible({ timeout: 60000 });
 
         // Switch to API Search tab

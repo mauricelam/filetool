@@ -1,29 +1,23 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
+import { runHandlerTest } from './test-utils';
 
 test.describe('DEX Viewer Layout', () => {
     test('should search for API usages and navigate in tabbed sidebar', async ({ page }) => {
         test.setTimeout(180000);
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
-
         const fileContent = fs.readFileSync(dexPath);
-        const contentArray = Array.from(new Uint8Array(fileContent));
 
-        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
+        const iframe = await runHandlerTest(page, {
+            handler: 'dexviewer',
+            file: {
+                content: fileContent,
+                name: 'classes.dex',
+                type: 'application/octet-stream'
+            }
+        });
 
-        await page.evaluate(({ contentArray, name }) => {
-            window.postMessage({
-                action: 'setFile',
-                file: {
-                    content: new Uint8Array(contentArray),
-                    name: name,
-                    type: 'application/octet-stream'
-                }
-            }, '*');
-        }, { contentArray, name: 'classes.dex' });
-
-        const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.package-tree')).toBeVisible({ timeout: 60000 });
 
         // Switch to API Search tab
@@ -58,22 +52,16 @@ test.describe('DEX Viewer Layout', () => {
     test('should resize sidebar', async ({ page }) => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
-        const contentArray = Array.from(new Uint8Array(fileContent));
 
-        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
+        const iframe = await runHandlerTest(page, {
+            handler: 'dexviewer',
+            file: {
+                content: fileContent,
+                name: 'classes.dex',
+                type: 'application/octet-stream'
+            }
+        });
 
-        await page.evaluate(({ contentArray, name }) => {
-            window.postMessage({
-                action: 'setFile',
-                file: {
-                    content: new Uint8Array(contentArray),
-                    name: name,
-                    type: 'application/octet-stream'
-                }
-            }, '*');
-        }, { contentArray, name: 'classes.dex' });
-
-        const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.sidebar')).toBeVisible({ timeout: 60000 });
 
         const sidebar = iframe.locator('.sidebar');
@@ -104,22 +92,16 @@ test.describe('DEX Viewer Layout', () => {
     test('should collapse sidebar', async ({ page }) => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
-        const contentArray = Array.from(new Uint8Array(fileContent));
 
-        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
+        const iframe = await runHandlerTest(page, {
+            handler: 'dexviewer',
+            file: {
+                content: fileContent,
+                name: 'classes.dex',
+                type: 'application/octet-stream'
+            }
+        });
 
-        await page.evaluate(({ contentArray, name }) => {
-            window.postMessage({
-                action: 'setFile',
-                file: {
-                    content: new Uint8Array(contentArray),
-                    name: name,
-                    type: 'application/octet-stream'
-                }
-            }, '*');
-        }, { contentArray, name: 'classes.dex' });
-
-        const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.sidebar')).toBeVisible({ timeout: 60000 });
 
         const toggle = iframe.locator('.sidebar-toggle');
@@ -137,22 +119,16 @@ test.describe('DEX Viewer Layout', () => {
     test('should have an Info tab with proguard uploader', async ({ page }) => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
-        const contentArray = Array.from(new Uint8Array(fileContent));
 
-        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
+        const iframe = await runHandlerTest(page, {
+            handler: 'dexviewer',
+            file: {
+                content: fileContent,
+                name: 'classes.dex',
+                type: 'application/octet-stream'
+            }
+        });
 
-        await page.evaluate(({ contentArray, name }) => {
-            window.postMessage({
-                action: 'setFile',
-                file: {
-                    content: new Uint8Array(contentArray),
-                    name: name,
-                    type: 'application/octet-stream'
-                }
-            }, '*');
-        }, { contentArray, name: 'classes.dex' });
-
-        const iframe = page.frameLocator('#file-handler-iframe');
         await expect(iframe.locator('.sidebar')).toBeVisible({ timeout: 60000 });
 
         const infoTab = iframe.locator('.tab-button:has-text("Info")');
@@ -165,22 +141,15 @@ test.describe('DEX Viewer Layout', () => {
     test('should show class and method on separate lines in search results', async ({ page }) => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
-        const contentArray = Array.from(new Uint8Array(fileContent));
 
-        await page.goto('http://localhost:8080/filetool/tests/integration/driver.html?handler=dexviewer');
-
-        await page.evaluate(({ contentArray, name }) => {
-            window.postMessage({
-                action: 'setFile',
-                file: {
-                    content: new Uint8Array(contentArray),
-                    name: name,
-                    type: 'application/octet-stream'
-                }
-            }, '*');
-        }, { contentArray, name: 'classes.dex' });
-
-        const iframe = page.frameLocator('#file-handler-iframe');
+        const iframe = await runHandlerTest(page, {
+            handler: 'dexviewer',
+            file: {
+                content: fileContent,
+                name: 'classes.dex',
+                type: 'application/octet-stream'
+            }
+        });
         await iframe.locator('.tab-button:has-text("API Search")').click();
         await iframe.locator('.sidebar .search-input').fill('Object');
         await iframe.locator('.sidebar .search-button').click();
