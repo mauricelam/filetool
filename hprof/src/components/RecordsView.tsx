@@ -41,7 +41,7 @@ export function RecordsView({ parser, onRecordClick, selectedRecordIndex }: Reco
         enableRowSelection: false,
         enableColumnOrdering: true,
         enableGlobalFilter: true,
-        initialState: { density: 'xs', pagination: { pageSize: 20, pageIndex: 0 } },
+        initialState: { density: 'xs', pagination: { pageSize: 20, pageIndex: 0 }, showGlobalFilter: true },
         mantineTableBodyRowProps: ({ row }) => ({
             onClick: () => onRecordClick(row.original.index),
             style: { cursor: 'pointer', backgroundColor: selectedRecordIndex === row.original.index ? 'var(--mantine-color-blue-light)' : undefined },

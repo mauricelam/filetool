@@ -3,6 +3,7 @@ import init, { HprofParser, HprofHeader, RecordInfo, InstanceCountEntry, Hierarc
 import React, { ReactElement, useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { MantineProvider, Tabs, Box, LoadingOverlay, Text, Button, Table, Group, Stack } from '@mantine/core'
 import '@mantine/core/styles.css'
+import 'mantine-react-table/styles.css'
 
 import { RecordsView } from './src/components/RecordsView'
 import { InstanceCountsView } from './src/components/InstanceCountsView'

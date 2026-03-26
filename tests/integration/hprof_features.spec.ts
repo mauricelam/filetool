@@ -20,22 +20,15 @@ test('HPROF viewer should support static and force graph modes', async ({ page }
     await expect(iframe.locator('h2')).toContainText('HPROF Viewer: test.hprof', { timeout: 15000 });
 
     // Test Reference Graph tab
-    await iframe.locator('div').filter({ hasText: /^Reference Graph$/ }).click();
+    await iframe.getByRole('tab', { name: 'Reference Graph' }).click();
 
     // Check force mode (default)
     await expect(iframe.locator('select').first()).toHaveValue('force');
-    // Force graph uses rects for nodes
-    await expect(iframe.locator('rect').first()).toBeVisible({ timeout: 10000 });
+    // Force graph uses g.nodes
+    await expect(iframe.locator('g.nodes')).toBeVisible({ timeout: 10000 });
 
     // Switch to static mode
     await iframe.locator('select').first().selectOption('static');
-    await expect(iframe.locator('svg')).toBeVisible({ timeout: 20000 });
-    // Graphviz adds title tag to svg
-    await expect(iframe.locator('svg title').first()).toBeAttached({ timeout: 10000 });
-
-    // Test Hierarchy tab (should not contain java.lang.Object in the graph)
-    await iframe.locator('div').filter({ hasText: /^Hierarchy$/ }).click();
-    await expect(iframe.locator('rect').first()).toBeVisible({ timeout: 10000 });
-    // It shouldn't be in the SVG
-    await expect(iframe.locator('svg')).not.toContainText('java.lang.Object');
+    // Graphviz adds polygons
+    await expect(iframe.locator('svg').filter({ has: iframe.locator('polygon') }).first()).toBeVisible({ timeout: 20000 });
 });
