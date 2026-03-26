@@ -180,26 +180,29 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
                         if (group) {
                             return (
                                 <div key={group.id} style={{ marginBottom: '4px' }}>
-                                    <div
-                                        draggable
+                                    <DraggableItem
+                                        id={group.id}
                                         onDragStart={(e) => handleDragStart(e, group.id)}
                                         onDragOver={(e) => handleDragOverItem(e, group.id)}
                                         onDrop={(e) => handleDropOnItem(e, group.id)}
                                     >
-                                        <GroupHeader
-                                            group={group}
-                                            selected={selectedId === group.id}
-                                            multiSelected={multiSelectedIds.includes(group.id)}
-                                            onClick={(e) => {
-                                                handleItemClick(e, group.id);
-                                                if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
-                                                    onToggleGroup(group.id);
-                                                }
-                                            }}
-                                            onRemove={() => onRemoveGroup(group.id)}
-                                            onDrop={(e) => handleDropOnGroup(e, group.id)}
-                                        />
-                                    </div>
+                                        {(isOver) => (
+                                            <GroupHeader
+                                                group={group}
+                                                selected={selectedId === group.id}
+                                                multiSelected={multiSelectedIds.includes(group.id)}
+                                                isItemDragOver={isOver}
+                                                onClick={(e) => {
+                                                    handleItemClick(e, group.id);
+                                                    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                                                        onToggleGroup(group.id);
+                                                    }
+                                                }}
+                                                onRemove={() => onRemoveGroup(group.id)}
+                                                onDrop={(e) => handleDropOnGroup(e, group.id)}
+                                            />
+                                        )}
+                                    </DraggableItem>
                                     {group.isExpanded && (
                                         <div
                                             style={{ marginLeft: '16px', borderLeft: '1px solid #ddd', paddingLeft: '4px', minHeight: '8px' }}
@@ -210,21 +213,24 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
                                                 const file = files.find(f => f.id === fid);
                                                 if (!file) return null;
                                                 return (
-                                                    <div
+                                                    <DraggableItem
                                                         key={file.id}
-                                                        draggable
+                                                        id={file.id}
                                                         onDragStart={(e) => handleDragStart(e, file.id)}
                                                         onDragOver={(e) => handleDragOverItem(e, file.id)}
                                                         onDrop={(e) => handleDropOnItem(e, file.id)}
                                                     >
-                                                        <FileListItem
-                                                            file={file.file}
-                                                            selected={selectedId === file.id}
-                                                            multiSelected={multiSelectedIds.includes(file.id)}
-                                                            onClick={(e) => handleItemClick(e, file.id)}
-                                                            onRemove={() => onRemoveFile(file.id)}
-                                                        />
-                                                    </div>
+                                                        {(isOver) => (
+                                                            <FileListItem
+                                                                file={file.file}
+                                                                selected={selectedId === file.id}
+                                                                multiSelected={multiSelectedIds.includes(file.id)}
+                                                                isDragOver={isOver}
+                                                                onClick={(e) => handleItemClick(e, file.id)}
+                                                                onRemove={() => onRemoveFile(file.id)}
+                                                            />
+                                                        )}
+                                                    </DraggableItem>
                                                 );
                                             })}
                                         </div>
@@ -235,21 +241,24 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
                         const file = files.find(f => f.id === id);
                         if (file) {
                             return (
-                                <div
+                                <DraggableItem
                                     key={file.id}
-                                    draggable
+                                    id={file.id}
                                     onDragStart={(e) => handleDragStart(e, file.id)}
                                     onDragOver={(e) => handleDragOverItem(e, file.id)}
                                     onDrop={(e) => handleDropOnItem(e, file.id)}
                                 >
-                                    <FileListItem
-                                        file={file.file}
-                                        selected={file.id === selectedId}
-                                        multiSelected={multiSelectedIds.includes(file.id)}
-                                        onClick={(e) => handleItemClick(e, file.id)}
-                                        onRemove={() => onRemoveFile(file.id)}
-                                    />
-                                </div>
+                                    {(isOver) => (
+                                        <FileListItem
+                                            file={file.file}
+                                            selected={file.id === selectedId}
+                                            multiSelected={multiSelectedIds.includes(file.id)}
+                                            isDragOver={isOver}
+                                            onClick={(e) => handleItemClick(e, file.id)}
+                                            onRemove={() => onRemoveFile(file.id)}
+                                        />
+                                    )}
+                                </DraggableItem>
                             );
                         }
                         return null;
@@ -310,7 +319,30 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
         );
 }
 
-function GroupHeader({ group, selected, multiSelected, onClick, onRemove, onDrop }: { group: AppGroup, selected: boolean, multiSelected: boolean, onClick: (e: React.MouseEvent) => void, onRemove: () => void, onDrop?: (e: React.DragEvent) => void }) {
+function DraggableItem({ id, onDragStart, onDragOver, onDrop, children }: { id: string, onDragStart: (e: React.DragEvent) => void, onDragOver: (e: React.DragEvent) => void, onDrop: (e: React.DragEvent) => void, children: (isOver: boolean) => React.ReactNode }) {
+    const [isOver, setIsOver] = useState(false);
+    return (
+        <div
+            draggable
+            onDragStart={onDragStart}
+            onDragOver={(e) => {
+                onDragOver(e);
+                if (e.dataTransfer.types.includes('application/x-filetool-sidebar')) {
+                    setIsOver(true);
+                }
+            }}
+            onDragLeave={() => setIsOver(false)}
+            onDrop={(e) => {
+                setIsOver(false);
+                onDrop(e);
+            }}
+        >
+            {children(isOver)}
+        </div>
+    );
+}
+
+function GroupHeader({ group, selected, multiSelected, isItemDragOver, onClick, onRemove, onDrop }: { group: AppGroup, selected: boolean, multiSelected: boolean, isItemDragOver?: boolean, onClick: (e: React.MouseEvent) => void, onRemove: () => void, onDrop?: (e: React.DragEvent) => void }) {
     const [isHovered, setHovered] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
     return (
@@ -336,11 +368,12 @@ function GroupHeader({ group, selected, multiSelected, onClick, onRemove, onDrop
                 alignItems: 'center',
                 padding: '4px',
                 cursor: 'pointer',
-                backgroundColor: isDragOver ? '#d1e9ff' : (selected || multiSelected ? '#e6f3ff' : (isHovered ? '#f0f0f0' : 'transparent')),
-                border: selected ? '1px solid #0066cc' : '1px solid transparent',
+                backgroundColor: isDragOver ? '#d1e9ff' : (isItemDragOver ? '#e6f3ff' : (selected || multiSelected ? '#e6f3ff' : (isHovered ? '#f0f0f0' : 'transparent'))),
+                border: selected ? '1px solid #0066cc' : (isItemDragOver ? '1px dashed #0066cc' : (isDragOver ? '2px solid #0066cc' : '1px solid transparent')),
                 borderRadius: '4px',
                 justifyContent: 'space-between',
-                fontWeight: 'bold'
+                fontWeight: 'bold',
+                boxShadow: isDragOver ? '0 0 0 2px rgba(0, 102, 204, 0.2)' : 'none'
             }}>
             <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#666" style={{ marginRight: 8, flexShrink: 0 }}>
