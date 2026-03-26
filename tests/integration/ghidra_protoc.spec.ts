@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
+import { runHandlerTest } from './test-utils';
 
 test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
     test.setTimeout(120000);
@@ -15,29 +16,17 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
             }
         });
 
-        await page.goto('http://localhost:8080/filetool/');
-
         const fixturePath = path.resolve('ghidra/example/protoc-linux-aarch64');
         const buffer = fs.readFileSync(fixturePath);
 
-        await page.evaluate(({content, name}) => {
-            const file = new File([new Uint8Array(content)], name, { type: 'application/octet-stream' });
-            window.dispatchEvent(new CustomEvent('openFiles', { detail: [file] }));
-        }, { content: Array.from(buffer), name: 'protoc-linux-aarch64' });
-
-        // Wait for magic detection to complete
-        await expect(page.locator('.filedescription')).not.toHaveText('Loading...', { timeout: 60000 });
-
-        // It should offer the "Ghidra" handler
-        await expect(page.locator('.handler-button, .buttonBar button', { hasText: 'Ghidra' })).toBeVisible({ timeout: 15000 });
-
-        // Open Ghidra
-        await page.locator('.handler-button, .buttonBar button', { hasText: 'Ghidra' }).click();
-
-        // Switch to the iframe
-        const iframeEl = await page.waitForSelector('iframe[src*="ghidra"]', { timeout: 30000 });
-        const iframe = await iframeEl.contentFrame();
-        if (!iframe) throw new Error("Could not get Ghidra iframe");
+        const iframe = await runHandlerTest(page, {
+            handler: 'ghidra',
+            file: {
+                content: buffer,
+                name: 'protoc-linux-aarch64',
+                type: 'application/octet-stream'
+            }
+        });
 
         // Wait for architecture detection in the UI
         await expect(iframe.getByText(/Detected: AARCH64:LE:64:v8A/)).toBeVisible({ timeout: 60000 });
