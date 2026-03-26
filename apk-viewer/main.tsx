@@ -767,7 +767,7 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
                                         </Table.Td>
                                         {selectedType !== 'id' && (
                                             <Table.Td style={{ width: columnWidths.values, overflow: 'hidden' }}>
-                                            <ResourceValues resource={resource} onNavigateToFile={handleNavigateToFileInternal} onNavigateToResource={onNavigateToResource} />
+                                                <ResourceValues resource={resource} onNavigateToFile={handleNavigateToFileInternal} onNavigateToResource={onNavigateToResource} />
                                             </Table.Td>
                                         )}
                                     </Table.Tr>

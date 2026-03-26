@@ -1,35 +1,24 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
+import { runHandlerTest } from './test-utils';
 
 test.describe('Ghidra Decompiler', () => {
-    test('should correctly detect ELF and offer Ghidra', async ({ page }) => {
+    test('should correctly decompile ELF in Ghidra', async ({ page }) => {
         // Increase timeout for the whole test as build/load can be slow
         test.setTimeout(120000);
-
-        await page.goto('http://localhost:8080/filetool/');
 
         const fixturePath = path.resolve('binutils/example/libhello.so');
         const buffer = fs.readFileSync(fixturePath);
 
-        await page.evaluate(({content, name}) => {
-            const file = new File([new Uint8Array(content)], name, { type: 'application/octet-stream' });
-            window.dispatchEvent(new CustomEvent('openFiles', { detail: [file] }));
-        }, { content: Array.from(buffer), name: 'libhello.so' });
-
-        // Wait for magic detection to complete
-        await expect(page.locator('.filedescription')).not.toHaveText('Loading...', { timeout: 15000 });
-
-        // It should offer the "Ghidra" handler
-        await expect(page.locator('.handler-button, .buttonBar button', { hasText: 'Ghidra' })).toBeVisible({ timeout: 15000 });
-
-        // Open Ghidra
-        await page.locator('.handler-button, .buttonBar button', { hasText: 'Ghidra' }).click();
-
-        // Switch to the iframe
-        const iframeEl = await page.waitForSelector('iframe[src*="ghidra"]', { timeout: 20000 });
-        const iframe = await iframeEl.contentFrame();
-        if (!iframe) throw new Error("Could not get Ghidra iframe");
+        const iframe = await runHandlerTest(page, {
+            handler: 'ghidra',
+            file: {
+                content: buffer,
+                name: 'libhello.so',
+                type: 'application/octet-stream'
+            }
+        });
 
         // Wait for architecture detection in the UI
         await expect(iframe.getByText(/Detected: x86:LE:64:default/)).toBeVisible({ timeout: 60000 });

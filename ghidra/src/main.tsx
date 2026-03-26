@@ -8,6 +8,7 @@ const GhidraApp = () => {
     const [file, setFile] = useState<File | null>(null);
     const [arch, setArch] = useState<string>('');
     const [symbols, setSymbols] = useState<any[]>([]);
+    const [segments, setSegments] = useState<any[]>([]);
     const [selectedFunc, setSelectedFunc] = useState<string>('');
     const [decompiledCode, setDecompiledCode] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
@@ -57,13 +58,13 @@ const GhidraApp = () => {
             const buffer = await file.arrayBuffer();
             worker.postMessage({ action: 'detect_architecture', buffer: buffer.slice(0) }, [buffer]);
 
-            setStatus('Extracting symbols...');
+            setStatus('Extracting symbols and segments...');
             // Extract symbols using binutils (nm)
             try {
                 // In production and in Playwright, we are served under /filetool/
-                // Use absolute path for worker to be safe
-                // The URL for the worker should be relative to the base URL
-                const nmWorker = new Worker(new URL('/filetool/binutils/worker.js', window.location.origin), { type: 'module' });
+                // Construct path for the binutils worker relative to this handler's location
+                const binutilsWorkerUrl = new URL('../binutils/worker.js', import.meta.url);
+                const nmWorker = new Worker(binutilsWorkerUrl, { type: 'module' });
                 const nmBuffer = await file.arrayBuffer();
                 let nmOutput = '';
                 nmWorker.onmessage = (ev) => {
@@ -92,6 +93,54 @@ const GhidraApp = () => {
             } catch (err) {
                 console.error('[GhidraUI] Failed to start NM worker:', err);
                 setStatus('Failed to start symbol extraction.');
+            }
+
+            // Extract segments using readelf
+            try {
+                const binutilsWorkerUrl = new URL('../binutils/worker.js', import.meta.url);
+                const readelfWorker = new Worker(binutilsWorkerUrl, { type: 'module' });
+                const readelfBuffer = await file.arrayBuffer();
+                let readelfOutput = '';
+                readelfWorker.onmessage = (ev) => {
+                    if (typeof ev.data === 'string') {
+                        readelfOutput += ev.data + '\n';
+                    } else if (ev.data.action === 'done') {
+                        const extractedSegments: any[] = [];
+                        const lines = readelfOutput.split('\n');
+                        for (let i = 0; i < lines.length; i++) {
+                            const line = lines[i].trim();
+                            if (line.startsWith('LOAD')) {
+                                const parts = line.split(/\s+/);
+                                if (parts.length >= 5) {
+                                    // Format: LOAD offset vaddr paddr filesiz memsiz flags align
+                                    extractedSegments.push({
+                                        offset: parts[1],
+                                        vaddr: parts[2],
+                                        filesiz: parts[4]
+                                    });
+                                } else if (parts.length >= 4) {
+                                    // Format: LOAD offset vaddr paddr
+                                    // Next line: filesiz memsiz flags align
+                                    const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
+                                    const nextParts = nextLine.split(/\s+/);
+                                    if (nextParts.length >= 2) {
+                                        extractedSegments.push({
+                                            offset: parts[1],
+                                            vaddr: parts[2],
+                                            filesiz: nextParts[0]
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        console.log('[GhidraUI] Extracted segments:', extractedSegments);
+                        setSegments(extractedSegments);
+                        readelfWorker.terminate();
+                    }
+                };
+                readelfWorker.postMessage({ action: 'readelf', buffer: readelfBuffer, flags: ['-l'], fileName: file.name }, [readelfBuffer]);
+            } catch (err) {
+                console.error('[GhidraUI] Failed to start Readelf worker:', err);
             }
         };
 
@@ -129,18 +178,38 @@ const GhidraApp = () => {
                 fetch(proc.compilers[0].spec).then(r => { if (!r.ok) throw new Error(`Failed to fetch ${proc.compilers[0].spec}`); return r.text(); }),
             ]);
 
+            const targetSym = symbols.find(s => s.name === funcName && s.address !== '?');
+            let optimizedSymbols = symbols;
+            let targetAddr = 0;
+            if (targetSym) {
+                targetAddr = parseInt(targetSym.address, 16);
+                // Pre-filter symbols to only pass those within a 1MB range to the worker
+                // This reduces the message payload size significantly.
+                optimizedSymbols = symbols.filter(s => {
+                    if (s.address === '?' || s.name === funcName) return true;
+                    const addr = parseInt(s.address, 16);
+                    return addr >= targetAddr - 524288 && addr <= targetAddr + 524288;
+                });
+                console.log(`[GhidraUI] Pre-filtered symbols for worker: ${optimizedSymbols.length} / ${symbols.length} at 0x${targetAddr.toString(16)}`);
+            }
+
             const buffer = await fileRef.current.arrayBuffer();
+            // DO NOT use transferables here because we want to reuse 'buffer'
+            // for subsequent decompilations of other functions.
             worker.postMessage({
                 action: 'decompile',
                 buffer,
                 fileName: fileRef.current.name,
                 funcName,
+                targetAddr,
                 arch,
                 sla,
                 pspec,
                 cspec,
+                segments,
+                symbols: optimizedSymbols,
                 baseAddr: '0x0'
-            }, [buffer, sla]);
+            });
         } catch (err: any) {
             console.error('[GhidraUI] Failed to fetch specs:', err);
             setLoading(false);
@@ -148,7 +217,8 @@ const GhidraApp = () => {
         }
     };
 
-    const filteredSymbols = symbols.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredSymbols = useMemo(() => symbols.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase())), [symbols, searchTerm]);
+    const displayedSymbols = useMemo(() => filteredSymbols.slice(0, 500), [filteredSymbols]);
 
     return (
         <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
@@ -164,7 +234,7 @@ const GhidraApp = () => {
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {filteredSymbols.length === 0 && <div style={{ padding: '10px' }}>{symbols.length > 0 ? 'No matches' : 'No symbols found'}</div>}
-                    {filteredSymbols.map(s => (
+                    {displayedSymbols.map(s => (
                         <div
                             key={s.name + s.address}
                             className="symbol-item"
@@ -180,6 +250,11 @@ const GhidraApp = () => {
                             <div style={{ fontSize: '0.8em', color: '#666' }}>{s.address} ({s.type})</div>
                         </div>
                     ))}
+                    {filteredSymbols.length > 500 && (
+                        <div style={{ padding: '10px', fontSize: '0.8em', color: '#666', textAlign: 'center', borderTop: '1px solid #eee' }}>
+                            Showing top 500 of {filteredSymbols.length} matches. Use search to find others.
+                        </div>
+                    )}
                 </div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
