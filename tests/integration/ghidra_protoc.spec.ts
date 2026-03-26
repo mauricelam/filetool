@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs';
 
 test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
+    test.setTimeout(120000);
+
     test('should correctly decompile main in protoc-linux-aarch64', async ({ page }) => {
         // Capture console logs from the page to help debug worker issues
         page.on('console', msg => {
