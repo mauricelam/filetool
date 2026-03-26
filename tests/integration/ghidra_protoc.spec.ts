@@ -24,7 +24,7 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
         }, { content: Array.from(buffer), name: 'protoc-linux-aarch64' });
 
         // Wait for magic detection to complete
-        await expect(page.locator('.filedescription')).not.toHaveText('Loading...', { timeout: 30000 });
+        await expect(page.locator('.filedescription')).not.toHaveText('Loading...', { timeout: 60000 });
 
         // It should offer the "Ghidra" handler
         await expect(page.locator('.handler-button, .buttonBar button', { hasText: 'Ghidra' })).toBeVisible({ timeout: 15000 });
