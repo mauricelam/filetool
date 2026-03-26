@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FileListItem } from "./fileitem";
-import { processDataTransferItems } from './utils';
+import { processDataTransferItems, DragItem } from './utils';
 import { DropTarget } from './DropTarget';
 import { AppFile, AppGroup } from './App';
 
@@ -13,7 +13,7 @@ interface SidebarProps {
     onSelect: (id: string) => void;
     onRemoveFile: (id: string) => void;
     onRemoveGroup: (id: string) => void;
-    onAddFiles: (files: File[]) => void;
+    onAddFiles: (items: File[] | DragItem[]) => void;
     onGroupFiles: (ids: string[]) => void;
     onGroupAll: () => void;
     onToggleGroup: (id: string) => void;
@@ -34,22 +34,24 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
         const dragData = e.dataTransfer.getData('application/x-filetool-sidebar');
         if (dragData) {
             const { ids, sourceGroupId } = JSON.parse(dragData);
-            // Reordering at the end of the sidebar
-            setSidebarOrder(prev => {
-                const filtered = prev.filter(id => !ids.includes(id));
-                return [...filtered, ...ids];
-            });
+
             // Move files to top-level if they were in a group
             ids.forEach((id: string) => {
                 if (files.find(f => f.id === id)) {
                     onUpdateFileParent(id, null);
                 }
             });
+
+            // Reordering at the end of the sidebar
+            setSidebarOrder(prev => {
+                const filtered = prev.filter(id => !ids.includes(id));
+                return [...filtered, ...ids];
+            });
             return;
         }
 
-        const newFiles = await processDataTransferItems(e.dataTransfer.items);
-        onAddFiles(newFiles);
+        const newItems = await processDataTransferItems(e.dataTransfer.items);
+        onAddFiles(newItems);
     }
 
     const topLevelFiles = files.filter(f => f.parentId === null);

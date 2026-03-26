@@ -6,6 +6,7 @@ import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { IframeManager } from './IframeManager';
 import { FileList } from './FileList';
 import { PasteModal } from './PasteModal';
+import { DragItem } from './utils';
 import ICON_LOOKUP from './icons';
 
 export type HandlerConfig = {
@@ -71,17 +72,63 @@ export function App() {
         return () => document.removeEventListener('paste', handlePaste);
     }, []);
 
-    const handleAddFiles = (newFiles: File[]) => {
-        const newAppFiles: AppFile[] = newFiles.map(file => ({
-            id: generateId(),
-            file,
-            pinnedHandlers: [],
-            parentId: null
-        }));
+    const handleAddFiles = (dragItems: File[] | DragItem[]) => {
+        // Normalize input to DragItem[]
+        const normalizedItems: DragItem[] = dragItems.map(item => {
+            if (item instanceof File) {
+                return { files: [item] };
+            }
+            return item;
+        });
+
+        const newAppFiles: AppFile[] = [];
+        const newGroups: AppGroup[] = [];
+        const topLevelIds: string[] = [];
+
+        normalizedItems.forEach(item => {
+            if (item.name && item.files.length > 0) {
+                // Directory: Create a group
+                const groupId = generateId();
+                const groupFileIds: string[] = [];
+                item.files.forEach(file => {
+                    const fileId = generateId();
+                    newAppFiles.push({
+                        id: fileId,
+                        file,
+                        pinnedHandlers: [],
+                        parentId: groupId
+                    });
+                    groupFileIds.push(fileId);
+                });
+                newGroups.push({
+                    id: groupId,
+                    name: item.name,
+                    fileIds: groupFileIds,
+                    pinnedHandlers: [],
+                    isExpanded: true
+                });
+                topLevelIds.push(groupId);
+            } else {
+                // Single file(s)
+                item.files.forEach(file => {
+                    const fileId = generateId();
+                    newAppFiles.push({
+                        id: fileId,
+                        file,
+                        pinnedHandlers: [],
+                        parentId: null
+                    });
+                    topLevelIds.push(fileId);
+                });
+            }
+        });
+
         setFiles(cur => [...cur, ...newAppFiles]);
-        setSidebarOrder(cur => [...cur, ...newAppFiles.map(f => f.id)]);
-        if (newAppFiles.length > 0) {
-            setSelectedId(newAppFiles[newAppFiles.length - 1].id);
+        setGroups(cur => [...cur, ...newGroups]);
+        setSidebarOrder(cur => [...cur, ...topLevelIds]);
+
+        if (topLevelIds.length > 0) {
+            setSelectedId(topLevelIds[topLevelIds.length - 1]);
         }
     }
 
