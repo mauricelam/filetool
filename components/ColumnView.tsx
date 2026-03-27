@@ -138,9 +138,25 @@ export function ColumnView<T>({
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
     const [multiSelectedPaths, setMultiSelectedPaths] = useState<string[][]>([]);
     const [lastClickedItem, setLastClickedItem] = useState<{ level: number, key: string } | null>(null);
+    const [isAltPressed, setIsAltPressed] = useState(false);
     const [columns, setColumns] = useState<any[]>([]);
     const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.altKey) setIsAltPressed(true);
+        };
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (!e.altKey) setIsAltPressed(false);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
 
     useEffect(() => {
         if (initialSelectedPath && initialSelectedPath.length > 0) {
@@ -300,6 +316,7 @@ export function ColumnView<T>({
                         align-items: center;
                         white-space: nowrap;
                         overflow: hidden;
+                        user-select: ${isAltPressed ? 'text' : 'none'};
                     }
                     .column-item:hover {
                         background-color: #f0f0f0;

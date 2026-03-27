@@ -48,14 +48,25 @@ test.describe('Archive Viewer Multi-selection', () => {
         await expect(secondColumnItems.nth(0)).toHaveClass(/selected/);
         await expect(secondColumnItems.nth(1)).toHaveClass(/selected/);
 
+        // Take a screenshot showing multi-selection
+        await page.screenshot({ path: 'verification/screenshots/multi_selected.png' });
+
         // Verify the download button title/text changed
         const downloadBtn = iframe.locator('button[title*="Download"]');
         await expect(downloadBtn).toHaveAttribute('title', 'Download Selected');
+
+        // Verify the open button title/text changed
+        const openBtn = iframe.locator('button[title*="Open"]');
+        await expect(openBtn).toHaveAttribute('title', 'Open Selected');
 
         // Ensure regular click clears multi-selection
         await secondColumnItems.nth(0).click();
         await expect(secondColumnItems.nth(1)).not.toHaveClass(/selected/);
         await expect(secondColumnItems.nth(0)).toHaveClass(/selected/);
         await expect(downloadBtn).toHaveAttribute('title', 'Download');
+        await expect(openBtn).toHaveAttribute('title', 'Open');
+
+        // Take a screenshot for verification
+        await page.screenshot({ path: 'verification/screenshots/final_check.png' });
     });
 });
