@@ -29,17 +29,18 @@ test('Android HPROF viewer should display file content', async ({ page }) => {
     await expect(iframe.locator('.record-item').filter({ hasText: 'Utf8' }).first()).toBeVisible({ timeout: 30000 });
 
     // In large android hprof, we might need to scroll or wait for HeapDumpSegment to appear in the first page
-    // but here we just check if it's there at all in the records list (up to PAGE_SIZE=100)
-    await iframe.locator('input[placeholder="Filter records..."]').fill('HeapDumpSegment');
+    // but here we just check if it's there at all in the records list
+    await iframe.getByPlaceholder('Search').first().fill('HeapDumpSegment');
     await expect(iframe.locator('.record-item').filter({ hasText: 'HeapDumpSegment' }).first()).toBeVisible({ timeout: 15000 });
-    await iframe.locator('input[placeholder="Filter records..."]').fill('');
+    await iframe.getByPlaceholder('Search').first().fill('');
 
     // Test Instance Counts tab
-    await iframe.locator('div').filter({ hasText: /^Instance Counts$/ }).click();
+    await iframe.getByRole('tab', { name: 'Instance Counts' }).click();
     // Wait for loading to finish
     await expect(iframe.locator('text=Analyzing heap dump...')).not.toBeVisible({ timeout: 60000 });
     // In this specific android.hprof, many names are just simple strings or use / instead of .
-    await expect(iframe.locator('table')).toContainText('java.lang.String', { timeout: 30000 });
+    const androidTable = iframe.getByRole('tabpanel', { name: 'Instance Counts' }).locator('table');
+    await expect(androidTable).toContainText('java.lang.String', { timeout: 30000 });
 });
 
 test('Java HPROF (8-byte ID) viewer should display file content', async ({ page }) => {
@@ -63,9 +64,10 @@ test('Java HPROF (8-byte ID) viewer should display file content', async ({ page 
     await expect(iframe.locator('#output')).toContainText('ID Size: 8 bytes');
 
     // Test Instance Counts tab
-    await iframe.locator('div').filter({ hasText: /^Instance Counts$/ }).click();
+    await iframe.getByRole('tab', { name: 'Instance Counts' }).click();
     // Wait for loading to finish
     await expect(iframe.locator('text=Analyzing heap dump...')).not.toBeVisible({ timeout: 30000 });
     // Use regex to handle both . and /
-    await expect(iframe.locator('table')).toContainText(/java[./]lang[./]Integer/, { timeout: 30000 });
+    const javaTable = iframe.getByRole('tabpanel', { name: 'Instance Counts' }).locator('table');
+    await expect(javaTable).toContainText(/java[./]lang[./]Integer/, { timeout: 30000 });
 });

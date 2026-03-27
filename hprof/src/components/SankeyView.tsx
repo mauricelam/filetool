@@ -1,0 +1,90 @@
+import React, { useEffect, useRef } from 'react';
+import * as d3 from 'd3';
+import { sankey, sankeyLinkHorizontal, sankeyCenter } from 'd3-sankey';
+import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
+
+interface SankeyViewProps {
+    data: SankeyData;
+}
+
+export function SankeyView({ data }: SankeyViewProps) {
+    const svgRef = useRef<SVGSVGElement>(null);
+
+    useEffect(() => {
+        if (!svgRef.current || !data.nodes.length) return;
+
+        const width = svgRef.current.clientWidth || 800;
+        const height = svgRef.current.clientHeight || 600;
+
+        const svg = d3.select(svgRef.current);
+        svg.selectAll("*").remove();
+
+        const sankeyGenerator = sankey<SankeyNode, SankeyLink>()
+            .nodeWidth(15)
+            .nodePadding(10)
+            .extent([[1, 5], [width - 1, height - 5]])
+            .nodeId(d => (d as any).index)
+            .nodeAlign(sankeyCenter);
+
+        let sankeyData;
+        try {
+            sankeyData = sankeyGenerator({
+                nodes: data.nodes.map(d => ({ ...d })),
+                links: data.links.map(d => ({ ...d }))
+            });
+        } catch (e) {
+            console.error("Sankey generation failed:", e);
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height / 2)
+                .attr("text-anchor", "middle")
+                .text("Failed to generate Sankey diagram. The graph might contain cycles.");
+            return;
+        }
+
+        const { nodes, links } = sankeyData;
+
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+        const g = svg.append("g");
+
+        g.append("g")
+            .selectAll("rect")
+            .data(nodes)
+            .join("rect")
+            .attr("x", d => (d as any).x0)
+            .attr("y", d => (d as any).y0)
+            .attr("height", d => (d as any).y1 - (d as any).y0)
+            .attr("width", d => (d as any).x1 - (d as any).x0)
+            .attr("fill", (d, i) => color(i.toString()))
+            .attr("stroke", "#000")
+            .append("title")
+            .text(d => `${d.name}\n${(d as any).value}`);
+
+        g.append("g")
+            .attr("fill", "none")
+            .attr("stroke-opacity", 0.5)
+            .selectAll("path")
+            .data(links)
+            .join("path")
+            .attr("d", sankeyLinkHorizontal())
+            .attr("stroke", d => color(((d.source as any).index).toString()))
+            .attr("stroke-width", d => Math.max(1, d.width!))
+            .append("title")
+            .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${d.value}`);
+
+        g.append("g")
+            .style("font", "10px sans-serif")
+            .selectAll("text")
+            .data(nodes)
+            .join("text")
+            .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 6)
+            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2)
+            .attr("dy", "0.35em")
+            .attr("text-anchor", d => (d as any).x0 < width / 2 ? "start" : "end")
+            .text(d => d.name);
+
+    }, [data]);
+
+    return <svg ref={svgRef} className="sankey-svg" style={{ width: '100%', height: '100%' }} />;
+}

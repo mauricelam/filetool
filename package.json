@@ -85,6 +85,8 @@
     "wasm-pack": "^0.14.0"
   },
   "dependencies": {
+    "@types/d3-sankey": "^0.12.5",
+    "d3-sankey": "^0.12.3",
     "diff": "^8.0.4",
     "esbuild": "^0.27.3",
     "jq-wasm": "^1.1.0-jq-1.7.1",
