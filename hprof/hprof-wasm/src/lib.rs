@@ -619,7 +619,8 @@ impl HprofParser {
 
         for &root_id in &graph.roots {
             if root_id == target_id {
-                return Ok(serde_wasm_bindgen::to_value(&vec![vec![obj_id_str]])?);
+                let root_cname = graph.obj_id_to_class_id.get(&root_id).and_then(|cid| graph.class_id_to_name.get(cid)).cloned().unwrap_or_else(|| "Unknown".to_string());
+                return Ok(serde_wasm_bindgen::to_value(&vec![vec![format!("Root: {} ({})", root_cname, format_id(root_id))]])?);
             }
             queue.push_back(root_id);
             visited.insert(root_id);

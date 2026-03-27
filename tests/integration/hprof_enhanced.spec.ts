@@ -33,34 +33,34 @@ test.describe('HPROF enhanced features', () => {
         // Should see "Instances of ..."
         await expect(iframe.getByText(`Instances of ${className?.trim()}`)).toBeVisible();
 
-        // Wait for instances to load
-        await expect(iframe.locator('div.clickable-row').first()).toBeVisible();
+        // Wait for instances table header to appear
+        await expect(iframe.getByText('Instance ID')).toBeVisible();
 
-        // Click on an instance
-        const instanceRow = iframe.locator('div.clickable-row').first();
-        const instanceId = await instanceRow.textContent();
-        await instanceRow.click();
+        // Wait for at least one row with an ID (e.g. 0x...)
+        const instanceIdLink = iframe.locator('td a, td p, td span').filter({ hasText: '0x' }).first();
+        await expect(instanceIdLink).toBeVisible();
+        const instanceId = await instanceIdLink.textContent();
+
+        // Check if Retained Size calculation starts/completes in the table
+        // (It should say "Calculating..." then show a number)
+        // Note: In small tests it might be very fast.
+
+        // Click on an instance ID
+        await instanceIdLink.click();
 
         // Should see "Instance Detail:"
         await expect(iframe.getByText(`Instance Detail:`)).toBeVisible();
         await expect(iframe.getByText(`ID: ${instanceId?.trim()}`)).toBeVisible();
 
-        // Calculate retained size
-        const calculateBtn = iframe.getByRole('button', { name: 'Calculate' });
-        await calculateBtn.click();
-
-        // Should show "Retained Size:" and some number
+        // Retained size should be calculated automatically
         await expect(iframe.getByText('Retained Size:')).toBeVisible();
-        // Wait for calculation to finish and show the result instead of the button
-        await expect(calculateBtn).not.toBeVisible();
+        // The button "Calculate" should not be there (or should disappear)
+        await expect(iframe.getByRole('button', { name: 'Calculate' })).not.toBeVisible({ timeout: 10000 });
 
-        // Find GC path
-        const gcBtn = iframe.getByRole('button', { name: 'Shortest Path' });
-        await gcBtn.click();
-
+        // GC path should also be found automatically
+        // Instead of waiting for a button click, we wait for the result to appear.
         // It should either show path steps or "Root:"
-        // We'll wait for the button to disappear which indicates completion
-        await expect(gcBtn).not.toBeVisible();
+        await expect(iframe.getByText('Root: ')).toBeVisible({ timeout: 10000 });
     });
 
     test('HPROF viewer should show Sankey diagram', async ({ page }) => {

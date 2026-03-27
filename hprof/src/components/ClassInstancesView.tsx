@@ -15,22 +15,19 @@ function RetainedSizeCell({ parser, id }: { parser: HprofParser, id: string }) {
     const [size, setSize] = useState<number | null>(null);
     const [calculating, setCalculating] = useState(false);
 
-    const calculate = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    useEffect(() => {
         setCalculating(true);
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
             try { setSize(Number(parser.calculate_retained_size(id))) }
             catch (e) { console.error(e) }
             finally { setCalculating(false) }
         }, 0);
-    };
+        return () => clearTimeout(timeoutId);
+    }, [parser, id]);
 
+    if (calculating) return <Text size="xs" c="dimmed">Calculating...</Text>;
     if (size !== null) return <Text size="sm">{size.toLocaleString()}</Text>;
-    return (
-        <Button size="compact-xs" variant="light" loading={calculating} onClick={calculate}>
-            Calculate
-        </Button>
-    );
+    return <Text size="sm">-</Text>;
 }
 
 export function ClassInstancesView({ parser, classId, className, onSelectInstance, onBack }: ClassInstancesViewProps) {
