@@ -10,6 +10,8 @@ interface ColumnViewProps<T> {
     selectedPath?: string[];
     /** Optional callback function that is called when an item is clicked. Receives the level (column index), key (item name), and content of the clicked item */
     onItemClick?: (level: number, key: string, content: T) => void;
+    /** Optional callback function called when the multi-selection changes */
+    onSelectionChange?: (paths: string[][]) => void;
     /** Optional function to render custom actions for file items. Receives the file content and the full path to the file as arguments */
     renderFileActions?: (file: T, path: string[]) => React.ReactNode;
     /** Optional function to render a preview for a selected file. Receives the file content and its path */
@@ -26,8 +28,10 @@ interface ColumnProps<T> {
     level: number;
     /** The currently selected path */
     selectedPath: string[];
+    /** Currently multi-selected paths */
+    multiSelectedPaths: string[][];
     /** Callback function when an item is clicked */
-    onItemClick: (level: number, key: string, content: T) => void;
+    onItemClick: (e: React.MouseEvent, level: number, key: string, content: T) => void;
     /** Optional function to render custom actions for file items */
     renderFileActions?: (file: T, path: string[]) => React.ReactNode;
 }
@@ -39,6 +43,7 @@ function Column<T>({
     content,
     level,
     selectedPath,
+    multiSelectedPaths,
     onItemClick,
     renderFileActions
 }: ColumnProps<T>): React.ReactElement {
@@ -61,13 +66,15 @@ function Column<T>({
                 const isDirectory = typeof value === 'object' &&
                     !(value instanceof Uint8Array) &&
                     Object.keys(value).some(k => !k.startsWith('_'));
-                const isSelected = selectedPath[level] === key;
+                const currentPath = [...selectedPath.slice(0, level), key];
+                const isSelected = selectedPath[level] === key ||
+                    multiSelectedPaths.some(p => p.length === currentPath.length && p.every((seg, i) => seg === currentPath[i]));
 
                 return (
                     <div
                         key={key}
                         className={`column-item ${isSelected ? 'selected' : ''} ${isDirectory ? 'has-children' : ''}`}
-                        onClick={() => onItemClick(level, key, value)}
+                        onClick={(e) => onItemClick(e, level, key, value)}
                         title={key}
                         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}
                     >
@@ -124,10 +131,13 @@ export function ColumnView<T>({
     initialContent,
     selectedPath: initialSelectedPath,
     onItemClick,
+    onSelectionChange,
     renderFileActions,
     renderFilePreview,
 }: ColumnViewProps<T>): React.ReactElement {
     const [selectedPath, setSelectedPath] = useState<string[]>([]);
+    const [multiSelectedPaths, setMultiSelectedPaths] = useState<string[][]>([]);
+    const [lastClickedItem, setLastClickedItem] = useState<{ level: number, key: string } | null>(null);
     const [columns, setColumns] = useState<any[]>([]);
     const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
@@ -163,16 +173,55 @@ export function ColumnView<T>({
         }
     }, [initialContent, initialSelectedPath]);
 
-    const handleItemClick = (level: number, key: string, content: any) => {
+    const handleItemClick = (e: React.MouseEvent, level: number, key: string, content: any) => {
         const newPath = [...selectedPath.slice(0, level), key];
         const isDirectory = typeof content === 'object' &&
             !(content instanceof Uint8Array) &&
             Object.keys(content).some(k => !k.startsWith('_'));
 
-        // If the same item is clicked again, deselect it
-        if (JSON.stringify(newPath) === JSON.stringify(selectedPath)) {
+        let newMultiSelected = [...multiSelectedPaths];
+
+        if (e.shiftKey && lastClickedItem && lastClickedItem.level === level) {
+            // Range selection in the same column
+            const currentColumnContent = columns[level].content;
+            const items = Object.keys(currentColumnContent).filter(k => !k.startsWith('_'));
+            const startIdx = items.indexOf(lastClickedItem.key);
+            const endIdx = items.indexOf(key);
+            if (startIdx !== -1 && endIdx !== -1) {
+                const rangeKeys = items.slice(Math.min(startIdx, endIdx), Math.max(startIdx, endIdx) + 1);
+                const basePath = selectedPath.slice(0, level);
+                const rangePaths = rangeKeys.map(k => [...basePath, k]);
+
+                newMultiSelected = rangePaths;
+            }
+        } else if (e.ctrlKey || e.metaKey) {
+            // Toggle selection
+            const pathStr = JSON.stringify(newPath);
+            const exists = newMultiSelected.some(p => JSON.stringify(p) === pathStr);
+            if (exists) {
+                newMultiSelected = newMultiSelected.filter(p => JSON.stringify(p) !== pathStr);
+            } else {
+                newMultiSelected.push(newPath);
+            }
+        } else {
+            // Regular click
+            newMultiSelected = [newPath];
+        }
+
+        setMultiSelectedPaths(newMultiSelected);
+        setLastClickedItem({ level, key });
+        if (onSelectionChange) {
+            onSelectionChange(newMultiSelected);
+        }
+
+        // If the same item is clicked again without modifiers, deselect it
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey && JSON.stringify(newPath) === JSON.stringify(selectedPath)) {
             setSelectedPath(newPath.slice(0, -1)); // Go up one level
             setSelectedFile(null);
+            setMultiSelectedPaths([]);
+            if (onSelectionChange) {
+                onSelectionChange([]);
+            }
             setColumns(columns.slice(0, level + 1));
             return;
         }
@@ -217,6 +266,7 @@ export function ColumnView<T>({
                             content={column.content}
                             level={index}
                             selectedPath={selectedPath}
+                            multiSelectedPaths={multiSelectedPaths}
                             onItemClick={handleItemClick}
                             renderFileActions={renderFileActions}
                         />

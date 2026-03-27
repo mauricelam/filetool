@@ -311,6 +311,7 @@ const ArchiveCreator: React.FC<{ files: File[] }> = ({ files }) => {
 const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     const [archiveFile, setArchiveFile] = useState<File | null>(initialFile);
     const [files, setFiles] = useState<{ [key: string]: ArchiveFile }>({});
+    const [multiSelectedPaths, setMultiSelectedPaths] = useState<string[][]>([]);
     const [isFormatDialogOpen, setIsFormatDialogOpen] = useState(false);
     const [isCompressing, setIsCompressing] = useState(false);
     const [view, setView] = useState<'file' | 'metadata'>('file');
@@ -407,9 +408,32 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                 }
             };
 
-            // Process all entries recursively
+            // Process entries recursively, filtering by multi-selection if active
+            let entriesToProcess = Object.entries(extractedFiles);
+
+            if (multiSelectedPaths.length > 0) {
+                const findEntryByPath = (obj: any, pathArr: string[]): ArchiveEntry | undefined => {
+                    let current = obj;
+                    for (const segment of pathArr) {
+                        if (current && typeof current === 'object' && segment in current) {
+                            current = current[segment];
+                        } else {
+                            return undefined;
+                        }
+                    }
+                    return current;
+                };
+
+                const selectedEntries: [string, ArchiveEntry][] = multiSelectedPaths.map(path => {
+                    const entry = findEntryByPath(extractedFiles, path);
+                    return entry ? [path.join('/'), entry] : null;
+                }).filter((x): x is [string, ArchiveEntry] => x !== null);
+
+                entriesToProcess = selectedEntries;
+            }
+
             const filesToArchive = await Promise.all(
-                Object.entries(extractedFiles).map(([path, entry]) => processEntry(entry, path))
+                entriesToProcess.map(([path, entry]) => processEntry(entry, path))
             ).then(results => results.flat());
 
             if (filesToArchive.length === 0) {
@@ -600,17 +624,18 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                             color: isCompressing ? '#999' : '#666',
                             marginLeft: 'auto'
                         }}
-                        title={isCompressing ? "Compressing..." : "Download"}
+                        title={isCompressing ? "Compressing..." : (multiSelectedPaths.length > 1 ? "Download Selected" : "Download")}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill={isCompressing ? "#999" : "#666"}>
                             <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
                         </svg>
-                        {isCompressing ? "Compressing..." : "Download"}
+                        {isCompressing ? "Compressing..." : (multiSelectedPaths.length > 1 ? "Download Selected" : "Download")}
                     </button>
                 )}
             </div>
             <ColumnView
                 initialContent={files}
+                onSelectionChange={setMultiSelectedPaths}
                 renderFileActions={renderFileActions}
                 renderFilePreview={renderFilePreview}
             />
