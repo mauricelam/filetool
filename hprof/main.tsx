@@ -135,6 +135,8 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
     const [sankeyLoading, setSankeyLoading] = useState(false);
     const [sankeyRootId, setSankeyRootId] = useState<string | null>(null);
+    const [sankeyHistory, setSankeyHistory] = useState<(string | null)[]>([]);
+    const [sankeyDepth, setSankeyDepth] = useState(3);
 
     useEffect(() => {
         try {
@@ -197,12 +199,12 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         if (activeTab === 'sankey') {
             setSankeyLoading(true);
             setTimeout(() => {
-                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined)) }
+                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth)) }
                 catch (e) { console.error(e) }
                 finally { setSankeyLoading(false) }
             }, 0);
         }
-    }, [activeTab, parser, sankeyRootId]);
+    }, [activeTab, parser, sankeyRootId, sankeyDepth]);
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
@@ -238,6 +240,25 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const handleSelectInstance = (id: string) => {
         setSelectedInstanceId(id);
         setActiveTab('instances');
+    };
+
+    const handleSankeyZoom = (id: string) => {
+        if (id === sankeyRootId) return;
+        setSankeyHistory(prev => [...prev, sankeyRootId]);
+        setSankeyRootId(id);
+    };
+
+    const handleSankeyBack = () => {
+        if (sankeyHistory.length === 0) return;
+        const newHistory = [...sankeyHistory];
+        const lastId = newHistory.pop()!;
+        setSankeyHistory(newHistory);
+        setSankeyRootId(lastId);
+    };
+
+    const handleSankeyReset = () => {
+        setSankeyHistory([]);
+        setSankeyRootId(null);
     };
 
     return (
@@ -340,14 +361,30 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                 <Tabs.Panel value="sankey" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <Stack h="100%" gap={0}>
                         <Group p="xs" justify="space-between" bg="gray.0" style={{ borderBottom: '1px solid #eee' }}>
-                            <Text fw={700}>Memory Flow {sankeyRootId ? `(Zoomed: ${sankeyRootId})` : '(Root GC)'}</Text>
-                            {sankeyRootId && (
-                                <Button size="compact-xs" variant="light" onClick={() => setSankeyRootId(null)}>Reset Zoom</Button>
-                            )}
+                            <Group>
+                                <Text fw={700}>Memory Flow {sankeyRootId ? `(Zoomed: ${sankeyRootId})` : '(Root GC)'}</Text>
+                                {sankeyHistory.length > 0 && (
+                                    <Button size="compact-xs" variant="subtle" onClick={handleSankeyBack}>Back</Button>
+                                )}
+                                {sankeyRootId && (
+                                    <Button size="compact-xs" variant="light" onClick={handleSankeyReset}>Reset Zoom</Button>
+                                )}
+                            </Group>
+                            <Group>
+                                <Text size="sm">Depth:</Text>
+                                <input
+                                    type="number"
+                                    value={sankeyDepth}
+                                    min={1}
+                                    max={10}
+                                    onChange={(e) => setSankeyDepth(Math.max(1, parseInt(e.target.value) || 1))}
+                                    style={{ width: '50px' }}
+                                />
+                            </Group>
                         </Group>
                         <Box style={{ flex: 1, position: 'relative' }}>
                             <LoadingOverlay visible={sankeyLoading} />
-                            {sankeyData && <SankeyView data={sankeyData} onNodeClick={setSankeyRootId} />}
+                            {sankeyData && <SankeyView data={sankeyData} onNodeClick={handleSankeyZoom} />}
                         </Box>
                     </Stack>
                 </Tabs.Panel>

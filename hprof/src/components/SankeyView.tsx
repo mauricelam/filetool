@@ -54,6 +54,10 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
 
         const g = svg.append("g");
 
+        svg.call(d3.zoom<SVGSVGElement, unknown>().on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        }));
+
         g.append("g")
             .selectAll("rect")
             .data(nodes)
@@ -105,14 +109,23 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             });
 
         g.append("g")
-            .style("font", "10px sans-serif")
-            .selectAll("text")
+            .selectAll("foreignObject")
             .data(nodes)
-            .join("text")
-            .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 6)
-            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2)
-            .attr("dy", "0.35em")
-            .attr("text-anchor", d => (d as any).x0 < width / 2 ? "start" : "end")
+            .join("foreignObject")
+            .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 156)
+            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2 - 15)
+            .attr("width", 150)
+            .attr("height", 30)
+            .style("pointer-events", "none")
+            .append("xhtml:div")
+            .style("font", "10px sans-serif")
+            .style("text-align", d => (d as any).x0 < width / 2 ? "left" : "right")
+            .style("white-space", "normal")
+            .style("word-break", "break-all")
+            .style("overflow", "hidden")
+            .style("display", "-webkit-box")
+            .style("-webkit-line-clamp", "3")
+            .style("-webkit-box-orient", "vertical")
             .text(d => d.name);
 
     }, [data]);

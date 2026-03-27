@@ -878,7 +878,7 @@ impl HprofParser {
         Ok(graph.retained_sizes.get(&target_id).cloned().unwrap_or(0))
     }
 
-    pub fn get_sankey_data(&self, root_id_str: Option<String>) -> Result<JsValue, JsValue> {
+    pub fn get_sankey_data(&self, root_id_str: Option<String>, max_depth: Option<usize>) -> Result<JsValue, JsValue> {
         let graph = self.ensure_graph()?;
         let virtual_root = Id::from(0u64);
         let start_node = if let Some(r_id_str) = root_id_str {
@@ -909,11 +909,11 @@ impl HprofParser {
             retained_size: graph.retained_sizes.get(&start_node).cloned().unwrap_or(0) as f64,
         });
 
-        let max_depth = 5;
+        let depth_limit = max_depth.unwrap_or(3);
         let mut visited_ids = HashSet::new();
         visited_ids.insert(start_node);
 
-        for _ in 0..max_depth {
+        for _ in 0..depth_limit {
             let mut next_level = Vec::new();
             for &parent_id in &current_level {
                 let parent_idx = node_to_idx[&(parent_id, 0)];
