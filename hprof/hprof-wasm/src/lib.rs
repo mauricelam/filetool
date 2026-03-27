@@ -889,7 +889,8 @@ impl HprofParser {
 
         let mut sankey_nodes = Vec::new();
         let mut sankey_links = Vec::new();
-        let mut node_to_idx = HashMap::new();
+        // Use a pair (object_id, type) where type is 0: normal, 1: self, 2: others
+        let mut node_to_idx: HashMap<(Id, u8), usize> = HashMap::new();
 
         let mut current_level = vec![start_node];
 
@@ -900,7 +901,8 @@ impl HprofParser {
             graph.class_id_to_name.get(&class_id).cloned().unwrap_or_else(|| format_id(start_node))
         };
 
-        node_to_idx.insert(start_node, 0);
+        let start_idx = sankey_nodes.len();
+        node_to_idx.insert((start_node, 0), start_idx);
         sankey_nodes.push(SankeyNode {
             name: start_name,
             id: Some(format_id(start_node)),
@@ -914,6 +916,25 @@ impl HprofParser {
         for _ in 0..max_depth {
             let mut next_level = Vec::new();
             for &parent_id in &current_level {
+                let parent_idx = node_to_idx[&(parent_id, 0)];
+
+                // Add <self> link
+                let shallow_size = graph.nodes.get(&parent_id).map(|n| n.shallow_size as f64).unwrap_or(0.0);
+                if shallow_size > 0.0 {
+                    let self_idx = sankey_nodes.len();
+                    sankey_nodes.push(SankeyNode {
+                        name: "<self>".to_string(),
+                        id: None,
+                        retained_size: shallow_size,
+                    });
+                    sankey_links.push(SankeyLink {
+                        source: parent_idx,
+                        target: self_idx,
+                        value: shallow_size,
+                        field_names: None,
+                    });
+                }
+
                 if let Some(children) = graph.dom_children.get(&parent_id) {
                     let mut sorted_children = children.clone();
                     sorted_children.sort_by(|a, b| {
@@ -922,12 +943,14 @@ impl HprofParser {
                         sb.cmp(&sa)
                     });
 
-                    // Aggregate small items into "Others" if too many
-                    let limit = 10;
+                    let limit = 8;
+                    let mut others_size = 0.0;
+
                     for (i, &child_id) in sorted_children.iter().enumerate() {
+                        let child_retained = graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64;
                         if i >= limit {
-                            // TODO: Group into "Others"
-                            break;
+                            others_size += child_retained;
+                            continue;
                         }
 
                         if visited_ids.contains(&child_id) { continue; }
@@ -940,12 +963,11 @@ impl HprofParser {
                         sankey_nodes.push(SankeyNode {
                             name: child_name,
                             id: Some(format_id(child_id)),
-                            retained_size: graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64,
+                            retained_size: child_retained,
                         });
-                        node_to_idx.insert(child_id, child_idx);
+                        node_to_idx.insert((child_id, 0), child_idx);
                         next_level.push(child_id);
 
-                        // Find field names from parent to child
                         let mut field_names = Vec::new();
                         if let Some(parent_node) = graph.nodes.get(&parent_id) {
                             for (f_name, target_id) in &parent_node.references {
@@ -957,12 +979,26 @@ impl HprofParser {
                             }
                         }
 
-                        let retained_size = graph.retained_sizes.get(&child_id).cloned().unwrap_or(0);
                         sankey_links.push(SankeyLink {
-                            source: node_to_idx[&parent_id],
+                            source: parent_idx,
                             target: child_idx,
-                            value: if retained_size > 0 { retained_size as f64 } else { 1.0 },
+                            value: if child_retained > 0.0 { child_retained } else { 1.0 },
                             field_names: if field_names.is_empty() { None } else { Some(field_names) },
+                        });
+                    }
+
+                    if others_size > 0.0 {
+                        let others_idx = sankey_nodes.len();
+                        sankey_nodes.push(SankeyNode {
+                            name: "Others".to_string(),
+                            id: None,
+                            retained_size: others_size,
+                        });
+                        sankey_links.push(SankeyLink {
+                            source: parent_idx,
+                            target: others_idx,
+                            value: others_size,
+                            field_names: None,
                         });
                     }
                 }

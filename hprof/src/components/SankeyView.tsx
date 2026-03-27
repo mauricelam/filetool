@@ -46,6 +46,11 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
         const { nodes, links } = sankeyData;
 
         const color = d3.scaleOrdinal(d3.schemeCategory10);
+        const nodeColor = (d: any) => {
+            if (d.name === "<self>") return "#aaa";
+            if (d.name === "Others") return "#ccc";
+            return color(d.index.toString());
+        };
 
         const g = svg.append("g");
 
@@ -57,7 +62,7 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             .attr("y", d => (d as any).y0)
             .attr("height", d => Math.max(1, (d as any).y1 - (d as any).y0))
             .attr("width", d => (d as any).x1 - (d as any).x0)
-            .attr("fill", (d, i) => color(i.toString()))
+            .attr("fill", (d: any) => nodeColor(d))
             .attr("stroke", "#000")
             .style("cursor", "pointer")
             .on("click", (event, d) => {
@@ -78,7 +83,7 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
 
         link.append("path")
             .attr("d", sankeyLinkHorizontal())
-            .attr("stroke", d => color(((d.source as any).index).toString()))
+            .attr("stroke", d => nodeColor(d.source))
             .attr("stroke-width", d => Math.max(1, (d as any).width || 0))
             .append("title")
             .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${d.value.toLocaleString()} bytes`);
