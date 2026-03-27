@@ -47,6 +47,12 @@ pub struct FieldInfo {
     pub ref_id: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct InstanceSummary {
+    pub id: String,
+    pub shallow_size: usize,
+}
+
 struct ObjectGraph {
     nodes: HashMap<Id, NodeInfo>,
     roots: Vec<Id>,
@@ -561,10 +567,13 @@ impl HprofParser {
         if let Some(list) = instances {
             let start = offset.min(list.len());
             let end = (offset + limit).min(list.len());
-            let result: Vec<String> = list[start..end].iter().map(|&oid| format_id(oid)).collect();
+            let result: Vec<InstanceSummary> = list[start..end].iter().map(|&oid| {
+                let shallow_size = graph.nodes.get(&oid).map(|n| n.shallow_size).unwrap_or(0);
+                InstanceSummary { id: format_id(oid), shallow_size }
+            }).collect();
             Ok(serde_wasm_bindgen::to_value(&result)?)
         } else {
-            Ok(serde_wasm_bindgen::to_value(&Vec::<String>::new())?)
+            Ok(serde_wasm_bindgen::to_value(&Vec::<InstanceSummary>::new())?)
         }
     }
 
