@@ -5,9 +5,10 @@ import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
 
 interface SankeyViewProps {
     data: SankeyData;
+    onNodeClick?: (id: string) => void;
 }
 
-export function SankeyView({ data }: SankeyViewProps) {
+export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
 
     useEffect(() => {
@@ -22,7 +23,7 @@ export function SankeyView({ data }: SankeyViewProps) {
         const sankeyGenerator = sankey<SankeyNode, SankeyLink>()
             .nodeWidth(15)
             .nodePadding(10)
-            .extent([[1, 5], [width - 1, height - 5]])
+            .extent([[1, 20], [width - 1, height - 20]])
             .nodeId(d => (d as any).index)
             .nodeAlign(sankeyCenter);
 
@@ -54,24 +55,49 @@ export function SankeyView({ data }: SankeyViewProps) {
             .join("rect")
             .attr("x", d => (d as any).x0)
             .attr("y", d => (d as any).y0)
-            .attr("height", d => (d as any).y1 - (d as any).y0)
+            .attr("height", d => Math.max(1, (d as any).y1 - (d as any).y0))
             .attr("width", d => (d as any).x1 - (d as any).x0)
             .attr("fill", (d, i) => color(i.toString()))
             .attr("stroke", "#000")
+            .style("cursor", "pointer")
+            .on("click", (event, d) => {
+                if (onNodeClick && (d as any).id) {
+                    onNodeClick((d as any).id);
+                }
+            })
             .append("title")
-            .text(d => `${d.name}\n${(d as any).value}`);
+            .text(d => `${d.name}\nRetained: ${(d as any).retained_size?.toLocaleString()} bytes`);
 
-        g.append("g")
+        const link = g.append("g")
             .attr("fill", "none")
             .attr("stroke-opacity", 0.5)
-            .selectAll("path")
+            .selectAll("g")
             .data(links)
-            .join("path")
+            .join("g")
+            .style("mix-blend-mode", "multiply");
+
+        link.append("path")
             .attr("d", sankeyLinkHorizontal())
             .attr("stroke", d => color(((d.source as any).index).toString()))
-            .attr("stroke-width", d => Math.max(1, d.width!))
+            .attr("stroke-width", d => Math.max(1, (d as any).width || 0))
             .append("title")
-            .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${d.value}`);
+            .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${d.value.toLocaleString()} bytes`);
+
+        link.append("text")
+            .attr("x", d => ((d.source as any).x1 + (d.target as any).x0) / 2)
+            .attr("y", d => (d.y0 + d.y1) / 2)
+            .attr("dy", "0.35em")
+            .attr("text-anchor", "middle")
+            .style("font-size", "9px")
+            .style("fill", "#000")
+            .style("pointer-events", "none")
+            .text(d => {
+                if (d.width! < 10) return "";
+                const names = (d as any).field_names;
+                if (!names || names.length === 0) return "";
+                const s = names.join(", ");
+                return s.length > 20 ? s.substring(0, 17) + "..." : s;
+            });
 
         g.append("g")
             .style("font", "10px sans-serif")

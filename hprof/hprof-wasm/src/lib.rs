@@ -60,6 +60,9 @@ struct ObjectGraph {
     obj_id_to_class_id: HashMap<Id, Id>,
     class_to_instances: HashMap<Id, Vec<Id>>,
     id_size: IdSize,
+    idoms: HashMap<Id, Id>,
+    dom_children: HashMap<Id, Vec<Id>>,
+    retained_sizes: HashMap<Id, u64>,
 }
 
 #[derive(Clone)]
@@ -154,13 +157,16 @@ pub struct SankeyData {
 #[derive(Serialize, Deserialize)]
 pub struct SankeyNode {
     pub name: String,
+    pub id: Option<String>,
+    pub retained_size: f64,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct SankeyLink {
     pub source: usize,
     pub target: usize,
-    pub value: u64,
+    pub value: f64,
+    pub field_names: Option<Vec<String>>,
 }
 
 #[wasm_bindgen]
@@ -389,7 +395,122 @@ impl HprofParser {
                 instances.sort_by_key(|id| format_id(*id));
             }
 
-            Ok(ObjectGraph { nodes, roots, class_id_to_name, obj_id_to_class_id, class_to_instances, id_size })
+            // --- Dominator Tree Computation (Cooper-Harvey-Kennedy) ---
+            let virtual_root = Id::from(0u64);
+            let mut post_order = Vec::new();
+            let mut visited = HashSet::new();
+            let mut stack = Vec::new();
+
+            for &root_id in &roots {
+                if !visited.contains(&root_id) {
+                    stack.push((root_id, 0));
+                    while let Some((curr, ref_idx)) = stack.pop() {
+                        visited.insert(curr);
+                        let refs = nodes.get(&curr).map(|n| &n.references);
+                        if let Some(r) = refs {
+                            if ref_idx < r.len() {
+                                stack.push((curr, ref_idx + 1));
+                                let next_id = r[ref_idx].1;
+                                if !visited.contains(&next_id) {
+                                    stack.push((next_id, 0));
+                                }
+                            } else {
+                                post_order.push(curr);
+                            }
+                        } else {
+                            post_order.push(curr);
+                        }
+                    }
+                }
+            }
+            post_order.push(virtual_root);
+
+            let mut node_to_post_index = HashMap::new();
+            for (i, &id) in post_order.iter().enumerate() {
+                node_to_post_index.insert(id, i);
+            }
+
+            let mut idoms = HashMap::new();
+            let _virtual_root_idx = node_to_post_index[&virtual_root];
+            idoms.insert(virtual_root, virtual_root);
+
+            // Pre-calculate predecessors for efficiency
+            let mut predecessors: HashMap<Id, Vec<Id>> = HashMap::new();
+            for &root_id in &roots {
+                predecessors.entry(root_id).or_default().push(virtual_root);
+            }
+            for node in nodes.values() {
+                for (_, next_id) in &node.references {
+                    if node_to_post_index.contains_key(next_id) {
+                        predecessors.entry(*next_id).or_default().push(node.id);
+                    }
+                }
+            }
+
+            let mut changed = true;
+            while changed {
+                changed = false;
+                for &node_id in post_order.iter().rev() {
+                    if node_id == virtual_root { continue; }
+
+                    let preds = match predecessors.get(&node_id) {
+                        Some(p) => p,
+                        None => continue,
+                    };
+
+                    let mut new_idom = None;
+                    for &p in preds {
+                        if idoms.contains_key(&p) {
+                            if new_idom.is_none() {
+                                new_idom = Some(p);
+                            } else {
+                                let b1 = p;
+                                let b2 = new_idom.unwrap();
+                                // intersect
+                                let mut finger1 = b1;
+                                let mut finger2 = b2;
+                                while finger1 != finger2 {
+                                    while node_to_post_index[&finger1] < node_to_post_index[&finger2] {
+                                        finger1 = idoms[&finger1];
+                                    }
+                                    while node_to_post_index[&finger2] < node_to_post_index[&finger1] {
+                                        finger2 = idoms[&finger2];
+                                    }
+                                }
+                                new_idom = Some(finger1);
+                            }
+                        }
+                    }
+
+                    if let Some(ni) = new_idom {
+                        if idoms.get(&node_id) != Some(&ni) {
+                            idoms.insert(node_id, ni);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            let mut dom_children: HashMap<Id, Vec<Id>> = HashMap::new();
+            for (&node_id, &idom_id) in &idoms {
+                if node_id != idom_id {
+                    dom_children.entry(idom_id).or_default().push(node_id);
+                }
+            }
+
+            let mut retained_sizes = HashMap::new();
+            // Iterative retained size using post-order indices
+            for &node_id in &post_order {
+                let mut size = nodes.get(&node_id).map(|n| n.shallow_size as u64).unwrap_or(0);
+                if let Some(children) = dom_children.get(&node_id) {
+                    for &child in children {
+                        size += retained_sizes.get(&child).cloned().unwrap_or(0);
+                    }
+                }
+                retained_sizes.insert(node_id, size);
+            }
+
+            Ok(ObjectGraph { nodes, roots, class_id_to_name, obj_id_to_class_id, class_to_instances, id_size, idoms, dom_children, retained_sizes })
         }).map_err(|e: String| JsValue::from_str(&e))
     }
 
@@ -754,106 +875,103 @@ impl HprofParser {
     pub fn calculate_retained_size(&self, obj_id_str: String) -> Result<u64, JsValue> {
         let graph = self.ensure_graph()?;
         let target_id = parse_id(&obj_id_str, graph.id_size)?;
-
-        let mut reachable_from_target = HashSet::new();
-        let mut stack = vec![target_id];
-        while let Some(curr) = stack.pop() {
-            if reachable_from_target.insert(curr) {
-                if let Some(node) = graph.nodes.get(&curr) {
-                    for (_, next_id) in &node.references {
-                        stack.push(*next_id);
-                    }
-                }
-            }
-        }
-
-        let mut reachable_from_roots_excluding_target = HashSet::new();
-        let mut queue = VecDeque::new();
-        for &root_id in &graph.roots {
-            if root_id != target_id {
-                queue.push_back(root_id);
-                reachable_from_roots_excluding_target.insert(root_id);
-            }
-        }
-
-        while let Some(curr) = queue.pop_front() {
-            if let Some(node) = graph.nodes.get(&curr) {
-                for (_, next_id) in &node.references {
-                    if *next_id != target_id && !reachable_from_roots_excluding_target.contains(next_id) {
-                        reachable_from_roots_excluding_target.insert(*next_id);
-                        queue.push_back(*next_id);
-                    }
-                }
-            }
-        }
-
-        let mut retained_size = 0u64;
-        for oid in reachable_from_target {
-            if !reachable_from_roots_excluding_target.contains(&oid) {
-                if let Some(node) = graph.nodes.get(&oid) {
-                    retained_size += node.shallow_size as u64;
-                }
-            }
-        }
-
-        Ok(retained_size)
+        Ok(graph.retained_sizes.get(&target_id).cloned().unwrap_or(0))
     }
 
-    pub fn get_sankey_data(&self) -> Result<JsValue, JsValue> {
+    pub fn get_sankey_data(&self, root_id_str: Option<String>) -> Result<JsValue, JsValue> {
         let graph = self.ensure_graph()?;
-        let counts_val = self.get_instance_counts()?;
-        let counts: Vec<InstanceCountEntry> = serde_wasm_bindgen::from_value(counts_val)?;
+        let virtual_root = Id::from(0u64);
+        let start_node = if let Some(r_id_str) = root_id_str {
+            parse_id(&r_id_str, graph.id_size)?
+        } else {
+            virtual_root
+        };
 
-        // Take top 20 classes to make it more interesting but still manageable
-        let top_classes_list: Vec<Id> = counts.iter().take(20)
-            .filter_map(|c| parse_id(&c.class_id, graph.id_size).ok())
-            .collect();
-        let top_classes_set: HashSet<Id> = top_classes_list.iter().cloned().collect();
+        let mut sankey_nodes = Vec::new();
+        let mut sankey_links = Vec::new();
+        let mut node_to_idx = HashMap::new();
 
-        // Use a simple ranking based on instance count order (as a proxy for topological order to break cycles)
-        // This is a common trick for Sankey diagrams where you want to show "flow" from more popular to less popular
-        // or just have a consistent direction.
-        let mut class_to_rank = HashMap::new();
-        for (rank, &cid) in top_classes_list.iter().enumerate() {
-            class_to_rank.insert(cid, rank);
-        }
+        let mut current_level = vec![start_node];
 
-        let mut class_refs: HashMap<(Id, Id), u64> = HashMap::new();
-        for node in graph.nodes.values() {
-            let scid = node.class_id;
-            if !top_classes_set.contains(&scid) { continue; }
-            for (_, target_id) in &node.references {
-                if let Some(&tcid) = graph.obj_id_to_class_id.get(target_id) {
-                    if top_classes_set.contains(&tcid) && scid != tcid {
-                        // To avoid cycles in Sankey, we only allow links from lower rank to higher rank
-                        // or vice-versa. Here we use the instance count rank.
-                        let s_rank = class_to_rank[&scid];
-                        let t_rank = class_to_rank[&tcid];
-                        if s_rank < t_rank {
-                             *class_refs.entry((scid, tcid)).or_insert(0) += 1;
+        let start_name = if start_node == virtual_root {
+            "Root GC".to_string()
+        } else {
+            let class_id = graph.obj_id_to_class_id.get(&start_node).cloned().unwrap_or(start_node);
+            graph.class_id_to_name.get(&class_id).cloned().unwrap_or_else(|| format_id(start_node))
+        };
+
+        node_to_idx.insert(start_node, 0);
+        sankey_nodes.push(SankeyNode {
+            name: start_name,
+            id: Some(format_id(start_node)),
+            retained_size: graph.retained_sizes.get(&start_node).cloned().unwrap_or(0) as f64,
+        });
+
+        let max_depth = 5;
+        let mut visited_ids = HashSet::new();
+        visited_ids.insert(start_node);
+
+        for _ in 0..max_depth {
+            let mut next_level = Vec::new();
+            for &parent_id in &current_level {
+                if let Some(children) = graph.dom_children.get(&parent_id) {
+                    let mut sorted_children = children.clone();
+                    sorted_children.sort_by(|a, b| {
+                        let sa = graph.retained_sizes.get(a).cloned().unwrap_or(0);
+                        let sb = graph.retained_sizes.get(b).cloned().unwrap_or(0);
+                        sb.cmp(&sa)
+                    });
+
+                    // Aggregate small items into "Others" if too many
+                    let limit = 10;
+                    for (i, &child_id) in sorted_children.iter().enumerate() {
+                        if i >= limit {
+                            // TODO: Group into "Others"
+                            break;
                         }
+
+                        if visited_ids.contains(&child_id) { continue; }
+                        visited_ids.insert(child_id);
+
+                        let child_idx = sankey_nodes.len();
+                        let class_id = graph.obj_id_to_class_id.get(&child_id).cloned().unwrap_or(child_id);
+                        let child_name = graph.class_id_to_name.get(&class_id).cloned().unwrap_or_else(|| format_id(child_id));
+
+                        sankey_nodes.push(SankeyNode {
+                            name: child_name,
+                            id: Some(format_id(child_id)),
+                            retained_size: graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64,
+                        });
+                        node_to_idx.insert(child_id, child_idx);
+                        next_level.push(child_id);
+
+                        // Find field names from parent to child
+                        let mut field_names = Vec::new();
+                        if let Some(parent_node) = graph.nodes.get(&parent_id) {
+                            for (f_name, target_id) in &parent_node.references {
+                                if *target_id == child_id {
+                                    if let Some(name) = f_name {
+                                        field_names.push(name.clone());
+                                    }
+                                }
+                            }
+                        }
+
+                        let retained_size = graph.retained_sizes.get(&child_id).cloned().unwrap_or(0);
+                        sankey_links.push(SankeyLink {
+                            source: node_to_idx[&parent_id],
+                            target: child_idx,
+                            value: if retained_size > 0 { retained_size as f64 } else { 1.0 },
+                            field_names: if field_names.is_empty() { None } else { Some(field_names) },
+                        });
                     }
                 }
             }
+            if next_level.is_empty() { break; }
+            current_level = next_level;
         }
 
-        let mut nodes = Vec::new();
-        let mut class_to_idx = HashMap::new();
-        for (i, &cid) in top_classes_list.iter().enumerate() {
-            nodes.push(SankeyNode { name: graph.class_id_to_name.get(&cid).cloned().unwrap_or_else(|| "Unknown".to_string()) });
-            class_to_idx.insert(cid, i);
-        }
-
-        let mut links = Vec::new();
-        for ((src, tgt), count) in class_refs {
-            links.push(SankeyLink {
-                source: class_to_idx[&src],
-                target: class_to_idx[&tgt],
-                value: count,
-            });
-        }
-
-        Ok(serde_wasm_bindgen::to_value(&SankeyData { nodes, links })?)
+        Ok(serde_wasm_bindgen::to_value(&SankeyData { nodes: sankey_nodes, links: sankey_links })?)
     }
 
     /// Computes the number of references between all classes to provide weight metadata for edge filtering.
@@ -1534,60 +1652,30 @@ fn parse_id(s: &str, _id_size: IdSize) -> Result<Id, JsValue> {
 impl HprofParser {
     fn calculate_class_retained_size(&self, class_id: Id) -> Result<u64, JsValue> {
         let graph = self.ensure_graph()?;
-
-        let mut reachable_from_class = HashSet::new();
-        let mut stack = Vec::new();
-
-        // Find all instances of this class
+        let mut total_retained = 0u64;
+        let mut class_instances = HashSet::new();
         for node in graph.nodes.values() {
             if node.class_id == class_id {
-                stack.push(node.id);
+                class_instances.insert(node.id);
             }
         }
 
-        while let Some(curr) = stack.pop() {
-            if reachable_from_class.insert(curr) {
-                if let Some(node) = graph.nodes.get(&curr) {
-                    for (_, next_id) in &node.references {
-                        stack.push(*next_id);
-                    }
+        for &oid in &class_instances {
+            // Only add the retained size if no ancestor in the dominator tree is also an instance of this class
+            let mut is_dominated_by_same_class = false;
+            let mut curr = oid;
+            while let Some(&parent) = graph.idoms.get(&curr) {
+                if parent == curr || parent == Id::from(0u64) { break; }
+                if class_instances.contains(&parent) {
+                    is_dominated_by_same_class = true;
+                    break;
                 }
+                curr = parent;
+            }
+            if !is_dominated_by_same_class {
+                total_retained += graph.retained_sizes.get(&oid).cloned().unwrap_or(0);
             }
         }
-
-        let mut reachable_from_roots_excluding_class = HashSet::new();
-        let mut queue = VecDeque::new();
-
-        for &root_id in &graph.roots {
-            // Check if this root is an instance of the class
-            let is_instance = graph.nodes.get(&root_id).map(|n| n.class_id == class_id).unwrap_or(false);
-            if !is_instance {
-                queue.push_back(root_id);
-                reachable_from_roots_excluding_class.insert(root_id);
-            }
-        }
-
-        while let Some(curr) = queue.pop_front() {
-            if let Some(node) = graph.nodes.get(&curr) {
-                for (_, next_id) in &node.references {
-                    let is_target_instance = graph.nodes.get(next_id).map(|n| n.class_id == class_id).unwrap_or(false);
-                    if !is_target_instance && !reachable_from_roots_excluding_class.contains(next_id) {
-                        reachable_from_roots_excluding_class.insert(*next_id);
-                        queue.push_back(*next_id);
-                    }
-                }
-            }
-        }
-
-        let mut retained_size = 0u64;
-        for oid in reachable_from_class {
-            if !reachable_from_roots_excluding_class.contains(&oid) {
-                if let Some(node) = graph.nodes.get(&oid) {
-                    retained_size += node.shallow_size as u64;
-                }
-            }
-        }
-
-        Ok(retained_size)
+        Ok(total_retained)
     }
 }

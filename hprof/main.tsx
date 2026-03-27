@@ -134,6 +134,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     // Sankey state
     const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
     const [sankeyLoading, setSankeyLoading] = useState(false);
+    const [sankeyRootId, setSankeyRootId] = useState<string | null>(null);
 
     useEffect(() => {
         try {
@@ -193,15 +194,15 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     }, [activeTab, parser])
 
     useEffect(() => {
-        if (activeTab === 'sankey' && !sankeyData) {
+        if (activeTab === 'sankey') {
             setSankeyLoading(true);
             setTimeout(() => {
-                try { setSankeyData(parser.get_sankey_data()) }
+                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined)) }
                 catch (e) { console.error(e) }
                 finally { setSankeyLoading(false) }
             }, 0);
         }
-    }, [activeTab, parser]);
+    }, [activeTab, parser, sankeyRootId]);
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
@@ -338,12 +339,15 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
 
                 <Tabs.Panel value="sankey" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <Stack h="100%" gap={0}>
-                        <Box p="xs" bg="gray.0" style={{ borderBottom: '1px solid #eee' }}>
-                            <Text fw={700}>Memory Flow (Top Classes)</Text>
-                        </Box>
+                        <Group p="xs" justify="space-between" bg="gray.0" style={{ borderBottom: '1px solid #eee' }}>
+                            <Text fw={700}>Memory Flow {sankeyRootId ? `(Zoomed: ${sankeyRootId})` : '(Root GC)'}</Text>
+                            {sankeyRootId && (
+                                <Button size="compact-xs" variant="light" onClick={() => setSankeyRootId(null)}>Reset Zoom</Button>
+                            )}
+                        </Group>
                         <Box style={{ flex: 1, position: 'relative' }}>
                             <LoadingOverlay visible={sankeyLoading} />
-                            {sankeyData && <SankeyView data={sankeyData} />}
+                            {sankeyData && <SankeyView data={sankeyData} onNodeClick={setSankeyRootId} />}
                         </Box>
                     </Stack>
                 </Tabs.Panel>
