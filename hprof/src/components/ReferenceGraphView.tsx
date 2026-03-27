@@ -239,7 +239,7 @@ export function ReferenceGraphView({ data, onSelectNode }: ReferenceGraphViewPro
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <svg ref={svgRef} data-testid="reference-graph-svg" style={{ width: '100%', height: '100%', cursor: 'grab' }} />
+            <svg ref={svgRef} data-testid="reference-graph-svg" className="graph-svg" style={{ width: '100%', height: '100%', cursor: 'grab' }} />
             {selectedNode && (
                 <div style={{
                     position: 'absolute',
@@ -258,7 +258,12 @@ export function ReferenceGraphView({ data, onSelectNode }: ReferenceGraphViewPro
                     <div style={{ color: '#666' }}>ID: {selectedNode.id}</div>
                     {selectedNode.size! > 0 && (
                         <div style={{ marginTop: '5px' }}>
-                            Total Size: <span style={{ fontWeight: 'bold' }}>{Number(selectedNode.size).toLocaleString()} bytes</span>
+                            Total Shallow Size: <span style={{ fontWeight: 'bold' }}>{Number(selectedNode.size).toLocaleString()} bytes</span>
+                        </div>
+                    )}
+                    {selectedNode.retained_size && (
+                        <div style={{ marginTop: '5px' }}>
+                            Total Retained Size: <span style={{ fontWeight: 'bold' }}>{Number(selectedNode.retained_size).toLocaleString()} bytes</span>
                         </div>
                     )}
                     {(selectedNode as any).is_root && (

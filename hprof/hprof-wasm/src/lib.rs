@@ -52,6 +52,7 @@ struct ObjectGraph {
     roots: Vec<Id>,
     class_id_to_name: HashMap<Id, String>,
     obj_id_to_class_id: HashMap<Id, Id>,
+    class_to_instances: HashMap<Id, Vec<Id>>,
     id_size: IdSize,
 }
 
@@ -112,6 +113,8 @@ pub struct HierarchyNode {
     pub name: String,
     /// Weight/size of the node, used for visual scaling (e.g., total bytes).
     pub size: u64,
+    /// Total retained size (optional)
+    pub retained_size: Option<u64>,
     /// Whether this node is considered a GC root.
     pub is_root: bool,
 }
@@ -123,6 +126,8 @@ pub struct HierarchyLink {
     pub target: String,
     /// Optional weight for the link (e.g., number of references).
     pub count: Option<usize>,
+    /// Total size retained by this edge (approximate)
+    pub retained_size: Option<u64>,
     /// Names of fields that form this link (only for class reference graph)
     pub field_names: Option<Vec<String>>,
 }
@@ -167,10 +172,13 @@ impl HprofParser {
 
         if let Ok(hprof) = parse_hprof(&data) {
             id_size = match hprof.header().id_size() { IdSize::U32 => 4, IdSize::U64 => 8 };
+
+            // The header consists of: label (null-terminated), ID size (4 bytes), and timestamp (8 bytes).
             let mut pos = 0;
             while pos < data.len() && data[pos] != 0 { pos += 1; }
-            pos += 13;
-            let header_len = pos;
+
+            // pos is at the null terminator. Header ends after null + 4 + 8 = 13 bytes.
+            let header_len = pos + 13;
 
             let mut curr = header_len;
             let mut index = 0;
@@ -366,7 +374,16 @@ impl HprofParser {
                 }
             }
 
-            Ok(ObjectGraph { nodes, roots, class_id_to_name, obj_id_to_class_id, id_size })
+            let mut class_to_instances: HashMap<Id, Vec<Id>> = HashMap::new();
+            for (oid, info) in &nodes {
+                class_to_instances.entry(info.class_id).or_default().push(*oid);
+            }
+            // Sort instances for consistent pagination
+            for instances in class_to_instances.values_mut() {
+                instances.sort_by_key(|id| format_id(*id));
+            }
+
+            Ok(ObjectGraph { nodes, roots, class_id_to_name, obj_id_to_class_id, class_to_instances, id_size })
         }).map_err(|e: String| JsValue::from_str(&e))
     }
 
@@ -469,11 +486,11 @@ impl HprofParser {
             for sub in segment.sub_records().skip(offset).take(limit) {
                 if let Ok(s) = sub {
                     let desc = match s {
-                        SubRecord::Class(c) => format!("Class ID: {:?}, Super: {:?}, Instance Size: {}", c.obj_id(), c.super_class_obj_id(), c.instance_size_bytes()),
-                        SubRecord::Instance(i) => format!("Instance ID: {:?}, Class ID: {:?}", i.obj_id(), i.class_obj_id()),
-                        SubRecord::ObjectArray(a) => format!("Object Array ID: {:?}, Class ID: {:?}, Length: {}", a.obj_id(), a.array_class_obj_id(), a.elements(id_size).count()),
-                        SubRecord::PrimitiveArray(a) => format!("Primitive Array ID: {:?}", a.obj_id()),
-                        SubRecord::GcRootUnknown(r) => format!("Root Unknown: {:?}", r.obj_id()),
+                        SubRecord::Class(c) => format!("Class ID: {}, Super: {}, Instance Size: {}", format_id(c.obj_id()), c.super_class_obj_id().map(format_id).unwrap_or_else(|| "null".to_string()), c.instance_size_bytes()),
+                        SubRecord::Instance(i) => format!("Instance ID: {}, Class ID: {}", format_id(i.obj_id()), format_id(i.class_obj_id())),
+                        SubRecord::ObjectArray(a) => format!("Object Array ID: {}, Class ID: {}, Length: {}", format_id(a.obj_id()), format_id(a.array_class_obj_id()), a.elements(id_size).count()),
+                        SubRecord::PrimitiveArray(a) => format!("Primitive Array ID: {}", format_id(a.obj_id())),
+                        SubRecord::GcRootUnknown(r) => format!("Root Unknown: {}", format_id(r.obj_id())),
                         SubRecord::GcRootThreadObj(r) => format!("Root Thread Object: Thread Serial: {}, Stack Depth: {}", r.thread_serial(), r.stack_trace_serial()),
                         _ => format!("{:?}", s),
                     };
@@ -527,10 +544,10 @@ impl HprofParser {
 
         let mut result = Vec::new();
         for (cid, count) in instance_counts {
-            let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", cid));
+            let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(cid)));
             let mut size = total_sizes.get(&cid).cloned().unwrap_or(0);
             if let Some(&isize) = class_id_to_instance_size.get(&cid) { size += count * isize; }
-            result.push(InstanceCountEntry { class_id: format!("{:?}", cid), class_name: name, count, total_size: size });
+            result.push(InstanceCountEntry { class_id: format_id(cid), class_name: name, count, total_size: size });
         }
         result.sort_by(|a, b| b.total_size.cmp(&a.total_size));
         Ok(serde_wasm_bindgen::to_value(&result)?)
@@ -539,21 +556,16 @@ impl HprofParser {
     pub fn get_class_instances(&self, class_id_str: String, offset: usize, limit: usize) -> Result<JsValue, JsValue> {
         let graph = self.ensure_graph()?;
         let class_id = parse_id(&class_id_str, graph.id_size)?;
-        let mut result = Vec::new();
-        let mut count = 0;
-        let mut sorted_keys: Vec<_> = graph.nodes.keys().collect();
-        sorted_keys.sort_by_key(|id| format!("{:?}", id));
 
-        for oid in sorted_keys {
-            let info = &graph.nodes[oid];
-            if info.class_id == class_id {
-                if count >= offset && count < offset + limit {
-                    result.push(format!("{:?}", oid));
-                }
-                count += 1;
-            }
+        let instances = graph.class_to_instances.get(&class_id);
+        if let Some(list) = instances {
+            let start = offset.min(list.len());
+            let end = (offset + limit).min(list.len());
+            let result: Vec<String> = list[start..end].iter().map(|&oid| format_id(oid)).collect();
+            Ok(serde_wasm_bindgen::to_value(&result)?)
+        } else {
+            Ok(serde_wasm_bindgen::to_value(&Vec::<String>::new())?)
         }
-        Ok(serde_wasm_bindgen::to_value(&result)?)
     }
 
     pub fn get_instance_info(&self, obj_id_str: String) -> Result<JsValue, JsValue> {
@@ -567,8 +579,8 @@ impl HprofParser {
             fields.push(FieldInfo {
                 name: f_name.clone().unwrap_or_else(|| "unknown".to_string()),
                 ftype: "object".to_string(),
-                value: format!("{:?}", target_id),
-                ref_id: Some(format!("{:?}", target_id)),
+                value: format_id(*target_id),
+                ref_id: Some(format_id(*target_id)),
             });
         }
         for (f_name, f_type, f_val) in &node.primitives {
@@ -617,7 +629,7 @@ impl HprofParser {
                             let mut p = target_id;
                             while let Some(&(parent, ref name)) = parent_map.get(&p) {
                                 let cname = graph.obj_id_to_class_id.get(&p).and_then(|cid| graph.class_id_to_name.get(cid)).cloned().unwrap_or_else(|| "Unknown".to_string());
-                                path.push(format!("{} via {:?}", cname, name));
+                                path.push(format!("{} ({}) via {:?}", cname, format_id(p), name));
                                 p = parent;
                             }
                             let root_cname = graph.obj_id_to_class_id.get(&p).and_then(|cid| graph.class_id_to_name.get(cid)).cloned().unwrap_or_else(|| "Unknown".to_string());
@@ -684,12 +696,12 @@ impl HprofParser {
                 let mut path_strings = Vec::new();
                 let root_id = current_path[0].0;
                 let root_cname = graph.obj_id_to_class_id.get(&root_id).and_then(|cid| graph.class_id_to_name.get(cid)).cloned().unwrap_or_else(|| "Unknown".to_string());
-                path_strings.push(format!("Root: {}", root_cname));
+                path_strings.push(format!("Root: {} ({})", root_cname, format_id(root_id)));
 
                 for i in 1..current_path.len() {
                     let (oid, ref name) = current_path[i];
                     let cname = graph.obj_id_to_class_id.get(&oid).and_then(|cid| graph.class_id_to_name.get(cid)).cloned().unwrap_or_else(|| "Unknown".to_string());
-                    path_strings.push(format!("{} via {:?}", cname, name));
+                    path_strings.push(format!("{} ({}) via {:?}", cname, format_id(oid), name));
                 }
 
                 // Add target itself
@@ -781,57 +793,33 @@ impl HprofParser {
         let graph = self.ensure_graph()?;
         let counts_val = self.get_instance_counts()?;
         let counts: Vec<InstanceCountEntry> = serde_wasm_bindgen::from_value(counts_val)?;
-        let top_classes: HashSet<Id> = counts.iter().take(10).map(|c| parse_id(&c.class_id, graph.id_size).unwrap()).collect();
 
-        // Assign distances to top classes to break cycles
-        let mut class_dist: HashMap<Id, usize> = HashMap::new();
-        let mut queue = VecDeque::new();
-        for &root_id in &graph.roots {
-            if let Some(&cid) = graph.obj_id_to_class_id.get(&root_id) {
-                if top_classes.contains(&cid) && !class_dist.contains_key(&cid) {
-                    class_dist.insert(cid, 0);
-                    queue.push_back(cid);
-                }
-            }
-        }
+        // Take top 20 classes to make it more interesting but still manageable
+        let top_classes_list: Vec<Id> = counts.iter().take(20)
+            .filter_map(|c| parse_id(&c.class_id, graph.id_size).ok())
+            .collect();
+        let top_classes_set: HashSet<Id> = top_classes_list.iter().cloned().collect();
 
-        // Build class-to-class adjacency for top_classes
-        let mut class_adj: HashMap<Id, HashSet<Id>> = HashMap::new();
-        for node in graph.nodes.values() {
-            let scid = node.class_id;
-            if !top_classes.contains(&scid) { continue; }
-            for (_, target_id) in &node.references {
-                if let Some(&tcid) = graph.obj_id_to_class_id.get(target_id) {
-                    if top_classes.contains(&tcid) && scid != tcid {
-                        class_adj.entry(scid).or_default().insert(tcid);
-                    }
-                }
-            }
-        }
-
-        while let Some(u) = queue.pop_front() {
-            let d = class_dist[&u];
-            if let Some(neighbors) = class_adj.get(&u) {
-                for &v in neighbors {
-                    if !class_dist.contains_key(&v) {
-                        class_dist.insert(v, d + 1);
-                        queue.push_back(v);
-                    }
-                }
-            }
+        // Use a simple ranking based on instance count order (as a proxy for topological order to break cycles)
+        // This is a common trick for Sankey diagrams where you want to show "flow" from more popular to less popular
+        // or just have a consistent direction.
+        let mut class_to_rank = HashMap::new();
+        for (rank, &cid) in top_classes_list.iter().enumerate() {
+            class_to_rank.insert(cid, rank);
         }
 
         let mut class_refs: HashMap<(Id, Id), u64> = HashMap::new();
         for node in graph.nodes.values() {
             let scid = node.class_id;
-            if !top_classes.contains(&scid) { continue; }
+            if !top_classes_set.contains(&scid) { continue; }
             for (_, target_id) in &node.references {
                 if let Some(&tcid) = graph.obj_id_to_class_id.get(target_id) {
-                    if top_classes.contains(&tcid) {
-                        // Ensure it's a forward edge in BFS to avoid circular links
-                        let u_dist = class_dist.get(&scid).cloned().unwrap_or(usize::MAX);
-                        let v_dist = class_dist.get(&tcid).cloned().unwrap_or(usize::MAX);
-                        if u_dist < v_dist {
+                    if top_classes_set.contains(&tcid) && scid != tcid {
+                        // To avoid cycles in Sankey, we only allow links from lower rank to higher rank
+                        // or vice-versa. Here we use the instance count rank.
+                        let s_rank = class_to_rank[&scid];
+                        let t_rank = class_to_rank[&tcid];
+                        if s_rank < t_rank {
                              *class_refs.entry((scid, tcid)).or_insert(0) += 1;
                         }
                     }
@@ -839,12 +827,9 @@ impl HprofParser {
             }
         }
 
-        let mut sorted_top_classes: Vec<Id> = top_classes.into_iter().collect();
-        sorted_top_classes.sort_by_key(|id| format!("{:?}", id));
-
         let mut nodes = Vec::new();
         let mut class_to_idx = HashMap::new();
-        for (i, &cid) in sorted_top_classes.iter().enumerate() {
+        for (i, &cid) in top_classes_list.iter().enumerate() {
             nodes.push(SankeyNode { name: graph.class_id_to_name.get(&cid).cloned().unwrap_or_else(|| "Unknown".to_string()) });
             class_to_idx.insert(cid, i);
         }
@@ -1190,11 +1175,11 @@ impl HprofParser {
                 continue;
             }
 
-            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0, is_root: false });
+            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0, retained_size: None, is_root: false });
 
             if sname != "java.lang.Object" && sname != "java/lang/Object" {
-                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0, is_root: false });
-                links.push(HierarchyLink { source: cid_str, target: sid_str, count: None, field_names: None });
+                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0, retained_size: None, is_root: false });
+                links.push(HierarchyLink { source: cid_str, target: sid_str, count: None, retained_size: None, field_names: None });
             }
         }
 
@@ -1339,22 +1324,24 @@ impl HprofParser {
         }).unwrap_or_default();
 
         for (&cid, &size) in &class_total_sizes {
-            let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", cid));
+            let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(cid)));
             if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
 
-            let cid_str = format!("{:?}", cid);
-            nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name, size: size as u64, is_root: root_classes.contains(&cid) });
+            let cid_str = format_id(cid);
+            let retained_size = self.calculate_class_retained_size(cid).ok();
+            nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name, size: size as u64, retained_size, is_root: root_classes.contains(&cid) });
         }
 
         for (&(src, tgt), (count, fields)) in &class_refs {
             if *count < min_edge_count { continue; }
-            let src_str = format!("{:?}", src);
-            let tgt_str = format!("{:?}", tgt);
+            let src_str = format_id(src);
+            let tgt_str = format_id(tgt);
             if nodes.contains_key(&src_str) && nodes.contains_key(&tgt_str) {
                 links.push(HierarchyLink {
                     source: src_str,
                     target: tgt_str,
                     count: Some(*count),
+                    retained_size: None, // Edge-level retained size is expensive, skip for now
                     field_names: Some(fields.iter().cloned().collect()),
                 });
             }
@@ -1449,15 +1436,15 @@ impl HprofParser {
                     if let Ok(sub) = sub {
                         match sub {
                             SubRecord::Instance(i) => {
-                                let name = class_id_to_name_id.get(&i.class_obj_id()).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", i.class_obj_id()));
-                                instances.push(format!("ID: {:?}, Class: {}", i.obj_id(), name));
+                                let name = class_id_to_name_id.get(&i.class_obj_id()).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(i.class_obj_id())));
+                                instances.push(format!("ID: {}, Class: {}", format_id(i.obj_id()), name));
                             }
                             SubRecord::ObjectArray(a) => {
-                                let name = class_id_to_name_id.get(&a.array_class_obj_id()).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", a.array_class_obj_id()));
-                                instances.push(format!("Object Array ID: {:?}, Class: {}", a.obj_id(), name));
+                                let name = class_id_to_name_id.get(&a.array_class_obj_id()).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(a.array_class_obj_id())));
+                                instances.push(format!("Object Array ID: {}, Class: {}", format_id(a.obj_id()), name));
                             }
                             SubRecord::PrimitiveArray(a) => {
-                                instances.push(format!("Primitive Array ID: {:?}", a.obj_id()));
+                                instances.push(format!("Primitive Array ID: {}", format_id(a.obj_id())));
                             }
                             _ => {}
                         }
@@ -1500,15 +1487,97 @@ fn format_primitive(data: &[u8], ftype: FieldType) -> String {
     }
 }
 
-fn parse_id(s: &str, _id_size: IdSize) -> Result<Id, JsValue> {
-    // Handle both Id(123) and Id { id: 123 }
+fn format_id(id: Id) -> String {
+    // Robust extraction from Debug string to get the raw numeric value, then format as hex.
+    let s = format!("{:?}", id);
     let val_str = if s.starts_with("Id(") && s.ends_with(")") {
         &s[3..s.len()-1]
     } else if s.starts_with("Id { id: ") && s.ends_with(" }") {
         &s[9..s.len()-2]
     } else {
-        return Err(JsValue::from_str(&format!("Invalid Id format: {}", s)));
+        &s
     };
-    let val: u64 = val_str.parse().map_err(|_| "Failed to parse Id value")?;
+    if let Ok(val) = val_str.parse::<u64>() {
+        format!("0x{:x}", val)
+    } else {
+        s
+    }
+}
+
+fn parse_id(s: &str, _id_size: IdSize) -> Result<Id, JsValue> {
+    if s.starts_with("0x") {
+        let val = u64::from_str_radix(&s[2..], 16).map_err(|_| "Failed to parse hex Id")?;
+        return Ok(Id::from(val));
+    }
+    // Handle both Id(123) and Id { id: 123 } and raw decimal
+    let val_str = if s.starts_with("Id(") && s.ends_with(")") {
+        &s[3..s.len()-1]
+    } else if s.starts_with("Id { id: ") && s.ends_with(" }") {
+        &s[9..s.len()-2]
+    } else {
+        s
+    };
+    let val: u64 = val_str.parse().map_err(|_| format!("Failed to parse Id value: {}", s))?;
     Ok(Id::from(val))
+}
+
+impl HprofParser {
+    fn calculate_class_retained_size(&self, class_id: Id) -> Result<u64, JsValue> {
+        let graph = self.ensure_graph()?;
+
+        let mut reachable_from_class = HashSet::new();
+        let mut stack = Vec::new();
+
+        // Find all instances of this class
+        for node in graph.nodes.values() {
+            if node.class_id == class_id {
+                stack.push(node.id);
+            }
+        }
+
+        while let Some(curr) = stack.pop() {
+            if reachable_from_class.insert(curr) {
+                if let Some(node) = graph.nodes.get(&curr) {
+                    for (_, next_id) in &node.references {
+                        stack.push(*next_id);
+                    }
+                }
+            }
+        }
+
+        let mut reachable_from_roots_excluding_class = HashSet::new();
+        let mut queue = VecDeque::new();
+
+        for &root_id in &graph.roots {
+            // Check if this root is an instance of the class
+            let is_instance = graph.nodes.get(&root_id).map(|n| n.class_id == class_id).unwrap_or(false);
+            if !is_instance {
+                queue.push_back(root_id);
+                reachable_from_roots_excluding_class.insert(root_id);
+            }
+        }
+
+        while let Some(curr) = queue.pop_front() {
+            if let Some(node) = graph.nodes.get(&curr) {
+                for (_, next_id) in &node.references {
+                    let is_target_instance = graph.nodes.get(next_id).map(|n| n.class_id == class_id).unwrap_or(false);
+                    if !is_target_instance && !reachable_from_roots_excluding_class.contains(next_id) {
+                        reachable_from_roots_excluding_class.insert(*next_id);
+                        queue.push_back(*next_id);
+                    }
+                }
+            }
+        }
+
+        let mut retained_size = 0u64;
+        for oid in reachable_from_class {
+            if !reachable_from_roots_excluding_class.contains(&oid) {
+                if let Some(node) = graph.nodes.get(&oid) {
+                    retained_size += node.shallow_size as u64;
+                }
+            }
+        }
+
+        Ok(retained_size)
+    }
 }

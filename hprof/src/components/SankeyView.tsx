@@ -26,10 +26,23 @@ export function SankeyView({ data }: SankeyViewProps) {
             .nodeId(d => (d as any).index)
             .nodeAlign(sankeyCenter);
 
-        const { nodes, links } = sankeyGenerator({
-            nodes: data.nodes.map(d => ({ ...d })),
-            links: data.links.map(d => ({ ...d }))
-        });
+        let sankeyData;
+        try {
+            sankeyData = sankeyGenerator({
+                nodes: data.nodes.map(d => ({ ...d })),
+                links: data.links.map(d => ({ ...d }))
+            });
+        } catch (e) {
+            console.error("Sankey generation failed:", e);
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height / 2)
+                .attr("text-anchor", "middle")
+                .text("Failed to generate Sankey diagram. The graph might contain cycles.");
+            return;
+        }
+
+        const { nodes, links } = sankeyData;
 
         const color = d3.scaleOrdinal(d3.schemeCategory10);
 
@@ -73,5 +86,5 @@ export function SankeyView({ data }: SankeyViewProps) {
 
     }, [data]);
 
-    return <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />;
+    return <svg ref={svgRef} className="sankey-svg" style={{ width: '100%', height: '100%' }} />;
 }

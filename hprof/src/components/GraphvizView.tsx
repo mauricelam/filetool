@@ -28,6 +28,7 @@ export function GraphvizView({ dot }: GraphvizViewProps) {
             .on('end', () => {
                 const svg = d3.select(containerRef.current).select('svg');
                 if (svg.empty()) return;
+                svg.attr('class', 'graph-svg');
 
                 const zoom = graphvizRef.current.zoomBehavior();
                 if (!zoom) return;
