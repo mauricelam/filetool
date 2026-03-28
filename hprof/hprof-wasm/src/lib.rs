@@ -945,11 +945,13 @@ impl HprofParser {
 
                     let limit = 8;
                     let mut others_size = 0.0;
+                    let mut others_count = 0;
 
                     for (i, &child_id) in sorted_children.iter().enumerate() {
                         let child_retained = graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64;
                         if i >= limit {
                             others_size += child_retained;
+                            others_count += 1;
                             continue;
                         }
 
@@ -990,7 +992,7 @@ impl HprofParser {
                     if others_size > 0.0 {
                         let others_idx = sankey_nodes.len();
                         sankey_nodes.push(SankeyNode {
-                            name: "Others".to_string(),
+                            name: format!("Others ({} objects)", others_count),
                             id: None,
                             retained_size: others_size,
                         });

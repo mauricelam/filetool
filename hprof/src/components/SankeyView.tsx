@@ -54,9 +54,35 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
 
         const g = svg.append("g");
 
-        svg.call(d3.zoom<SVGSVGElement, unknown>().on("zoom", (event) => {
-            g.attr("transform", event.transform);
-        }));
+        const zoom = d3.zoom<SVGSVGElement, unknown>()
+            .filter((event) => {
+                if (event.type === 'wheel') {
+                    return event.ctrlKey || event.metaKey;
+                }
+                return !event.button; // allow only left-click drag
+            })
+            .on("zoom", (event) => {
+                const { transform } = event;
+                g.attr("transform", transform);
+
+                // Keep label sizes consistent by counter-scaling or adjusting font-size
+                svg.selectAll<SVGForeignObjectElement, any>(".node-label")
+                    .style("transform", `scale(${1 / transform.k})`)
+                    .style("transform-origin", (d: any) => (d.x0 < width / 2 ? "0 50%" : "100% 50%"));
+
+                svg.selectAll(".link-label")
+                    .style("font-size", `${9 / transform.k}px`);
+            });
+
+        svg.call(zoom)
+           .on("wheel", (event) => {
+               if (!event.ctrlKey && !event.metaKey) {
+                   event.preventDefault();
+                   const transform = d3.zoomTransform(svg.node()!);
+                   const newTransform = transform.translate(-event.deltaX / transform.k, -event.deltaY / transform.k);
+                   svg.call(zoom.transform, newTransform);
+               }
+           }, { passive: false });
 
         g.append("g")
             .selectAll("rect")
@@ -93,6 +119,7 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${d.value.toLocaleString()} bytes`);
 
         link.append("text")
+            .attr("class", "link-label")
             .attr("x", d => ((d.source as any).x1 + (d.target as any).x0) / 2)
             .attr("y", d => (d.y0 + d.y1) / 2)
             .attr("dy", "0.35em")
@@ -112,10 +139,11 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             .selectAll("foreignObject")
             .data(nodes)
             .join("foreignObject")
+            .attr("class", "node-label")
             .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 156)
-            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2 - 15)
+            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2 - 25)
             .attr("width", 150)
-            .attr("height", 30)
+            .attr("height", 50)
             .style("pointer-events", "none")
             .append("xhtml:div")
             .style("font", "10px sans-serif")
