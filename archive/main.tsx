@@ -412,18 +412,6 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             let entriesToProcess = Object.entries(extractedFiles);
 
             if (multiSelectedPaths.length > 0) {
-                const findEntryByPath = (obj: any, pathArr: string[]): ArchiveEntry | undefined => {
-                    let current = obj;
-                    for (const segment of pathArr) {
-                        if (current && typeof current === 'object' && segment in current) {
-                            current = current[segment];
-                        } else {
-                            return undefined;
-                        }
-                    }
-                    return current;
-                };
-
                 const selectedEntries: [string, ArchiveEntry][] = multiSelectedPaths.map(path => {
                     const entry = findEntryByPath(extractedFiles, path);
                     return entry ? [path.join('/'), entry] : null;
@@ -492,17 +480,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
     };
 
     const renderFileActions = (file: ArchiveFile, path: string[]) => {
-        if (!window.parent) return null;
-
-        return (
-            <div className="file-actions">
-                <button onClick={() => handleDownloadFile(file)} title="Download">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
-                        <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
-                    </svg>
-                </button>
-            </div>
-        );
+        return null;
     };
 
     const getDexFiles = (obj: any): ArchiveFile[] => {
@@ -552,6 +530,18 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         }
     };
 
+    const findEntryByPath = (obj: any, pathArr: string[]): ArchiveEntry | undefined => {
+        let current = obj;
+        for (const segment of pathArr) {
+            if (current && typeof current === 'object' && segment in current) {
+                current = current[segment];
+            } else {
+                return undefined;
+            }
+        }
+        return current;
+    };
+
     const handleOpenSelected = async () => {
         if (!archiveFile || multiSelectedPaths.length === 0) return;
 
@@ -560,23 +550,23 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             const ar = await Archive.open(archiveFile);
             const extractedFilesObj: { [key: string]: ArchiveEntry } = await ar.getFilesObject();
 
-            const findEntryByPath = (obj: any, pathArr: string[]): ArchiveEntry | undefined => {
-                let current = obj;
-                for (const segment of pathArr) {
-                    if (current && typeof current === 'object' && segment in current) {
-                        current = current[segment];
-                    } else {
-                        return undefined;
+            const selectedFiles: File[] = [];
+
+            const collectFiles = async (entry: ArchiveEntry) => {
+                if (typeof (entry as ArchiveFile).extract === 'function') {
+                    selectedFiles.push(await (entry as ArchiveFile).extract());
+                } else {
+                    const dir = entry as { [filename: string]: ArchiveEntry };
+                    for (const nestedEntry of Object.values(dir)) {
+                        await collectFiles(nestedEntry);
                     }
                 }
-                return current;
             };
 
-            const selectedFiles: File[] = [];
             for (const pathArr of multiSelectedPaths) {
                 const entry = findEntryByPath(extractedFilesObj, pathArr);
-                if (entry && typeof (entry as ArchiveFile).extract === 'function') {
-                    selectedFiles.push(await (entry as ArchiveFile).extract());
+                if (entry) {
+                    await collectFiles(entry);
                 }
             }
 
@@ -598,6 +588,24 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
         } finally {
             setIsCompressing(false);
         }
+    };
+
+    const handleDownloadSelected = async () => {
+        if (!archiveFile || multiSelectedPaths.length === 0) return;
+
+        // If exactly one file is selected, download it directly
+        if (multiSelectedPaths.length === 1) {
+            const ar = await Archive.open(archiveFile);
+            const extractedFilesObj: { [key: string]: ArchiveEntry } = await ar.getFilesObject();
+            const entry = findEntryByPath(extractedFilesObj, multiSelectedPaths[0]);
+            if (entry && typeof (entry as ArchiveFile).extract === 'function') {
+                handleDownloadFile(entry as ArchiveFile);
+                return;
+            }
+        }
+
+        // Otherwise, open the format dialog to re-archive
+        setIsFormatDialogOpen(true);
     };
 
     const renderFilePreview = (file: ArchiveFile, path: string[]) => {
@@ -675,21 +683,21 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                             {multiSelectedPaths.length > 1 ? "Open Selected" : "Open"}
                         </button>
                         <button
-                            onClick={() => setIsFormatDialogOpen(true)}
-                            disabled={isCompressing}
+                            onClick={handleDownloadSelected}
+                            disabled={isCompressing || multiSelectedPaths.length === 0}
                             style={{
                                 padding: '4px 8px',
                                 border: 'none',
                                 background: 'transparent',
-                                cursor: isCompressing ? 'not-allowed' : 'pointer',
+                                cursor: (isCompressing || multiSelectedPaths.length === 0) ? 'not-allowed' : 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                color: isCompressing ? '#999' : '#666',
+                                color: (isCompressing || multiSelectedPaths.length === 0) ? '#999' : '#666',
                             }}
                             title={isCompressing ? "Compressing..." : (multiSelectedPaths.length > 1 ? "Download Selected" : "Download")}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill={isCompressing ? "#999" : "#666"}>
+                            <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill={(isCompressing || multiSelectedPaths.length === 0) ? "#999" : "#666"}>
                                 <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
                             </svg>
                             {isCompressing ? "Compressing..." : (multiSelectedPaths.length > 1 ? "Download Selected" : "Download")}

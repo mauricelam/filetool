@@ -66,6 +66,10 @@ test.describe('Archive Viewer Multi-selection', () => {
         await expect(downloadBtn).toHaveAttribute('title', 'Download');
         await expect(openBtn).toHaveAttribute('title', 'Open');
 
+        // Ensure no per-file buttons exist
+        const perFileButtons = iframe.locator('.column-item button');
+        await expect(perFileButtons).toHaveCount(0);
+
         // Take a screenshot for verification
         await page.screenshot({ path: 'verification/screenshots/final_check.png' });
     });
