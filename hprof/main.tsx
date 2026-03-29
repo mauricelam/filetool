@@ -137,6 +137,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [sankeyRootId, setSankeyRootId] = useState<string | null>(null);
     const [sankeyHistory, setSankeyHistory] = useState<(string | null)[]>([]);
     const [sankeyDepth, setSankeyDepth] = useState(3);
+    const [sankeyExpandId, setSankeyExpandId] = useState<string | null>(null);
 
     useEffect(() => {
         try {
@@ -199,12 +200,12 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         if (activeTab === 'sankey') {
             setSankeyLoading(true);
             setTimeout(() => {
-                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth)) }
+                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth, sankeyExpandId || undefined)) }
                 catch (e) { console.error(e) }
                 finally { setSankeyLoading(false) }
             }, 0);
         }
-    }, [activeTab, parser, sankeyRootId, sankeyDepth]);
+    }, [activeTab, parser, sankeyRootId, sankeyDepth, sankeyExpandId]);
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
@@ -246,6 +247,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         if (id === sankeyRootId) return;
         setSankeyHistory(prev => [...prev, sankeyRootId]);
         setSankeyRootId(id);
+        setSankeyExpandId(null);
     };
 
     const handleSankeyBack = () => {
@@ -254,11 +256,17 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         const lastId = newHistory.pop()!;
         setSankeyHistory(newHistory);
         setSankeyRootId(lastId);
+        setSankeyExpandId(null);
     };
 
     const handleSankeyReset = () => {
         setSankeyHistory([]);
         setSankeyRootId(null);
+        setSankeyExpandId(null);
+    };
+
+    const handleSankeyExpand = (parentId: string) => {
+        setSankeyExpandId(parentId);
     };
 
     return (
@@ -384,7 +392,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                         </Group>
                         <Box style={{ flex: 1, position: 'relative' }}>
                             <LoadingOverlay visible={sankeyLoading} />
-                            {sankeyData && <SankeyView data={sankeyData} onNodeClick={handleSankeyZoom} />}
+                            {sankeyData && <SankeyView data={sankeyData} onNodeClick={handleSankeyZoom} onExpandOthers={handleSankeyExpand} />}
                         </Box>
                     </Stack>
                 </Tabs.Panel>

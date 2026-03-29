@@ -16,7 +16,6 @@ The Memory Flow diagram provides a visual representation of how memory is retain
 
 ### Interactions
 
-- **Zoom/Pan:** Use your mouse wheel or trackpad to zoom in and out of the diagram. Click and drag to pan.
 - **Drill-down:** Click on any class/object node to make it the root of the diagram. This allows you to see exactly how that specific object's retained memory is distributed.
 - **Back:** Use the "Back" button to return to the previous zoomed state.
 - **Reset Zoom:** Returns the view to the GC roots.

@@ -158,6 +158,7 @@ pub struct SankeyData {
 pub struct SankeyNode {
     pub name: String,
     pub id: Option<String>,
+    pub parent_id: Option<String>,
     pub retained_size: f64,
 }
 
@@ -878,7 +879,7 @@ impl HprofParser {
         Ok(graph.retained_sizes.get(&target_id).cloned().unwrap_or(0))
     }
 
-    pub fn get_sankey_data(&self, root_id_str: Option<String>, max_depth: Option<usize>) -> Result<JsValue, JsValue> {
+    pub fn get_sankey_data(&self, root_id_str: Option<String>, max_depth: Option<usize>, expand_id_str: Option<String>) -> Result<JsValue, JsValue> {
         let graph = self.ensure_graph()?;
         let virtual_root = Id::from(0u64);
         let start_node = if let Some(r_id_str) = root_id_str {
@@ -906,6 +907,7 @@ impl HprofParser {
         sankey_nodes.push(SankeyNode {
             name: start_name,
             id: Some(format_id(start_node)),
+            parent_id: None,
             retained_size: graph.retained_sizes.get(&start_node).cloned().unwrap_or(0) as f64,
         });
 
@@ -925,6 +927,7 @@ impl HprofParser {
                     sankey_nodes.push(SankeyNode {
                         name: "<self>".to_string(),
                         id: None,
+                        parent_id: None,
                         retained_size: shallow_size,
                     });
                     sankey_links.push(SankeyLink {
@@ -943,7 +946,8 @@ impl HprofParser {
                         sb.cmp(&sa)
                     });
 
-                    let limit = 8;
+                    let parent_id_str = format_id(parent_id);
+                    let limit = if expand_id_str.as_ref() == Some(&parent_id_str) { 1000 } else { 8 };
                     let mut others_size = 0.0;
                     let mut others_count = 0;
 
@@ -965,6 +969,7 @@ impl HprofParser {
                         sankey_nodes.push(SankeyNode {
                             name: child_name,
                             id: Some(format_id(child_id)),
+                            parent_id: None,
                             retained_size: child_retained,
                         });
                         node_to_idx.insert((child_id, 0), child_idx);
@@ -994,6 +999,7 @@ impl HprofParser {
                         sankey_nodes.push(SankeyNode {
                             name: format!("Others ({} objects)", others_count),
                             id: None,
+                            parent_id: Some(parent_id_str),
                             retained_size: others_size,
                         });
                         sankey_links.push(SankeyLink {

@@ -6,9 +6,18 @@ import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
 interface SankeyViewProps {
     data: SankeyData;
     onNodeClick?: (id: string) => void;
+    onExpandOthers?: (parentId: string) => void;
 }
 
-export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
+const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
 
     useEffect(() => {
@@ -54,36 +63,6 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
 
         const g = svg.append("g");
 
-        const zoom = d3.zoom<SVGSVGElement, unknown>()
-            .filter((event) => {
-                if (event.type === 'wheel') {
-                    return event.ctrlKey || event.metaKey;
-                }
-                return !event.button; // allow only left-click drag
-            })
-            .on("zoom", (event) => {
-                const { transform } = event;
-                g.attr("transform", transform);
-
-                // Keep label sizes consistent by counter-scaling or adjusting font-size
-                svg.selectAll<SVGForeignObjectElement, any>(".node-label")
-                    .style("transform", `scale(${1 / transform.k})`)
-                    .style("transform-origin", (d: any) => (d.x0 < width / 2 ? "0 50%" : "100% 50%"));
-
-                svg.selectAll(".link-label")
-                    .style("font-size", `${9 / transform.k}px`);
-            });
-
-        svg.call(zoom)
-           .on("wheel", (event) => {
-               if (!event.ctrlKey && !event.metaKey) {
-                   event.preventDefault();
-                   const transform = d3.zoomTransform(svg.node()!);
-                   const newTransform = transform.translate(-event.deltaX / transform.k, -event.deltaY / transform.k);
-                   svg.call(zoom.transform, newTransform);
-               }
-           }, { passive: false });
-
         g.append("g")
             .selectAll("rect")
             .data(nodes)
@@ -96,12 +75,15 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             .attr("stroke", "#000")
             .style("cursor", "pointer")
             .on("click", (event, d) => {
-                if (onNodeClick && (d as any).id) {
-                    onNodeClick((d as any).id);
+                const node = d as any;
+                if (node.id && onNodeClick) {
+                    onNodeClick(node.id);
+                } else if (!node.id && node.parent_id && onExpandOthers) {
+                    onExpandOthers(node.parent_id);
                 }
             })
             .append("title")
-            .text(d => `${d.name}\nRetained: ${(d as any).retained_size?.toLocaleString()} bytes`);
+            .text(d => `${d.name}\nRetained: ${formatBytes((d as any).retained_size)}`);
 
         const link = g.append("g")
             .attr("fill", "none")
@@ -115,8 +97,17 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             .attr("d", sankeyLinkHorizontal())
             .attr("stroke", d => nodeColor(d.source))
             .attr("stroke-width", d => Math.max(1, (d as any).width || 0))
+            .on("mouseover", (event, d: any) => {
+                d3.select(event.currentTarget).attr("stroke-opacity", 0.8);
+            })
+            .on("mouseout", (event) => {
+                d3.select(event.currentTarget).attr("stroke-opacity", 0.5);
+            })
             .append("title")
-            .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${d.value.toLocaleString()} bytes`);
+            .text(d => {
+                const percentage = (d.value / (d.source as any).retained_size * 100).toFixed(1);
+                return `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${formatBytes(d.value)} (${percentage}% of parent)`;
+            });
 
         link.append("text")
             .attr("class", "link-label")
@@ -128,11 +119,13 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             .style("fill", "#000")
             .style("pointer-events", "none")
             .text(d => {
-                if (d.width! < 10) return "";
+                if (d.width! < 12) return "";
                 const names = (d as any).field_names;
                 if (!names || names.length === 0) return "";
                 const s = names.join(", ");
-                return s.length > 20 ? s.substring(0, 17) + "..." : s;
+                const maxWidth = (d.target as any).x0 - (d.source as any).x1 - 10;
+                if (s.length * 6 > maxWidth) return s.substring(0, Math.floor(maxWidth / 6) - 3) + "...";
+                return s;
             });
 
         g.append("g")
@@ -154,7 +147,11 @@ export function SankeyView({ data, onNodeClick }: SankeyViewProps) {
             .style("display", "-webkit-box")
             .style("-webkit-line-clamp", "3")
             .style("-webkit-box-orient", "vertical")
-            .text(d => d.name);
+            .html(d => {
+                const node = d as any;
+                const sizeStr = (node.depth === 0 || node.depth === 1) ? `<br/><span style="color: #666">${formatBytes(node.retained_size)}</span>` : "";
+                return `<div>${node.name}${sizeStr}</div>`;
+            });
 
     }, [data]);
 
