@@ -5,9 +5,19 @@ import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
 
 interface SankeyViewProps {
     data: SankeyData;
+    onNodeClick?: (id: string) => void;
+    onExpandOthers?: (parentId: string) => void;
 }
 
-export function SankeyView({ data }: SankeyViewProps) {
+const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
 
     useEffect(() => {
@@ -22,7 +32,7 @@ export function SankeyView({ data }: SankeyViewProps) {
         const sankeyGenerator = sankey<SankeyNode, SankeyLink>()
             .nodeWidth(15)
             .nodePadding(10)
-            .extent([[1, 5], [width - 1, height - 5]])
+            .extent([[1, 20], [width - 1, height - 20]])
             .nodeId(d => (d as any).index)
             .nodeAlign(sankeyCenter);
 
@@ -45,6 +55,11 @@ export function SankeyView({ data }: SankeyViewProps) {
         const { nodes, links } = sankeyData;
 
         const color = d3.scaleOrdinal(d3.schemeCategory10);
+        const nodeColor = (d: any) => {
+            if (d.name === "<self>") return "#aaa";
+            if (d.name === "Others") return "#ccc";
+            return color(d.index.toString());
+        };
 
         const g = svg.append("g");
 
@@ -54,35 +69,89 @@ export function SankeyView({ data }: SankeyViewProps) {
             .join("rect")
             .attr("x", d => (d as any).x0)
             .attr("y", d => (d as any).y0)
-            .attr("height", d => (d as any).y1 - (d as any).y0)
+            .attr("height", d => Math.max(1, (d as any).y1 - (d as any).y0))
             .attr("width", d => (d as any).x1 - (d as any).x0)
-            .attr("fill", (d, i) => color(i.toString()))
+            .attr("fill", (d: any) => nodeColor(d))
             .attr("stroke", "#000")
+            .style("cursor", "pointer")
+            .on("click", (event, d) => {
+                const node = d as any;
+                if (node.id && onNodeClick) {
+                    onNodeClick(node.id);
+                } else if (!node.id && node.parent_id && onExpandOthers) {
+                    onExpandOthers(node.parent_id);
+                }
+            })
             .append("title")
-            .text(d => `${d.name}\n${(d as any).value}`);
+            .text(d => `${d.name}\nRetained: ${formatBytes((d as any).retained_size)}`);
 
-        g.append("g")
+        const link = g.append("g")
             .attr("fill", "none")
             .attr("stroke-opacity", 0.5)
-            .selectAll("path")
+            .selectAll("g")
             .data(links)
-            .join("path")
+            .join("g")
+            .style("mix-blend-mode", "multiply");
+
+        link.append("path")
             .attr("d", sankeyLinkHorizontal())
-            .attr("stroke", d => color(((d.source as any).index).toString()))
-            .attr("stroke-width", d => Math.max(1, d.width!))
+            .attr("stroke", d => nodeColor(d.source))
+            .attr("stroke-width", d => Math.max(1, (d as any).width || 0))
+            .on("mouseover", (event, d: any) => {
+                d3.select(event.currentTarget).attr("stroke-opacity", 0.8);
+            })
+            .on("mouseout", (event) => {
+                d3.select(event.currentTarget).attr("stroke-opacity", 0.5);
+            })
             .append("title")
-            .text(d => `${(d.source as any).name} → ${(d.target as any).name}\n${d.value}`);
+            .text(d => {
+                const percentage = (d.value / (d.source as any).retained_size * 100).toFixed(1);
+                return `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${formatBytes(d.value)} (${percentage}% of parent)`;
+            });
+
+        link.append("text")
+            .attr("class", "link-label")
+            .attr("x", d => ((d.source as any).x1 + (d.target as any).x0) / 2)
+            .attr("y", d => (d.y0 + d.y1) / 2)
+            .attr("dy", "0.35em")
+            .attr("text-anchor", "middle")
+            .style("font-size", "9px")
+            .style("fill", "#000")
+            .style("pointer-events", "none")
+            .text(d => {
+                if (d.width! < 12) return "";
+                const names = (d as any).field_names;
+                if (!names || names.length === 0) return "";
+                const s = names.join(", ");
+                const maxWidth = (d.target as any).x0 - (d.source as any).x1 - 10;
+                if (s.length * 6 > maxWidth) return s.substring(0, Math.floor(maxWidth / 6) - 3) + "...";
+                return s;
+            });
 
         g.append("g")
-            .style("font", "10px sans-serif")
-            .selectAll("text")
+            .selectAll("foreignObject")
             .data(nodes)
-            .join("text")
-            .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 6)
-            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2)
-            .attr("dy", "0.35em")
-            .attr("text-anchor", d => (d as any).x0 < width / 2 ? "start" : "end")
-            .text(d => d.name);
+            .join("foreignObject")
+            .attr("class", "node-label")
+            .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 156)
+            .attr("y", d => ((d as any).y1 + (d as any).y0) / 2 - 25)
+            .attr("width", 150)
+            .attr("height", 50)
+            .style("pointer-events", "none")
+            .append("xhtml:div")
+            .style("font", "10px sans-serif")
+            .style("text-align", d => (d as any).x0 < width / 2 ? "left" : "right")
+            .style("white-space", "normal")
+            .style("word-break", "break-all")
+            .style("overflow", "hidden")
+            .style("display", "-webkit-box")
+            .style("-webkit-line-clamp", "3")
+            .style("-webkit-box-orient", "vertical")
+            .html(d => {
+                const node = d as any;
+                const sizeStr = (node.depth === 0 || node.depth === 1) ? `<br/><span style="color: #666">${formatBytes(node.retained_size)}</span>` : "";
+                return `<div>${node.name}${sizeStr}</div>`;
+            });
 
     }, [data]);
 
