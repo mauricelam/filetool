@@ -222,7 +222,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "name": "DER",
         "handler": "der",
         "mimetypes": [
-            { "filename": new RegExp("\\\\.(der|crt|cer|pem|rsa)$", "i") }, "application/x-x509-ca-cert",
+            { "filename": /\.(der|crt|cer|pem|rsa|key|csr|pub|p10)$/i }, "application/x-x509-ca-cert",
             "application/pkix-cert", "application/x-pem-file",
             { "mime": "application/octet-stream", "description": /DER Encoded PKCS#7 Signed Data/i }
         ]

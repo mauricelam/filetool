@@ -1,7 +1,11 @@
 package main
 
 import (
+	"encoding/pem"
+	"fmt"
+	"strings"
 	"syscall/js"
+
 	"github.com/google/der-ascii/der2ascii"
 )
 
@@ -26,7 +30,23 @@ func main() {
 		// Copy the data from JavaScript to Go
 		js.CopyBytesToGo(data, arrayBuffer)
 
-		// Convert DER to ASCII using Google's der-ascii package
+		// Try to decode as PEM
+		var outputs []string
+		rest := data
+		for {
+			var block *pem.Block
+			block, rest = pem.Decode(rest)
+			if block == nil {
+				break
+			}
+			outputs = append(outputs, fmt.Sprintf("# %s\n%s", block.Type, der2ascii.DerToASCII(block.Bytes)))
+		}
+
+		if len(outputs) > 0 {
+			return js.ValueOf(strings.Join(outputs, "\n"))
+		}
+
+		// Fall back to raw DER
 		result := der2ascii.DerToASCII(data)
 		return js.ValueOf(result)
 	}))
