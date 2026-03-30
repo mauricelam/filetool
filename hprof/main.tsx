@@ -9,6 +9,7 @@ import { RecordsView } from './src/components/RecordsView'
 import { InstanceCountsView } from './src/components/InstanceCountsView'
 import { ReferenceGraphView } from './src/components/ReferenceGraphView'
 import { SankeyView } from './src/components/SankeyView'
+import { SunburstView } from './src/components/SunburstView'
 import { AllObjectsView } from './src/components/AllObjectsView'
 import { GraphvizView } from './src/components/GraphvizView'
 import { ClassInstancesView } from './src/components/ClassInstancesView'
@@ -197,7 +198,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     }, [activeTab, parser])
 
     useEffect(() => {
-        if (activeTab === 'sankey') {
+        if (activeTab === 'sankey' || activeTab === 'sunburst') {
             setSankeyLoading(true);
             setTimeout(() => {
                 try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth, sankeyExpandId || undefined)) }
@@ -289,6 +290,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                     <Tabs.Tab value="instances">Instance Counts</Tabs.Tab>
                     <Tabs.Tab value="graph">Reference Graph</Tabs.Tab>
                     <Tabs.Tab value="sankey">Memory Flow (Sankey)</Tabs.Tab>
+                    <Tabs.Tab value="sunburst">Memory Flow (Sunburst)</Tabs.Tab>
                     <Tabs.Tab value="all-objects">All Objects</Tabs.Tab>
                 </Tabs.List>
 
@@ -393,6 +395,37 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                         <Box style={{ flex: 1, position: 'relative' }}>
                             <LoadingOverlay visible={sankeyLoading} />
                             {sankeyData && <SankeyView data={sankeyData} onNodeClick={handleSankeyZoom} onExpandOthers={handleSankeyExpand} />}
+                        </Box>
+                    </Stack>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="sunburst" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <Stack h="100%" gap={0}>
+                        <Group p="xs" justify="space-between" bg="gray.0" style={{ borderBottom: '1px solid #eee' }}>
+                            <Group>
+                                <Text fw={700}>Memory Flow {sankeyRootId ? `(Zoomed: ${sankeyRootId})` : '(Root GC)'}</Text>
+                                {sankeyHistory.length > 0 && (
+                                    <Button size="compact-xs" variant="subtle" onClick={handleSankeyBack}>Back</Button>
+                                )}
+                                {sankeyRootId && (
+                                    <Button size="compact-xs" variant="light" onClick={handleSankeyReset}>Reset Zoom</Button>
+                                )}
+                            </Group>
+                            <Group>
+                                <Text size="sm">Depth:</Text>
+                                <input
+                                    type="number"
+                                    value={sankeyDepth}
+                                    min={1}
+                                    max={10}
+                                    onChange={(e) => setSankeyDepth(Math.max(1, parseInt(e.target.value) || 1))}
+                                    style={{ width: '50px' }}
+                                />
+                            </Group>
+                        </Group>
+                        <Box style={{ flex: 1, position: 'relative' }}>
+                            <LoadingOverlay visible={sankeyLoading} />
+                            {sankeyData && <SunburstView data={sankeyData} onNodeClick={handleSankeyZoom} onExpandOthers={handleSankeyExpand} />}
                         </Box>
                     </Stack>
                 </Tabs.Panel>
