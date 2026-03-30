@@ -14,12 +14,12 @@ pub struct DecompressionResult {
 
 #[wasm_bindgen]
 pub fn decode(compressed: &[u8]) -> Result<DecompressionResult, JsValue> {
-    if compressed.len() < 4 {
+    if compressed.len() < 2 {
         return Err(JsValue::from_str("Input too short"));
     }
 
     // Try GZIP: 1F 8B
-    if compressed[0] == 0x1F && compressed[1] == 0x8B {
+    if compressed.len() >= 4 && compressed[0] == 0x1F && compressed[1] == 0x8B {
         let mut d = GzDecoder::new(compressed);
         let mut decompressed = Vec::new();
         if let Ok(_) = d.read_to_end(&mut decompressed) {
@@ -45,7 +45,7 @@ pub fn decode(compressed: &[u8]) -> Result<DecompressionResult, JsValue> {
     }
 
     // Try LZMA: 5D 00 00 (common header)
-    if compressed[0] == 0x5D && compressed[1] == 0x00 && compressed[2] == 0x00 {
+    if compressed.len() >= 3 && compressed[0] == 0x5D && compressed[1] == 0x00 && compressed[2] == 0x00 {
         let mut decompressed = Vec::new();
         if let Ok(_) = lzma_rs::lzma_decompress(&mut &compressed[..], &mut decompressed) {
             return Ok(DecompressionResult { data: decompressed, format: "LZMA".to_string() });
@@ -63,8 +63,8 @@ pub fn decode(compressed: &[u8]) -> Result<DecompressionResult, JsValue> {
         }
     }
 
-    // Try ZLIB: 78 01, 78 9C, 78 DA
-    if compressed[0] == 0x78 && (compressed[1] == 0x01 || compressed[1] == 0x9C || compressed[1] == 0xDA) {
+    // Try ZLIB: 78 01, 78 5E, 78 9C, 78 DA
+    if compressed[0] == 0x78 && (compressed[1] == 0x01 || compressed[1] == 0x5E || compressed[1] == 0x9C || compressed[1] == 0xDA) {
         let mut d = ZlibDecoder::new(compressed);
         let mut decompressed = Vec::new();
         if let Ok(_) = d.read_to_end(&mut decompressed) {
