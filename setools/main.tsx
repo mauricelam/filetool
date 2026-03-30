@@ -53,6 +53,9 @@ function App({ file }: { file: File }) {
     const [searchTerm, setSearchTerm] = useState('')
     const [isRegex, setIsRegex] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [selectedType, setSelectedType] = useState<string | null>(null)
+    const [typeDetails, setTypeDetails] = useState<{ attributes: string[], rules: string[] } | null>(null)
+    const [transitive, setTransitive] = useState(false)
 
     // Effect to initialize the worker and load the policy file when the file prop changes.
     useEffect(() => {
@@ -81,6 +84,12 @@ function App({ file }: { file: File }) {
                         else if (e.data.ruleType === 'dontaudit') setDontAuditRules(e.data.results);
                         else if (e.data.ruleType === 'neverallow') setNeverAllowRules(e.data.results);
                         else setRules(e.data.results);
+                    } else if (e.data.action === 'type_details') {
+                        if (e.data.error) {
+                            console.error(e.data.error);
+                        } else {
+                            setTypeDetails({ attributes: e.data.attributes, rules: e.data.rules });
+                        }
                     }
                     setLoading(false);
                 }
@@ -106,6 +115,12 @@ function App({ file }: { file: File }) {
             currentWorker?.postMessage({ action: 'search', query: searchTerm, isRegex, ruleType: 'neverallow' });
         }
     }, [searchTerm, isRegex, policyInfo]);
+
+    useEffect(() => {
+        if (policyInfo && selectedType) {
+            currentWorker?.postMessage({ action: 'get_type_details', typeName: selectedType, transitive });
+        }
+    }, [selectedType, transitive, policyInfo]);
 
     // Filter symbols locally for the list tabs.
     // useMemo prevents expensive re-filtering on every render.
@@ -201,6 +216,7 @@ function App({ file }: { file: File }) {
                     <Tab>Neverallow ({neverAllowRules.length})</Tab>
                     <Tab>Types ({filteredSymbols?.types.length || 0})</Tab>
                     <Tab>Attributes ({filteredSymbols?.attributes.length || 0})</Tab>
+                    {selectedType && <Tab>Type Details: {selectedType}</Tab>}
                     <Tab>Roles ({filteredSymbols?.roles.length || 0})</Tab>
                     <Tab>Booleans ({filteredSymbols?.bools.length || 0})</Tab>
                     <Tab>Users ({filteredSymbols?.users.length || 0})</Tab>
@@ -264,11 +280,45 @@ function App({ file }: { file: File }) {
 
                 {/* Symbol List Tabs */}
                 <TabPanel style={{ overflow: 'auto' }}>
-                    <SymbolList symbols={filteredSymbols?.types || []} />
+                    <SymbolList symbols={filteredSymbols?.types || []} onSelect={setSelectedType} />
                 </TabPanel>
                 <TabPanel style={{ overflow: 'auto' }}>
-                    <SymbolList symbols={filteredSymbols?.attributes || []} />
+                    <SymbolList symbols={filteredSymbols?.attributes || []} onSelect={setSelectedType} />
                 </TabPanel>
+
+                {selectedType && (
+                    <TabPanel style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <div style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3>Type: {selectedType}</h3>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={transitive}
+                                        onChange={(e) => setTransitive(e.target.checked)}
+                                    />
+                                    Transitive (include attribute rules)
+                                </label>
+                            </div>
+                            {typeDetails && typeDetails.attributes.length > 0 && (
+                                <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
+                                    <strong>Attributes:</strong> {typeDetails.attributes.join(', ')}
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ flex: 1, minHeight: 0 }}>
+                            <AceEditor
+                                value={typeDetails?.rules.join('\n') || ''}
+                                mode="lisp"
+                                theme="twilight"
+                                name="type-details-editor"
+                                readOnly={true}
+                                style={{ width: '100%', height: '100%' }}
+                                setOptions={{ useWorker: false }}
+                            />
+                        </div>
+                    </TabPanel>
+                )}
                 <TabPanel style={{ overflow: 'auto' }}>
                     <SymbolList symbols={filteredSymbols?.roles || []} />
                 </TabPanel>
@@ -294,11 +344,23 @@ function App({ file }: { file: File }) {
 /**
  * SymbolList: Simple component to render a list of strings efficiently.
  */
-function SymbolList({ symbols }: { symbols: string[] }) {
+function SymbolList({ symbols, onSelect }: { symbols: string[], onSelect?: (s: string) => void }) {
     return (
         <div style={{ padding: '10px' }}>
             {symbols.map((s, i) => (
-                <div key={i} style={{ padding: '6px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>{s}</div>
+                <div
+                    key={i}
+                    onClick={() => onSelect?.(s)}
+                    style={{
+                        padding: '6px', borderBottom: '1px solid #eee', fontFamily: 'monospace',
+                        cursor: onSelect ? 'pointer' : 'default',
+                        backgroundColor: onSelect ? 'transparent' : 'inherit'
+                    }}
+                    onMouseEnter={(e) => { if (onSelect) e.currentTarget.style.backgroundColor = '#f0f0f0'; }}
+                    onMouseLeave={(e) => { if (onSelect) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                    {s}
+                </div>
             ))}
             {symbols.length === 0 && <div>No symbols found.</div>}
         </div>

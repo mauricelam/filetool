@@ -31,16 +31,14 @@ const AVTAB_AUDITDENY = 0x0004; // Used for dontaudit
 const AVTAB_NEVERALLOW = 0x0080;
 
 self.onmessage = async (e: MessageEvent) => {
-    const { action, buffer, query, isRegex, ruleType } = e.data;
+    const { action, buffer, query, isRegex, ruleType, typeName, transitive } = e.data;
 
     if (action === 'parse') {
         try {
-            // Initialize WASM module if not already done
             if (!mod) {
                 mod = await createSepolicyModule({
                     locateFile: (path: string) => {
                         if (path.endsWith('.wasm')) {
-                            // Ensure we load the WASM file from the correct relative path
                             return new URL('sepolicy.wasm', import.meta.url).href;
                         }
                         return path;
@@ -48,26 +46,34 @@ self.onmessage = async (e: MessageEvent) => {
                 });
             }
 
-            // Free previous policy if one was loaded
             if (policyPtr) {
                 mod.ccall('api_free_policy', 'void', ['number'], [policyPtr]);
                 policyPtr = 0;
             }
 
-            // Load the new policy buffer into WASM memory
             const uint8Buffer = new Uint8Array(buffer);
-
-            // Using explicit allocation instead of 'array' type in ccall to handle large buffers more reliably
             const dataPtr = mod._malloc(uint8Buffer.length);
             mod.HEAPU8.set(uint8Buffer, dataPtr);
 
-            policyPtr = mod.ccall('api_load_policy', 'number', ['number', 'number'], [dataPtr, uint8Buffer.length]);
+            // Detect if it's a CIL file (simple check for '(' as first non-whitespace)
+            let isCil = false;
+            for (let i = 0; i < uint8Buffer.length; i++) {
+                if (uint8Buffer[i] > 32) {
+                    if (uint8Buffer[i] === 40) isCil = true; // '('
+                    break;
+                }
+            }
 
-            // The memory for the buffer can be freed after api_load_policy since it copies or processes the data
+            if (isCil) {
+                policyPtr = mod.ccall('api_load_cil', 'number', ['number', 'number'], [dataPtr, uint8Buffer.length]);
+            } else {
+                policyPtr = mod.ccall('api_load_policy', 'number', ['number', 'number'], [dataPtr, uint8Buffer.length]);
+            }
+
             mod._free(dataPtr);
 
             if (!policyPtr) {
-                throw new Error("Failed to load policy. Ensure it is a valid SELinux binary policy.");
+                throw new Error("Failed to load policy. Ensure it is a valid SELinux binary or CIL policy.");
             }
 
             // Extract metadata
@@ -182,8 +188,10 @@ self.onmessage = async (e: MessageEvent) => {
             const base = (resultsPtr / 4) + (i * 4);
             const src = heap32[base];
             const tgt = heap32[base + 1];
-            const cls = heap32[base + 2];
+            const clsWithMask = heap32[base + 2];
             const data = heap32[base + 3];
+
+            const cls = clsWithMask & 0xFFFF;
 
             // Resolve 1-based IDs back to human-readable names.
             const srcName = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_TYPES, src]);
@@ -207,5 +215,76 @@ self.onmessage = async (e: MessageEvent) => {
 
         mod._free(resultsPtr);
         self.postMessage({ action: 'results', results: rules, ruleType });
+    } else if (action === 'get_type_details') {
+        if (!policyPtr || !mod || !typeName) return;
+
+        // Find type ID by name
+        const counts = {
+            types: mod.ccall('api_get_symbol_count', 'number', ['number', 'number'], [policyPtr, SYM_TYPES]),
+        };
+
+        let typeId = -1;
+        for (let i = 1; i <= counts.types; i++) {
+            const name = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_TYPES, i]);
+            if (name === typeName) {
+                typeId = i;
+                break;
+            }
+        }
+
+        if (typeId === -1) {
+            self.postMessage({ action: 'type_details', error: 'Type not found' });
+            return;
+        }
+
+        // Get attributes
+        const maxAttrs = 256;
+        const attrsPtr = mod._malloc(maxAttrs * 4);
+        const attrCount = mod.ccall('api_get_type_attributes', 'number', ['number', 'number', 'number', 'number'], [policyPtr, typeId, attrsPtr, maxAttrs]);
+
+        const attributes = [];
+        const heap32 = mod.HEAPU32 || new Uint32Array(mod.wasmMemory.buffer);
+        for (let i = 0; i < attrCount; i++) {
+            const attrId = heap32[(attrsPtr / 4) + i];
+            const name = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_TYPES, attrId]);
+            if (name) attributes.push(name);
+        }
+        mod._free(attrsPtr);
+
+        // Get rules
+        const masks = [AVTAB_ALLOWED, AVTAB_AUDITALLOW, AVTAB_AUDITDENY, AVTAB_NEVERALLOW];
+        const prefixes = ["allow", "auditallow", "dontaudit", "neverallow"];
+        const allRules: string[] = [];
+
+        const maxRules = 2000;
+        const rulesPtr = mod._malloc(maxRules * 16);
+
+        for (let m = 0; m < masks.length; m++) {
+            const actualCount = mod.ccall('api_get_rules_for_type', 'number', ['number', 'number', 'number', 'number', 'number', 'number'],
+                                        [policyPtr, rulesPtr, maxRules, typeId, transitive ? 1 : 0, masks[m]]);
+
+            for (let i = 0; i < actualCount; i++) {
+                const base = (rulesPtr / 4) + (i * 4);
+                const src = heap32[base];
+                const tgt = heap32[base + 1];
+                const clsWithMask = heap32[base + 2];
+                const data = heap32[base + 3];
+
+                const cls = clsWithMask & 0xFFFF;
+
+                const srcName = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_TYPES, src]);
+                const tgtName = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_TYPES, tgt]);
+                const clsName = mod.ccall('api_get_symbol_name', 'string', ['number', 'number', 'number'], [policyPtr, SYM_CLASSES, cls]);
+                const permsPtr = mod.ccall('api_get_permissions', 'number', ['number', 'number', 'number'], [policyPtr, cls, data]);
+                let perms = permsPtr ? mod.UTF8ToString(permsPtr).trim() : `0x${data.toString(16)}`;
+
+                allRules.push(`${prefixes[m]} ${srcName} ${tgtName}:${clsName} { ${perms} };`);
+
+                if (permsPtr) mod.ccall('api_free_string', 'void', ['number'], [permsPtr]);
+            }
+        }
+
+        mod._free(rulesPtr);
+        self.postMessage({ action: 'type_details', typeName, attributes, rules: allRules });
     }
 }
