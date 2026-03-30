@@ -125,12 +125,13 @@ describe('Handler Tests', () => {
         });
     });
 
-    describe('DER handler string mime types', () => {
+    describe('DER handler matching', () => {
         const derHandlerByName = HANDLERS.find(h => h.name === "DER");
         
         if (derHandlerByName) {
             const pkixCertRule = derHandlerByName.mimetypes.find(m => typeof m === 'string' && m === "application/pkix-cert") as LocalMimeMatch;
             const pemFileRule = derHandlerByName.mimetypes.find(m => typeof m === 'string' && m === "application/x-pem-file") as LocalMimeMatch;
+            const filenameRule = derHandlerByName.mimetypes.find(m => typeof m === 'object' && (m as any).filename) as LocalMimeMatch;
 
             if (pkixCertRule) {
                 test('should match PKIX certificate mime type', () => {
@@ -141,6 +142,15 @@ describe('Handler Tests', () => {
             if (pemFileRule) {
                 test('should match PEM file mime type', () => {
                     expect(matchMimetype(pemFileRule, "application/x-pem-file", "my.pem", undefined)).toBe(true);
+                });
+            }
+
+            if (filenameRule) {
+                test('should match .key, .csr, .pub, .p10 files by extension', () => {
+                    expect(matchMimetype(filenameRule, "application/octet-stream", "my.key", undefined)).toBe(true);
+                    expect(matchMimetype(filenameRule, "application/octet-stream", "request.csr", undefined)).toBe(true);
+                    expect(matchMimetype(filenameRule, "application/octet-stream", "id_rsa.pub", undefined)).toBe(true);
+                    expect(matchMimetype(filenameRule, "application/octet-stream", "cert.p10", undefined)).toBe(true);
                 });
             }
         }

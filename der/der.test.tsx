@@ -51,4 +51,13 @@ describe('der', () => {
     const expectedOutput = readFileSync(join(__dirname, 'example', 'cert.output.txt'), 'utf-8');
     expect(ascii).toBe(expectedOutput);
   });
+
+  test('derToAscii with pem file', () => {
+    const pemPath = join(__dirname, 'example', 'pem_cert');
+    const pemBytes = new Uint8Array(readFileSync(pemPath));
+    const ascii = window.derToAscii(pemBytes);
+    expect(ascii).toContain('# CERTIFICATE');
+    expect(ascii).toContain('SEQUENCE {');
+    expect(ascii).toContain('  OBJECT_IDENTIFIER { 1.2.840.113549.1.1.5 }');
+  });
 });
