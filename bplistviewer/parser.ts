@@ -5,7 +5,7 @@ import { Buffer } from 'buffer';
 const debug = false;
 
 export const maxObjectSize = 100 * 1000 * 1000; // 100Meg
-export const maxObjectCount = 32768000;
+export const maxObjectCount = 128000000;
 
 // EPOCH = new SimpleDateFormat("yyyy MM dd zzz").parse("2001 01 01 GMT").getTime();
 // ...but that's annoying in a static initializer because it can throw exceptions, ick.
@@ -402,8 +402,7 @@ function readUInt(buffer: Buffer, start?: number) {
 
 // we're just going to toss the high order bits because javascript doesn't have 64-bit ints
 function readUInt64BE(buffer: Buffer, start: number) {
-    const data = buffer.slice(start, start + 8);
-    return data.readUInt32BE(4);
+    return Number(buffer.readBigUInt64BE(start));
 }
 
 function swapBytes(buffer: any) {
