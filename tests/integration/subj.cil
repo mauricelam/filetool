@@ -1,0 +1,358 @@
+;; SPDX-FileCopyrightText: © 2025 Dominick Grift <dominick.grift@defensec.nl>
+;; SPDX-License-Identifier: Unlicense
+
+(classmap state (ps read))
+(classmapping state read read_file)
+(classmapping state read read_lnk_file)
+(classmapping state read list_dir)
+(classmapping state ps (process (getattr)))
+(classmapping state ps (state (read)))
+
+(block subj
+
+  (macro type ((type ARG1))
+	 (typeattributeset typeattr ARG1))
+
+  (blockinherit all_macro_template)
+
+  (typeattribute not_typeattr)
+  (typeattribute typeattr)
+
+  (typeattributeset not_typeattr (not typeattr))
+
+  (neverallow typeattr not_typeattr (process (dyntransition transition)))
+  (neverallow typeattr not_typeattr
+	      (process2 (nnp_transition nosuid_transition)))
+
+  (dontaudit typeattr typeattr (process (noatsecure rlimitinh siginh)))
+
+  (block all_macro_template
+
+    (blockabstract all_macro_template)
+
+    (macro getcap_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (getcap))))
+
+    (macro getrlimit_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (getrlimit))))
+
+    (macro getsched_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (getsched))))
+
+    (macro nnptransition_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process2 (nnp_transition))))
+
+    (macro noatsecure_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (noatsecure))))
+
+    (macro nosuidtransition_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process2 (nosuid_transition))))
+
+    (macro ps_all_states ((type ARG1))
+	   (allow ARG1 typeattr (state (ps))))
+
+    (macro ptrace_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (ptrace))))
+
+    (macro read_all_states ((type ARG1))
+	   (allow ARG1 typeattr (state (read))))
+
+    (macro readinherited_all_fifo_files ((type ARG1))
+	   (allow ARG1 typeattr readinherited_fifo_file))
+
+    (macro readwriteinherited_all_fifo_files ((type ARG1))
+	   (allow ARG1 typeattr readwriteinherited_fifo_file))
+
+    (macro rlimitinh_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (rlimitinh))))
+
+    (macro setrlimit_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (setrlimit))))
+
+    (macro setsched_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (setsched))))
+
+    (macro sigchld_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (sigchld))))
+
+    (macro sigkill_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (sigkill))))
+
+    (macro signal_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (signal))))
+
+    (macro signull_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (signull))))
+
+    (macro sigstop_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (sigstop))))
+
+    (macro transition_all_processes ((type ARG1))
+	   (allow ARG1 typeattr (process (transition))))
+
+    (macro writeinherited_all_fifo_files ((type ARG1))
+	   (allow ARG1 typeattr writeinherited_fifo_file)))
+
+  (block base_template
+
+    (blockabstract base_template)
+
+    (type subj)
+    (call .subj.type (subj)))
+
+  (block common
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (blockinherit subj.all_macro_template)
+
+    (typeattribute typeattr)
+
+    (allow typeattr self
+	   (process (fork sigchld sigkill signal signull sigstop)))
+
+    (allow typeattr self list_dir)
+    (allow typeattr self read_lnk_file)
+    (allow typeattr self readwrite_fifo_file)
+    (allow typeattr self readwrite_file)
+
+    (call subj.type (typeattr))
+
+    (call .conf.read_file_lnk_files (typeattr))
+    (call .conf.search_file_dirs (typeattr))
+
+    (call .data.read_file_lnk_files (typeattr))
+    (call .data.search_file_dirs (typeattr))
+
+    (call .exec.read_file_lnk_files (typeattr))
+    (call .exec.search_file_dirs (typeattr))
+
+    (call .lib.list_file_dirs (typeattr))
+    (call .lib.mapexecute_file_files (typeattr))
+    (call .lib.read_file_files (typeattr))
+    (call .lib.read_file_lnk_files (typeattr))
+
+    (call .lib.textrel.execmod_file_files (typeattr))
+    (call .lib.textrel.mapexecute_file_files (typeattr))
+    (call .lib.textrel.read_file_files (typeattr))
+
+    (call .null.readwrite_nodedev_chr_files (typeattr))
+
+    (call .proc.read_fs_lnk_files (typeattr))
+    (call .proc.search_fs_dirs (typeattr))
+
+    (call .root.read_file_lnk_files (typeattr))
+    (call .root.search_file_dirs (typeattr))
+
+    (call .sys.sigchld_subj_processes (typeattr))
+
+    (call .tmp.read_fs_lnk_files (typeattr))
+    (call .tmp.search_fs_dirs (typeattr))
+
+    (call .tty.readwrite_nodedev_chr_files (typeattr))
+
+    (call .zero.map_nodedev_chr_files (typeattr))
+    (call .zero.readwrite_nodedev_chr_files (typeattr))
+
+    (block base_template
+
+      (blockabstract base_template)
+
+      (type subj)
+      (call .subj.common.type (subj)))
+
+    (block template
+
+      (blockabstract template)
+
+      (blockinherit .subj.common.base_template)
+      (blockinherit .subj.macro_template)))
+
+  (block entry
+
+    (macro auditexecuteaccess_all_files ((type ARG1))
+	   (allow ARG1 typeattr (file (getattr execute))))
+
+    (macro dontaudit_auditaccess_all_files ((type ARG1))
+	   (dontaudit ARG1 typeattr (file (audit_access))))
+
+    (macro entrypoint_all_files ((type ARG1))
+	   (allow ARG1 typeattr (file (entrypoint))))
+
+    (macro subj_range_transition ((type ARG1)(levelrange ARG2))
+	   (rangetransition ARG1 typeattr process ARG2))
+
+    (macro subj_role_transition ((role ARG1)(role ARG2))
+	   (roletransition ARG1 typeattr process ARG2))
+
+    (macro subj_type_transition ((type ARG1)(type ARG2))
+	   (typetransition ARG1 typeattr process ARG2))
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (blockinherit .file.all_macro_template_files)
+
+    (typeattribute not_typeattr)
+    (typeattribute typeattr)
+
+    (typeattributeset not_typeattr (not typeattr))
+
+    (neverallow subj.typeattr not_typeattr (file (entrypoint))))
+
+  (block execheap
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (typeattribute not_typeattr)
+    (typeattribute typeattr)
+
+    (typeattributeset not_typeattr (not typeattr))
+
+    (neverallow not_typeattr self (process (execheap))))
+
+  (block execstack
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (typeattribute not_typeattr)
+    (typeattribute typeattr)
+
+    (typeattributeset not_typeattr (not typeattr))
+
+    (neverallow not_typeattr self (process (execstack))))
+
+  (block macro_template
+
+    (blockabstract macro_template)
+
+    (macro getcap_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (getcap))))
+
+    (macro getrlimit_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (getrlimit))))
+
+    (macro getsched_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (getsched))))
+
+    (macro nnptransition_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process2 (nnp_transition))))
+
+    (macro noatsecure_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (noatsecure))))
+
+    (macro nosuidtransition_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process2 (nosuid_transition))))
+
+    (macro ps_subj_states ((type ARG1))
+	   (allow ARG1 subj (state (ps))))
+
+    (macro ptrace_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (ptrace))))
+
+    (macro read_subj_states ((type ARG1))
+	   (allow ARG1 subj (state (read))))
+
+    (macro readinherited_subj_fifo_files ((type ARG1))
+	   (allow ARG1 subj readinherited_fifo_file))
+
+    (macro readwriteinherited_subj_fifo_files ((type ARG1))
+	   (allow ARG1 subj readwriteinherited_fifo_file))
+
+    (macro rlimitinh_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (rlimitinh))))
+
+    (macro setrlimit_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (setrlimit))))
+
+    (macro setsched_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (setsched))))
+
+    (macro sigchld_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (sigchld))))
+
+    (macro sigkill_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (sigkill))))
+
+    (macro signal_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (signal))))
+
+    (macro signull_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (signull))))
+
+    (macro sigstop_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (sigstop))))
+
+    (macro transition_subj_processes ((type ARG1))
+	   (allow ARG1 subj (process (transition))))
+
+    (macro writeinherited_subj_fifo_files ((type ARG1))
+	   (allow ARG1 subj writeinherited_fifo_file)))
+
+  (block silenced
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (typeattribute typeattr)
+
+    (dontaudit typeattr subj.entry.typeattr (file (entrypoint)))
+
+    (dontaudit typeattr subj.typeattr (process (all)))
+    (dontaudit typeattr subj.typeattr (process2 (not nosuid_transition)))
+
+    (dontaudit typeattr subj.typeattr (fifo_file (not (execmod map mounton))))
+    (dontaudit typeattr subj.typeattr list_dir)
+    (dontaudit typeattr subj.typeattr read_lnk_file)
+    (dontaudit typeattr subj.typeattr readwrite_file))
+
+  (block template
+
+    (blockabstract template)
+
+    (blockinherit .subj.base_template)
+    (blockinherit .subj.macro_template))
+
+  (block unconfined
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (typeattribute typeattr)
+
+    (allow typeattr subj.entry.typeattr (file (entrypoint)))
+
+    (allow typeattr subj.typeattr (process (all)))
+    ;; nosuid_transition should not be needed and indicates
+    ;; misconfiguration. when used properly it is worth blocking this
+    ;; access to prevent domain transitions on untrusted removeable
+    ;; storage. just be sure to always mount untrusted removable storage
+    ;; with nosuid, because otherwise this does not work.
+    (allow typeattr subj.typeattr (process2 (not nosuid_transition)))
+
+    (allow typeattr subj.typeattr (fifo_file (not (execmod map mounton))))
+    (allow typeattr subj.typeattr list_dir)
+    (allow typeattr subj.typeattr mounton_file)
+    (allow typeattr subj.typeattr read_lnk_file)
+    (allow typeattr subj.typeattr readwrite_file)
+
+    ;; sysupgrade creates /proc/self/fd/1
+    (dontaudit typeattr self addname_dir)
+    (dontaudit typeattr self create_file)
+
+    (call execheap.type (typeattr))
+    (call execstack.type (typeattr))
+
+    ;; sysupgrade creates /proc/self/fd/1
+    (call .proc.dontaudit_associate_fs (typeattr))))
+
+(in silenced
+
+    (call .subj.silenced.type (typeattr)))
+
+(in unconfined
+
+    (call .subj.unconfined.type (typeattr)))

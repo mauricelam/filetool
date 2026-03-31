@@ -1,0 +1,69 @@
+;; SPDX-FileCopyrightText: © 2025 Dominick Grift <dominick.grift@defensec.nl>
+;; SPDX-License-Identifier: Unlicense
+
+(block dev
+
+  (macro type ((type ARG1))
+	 (typeattributeset typeattr ARG1))
+
+  (typeattribute typeattr)
+
+  (macro getattr_all_chr_files ((type ARG1))
+	 (allow ARG1 typeattr (chr_file (getattr))))
+
+  (blockinherit .file.all_macro_template_blk_files)
+  (blockinherit .file.all_macro_template_chr_files)
+
+  (call .obj.type (typeattr))
+
+  (call .tmp.associate_fs (typeattr))
+
+  (block except
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (macro getattr_all_blk_files ((type ARG1))
+	   (allow ARG1 typeattr (blk_file (getattr))))
+
+    (macro getattr_all_chr_files ((type ARG1))
+	   (allow ARG1 typeattr (chr_file (getattr))))
+
+    (blockinherit .file.all_macro_template_blk_files)
+    (blockinherit .file.all_macro_template_chr_files)
+
+    (typeattribute typeattr)
+
+    (typeattributeset typeattr
+		      (and dev.typeattr (not (dev.exception.typeattr)))))
+
+  (block exception
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (typeattribute typeattr)
+
+    (call dev.type (typeattr)))
+
+  (block silenced
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (typeattribute typeattr))
+
+  (block unconfined
+
+    (macro type ((type ARG1))
+	   (typeattributeset typeattr ARG1))
+
+    (typeattribute typeattr)))
+
+(in silenced
+
+    (call .dev.silenced.type (typeattr)))
+
+(in unconfined
+
+    (call .dev.unconfined.type (typeattr)))
