@@ -1,41 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { runHandlerTest } from './test-utils';
+import * as fs from 'fs';
+import * as path from 'path';
 
 test('SETools handler supports CIL and Type Details', async ({ page }) => {
     page.on('console', msg => console.log('BROWSER CONSOLE:', msg.text()));
 
-    const cilContent = `
-        (class file (read write))
-        (classorder (file))
-        (sid kernel)
-        (sidorder (kernel))
-        (sensitivity s0)
-        (sensitivityorder (s0))
-        (level low (s0))
-        (levelrange low_low (low low))
-        (user u)
-        (userlevel u low)
-        (userrange u low_low)
-        (role r)
-        (type t)
-        (type t2)
-        (userrole u r)
-        (roletype r t)
-        (roletype r t2)
-        (sidcontext kernel (u r t low_low))
-
-        (type type_a)
-        (type type_b)
-        (typeattribute attr_1)
-        (typeattributeset attr_1 (type_a))
-        (allow type_a type_b (file (read)))
-        (allow attr_1 type_b (file (write)))
-    `;
+    const cilPath = path.join(__dirname, '../../setools/examples/test.cil');
+    const cilContent = fs.readFileSync(cilPath);
 
     const iframe = await runHandlerTest(page, {
         handler: 'setools',
         file: {
-            content: Buffer.from(cilContent),
+            content: cilContent,
             name: 'test.cil',
             type: 'text/plain'
         }
