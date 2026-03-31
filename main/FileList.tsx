@@ -149,6 +149,7 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
 
     return (
         <div
+            id="sidebar-droptarget"
             className="sidebar"
                 style={{
                     width: '240px',

@@ -368,6 +368,8 @@ export function App() {
 
     const activeHandler = selectedFile?.activeHandler || selectedGroup?.activeHandler;
 
+    const allFiles = React.useMemo(() => files.map(f => f.file), [files]);
+
     return (
         <>
             <TopBar showToggle={files.length > 0} />
@@ -441,7 +443,7 @@ export function App() {
                     </div>
                 </div>
             </div>
-            <IframeManager activeHandler={activeHandler} files={files.map(f => f.file)} />
+            <IframeManager activeHandler={activeHandler} files={allFiles} />
         </>
     );
 }
