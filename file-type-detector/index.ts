@@ -290,6 +290,11 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "handler": "diffviewer",
         "mimetypes": []
     },
+    {
+        "name": "Concatenate",
+        "handler": "concatenate",
+        "mimetypes": []
+    },
 ];
 
 // @ts-ignore - Process might be defined at build time
