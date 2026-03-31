@@ -222,4 +222,20 @@ describe('Handler Tests', () => {
             expect(pdfViewerIndex).toBeLessThan(browserIndex);
         });
     });
+
+    describe('Archive Handler', () => {
+        it('correctly matches CPIO files by extension', () => {
+            const matchedHandlers = HANDLERS.filter(h =>
+                h.mimetypes.some(m => matchMimetype(m, 'application/octet-stream', 'test.cpio'))
+            );
+            expect(matchedHandlers.some(h => h.handler === 'archive')).toBe(true);
+        });
+
+        it('correctly matches CPIO files by mimetype', () => {
+            const matchedHandlers = HANDLERS.filter(h =>
+                h.mimetypes.some(m => matchMimetype(m, 'application/x-cpio', 'test.bin'))
+            );
+            expect(matchedHandlers.some(h => h.handler === 'archive')).toBe(true);
+        });
+    });
 });
