@@ -160,6 +160,7 @@ pub struct SankeyNode {
     pub id: Option<String>,
     pub parent_id: Option<String>,
     pub retained_size: f64,
+    pub shallow_size: f64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -909,6 +910,7 @@ impl HprofParser {
             id: Some(format_id(start_node)),
             parent_id: None,
             retained_size: graph.retained_sizes.get(&start_node).cloned().unwrap_or(0) as f64,
+            shallow_size: graph.nodes.get(&start_node).map(|n| n.shallow_size as f64).unwrap_or(0.0),
         });
 
         let depth_limit = max_depth.unwrap_or(3);
@@ -919,24 +921,6 @@ impl HprofParser {
             let mut next_level = Vec::new();
             for &parent_id in &current_level {
                 let parent_idx = node_to_idx[&(parent_id, 0)];
-
-                // Add <self> link
-                let shallow_size = graph.nodes.get(&parent_id).map(|n| n.shallow_size as f64).unwrap_or(0.0);
-                if shallow_size > 0.0 {
-                    let self_idx = sankey_nodes.len();
-                    sankey_nodes.push(SankeyNode {
-                        name: "<self>".to_string(),
-                        id: None,
-                        parent_id: None,
-                        retained_size: shallow_size,
-                    });
-                    sankey_links.push(SankeyLink {
-                        source: parent_idx,
-                        target: self_idx,
-                        value: shallow_size,
-                        field_names: None,
-                    });
-                }
 
                 if let Some(children) = graph.dom_children.get(&parent_id) {
                     let mut sorted_children = children.clone();
@@ -971,6 +955,7 @@ impl HprofParser {
                             id: Some(format_id(child_id)),
                             parent_id: None,
                             retained_size: child_retained,
+                            shallow_size: graph.nodes.get(&child_id).map(|n| n.shallow_size as f64).unwrap_or(0.0),
                         });
                         node_to_idx.insert((child_id, 0), child_idx);
                         next_level.push(child_id);
@@ -1001,6 +986,7 @@ impl HprofParser {
                             id: None,
                             parent_id: Some(parent_id_str),
                             retained_size: others_size,
+                            shallow_size: others_size, // For "Others" leaf node, shallow size is its total contribution
                         });
                         sankey_links.push(SankeyLink {
                             source: parent_idx,

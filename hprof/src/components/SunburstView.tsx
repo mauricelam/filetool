@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { SankeyData } from '../../hprof-wasm/pkg';
 
@@ -18,138 +18,179 @@ const formatBytes = (bytes: number) => {
 
 export function SunburstView({ data, onNodeClick, onExpandOthers }: SunburstViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
+    const [hoveredNode, setHoveredNode] = useState<any>(null);
 
     useEffect(() => {
         if (!svgRef.current || !data.nodes.length) return;
 
         const container = svgRef.current.parentElement;
-        const width = container?.clientWidth || 800;
-        const height = container?.clientHeight || 800;
-        const radius = Math.min(width, height) / 2;
+        if (!container) return;
 
-        const svg = d3.select(svgRef.current)
-            .attr("viewBox", [0, 0, width, height])
-            .style("width", "100%")
-            .style("height", "100%");
+        const updateSize = () => {
+            const width = container.clientWidth || 800;
+            const height = container.clientHeight || 800;
+            const radius = Math.min(width, height) / 2 - 20;
 
-        svg.selectAll("*").remove();
+            const svg = d3.select(svgRef.current)
+                .attr("viewBox", [0, 0, width, height])
+                .style("width", "100%")
+                .style("height", "100%");
 
-        // Reconstruct hierarchy from SankeyData (nodes and links)
-        const childrenMap = new Map<number, number[]>();
-        data.links.forEach(link => {
-            const children = childrenMap.get(link.source) || [];
-            children.push(link.target);
-            childrenMap.set(link.source, children);
-        });
+            svg.selectAll("*").remove();
 
-        function buildHierarchy(nodeIdx: number): any {
-            const node = data.nodes[nodeIdx];
-            const childrenIdxs = childrenMap.get(nodeIdx) || [];
-            const children = childrenIdxs.map(buildHierarchy);
-
-            return {
-                name: node.name,
-                id: node.id,
-                parent_id: node.parent_id,
-                retained_size: node.retained_size,
-                children: children.length > 0 ? children : undefined
-            };
-        }
-
-        const hierarchyData = buildHierarchy(0);
-
-        const root = d3.hierarchy(hierarchyData)
-            .sum(d => d.children ? 0 : d.retained_size)
-            .sort((a, b) => (b.value || 0) - (a.value || 0));
-
-        const partition = d3.partition<any>()
-            .size([2 * Math.PI, radius]);
-
-        partition(root);
-
-        const arc = d3.arc<d3.HierarchyRectangularNode<any>>()
-            .startAngle(d => d.x0)
-            .endAngle(d => d.x1)
-            .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
-            .padRadius(radius / 2)
-            .innerRadius(d => d.y0)
-            .outerRadius(d => d.y1 - 1);
-
-        const color = d3.scaleOrdinal(d3.schemeCategory10);
-
-        const g = svg.append("g")
-            .attr("transform", `translate(${width / 2},${height / 2})`);
-
-        const path = g.selectAll("path")
-            .data(root.descendants().filter(d => d.depth > 0))
-            .join("path")
-            .attr("fill", d => {
-                if (d.data.name === "<self>") return "#aaa";
-                if (d.data.name.startsWith("Others")) return "#ccc";
-                let curr = d;
-                while (curr.depth > 1) curr = curr.parent!;
-                return color(curr.data.name);
-            })
-            .attr("fill-opacity", d => d.children ? 0.6 : 0.4)
-            .attr("d", arc)
-            .style("cursor", "pointer")
-            .on("click", (event, d) => {
-                if (d.data.id && onNodeClick) {
-                    onNodeClick(d.data.id);
-                } else if (!d.data.id && d.data.parent_id && onExpandOthers) {
-                    onExpandOthers(d.data.parent_id);
-                }
+            // Reconstruct hierarchy from SankeyData (nodes and links)
+            const childrenMap = new Map<number, number[]>();
+            data.links.forEach(link => {
+                const children = childrenMap.get(link.source) || [];
+                children.push(link.target);
+                childrenMap.set(link.source, children);
             });
 
-        path.append("title")
-            .text(d => `${d.data.name}\nRetained: ${formatBytes(d.data.retained_size)}\n${((d.value || 0) / (root.value || 1) * 100).toFixed(1)}% of view root`);
+            function buildHierarchy(nodeIdx: number): any {
+                const node = data.nodes[nodeIdx];
+                const childrenIdxs = childrenMap.get(nodeIdx) || [];
+                const children = childrenIdxs.map(buildHierarchy);
 
-        // Center label
-        const center = g.append("text")
-            .attr("text-anchor", "middle")
-            .attr("dy", "0.35em")
-            .style("font-size", "14px")
-            .style("font-weight", "bold");
+                return {
+                    name: node.name,
+                    id: node.id,
+                    parent_id: node.parent_id,
+                    retained_size: node.retained_size,
+                    shallow_size: node.shallow_size,
+                    children: children.length > 0 ? children : undefined
+                };
+            }
 
-        center.append("tspan")
-            .attr("x", 0)
-            .text(root.data.name);
-        center.append("tspan")
-            .attr("x", 0)
-            .attr("dy", "1.2em")
-            .style("font-size", "12px")
-            .style("font-weight", "normal")
-            .style("fill", "#666")
-            .text(formatBytes(root.value || 0));
+            const hierarchyData = buildHierarchy(0);
 
-        // Labels for segments
-        g.selectAll("text.segment-label")
-            .data(root.descendants().filter(d => d.depth > 0 && (d.x1 - d.x0) * (d.y1 - d.y0) > 0.05))
-            .join("text")
-            .attr("class", "segment-label")
-            .attr("transform", function(d) {
-                const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
-                const y = (d.y0 + d.y1) / 2;
-                return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
-            })
-            .attr("dy", "0.35em")
-            .attr("text-anchor", "middle")
-            .style("font-size", "9px")
-            .style("fill", "#000")
-            .style("pointer-events", "none")
-            .text(d => {
-                const name = d.data.name;
-                const availableWidth = (d.y1 - d.y0);
-                const avgRadius = (d.y0 + d.y1) / 2;
-                const arcLength = (d.x1 - d.x0) * avgRadius;
-                if (name.length * 6 > arcLength) {
-                    if (arcLength < 25) return "";
-                    return name.substring(0, Math.floor(arcLength / 6) - 2) + "..";
-                }
-                return name;
-            });
+            const root = d3.hierarchy(hierarchyData)
+                .sum(d => d.shallow_size)
+                .sort((a, b) => (b.value || 0) - (a.value || 0));
+
+            const partition = d3.partition<any>()
+                .size([2 * Math.PI, radius]);
+
+            partition(root);
+
+            const arc = d3.arc<d3.HierarchyRectangularNode<any>>()
+                .startAngle(d => d.x0)
+                .endAngle(d => d.x1)
+                .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
+                .padRadius(radius / 2)
+                .innerRadius(d => d.y0)
+                .outerRadius(d => d.y1 - 1);
+
+            const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${width / 2},${height / 2})`);
+
+            const path = g.selectAll("path")
+                .data(root.descendants().filter(d => d.depth > 0))
+                .join("path")
+                .attr("fill", d => {
+                    if (d.data.name.startsWith("Others")) return "#ccc";
+                    let curr = d;
+                    while (curr.depth > 1) curr = curr.parent!;
+                    return color(curr.data.name);
+                })
+                .attr("fill-opacity", 0.6)
+                .attr("d", arc)
+                .style("cursor", "pointer")
+                .on("click", (event, d) => {
+                    if (d.data.id && onNodeClick) {
+                        onNodeClick(d.data.id);
+                    } else if (!d.data.id && d.data.parent_id && onExpandOthers) {
+                        onExpandOthers(d.data.parent_id);
+                    }
+                })
+                .on("mouseover", function(event, d) {
+                    d3.select(this).attr("fill-opacity", 0.9);
+                    setHoveredNode(d);
+                })
+                .on("mouseout", function(event, d) {
+                    d3.select(this).attr("fill-opacity", 0.6);
+                    setHoveredNode(null);
+                });
+
+            path.append("title")
+                .text(d => {
+                    const node = d.data;
+                    let text = `${node.name}\nRetained: ${formatBytes(node.retained_size)}`;
+                    if (node.shallow_size > 0) {
+                        text += `\nShallow: ${formatBytes(node.shallow_size)}`;
+                    }
+                    text += `\n${((d.value || 0) / (root.value || 1) * 100).toFixed(1)}% of view root`;
+                    return text;
+                });
+
+            // Center label group
+            const centerLabel = g.append("g")
+                .attr("class", "center-label")
+                .style("pointer-events", "none");
+
+            // Labels for segments
+            g.selectAll("text.segment-label")
+                .data(root.descendants().filter(d => d.depth > 0 && (d.x1 - d.x0) * (d.y0 + d.y1) / 2 > 40))
+                .join("text")
+                .attr("class", "segment-label")
+                .attr("transform", function(d) {
+                    const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+                    const y = (d.y0 + d.y1) / 2;
+                    return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+                })
+                .attr("dy", "0.35em")
+                .attr("text-anchor", "middle")
+                .style("font-size", "9px")
+                .style("fill", "#000")
+                .style("pointer-events", "none")
+                .text(d => {
+                    const name = d.data.name;
+                    const avgRadius = (d.y0 + d.y1) / 2;
+                    const arcLength = (d.x1 - d.x0) * avgRadius;
+                    if (name.length * 6 > arcLength) {
+                        if (arcLength < 25) return "";
+                        return name.substring(0, Math.floor(arcLength / 6) - 2) + "..";
+                    }
+                    return name;
+                });
+        };
+
+        updateSize();
+        window.addEventListener('resize', updateSize);
+        return () => window.removeEventListener('resize', updateSize);
 
     }, [data, onNodeClick, onExpandOthers]);
 
-    return <svg ref={svgRef} className="sunburst-svg" />;
+    const displayNode = hoveredNode || (data.nodes.length > 0 ? { data: { name: data.nodes[0].name, retained_size: data.nodes[0].retained_size, shallow_size: data.nodes[0].shallow_size } } : null);
+
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <svg ref={svgRef} className="sunburst-svg" />
+            {displayNode && (
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    pointerEvents: 'none',
+                    width: '120px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    wordBreak: 'break-word'
+                }}>
+                    <div>{displayNode.data.name}</div>
+                    <div style={{ fontWeight: 'normal', color: '#666', fontSize: '10px', marginTop: '4px' }}>
+                        Retained: {formatBytes(displayNode.data.retained_size)}
+                    </div>
+                    {displayNode.data.shallow_size > 0 && (
+                        <div style={{ fontWeight: 'normal', color: '#666', fontSize: '10px' }}>
+                            Shallow: {formatBytes(displayNode.data.shallow_size)}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }

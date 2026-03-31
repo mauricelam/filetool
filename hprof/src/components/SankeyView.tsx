@@ -56,8 +56,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProp
 
         const color = d3.scaleOrdinal(d3.schemeCategory10);
         const nodeColor = (d: any) => {
-            if (d.name === "<self>") return "#aaa";
-            if (d.name === "Others") return "#ccc";
+            if (d.name.startsWith("Others")) return "#ccc";
             return color(d.index.toString());
         };
 
@@ -83,7 +82,14 @@ export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProp
                 }
             })
             .append("title")
-            .text(d => `${d.name}\nRetained: ${formatBytes((d as any).retained_size)}`);
+            .text(d => {
+                const node = d as any;
+                let text = `${node.name}\nRetained: ${formatBytes(node.retained_size)}`;
+                if (node.shallow_size > 0) {
+                    text += `\nShallow: ${formatBytes(node.shallow_size)}`;
+                }
+                return text;
+            });
 
         const link = g.append("g")
             .attr("fill", "none")
