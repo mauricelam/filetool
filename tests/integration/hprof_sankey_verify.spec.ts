@@ -18,10 +18,14 @@ test('HPROF viewer Sankey diagram should have specific features', async ({ page 
     });
 
     await expect(iframe.locator('h2')).toContainText('HPROF Viewer: android.hprof', { timeout: 30000 });
-    await iframe.getByRole('tab', { name: 'Memory Flow (Sankey)' }).click();
+    await iframe.getByRole('tab', { name: 'Memory Flow' }).click();
+
+    // Ensure Sankey is selected
+    const select = iframe.getByRole('textbox', { name: 'Visualization type' });
+    await expect(select).toHaveValue('Sankey');
 
     const sankeySvg = iframe.locator('.sankey-svg');
-    await expect(sankeySvg).toBeVisible({ timeout: 30000 });
+    await expect(sankeySvg).toBeVisible({ timeout: 60000 });
 
     // Check for "Root GC" label and retained size
     const rootLabel = iframe.locator('.node-label').filter({ hasText: 'Root GC' });

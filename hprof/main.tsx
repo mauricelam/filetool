@@ -8,8 +8,7 @@ import 'mantine-react-table/styles.css'
 import { RecordsView } from './src/components/RecordsView'
 import { InstanceCountsView } from './src/components/InstanceCountsView'
 import { ReferenceGraphView } from './src/components/ReferenceGraphView'
-import { SankeyView } from './src/components/SankeyView'
-import { SunburstView } from './src/components/SunburstView'
+import { MemoryFlowView } from './src/components/MemoryFlowView'
 import { AllObjectsView } from './src/components/AllObjectsView'
 import { GraphvizView } from './src/components/GraphvizView'
 import { ClassInstancesView } from './src/components/ClassInstancesView'
@@ -136,7 +135,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
     const [sankeyLoading, setSankeyLoading] = useState(false);
     const [sankeyRootId, setSankeyRootId] = useState<string | null>(null);
-    const [sankeyHistory, setSankeyHistory] = useState<(string | null)[]>([]);
+    const [sankeyHistory, setSankeyHistory] = useState<{ id: string | null, name: string }[]>([]);
     const [sankeyDepth, setSankeyDepth] = useState(3);
     const [sankeyExpandId, setSankeyExpandId] = useState<string | null>(null);
 
@@ -198,7 +197,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     }, [activeTab, parser])
 
     useEffect(() => {
-        if (activeTab === 'sankey' || activeTab === 'sunburst') {
+        if (activeTab === 'memory-flow') {
             setSankeyLoading(true);
             setTimeout(() => {
                 try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth, sankeyExpandId || undefined)) }
@@ -244,9 +243,19 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         setActiveTab('instances');
     };
 
-    const handleSankeyZoom = (id: string) => {
+    const handleSankeyZoom = (id: string, name: string) => {
         if (id === sankeyRootId) return;
-        setSankeyHistory(prev => [...prev, sankeyRootId]);
+        // The 'name' passed should be the name of the CURRENT root before zooming
+        // But the zoom event gives us the NEW root's ID and name.
+        // We should add the current root to history.
+        const currentName = sankeyRootId === null ? 'Root GC' : (sankeyData?.nodes.find(n => n.id === sankeyRootId)?.name || sankeyRootId);
+        setSankeyHistory(prev => [...prev, { id: sankeyRootId, name: currentName }]);
+        setSankeyRootId(id);
+        setSankeyExpandId(null);
+    };
+
+    const handleSankeyJump = (id: string | null, index: number) => {
+        setSankeyHistory(prev => prev.slice(0, index));
         setSankeyRootId(id);
         setSankeyExpandId(null);
     };
@@ -254,9 +263,9 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const handleSankeyBack = () => {
         if (sankeyHistory.length === 0) return;
         const newHistory = [...sankeyHistory];
-        const lastId = newHistory.pop()!;
+        const last = newHistory.pop()!;
         setSankeyHistory(newHistory);
-        setSankeyRootId(lastId);
+        setSankeyRootId(last.id);
         setSankeyExpandId(null);
     };
 
@@ -289,8 +298,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                     <Tabs.Tab value="records">Records</Tabs.Tab>
                     <Tabs.Tab value="instances">Instance Counts</Tabs.Tab>
                     <Tabs.Tab value="graph">Reference Graph</Tabs.Tab>
-                    <Tabs.Tab value="sankey">Memory Flow (Sankey)</Tabs.Tab>
-                    <Tabs.Tab value="sunburst">Memory Flow (Sunburst)</Tabs.Tab>
+                    <Tabs.Tab value="memory-flow">Memory Flow</Tabs.Tab>
                     <Tabs.Tab value="all-objects">All Objects</Tabs.Tab>
                 </Tabs.List>
 
@@ -368,66 +376,20 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                     </Stack>
                 </Tabs.Panel>
 
-                <Tabs.Panel value="sankey" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Stack h="100%" gap={0}>
-                        <Group p="xs" justify="space-between" bg="gray.0" style={{ borderBottom: '1px solid #eee' }}>
-                            <Group>
-                                <Text fw={700}>Memory Flow {sankeyRootId ? `(Zoomed: ${sankeyRootId})` : '(Root GC)'}</Text>
-                                {sankeyHistory.length > 0 && (
-                                    <Button size="compact-xs" variant="subtle" onClick={handleSankeyBack}>Back</Button>
-                                )}
-                                {sankeyRootId && (
-                                    <Button size="compact-xs" variant="light" onClick={handleSankeyReset}>Reset Zoom</Button>
-                                )}
-                            </Group>
-                            <Group>
-                                <Text size="sm">Depth:</Text>
-                                <input
-                                    type="number"
-                                    value={sankeyDepth}
-                                    min={1}
-                                    max={10}
-                                    onChange={(e) => setSankeyDepth(Math.max(1, parseInt(e.target.value) || 1))}
-                                    style={{ width: '50px' }}
-                                />
-                            </Group>
-                        </Group>
-                        <Box style={{ flex: 1, position: 'relative' }}>
-                            <LoadingOverlay visible={sankeyLoading} />
-                            {sankeyData && <SankeyView data={sankeyData} onNodeClick={handleSankeyZoom} onExpandOthers={handleSankeyExpand} />}
-                        </Box>
-                    </Stack>
-                </Tabs.Panel>
-
-                <Tabs.Panel value="sunburst" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Stack h="100%" gap={0}>
-                        <Group p="xs" justify="space-between" bg="gray.0" style={{ borderBottom: '1px solid #eee' }}>
-                            <Group>
-                                <Text fw={700}>Memory Flow {sankeyRootId ? `(Zoomed: ${sankeyRootId})` : '(Root GC)'}</Text>
-                                {sankeyHistory.length > 0 && (
-                                    <Button size="compact-xs" variant="subtle" onClick={handleSankeyBack}>Back</Button>
-                                )}
-                                {sankeyRootId && (
-                                    <Button size="compact-xs" variant="light" onClick={handleSankeyReset}>Reset Zoom</Button>
-                                )}
-                            </Group>
-                            <Group>
-                                <Text size="sm">Depth:</Text>
-                                <input
-                                    type="number"
-                                    value={sankeyDepth}
-                                    min={1}
-                                    max={10}
-                                    onChange={(e) => setSankeyDepth(Math.max(1, parseInt(e.target.value) || 1))}
-                                    style={{ width: '50px' }}
-                                />
-                            </Group>
-                        </Group>
-                        <Box style={{ flex: 1, position: 'relative' }}>
-                            <LoadingOverlay visible={sankeyLoading} />
-                            {sankeyData && <SunburstView data={sankeyData} onNodeClick={handleSankeyZoom} onExpandOthers={handleSankeyExpand} />}
-                        </Box>
-                    </Stack>
+                <Tabs.Panel value="memory-flow" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <MemoryFlowView
+                        data={sankeyData}
+                        loading={sankeyLoading}
+                        rootId={sankeyRootId}
+                        depth={sankeyDepth}
+                        history={sankeyHistory}
+                        onDepthChange={setSankeyDepth}
+                        onZoom={handleSankeyZoom}
+                        onJump={handleSankeyJump}
+                        onBack={handleSankeyBack}
+                        onReset={handleSankeyReset}
+                        onExpandOthers={handleSankeyExpand}
+                    />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="all-objects" style={{ flex: 1 }}>

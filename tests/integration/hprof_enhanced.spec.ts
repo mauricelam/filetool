@@ -77,8 +77,8 @@ test.describe('HPROF enhanced features', () => {
 
         const iframe = page.frameLocator('#file-handler-iframe');
 
-        // Go to Sankey tab
-        await iframe.getByText('Memory Flow (Sankey)').click();
+        // Go to Memory Flow tab
+        await iframe.getByRole('tab', { name: 'Memory Flow' }).click();
 
         // Should see the diagram
         const svg = iframe.locator('svg').filter({ has: iframe.locator('rect') });

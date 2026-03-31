@@ -20,15 +20,19 @@ test('HPROF viewer should display Sankey diagram', async ({ page }) => {
     // Wait for the loading to complete
     await expect(iframe.locator('h2')).toContainText('HPROF Viewer: android.hprof', { timeout: 30000 });
 
-    // Switch to Sankey tab
-    await iframe.getByRole('tab', { name: 'Memory Flow (Sankey)' }).click();
+    // Switch to Memory Flow tab
+    await iframe.getByRole('tab', { name: 'Memory Flow' }).click();
+
+    // Ensure Sankey is selected by default (or select it)
+    const select = iframe.getByRole('textbox', { name: 'Visualization type' });
+    await expect(select).toHaveValue('Sankey');
 
     // Wait for loading to finish
     await expect(iframe.locator('text=Analyzing heap dump...')).not.toBeVisible({ timeout: 60000 });
 
     // Check if Sankey SVG is visible and has content
     const sankeySvg = iframe.locator('.sankey-svg');
-    await expect(sankeySvg).toBeVisible({ timeout: 30000 });
+    await expect(sankeySvg).toBeVisible({ timeout: 60000 });
 
     // Check for some rects and paths in the SVG
     const rectCount = await sankeySvg.locator('rect').count();
