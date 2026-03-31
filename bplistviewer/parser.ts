@@ -40,23 +40,23 @@ export const parseBuffer = function (buffer: Buffer) {
     if (debug) {
         console.log('numObjects: ' + numObjects);
     }
-    const topObject = readUInt64BE(trailer, 16);
+    const topObject = Number(readUInt64BE(trailer, 16));
     if (debug) {
         console.log('topObject: ' + topObject);
     }
-    const offsetTableOffset = readUInt64BE(trailer, 24);
+    const offsetTableOffset = Number(readUInt64BE(trailer, 24));
     if (debug) {
         console.log('offsetTableOffset: ' + offsetTableOffset);
     }
 
-    if (numObjects > maxObjectCount) {
+    if (numObjects > BigInt(maxObjectCount)) {
         throw new Error('maxObjectCount exceeded');
     }
 
     // Handle offset table
     const offsetTable: number[] = [];
 
-    for (let i = 0; i < numObjects; i++) {
+    for (let i = 0; i < Number(numObjects); i++) {
         const offsetBytes = buffer.slice(
             offsetTableOffset + i * offsetSize,
             offsetTableOffset + (i + 1) * offsetSize
@@ -400,9 +400,8 @@ function readUInt(buffer: Buffer, start?: number) {
     return l;
 }
 
-// we're just going to toss the high order bits because javascript doesn't have 64-bit ints
 function readUInt64BE(buffer: Buffer, start: number) {
-    return Number(buffer.readBigUInt64BE(start));
+    return buffer.readBigUInt64BE(start);
 }
 
 function swapBytes(buffer: any) {
