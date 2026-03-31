@@ -15,7 +15,7 @@ html, body, #output {
 }
 
 /* Ensure graphs can still be large */
-#output .sankey-svg, #output .graph-svg, #output .graph-svg svg {
+#output .sankey-svg, #output .sunburst-svg, #output .graph-svg, #output .graph-svg svg {
     width: 100% !important;
     height: 100% !important;
 }
