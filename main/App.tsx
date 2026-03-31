@@ -570,6 +570,7 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
         if (h.handler === 'archive') return true;
         if (h.handler === 'dexviewer') return matchesGroup(h);
         if (h.handler === 'diffviewer') return files.length >= 2;
+        if (h.handler === 'concatenate') return files.length >= 2;
         return false;
     });
 
