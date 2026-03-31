@@ -31,12 +31,10 @@ const ConcatenateView: React.FC<{ files: File[] }> = ({ files }) => {
             const combinedBlob = new Blob(blobs);
             const combinedFile = new File([combinedBlob], filename, { type: 'application/octet-stream' });
 
-            const url = URL.createObjectURL(combinedFile);
-            const anchor = document.createElement('a');
-            anchor.href = url;
-            anchor.download = combinedFile.name;
-            anchor.click();
-            URL.revokeObjectURL(url);
+            window.parent?.postMessage({
+                action: 'openFile',
+                file: combinedFile
+            }, "/", [await combinedFile.arrayBuffer()]);
         } catch (error) {
             console.error('Error concatenating files:', error);
             alert('Failed to concatenate files.');
@@ -82,7 +80,7 @@ const ConcatenateView: React.FC<{ files: File[] }> = ({ files }) => {
                         marginTop: '10px'
                     }}
                 >
-                    {isConcatenating ? 'Concatenating...' : 'Concatenate and Download'}
+                    {isConcatenating ? 'Concatenating...' : 'Concatenate and Open'}
                 </button>
             </div>
         </div>

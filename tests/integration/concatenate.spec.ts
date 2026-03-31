@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('should correctly concatenate multiple files', async ({ page }) => {
+test('should correctly concatenate multiple files and open it', async ({ page }) => {
     await page.goto('/filetool/');
 
     // Wait for the drop target to be ready
@@ -41,29 +41,17 @@ test('should correctly concatenate multiple files', async ({ page }) => {
     await expect(iframe.getByText(/file1\.txt/)).toBeVisible();
     await expect(iframe.getByText(/file2\.txt/)).toBeVisible();
 
-    // Check for the "Concatenate and Download" button
-    const downloadButton = iframe.locator('button', { hasText: 'Concatenate and Download' });
-    await expect(downloadButton).toBeVisible();
+    // Check for the "Concatenate and Open" button
+    const openButton = iframe.locator('button', { hasText: 'Concatenate and Open' });
+    await expect(openButton).toBeVisible();
 
     // Set a custom filename
     const filenameInput = iframe.locator('input[type="text"]');
     await filenameInput.fill('output.bin');
 
-    // Handle download
-    const downloadPromise = page.waitForEvent('download');
-    await downloadButton.click();
-    const download = await downloadPromise;
+    // Click "Concatenate and Open"
+    await openButton.click();
 
-    // Verify filename
-    expect(download.suggestedFilename()).toBe('output.bin');
-
-    // Verify content (optional, but good)
-    const stream = await download.createReadStream();
-    if (stream) {
-        let content = '';
-        for await (const chunk of stream) {
-            content += chunk.toString();
-        }
-        expect(content).toBe('Hello World!');
-    }
+    // Verify the new file is opened in the sidebar
+    await expect(page.locator('.file-list-item', { hasText: 'output.bin' })).toBeVisible({ timeout: 15000 });
 });
