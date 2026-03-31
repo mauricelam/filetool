@@ -17,17 +17,31 @@ export class UID {
     constructor(public UID: number) { }
 }
 
-export const parseBuffer = function (buffer: Buffer) {
+export const parseBuffer = function (buffer: Buffer): [any, string[]] {
+    const warnings: string[] = [];
+
     // check header
     const header = buffer.slice(0, 'bplist'.length).toString('utf8');
-    console.log('header', header);
     if (header !== 'bplist') {
         throw new Error("Invalid binary plist. Expected 'bplist' at offset 0.");
+    }
+
+    if (buffer.length < 32) {
+        throw new Error('File too short to be a binary plist');
     }
 
     // Handle trailer, last 32 bytes of the file
     const trailer = buffer.slice(buffer.length - 32, buffer.length);
     // 6 null bytes (index 0 to 5)
+    for (let i = 0; i < 6; i++) {
+        if (trailer[i] !== 0) {
+            warnings.push(
+                'Trailer format is invalid (expected null bytes). File may be truncated or corrupted.'
+            );
+            break;
+        }
+    }
+
     const offsetSize = trailer.readUInt8(6);
     if (debug) {
         console.log('offsetSize: ' + offsetSize);
@@ -51,6 +65,11 @@ export const parseBuffer = function (buffer: Buffer) {
 
     if (numObjects > maxObjectCount) {
         throw new Error('maxObjectCount exceeded');
+    }
+
+    const offsetTableEnd = offsetTableOffset + numObjects * offsetSize;
+    if (offsetTableEnd > buffer.length - 32) {
+        warnings.push('Offset table extends beyond the trailer. File may be truncated.');
     }
 
     // Handle offset table
@@ -387,7 +406,7 @@ export const parseBuffer = function (buffer: Buffer) {
         }
     }
 
-    return [parseObject(topObject)];
+    return [parseObject(topObject), warnings];
 };
 
 function readUInt(buffer: Buffer, start?: number) {

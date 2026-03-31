@@ -6,6 +6,7 @@ import { parseBuffer } from './parser';
 
 const App = () => {
     const [data, setData] = useState<Record<string, unknown> | null>(null);
+    const [warnings, setWarnings] = useState<string[]>([]);
 
     useEffect(() => {
         window.onmessage = async (e) => {
@@ -13,8 +14,9 @@ const App = () => {
                 try {
                     const file = e.data.file;
                     const buffer = Buffer.from(await file.arrayBuffer());
-                    const parsed = parseBuffer(buffer);
-                    setData(parsed[0]);
+                    const [parsed, warnings] = parseBuffer(buffer);
+                    setData(parsed);
+                    setWarnings(warnings);
                 } catch (err) {
                     console.error(err);
                     if (err instanceof Error) {
@@ -30,7 +32,22 @@ const App = () => {
     }, []);
 
     return (
-        <div>
+        <div style={{ padding: '10px' }}>
+            {warnings.length > 0 && (
+                <div style={{
+                    backgroundColor: '#fff3cd',
+                    color: '#856404',
+                    padding: '10px',
+                    marginBottom: '10px',
+                    borderRadius: '4px',
+                    border: '1px solid #ffeeba'
+                }}>
+                    <strong>Warning:</strong>
+                    <ul style={{ margin: '5px 0 0 0', paddingLeft: '20px' }}>
+                        {warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                </div>
+            )}
             {data ? (
                 <ReactJson src={data} name={false} />
             ) : (
