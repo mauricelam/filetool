@@ -6,6 +6,7 @@ import { WASMagic, WASMagicFlags } from 'wasmagic';
 import { IframeManager } from './IframeManager';
 import { FileList } from './FileList';
 import { PasteModal } from './PasteModal';
+import { DropTarget } from './DropTarget';
 import { DragItem } from './utils';
 import ICON_LOOKUP from './icons';
 
@@ -379,6 +380,11 @@ export function App() {
                         setPastedText(null);
                     }}
                 />
+            )}
+            {files.length === 0 && (
+                <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <DropTarget onFiles={handleAddFiles} />
+                </div>
             )}
             <div id="basicinfo">
                 <div style={{ display: 'flex', height: '100%', width: '100%' }}>

@@ -880,7 +880,7 @@ impl HprofParser {
         Ok(graph.retained_sizes.get(&target_id).cloned().unwrap_or(0))
     }
 
-    pub fn get_sankey_data(&self, root_id_str: Option<String>, max_depth: Option<usize>, expand_id_str: Option<String>) -> Result<JsValue, JsValue> {
+    pub fn get_sankey_data(&self, root_id_str: Option<String>, max_depth: Option<usize>, expand_id_str: Option<String>, split_count: Option<usize>) -> Result<JsValue, JsValue> {
         let graph = self.ensure_graph()?;
         let virtual_root = Id::from(0u64);
         let start_node = if let Some(r_id_str) = root_id_str {
@@ -891,20 +891,37 @@ impl HprofParser {
 
         let mut sankey_nodes = Vec::new();
         let mut sankey_links = Vec::new();
-        // Use a pair (object_id, type) where type is 0: normal, 1: self, 2: others
-        let mut node_to_idx: HashMap<(Id, u8), usize> = HashMap::new();
+        let mut class_to_idx: HashMap<Id, usize> = HashMap::new();
+        let mut others_to_idx: HashMap<Id, usize> = HashMap::new();
 
-        let mut current_level = vec![start_node];
+        // depth_map ensures we don't have cycles by only allowing links to strictly greater depth
+        let mut depth_map: HashMap<Id, usize> = HashMap::new();
+        let mut queue = VecDeque::new();
+        queue.push_back((start_node, 0));
+        depth_map.insert(start_node, 0);
+
+        while let Some((curr, d)) = queue.pop_front() {
+            if d >= max_depth.unwrap_or(3) { continue; }
+            if let Some(children) = graph.dom_children.get(&curr) {
+                for &child_id in children {
+                    if !depth_map.contains_key(&child_id) {
+                        depth_map.insert(child_id, d + 1);
+                        queue.push_back((child_id, d + 1));
+                    }
+                }
+            }
+        }
+
+        let start_idx = sankey_nodes.len();
+        let start_class_id = graph.obj_id_to_class_id.get(&start_node).cloned().unwrap_or(start_node);
+        class_to_idx.insert(start_class_id, start_idx);
 
         let start_name = if start_node == virtual_root {
             "Root GC".to_string()
         } else {
-            let class_id = graph.obj_id_to_class_id.get(&start_node).cloned().unwrap_or(start_node);
-            graph.class_id_to_name.get(&class_id).cloned().unwrap_or_else(|| format_id(start_node))
+            graph.class_id_to_name.get(&start_class_id).cloned().unwrap_or_else(|| format_id(start_node))
         };
 
-        let start_idx = sankey_nodes.len();
-        node_to_idx.insert((start_node, 0), start_idx);
         sankey_nodes.push(SankeyNode {
             name: start_name,
             id: Some(format_id(start_node)),
@@ -913,92 +930,168 @@ impl HprofParser {
             shallow_size: graph.nodes.get(&start_node).map(|n| n.shallow_size as f64).unwrap_or(0.0),
         });
 
+        let mut current_level = vec![start_node];
         let depth_limit = max_depth.unwrap_or(3);
-        let mut visited_ids = HashSet::new();
-        visited_ids.insert(start_node);
+        let split_limit = split_count.unwrap_or(8);
 
-        for _ in 0..depth_limit {
+        for d in 0..depth_limit {
             let mut next_level = Vec::new();
+            let mut class_links: HashMap<(usize, Id), (f64, HashSet<String>)> = HashMap::new();
+            let mut others_links: HashMap<(usize, Id), (f64, HashSet<String>)> = HashMap::new();
+
             for &parent_id in &current_level {
-                let parent_idx = node_to_idx[&(parent_id, 0)];
+                let parent_class_id = graph.obj_id_to_class_id.get(&parent_id).cloned().unwrap_or(parent_id);
+                let parent_idx = class_to_idx[&parent_class_id];
 
                 if let Some(children) = graph.dom_children.get(&parent_id) {
                     let mut sorted_children = children.clone();
                     sorted_children.sort_by(|a, b| {
                         let sa = graph.retained_sizes.get(a).cloned().unwrap_or(0);
                         let sb = graph.retained_sizes.get(b).cloned().unwrap_or(0);
-                        sb.cmp(&sa)
+                        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
                     });
 
                     let parent_id_str = format_id(parent_id);
-                    let limit = if expand_id_str.as_ref() == Some(&parent_id_str) { 1000 } else { 8 };
-                    let mut others_size = 0.0;
-                    let mut others_count = 0;
+                    let limit = if expand_id_str.as_ref() == Some(&parent_id_str) { 1000 } else { split_limit };
 
                     for (i, &child_id) in sorted_children.iter().enumerate() {
                         let child_retained = graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64;
-                        if i >= limit {
-                            others_size += child_retained;
-                            others_count += 1;
+                        let child_class_id = graph.obj_id_to_class_id.get(&child_id).cloned().unwrap_or(child_id);
+
+                        // Break cycles: only allow links to deeper nodes
+                        if depth_map.get(&child_id).cloned().unwrap_or(0) <= d {
                             continue;
                         }
 
-                        if visited_ids.contains(&child_id) { continue; }
-                        visited_ids.insert(child_id);
-
-                        let child_idx = sankey_nodes.len();
-                        let class_id = graph.obj_id_to_class_id.get(&child_id).cloned().unwrap_or(child_id);
-                        let child_name = graph.class_id_to_name.get(&class_id).cloned().unwrap_or_else(|| format_id(child_id));
-
-                        sankey_nodes.push(SankeyNode {
-                            name: child_name,
-                            id: Some(format_id(child_id)),
-                            parent_id: None,
-                            retained_size: child_retained,
-                            shallow_size: graph.nodes.get(&child_id).map(|n| n.shallow_size as f64).unwrap_or(0.0),
-                        });
-                        node_to_idx.insert((child_id, 0), child_idx);
-                        next_level.push(child_id);
-
-                        let mut field_names = Vec::new();
-                        if let Some(parent_node) = graph.nodes.get(&parent_id) {
-                            for (f_name, target_id) in &parent_node.references {
-                                if *target_id == child_id {
-                                    if let Some(name) = f_name {
-                                        field_names.push(name.clone());
+                        if i < limit {
+                            let (val, fields) = class_links.entry((parent_idx, child_class_id)).or_insert((0.0, HashSet::new()));
+                            *val += child_retained;
+                            if let Some(parent_node) = graph.nodes.get(&parent_id) {
+                                for (f_name, target_id) in &parent_node.references {
+                                    if *target_id == child_id {
+                                        if let Some(name) = f_name { fields.insert(name.clone()); }
                                     }
                                 }
                             }
+                            if !class_to_idx.contains_key(&child_class_id) {
+                                next_level.push(child_id);
+                            }
+                        } else {
+                            let others_node_idx = if let Some(&idx) = others_to_idx.get(&parent_id) {
+                                idx
+                            } else {
+                                let idx = sankey_nodes.len();
+                                sankey_nodes.push(SankeyNode {
+                                    name: "Others".to_string(),
+                                    id: None,
+                                    parent_id: Some(parent_id_str.clone()),
+                                    retained_size: 0.0,
+                                    shallow_size: 0.0,
+                                });
+                                others_to_idx.insert(parent_id, idx);
+                                sankey_links.push(SankeyLink {
+                                    source: parent_idx,
+                                    target: idx,
+                                    value: 0.0,
+                                    field_names: None,
+                                });
+                                idx
+                            };
+
+                            sankey_nodes[others_node_idx].retained_size += child_retained;
+                            sankey_nodes[others_node_idx].shallow_size += child_retained;
+
+                            // Link from "Others" to the child's class
+                            let (val, _fields) = others_links.entry((others_node_idx, child_class_id)).or_insert((0.0, HashSet::new()));
+                            *val += child_retained;
+
+                            // Update the link from parent to "Others"
+                            if let Some(link) = sankey_links.iter_mut().find(|l| l.source == parent_idx && l.target == others_node_idx) {
+                                link.value += child_retained;
+                            }
                         }
-
-                        sankey_links.push(SankeyLink {
-                            source: parent_idx,
-                            target: child_idx,
-                            value: if child_retained > 0.0 { child_retained } else { 1.0 },
-                            field_names: if field_names.is_empty() { None } else { Some(field_names) },
-                        });
-                    }
-
-                    if others_size > 0.0 {
-                        let others_idx = sankey_nodes.len();
-                        sankey_nodes.push(SankeyNode {
-                            name: format!("Others ({} objects)", others_count),
-                            id: None,
-                            parent_id: Some(parent_id_str),
-                            retained_size: others_size,
-                            shallow_size: others_size, // For "Others" leaf node, shallow size is its total contribution
-                        });
-                        sankey_links.push(SankeyLink {
-                            source: parent_idx,
-                            target: others_idx,
-                            value: others_size,
-                            field_names: None,
-                        });
                     }
                 }
             }
+
+            // Flush class_links to nodes and links
+            for ((p_idx, c_class_id), (val, fields)) in class_links {
+                let c_idx = if let Some(&idx) = class_to_idx.get(&c_class_id) {
+                    idx
+                } else {
+                    let idx = sankey_nodes.len();
+                    let name = graph.class_id_to_name.get(&c_class_id).cloned().unwrap_or_else(|| format_id(c_class_id));
+                    // Find an instance of this class to use its ID for zoom
+                    let representative_id = current_level.iter().find(|&&pid| {
+                        graph.dom_children.get(&pid).map_or(false, |children| {
+                            children.iter().any(|&cid| graph.obj_id_to_class_id.get(&cid).cloned().unwrap_or(cid) == c_class_id)
+                        })
+                    }).and_then(|&pid| {
+                        graph.dom_children.get(&pid).and_then(|children| {
+                            children.iter().find(|&&cid| graph.obj_id_to_class_id.get(&cid).cloned().unwrap_or(cid) == c_class_id).cloned()
+                        })
+                    }).unwrap_or(c_class_id);
+
+                    sankey_nodes.push(SankeyNode {
+                        name,
+                        id: Some(format_id(representative_id)),
+                        parent_id: None,
+                        retained_size: 0.0, // Will be updated by incoming links or initial calculation
+                        shallow_size: 0.0,
+                    });
+                    class_to_idx.insert(c_class_id, idx);
+                    idx
+                };
+
+                sankey_links.push(SankeyLink {
+                    source: p_idx,
+                    target: c_idx,
+                    value: if val > 0.0 { val } else { 1e-9 },
+                    field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
+                });
+            }
+
+            // Flush others_links to links
+            for ((o_idx, c_class_id), (val, fields)) in others_links {
+                let c_idx = if let Some(&idx) = class_to_idx.get(&c_class_id) {
+                    idx
+                } else {
+                    let idx = sankey_nodes.len();
+                    let name = graph.class_id_to_name.get(&c_class_id).cloned().unwrap_or_else(|| format_id(c_class_id));
+                    sankey_nodes.push(SankeyNode {
+                        name,
+                        id: Some(format_id(c_class_id)),
+                        parent_id: None,
+                        retained_size: 0.0,
+                        shallow_size: 0.0,
+                    });
+                    class_to_idx.insert(c_class_id, idx);
+                    idx
+                };
+
+                sankey_links.push(SankeyLink {
+                    source: o_idx,
+                    target: c_idx,
+                    value: if val > 0.0 { val } else { 1e-9 },
+                    field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
+                });
+            }
+
             if next_level.is_empty() { break; }
             current_level = next_level;
+        }
+
+        // Final pass to ensure all nodes have correct retained/shallow size based on incoming links
+        // for nodes that were aggregated by class.
+        for node_idx in 1..sankey_nodes.len() {
+            let incoming_value: f64 = sankey_links.iter()
+                .filter(|l| l.target == node_idx)
+                .map(|l| l.value)
+                .sum();
+            if incoming_value > 0.0 {
+                sankey_nodes[node_idx].retained_size = incoming_value;
+                sankey_nodes[node_idx].shallow_size = incoming_value;
+            }
         }
 
         Ok(serde_wasm_bindgen::to_value(&SankeyData { nodes: sankey_nodes, links: sankey_links })?)

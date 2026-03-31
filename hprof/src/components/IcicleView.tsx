@@ -2,14 +2,16 @@ import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { SankeyData } from '../../hprof-wasm/pkg';
 import { buildHierarchy, formatBytes, HierarchyNode } from '../utils/hierarchy';
+import { HoverInfo } from './MemoryFlowView';
 
 interface IcicleViewProps {
     data: SankeyData;
     onNodeClick: (id: string, name: string) => void;
     onExpandOthers?: (parentId: string) => void;
+    onHover: (info: HoverInfo) => void;
 }
 
-export function IcicleView({ data, onNodeClick, onExpandOthers }: IcicleViewProps) {
+export function IcicleView({ data, onNodeClick, onExpandOthers, onHover }: IcicleViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
 
     useEffect(() => {
@@ -70,8 +72,17 @@ export function IcicleView({ data, onNodeClick, onExpandOthers }: IcicleViewProp
                         onExpandOthers(d.data.parent_id);
                     }
                 })
-                .on("mouseover", function() { d3.select(this).attr("fill-opacity", 0.8); })
-                .on("mouseout", function() { d3.select(this).attr("fill-opacity", 0.6); });
+                .on("mouseover", (event, d) => {
+                    d3.select(event.currentTarget).attr("fill-opacity", 0.8);
+                    const node = d.data;
+                    const lines = [`Retained: ${formatBytes(node.retained_size)}`];
+                    if (node.shallow_size > 0) lines.push(`Shallow: ${formatBytes(node.shallow_size)}`);
+                    onHover({ title: node.name, lines });
+                })
+                .on("mouseout", (event) => {
+                    d3.select(event.currentTarget).attr("fill-opacity", 0.6);
+                    onHover(null);
+                });
 
             cell.append("clipPath")
                 .attr("id", (d, i) => `clip-icicle-${i}`)
@@ -91,8 +102,6 @@ export function IcicleView({ data, onNodeClick, onExpandOthers }: IcicleViewProp
                     return name;
                 });
 
-            cell.append("title")
-                .text(d => `${d.data.name}\nRetained: ${formatBytes(d.data.retained_size)}\nShallow: ${formatBytes(d.data.shallow_size)}`);
         };
 
         updateSize();

@@ -1,17 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { SankeyData } from '../../hprof-wasm/pkg';
 import { buildHierarchy, formatBytes } from '../utils/hierarchy';
+import { HoverInfo } from './MemoryFlowView';
 
 interface SunburstViewProps {
     data: SankeyData;
     onNodeClick: (id: string, name: string) => void;
     onExpandOthers?: (parentId: string) => void;
+    onHover: (info: HoverInfo) => void;
 }
 
-export function SunburstView({ data, onNodeClick, onExpandOthers }: SunburstViewProps) {
+export function SunburstView({ data, onNodeClick, onExpandOthers, onHover }: SunburstViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
-    const [hoveredNode, setHoveredNode] = useState<any>(null);
 
     useEffect(() => {
         if (!svgRef.current || !data.nodes.length) return;
@@ -87,22 +88,17 @@ export function SunburstView({ data, onNodeClick, onExpandOthers }: SunburstView
                 })
                 .on("mouseover", function(event, d) {
                     d3.select(this).attr("fill-opacity", 0.9);
-                    setHoveredNode(d);
+                    const node = d.data;
+                    const lines = [
+                        `Retained: ${formatBytes(node.retained_size)}`,
+                        `${((d.value || 0) / (root.value || 1) * 100).toFixed(1)}% of view root`
+                    ];
+                    if (node.shallow_size > 0) lines.push(`Shallow: ${formatBytes(node.shallow_size)}`);
+                    onHover({ title: node.name, lines });
                 })
                 .on("mouseout", function(event, d) {
                     d3.select(this).attr("fill-opacity", 0.6);
-                    setHoveredNode(null);
-                });
-
-            path.append("title")
-                .text(d => {
-                    const node = d.data;
-                    let text = `${node.name}\nRetained: ${formatBytes(node.retained_size)}`;
-                    if (node.shallow_size > 0) {
-                        text += `\nShallow: ${formatBytes(node.shallow_size)}`;
-                    }
-                    text += `\n${((d.value || 0) / (root.value || 1) * 100).toFixed(1)}% of view root`;
-                    return text;
+                    onHover(null);
                 });
 
             // Center label group
@@ -143,35 +139,9 @@ export function SunburstView({ data, onNodeClick, onExpandOthers }: SunburstView
 
     }, [data, onNodeClick, onExpandOthers]);
 
-    const displayNode = hoveredNode || (data.nodes.length > 0 ? { data: { name: data.nodes[0].name, retained_size: data.nodes[0].retained_size, shallow_size: data.nodes[0].shallow_size } } : null);
-
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <svg ref={svgRef} className="sunburst-svg" />
-            {displayNode && (
-                <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    textAlign: 'center',
-                    pointerEvents: 'none',
-                    width: '120px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    wordBreak: 'break-word'
-                }}>
-                    <div>{displayNode.data.name}</div>
-                    <div style={{ fontWeight: 'normal', color: '#666', fontSize: '10px', marginTop: '4px' }}>
-                        Retained: {formatBytes(displayNode.data.retained_size)}
-                    </div>
-                    {displayNode.data.shallow_size > 0 && (
-                        <div style={{ fontWeight: 'normal', color: '#666', fontSize: '10px' }}>
-                            Shallow: {formatBytes(displayNode.data.shallow_size)}
-                        </div>
-                    )}
-                </div>
-            )}
         </div>
     );
 }

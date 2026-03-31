@@ -13,23 +13,23 @@ export interface HierarchyNode {
 export function buildHierarchy(data: SankeyData): HierarchyNode | null {
     if (!data.nodes || data.nodes.length === 0) return null;
 
-    const childrenMap = new Map<number, { target: number, field_names?: string[] }[]>();
+    const childrenMap = new Map<number, { target: number, value: number, field_names?: string[] }[]>();
     data.links.forEach(link => {
         const children = childrenMap.get(link.source) || [];
-        children.push({ target: link.target, field_names: link.field_names });
+        children.push({ target: link.target, value: link.value, field_names: link.field_names });
         childrenMap.set(link.source, children);
     });
 
-    function buildNode(nodeIdx: number): HierarchyNode {
+    function buildNode(nodeIdx: number, value: number): HierarchyNode {
         const node = data.nodes[nodeIdx];
         const childrenInfo = childrenMap.get(nodeIdx) || [];
 
         // Group children by name
-        const groups = new Map<string, { nodes: number[], field_names: Set<string> }>();
+        const groups = new Map<string, { targets: { idx: number, val: number }[], field_names: Set<string> }>();
         childrenInfo.forEach(info => {
             const childNode = data.nodes[info.target];
-            const group = groups.get(childNode.name) || { nodes: [], field_names: new Set() };
-            group.nodes.push(info.target);
+            const group = groups.get(childNode.name) || { targets: [], field_names: new Set() };
+            group.targets.push({ idx: info.target, val: info.value });
             if (info.field_names) {
                 info.field_names.forEach(name => group.field_names.add(name));
             }
@@ -38,34 +38,31 @@ export function buildHierarchy(data: SankeyData): HierarchyNode | null {
 
         const children: HierarchyNode[] = [];
         groups.forEach((group, name) => {
-            if (group.nodes.length === 1) {
-                children.push(buildNode(group.nodes[0]));
+            if (group.targets.length === 1) {
+                children.push(buildNode(group.targets[0].idx, group.targets[0].val));
             } else {
-                // Aggregate multiple nodes of the same class
                 let totalRetained = 0;
                 let totalShallow = 0;
+                let totalValue = 0;
                 const subChildren: HierarchyNode[] = [];
 
-                group.nodes.forEach(idx => {
-                    const child = buildNode(idx);
+                group.targets.forEach(t => {
+                    const child = buildNode(t.idx, t.val);
                     totalRetained += child.retained_size;
                     totalShallow += child.shallow_size;
+                    totalValue += (child.value || 0);
                     if (child.children) {
                         subChildren.push(...child.children);
                     }
                 });
 
-                // Re-group combined children of the same class
-                // This is a bit complex as it could lead to deep recursion or mismatch.
-                // For now, let's just combine the top level and show "(N objects)".
-
                 children.push({
-                    name: `${name} (${group.nodes.length} objects)`,
-                    id: null, // Grouped node has no single ID
+                    name: `${name} (${group.targets.length} objects)`,
+                    id: null,
                     parent_id: node.id,
                     retained_size: totalRetained,
                     shallow_size: totalShallow,
-                    // Optional: we could merge subChildren by name here too
+                    value: totalValue,
                     children: subChildren.length > 0 ? mergeSiblings(subChildren) : undefined
                 });
             }
@@ -77,11 +74,12 @@ export function buildHierarchy(data: SankeyData): HierarchyNode | null {
             parent_id: node.parent_id,
             retained_size: node.retained_size,
             shallow_size: node.shallow_size,
+            value: value,
             children: children.length > 0 ? children : undefined
         };
     }
 
-    return buildNode(0);
+    return buildNode(0, data.nodes[0].retained_size);
 }
 
 function mergeSiblings(nodes: HierarchyNode[]): HierarchyNode[] {

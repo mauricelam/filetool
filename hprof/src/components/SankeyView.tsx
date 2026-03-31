@@ -3,14 +3,16 @@ import * as d3 from 'd3';
 import { sankey, sankeyLinkHorizontal, sankeyCenter } from 'd3-sankey';
 import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
 import { formatBytes } from '../utils/hierarchy';
+import { HoverInfo } from './MemoryFlowView';
 
 interface SankeyViewProps {
     data: SankeyData;
     onNodeClick: (id: string, name: string) => void;
     onExpandOthers?: (parentId: string) => void;
+    onHover: (info: HoverInfo) => void;
 }
 
-export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProps) {
+export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: SankeyViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
 
     useEffect(() => {
@@ -79,15 +81,12 @@ export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProp
                     onExpandOthers(node.parent_id);
                 }
             })
-            .append("title")
-            .text(d => {
-                const node = d as any;
-                let text = `${node.name}\nRetained: ${formatBytes(node.retained_size)}`;
-                if (node.shallow_size > 0) {
-                    text += `\nShallow: ${formatBytes(node.shallow_size)}`;
-                }
-                return text;
-            });
+            .on("mouseenter", (event, d: any) => {
+                const lines = [`Retained: ${formatBytes(d.retained_size)}`];
+                if (d.shallow_size > 0) lines.push(`Shallow: ${formatBytes(d.shallow_size)}`);
+                onHover({ title: d.name, lines });
+            })
+            .on("mouseleave", () => onHover(null));
 
         const link = g.append("g")
             .attr("fill", "none")
@@ -108,14 +107,18 @@ export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProp
             .selection()
             .on("mouseover", (event, d: any) => {
                 d3.select(event.currentTarget).attr("stroke-opacity", 0.8);
+                const percentage = (d.value / (d.source as any).retained_size * 100).toFixed(1);
+                onHover({
+                    title: `${(d.source as any).name} → ${(d.target as any).name}`,
+                    lines: [
+                        `Field: ${(d as any).field_names?.join(', ') || 'retained'}`,
+                        `Size: ${formatBytes(d.value)} (${percentage}% of parent)`
+                    ]
+                });
             })
             .on("mouseout", (event) => {
                 d3.select(event.currentTarget).attr("stroke-opacity", 0.5);
-            })
-            .append("title")
-            .text(d => {
-                const percentage = (d.value / (d.source as any).retained_size * 100).toFixed(1);
-                return `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${formatBytes(d.value)} (${percentage}% of parent)`;
+                onHover(null);
             });
 
         link.append("text")

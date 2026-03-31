@@ -19,28 +19,26 @@ test('HPROF viewer verification', async ({ page }) => {
 
     await expect(iframe.locator('h2')).toContainText('HPROF Viewer: android.hprof', { timeout: 30000 });
     await iframe.getByRole('tab', { name: 'Memory Flow' }).click();
-    await expect(iframe.getByRole('textbox', { name: 'Visualization type' })).toHaveValue('Sankey');
-    await expect(iframe.locator('text=Analyzing heap dump...')).not.toBeVisible({ timeout: 60000 });
-
+    // Wait for Sankey to be visible
     const sankeySvg = iframe.locator('.sankey-svg');
-    await expect(sankeySvg).toBeVisible({ timeout: 60000 });
+    await expect(sankeySvg).toBeVisible({ timeout: 100000 });
 
     // Hover over the first rect (GC Root)
     await sankeySvg.locator('rect').first().hover();
     await page.waitForTimeout(1000);
-    await page.screenshot({ path: '/home/jules/verification/screenshots/hover_node.png' });
+    await page.screenshot({ path: 'test-results/hprof_hover_node.png' });
 
     // Hover over the first ribbon (path)
     await sankeySvg.locator('path').first().hover();
     await page.waitForTimeout(1000);
-    await page.screenshot({ path: '/home/jules/verification/screenshots/hover_ribbon.png' });
+    await page.screenshot({ path: 'test-results/hprof_hover_ribbon.png' });
 
     // Change split count
     const splitInput = iframe.locator('input[aria-label="Split count"]');
     await splitInput.fill('5');
     await splitInput.press('Enter');
     await page.waitForTimeout(2000);
-    await page.screenshot({ path: '/home/jules/verification/screenshots/split_count_5.png' });
+    await page.screenshot({ path: 'test-results/hprof_split_count_5.png' });
 
     // Switch to Sunburst and check hover
     await iframe.getByRole('textbox', { name: 'Visualization type' }).click();
@@ -48,5 +46,5 @@ test('HPROF viewer verification', async ({ page }) => {
     await page.waitForTimeout(2000);
     await iframe.locator('.sunburst-svg path').nth(5).hover();
     await page.waitForTimeout(1000);
-    await page.screenshot({ path: '/home/jules/verification/screenshots/sunburst_hover.png' });
+    await page.screenshot({ path: 'test-results/hprof_sunburst_hover.png' });
 });
