@@ -135,7 +135,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
     const [sankeyLoading, setSankeyLoading] = useState(false);
     const [sankeyRootId, setSankeyRootId] = useState<string | null>(null);
-    const [sankeyHistory, setSankeyHistory] = useState<(string | null)[]>([]);
+    const [sankeyHistory, setSankeyHistory] = useState<{ id: string | null, name: string }[]>([]);
     const [sankeyDepth, setSankeyDepth] = useState(3);
     const [sankeyExpandId, setSankeyExpandId] = useState<string | null>(null);
 
@@ -243,9 +243,19 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         setActiveTab('instances');
     };
 
-    const handleSankeyZoom = (id: string) => {
+    const handleSankeyZoom = (id: string, name: string) => {
         if (id === sankeyRootId) return;
-        setSankeyHistory(prev => [...prev, sankeyRootId]);
+        // The 'name' passed should be the name of the CURRENT root before zooming
+        // But the zoom event gives us the NEW root's ID and name.
+        // We should add the current root to history.
+        const currentName = sankeyRootId === null ? 'Root GC' : (sankeyData?.nodes.find(n => n.id === sankeyRootId)?.name || sankeyRootId);
+        setSankeyHistory(prev => [...prev, { id: sankeyRootId, name: currentName }]);
+        setSankeyRootId(id);
+        setSankeyExpandId(null);
+    };
+
+    const handleSankeyJump = (id: string | null, index: number) => {
+        setSankeyHistory(prev => prev.slice(0, index));
         setSankeyRootId(id);
         setSankeyExpandId(null);
     };
@@ -253,9 +263,9 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const handleSankeyBack = () => {
         if (sankeyHistory.length === 0) return;
         const newHistory = [...sankeyHistory];
-        const lastId = newHistory.pop()!;
+        const last = newHistory.pop()!;
         setSankeyHistory(newHistory);
-        setSankeyRootId(lastId);
+        setSankeyRootId(last.id);
         setSankeyExpandId(null);
     };
 
@@ -375,6 +385,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                         history={sankeyHistory}
                         onDepthChange={setSankeyDepth}
                         onZoom={handleSankeyZoom}
+                        onJump={handleSankeyJump}
                         onBack={handleSankeyBack}
                         onReset={handleSankeyReset}
                         onExpandOthers={handleSankeyExpand}

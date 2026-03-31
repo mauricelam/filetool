@@ -5,7 +5,7 @@ import { buildHierarchy, formatBytes, HierarchyNode } from '../utils/hierarchy';
 
 interface TreemapViewProps {
     data: SankeyData;
-    onNodeClick?: (id: string) => void;
+    onNodeClick: (id: string, name: string) => void;
     onExpandOthers?: (parentId: string) => void;
 }
 
@@ -52,19 +52,23 @@ export function TreemapView({ data, onNodeClick, onExpandOthers }: TreemapViewPr
                 .attr("transform", d => `translate(${d.x0},${d.y0})`);
 
             leaf.append("rect")
+                .attr("width", d => d.x1 - d.x0)
+                .attr("height", d => d.y1 - d.y0)
+                .attr("fill-opacity", 0)
+                .transition()
+                .duration(500)
+                .attr("fill-opacity", 0.6)
+                .selection()
                 .attr("fill", d => {
                     if (d.data.name.startsWith("Others")) return "#ccc";
                     let curr = d;
                     while (curr.depth > 1) curr = curr.parent!;
                     return color(curr.data.name);
                 })
-                .attr("fill-opacity", 0.6)
-                .attr("width", d => d.x1 - d.x0)
-                .attr("height", d => d.y1 - d.y0)
                 .style("cursor", "pointer")
                 .on("click", (event, d) => {
                     if (d.data.id && onNodeClick) {
-                        onNodeClick(d.data.id);
+                        onNodeClick(d.data.id, d.data.name);
                     } else if (!d.data.id && d.data.parent_id && onExpandOthers) {
                         onExpandOthers(d.data.parent_id);
                     }

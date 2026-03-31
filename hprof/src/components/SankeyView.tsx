@@ -6,7 +6,7 @@ import { formatBytes } from '../utils/hierarchy';
 
 interface SankeyViewProps {
     data: SankeyData;
-    onNodeClick?: (id: string) => void;
+    onNodeClick: (id: string, name: string) => void;
     onExpandOthers?: (parentId: string) => void;
 }
 
@@ -63,13 +63,18 @@ export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProp
             .attr("y", d => (d as any).y0)
             .attr("height", d => Math.max(1, (d as any).y1 - (d as any).y0))
             .attr("width", d => (d as any).x1 - (d as any).x0)
+            .attr("fill-opacity", 0)
+            .transition()
+            .duration(500)
+            .attr("fill-opacity", 1)
+            .selection()
             .attr("fill", (d: any) => nodeColor(d))
             .attr("stroke", "#000")
             .style("cursor", "pointer")
             .on("click", (event, d) => {
                 const node = d as any;
                 if (node.id && onNodeClick) {
-                    onNodeClick(node.id);
+                    onNodeClick(node.id, node.name);
                 } else if (!node.id && node.parent_id && onExpandOthers) {
                     onExpandOthers(node.parent_id);
                 }
@@ -96,6 +101,11 @@ export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProp
             .attr("d", sankeyLinkHorizontal())
             .attr("stroke", d => nodeColor(d.source))
             .attr("stroke-width", d => Math.max(1, (d as any).width || 0))
+            .attr("stroke-opacity", 0)
+            .transition()
+            .duration(500)
+            .attr("stroke-opacity", 0.5)
+            .selection()
             .on("mouseover", (event, d: any) => {
                 d3.select(event.currentTarget).attr("stroke-opacity", 0.8);
             })
