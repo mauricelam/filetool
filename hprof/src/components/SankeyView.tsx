@@ -2,20 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { sankey, sankeyLinkHorizontal, sankeyCenter } from 'd3-sankey';
 import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
+import { formatBytes } from '../utils/hierarchy';
 
 interface SankeyViewProps {
     data: SankeyData;
     onNodeClick?: (id: string) => void;
     onExpandOthers?: (parentId: string) => void;
 }
-
-const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
 
 export function SankeyView({ data, onNodeClick, onExpandOthers }: SankeyViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);

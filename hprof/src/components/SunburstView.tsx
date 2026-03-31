@@ -1,20 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { SankeyData } from '../../hprof-wasm/pkg';
+import { buildHierarchy, formatBytes } from '../utils/hierarchy';
 
 interface SunburstViewProps {
     data: SankeyData;
     onNodeClick?: (id: string) => void;
     onExpandOthers?: (parentId: string) => void;
 }
-
-const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
 
 export function SunburstView({ data, onNodeClick, onExpandOthers }: SunburstViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
@@ -38,30 +31,8 @@ export function SunburstView({ data, onNodeClick, onExpandOthers }: SunburstView
 
             svg.selectAll("*").remove();
 
-            // Reconstruct hierarchy from SankeyData (nodes and links)
-            const childrenMap = new Map<number, number[]>();
-            data.links.forEach(link => {
-                const children = childrenMap.get(link.source) || [];
-                children.push(link.target);
-                childrenMap.set(link.source, children);
-            });
-
-            function buildHierarchy(nodeIdx: number): any {
-                const node = data.nodes[nodeIdx];
-                const childrenIdxs = childrenMap.get(nodeIdx) || [];
-                const children = childrenIdxs.map(buildHierarchy);
-
-                return {
-                    name: node.name,
-                    id: node.id,
-                    parent_id: node.parent_id,
-                    retained_size: node.retained_size,
-                    shallow_size: node.shallow_size,
-                    children: children.length > 0 ? children : undefined
-                };
-            }
-
-            const hierarchyData = buildHierarchy(0);
+            const hierarchyData = buildHierarchy(data);
+            if (!hierarchyData) return;
 
             const root = d3.hierarchy(hierarchyData)
                 .sum(d => d.shallow_size)
