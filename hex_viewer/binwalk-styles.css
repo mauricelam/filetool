@@ -4,6 +4,26 @@
     gap: 12px;
 }
 
+.binwalk-options {
+    padding: 8px;
+    background-color: #252526;
+    border: 1px solid #333;
+    border-radius: 4px;
+}
+
+.binwalk-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #ccc;
+}
+
+.binwalk-option input {
+    margin: 0;
+}
+
 .scan-button {
     width: 100%;
     padding: 8px;
