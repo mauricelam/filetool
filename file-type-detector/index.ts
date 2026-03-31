@@ -243,11 +243,12 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "handler": "decompressor",
         "mimetypes": [
             { "description": /lzfse (encoded|compressed)/i },
+            { "description": /zlib compressed/i },
             "application/gzip", "application/x-gzip", { "filename": /\.gz$/i },
             "application/x-brotli", { "filename": /\.br$/i },
             "application/x-lzma", { "filename": /\.lzma$/i },
             "application/x-xz", { "filename": /\.xz$/i },
-            "application/zlib", { "filename": /\.zlib$/i },
+            "application/zlib", "application/x-zlib", { "filename": /\.zlib$/i },
             "application/x-bzip2", "application/x-bzip", { "filename": /\.bz2$/i }
         ]
     },
