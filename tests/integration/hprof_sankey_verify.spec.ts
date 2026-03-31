@@ -32,15 +32,16 @@ test('HPROF viewer Sankey diagram should have specific features', async ({ page 
     await expect(rootLabel).toBeVisible();
     await expect(rootLabel).toContainText(/MB|KB|B/);
 
-    // Check for a link with a title containing percentage
+    // Check for a link - ribbons don't have titles anymore, they use onHover
     const firstPath = sankeySvg.locator('path').first();
-    const title = await firstPath.locator('title').textContent();
-    expect(title).toMatch(/\d+\.\d+% of parent/);
+    await firstPath.evaluate(el => el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    const tooltip = iframe.locator('.memory-flow-tooltip').filter({ hasText: 'of parent' }).first();
+    await expect(tooltip).toBeVisible();
 
     // Click an "Others" node if it exists
-    const othersNode = iframe.locator('rect').filter({ has: iframe.locator('title:has-text("Others")') });
+    const othersNode = iframe.locator('.node-label').filter({ hasText: /Others/ });
     if (await othersNode.count() > 0) {
-        await othersNode.first().click();
+        await othersNode.first().click({ force: true });
         // Wait for it to expand (it should re-render)
         await page.waitForTimeout(2000);
         // "Others" for that parent should ideally be gone or smaller

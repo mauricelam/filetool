@@ -114,6 +114,7 @@ export function MemoryFlowView({
                 )}
                 {hoverInfo && (
                     <Paper
+                        className="memory-flow-tooltip"
                         pos="absolute"
                         top={10}
                         left={10}

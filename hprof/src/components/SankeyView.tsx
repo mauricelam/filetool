@@ -57,6 +57,14 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
 
         const g = svg.append("g");
 
+        const handleNodeClick = (event: any, d: any) => {
+            if (d.id && onNodeClick) {
+                onNodeClick(d.id, d.name);
+            } else if (!d.id && d.parent_id && onExpandOthers) {
+                onExpandOthers(d.parent_id);
+            }
+        };
+
         g.append("g")
             .selectAll("rect")
             .data(nodes)
@@ -73,14 +81,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .attr("fill", (d: any) => nodeColor(d))
             .attr("stroke", "#000")
             .style("cursor", "pointer")
-            .on("click", (event, d) => {
-                const node = d as any;
-                if (node.id && onNodeClick) {
-                    onNodeClick(node.id, node.name);
-                } else if (!node.id && node.parent_id && onExpandOthers) {
-                    onExpandOthers(node.parent_id);
-                }
-            })
+            .on("click", handleNodeClick)
             .on("mouseenter", (event, d: any) => {
                 const lines = [`Retained: ${formatBytes(d.retained_size)}`];
                 if (d.shallow_size > 0) lines.push(`Shallow: ${formatBytes(d.shallow_size)}`);
@@ -149,7 +150,14 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .attr("y", d => ((d as any).y1 + (d as any).y0) / 2 - 25)
             .attr("width", 150)
             .attr("height", 50)
-            .style("pointer-events", "none")
+            .style("cursor", "pointer")
+            .on("click", handleNodeClick)
+            .on("mouseenter", (event, d: any) => {
+                const lines = [`Retained: ${formatBytes(d.retained_size)}`];
+                if (d.shallow_size > 0) lines.push(`Shallow: ${formatBytes(d.shallow_size)}`);
+                onHover({ title: d.name, lines });
+            })
+            .on("mouseleave", () => onHover(null))
             .append("xhtml:div")
             .style("font", "10px sans-serif")
             .style("text-align", d => (d as any).x0 < width / 2 ? "left" : "right")
@@ -159,6 +167,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .style("display", "-webkit-box")
             .style("-webkit-line-clamp", "3")
             .style("-webkit-box-orient", "vertical")
+            .style("pointer-events", "none")
             .html(d => {
                 const node = d as any;
                 const sizeStr = (node.depth === 0 || node.depth === 1) ? `<br/><span style="color: #666">${formatBytes(node.retained_size)}</span>` : "";

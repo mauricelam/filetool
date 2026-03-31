@@ -892,9 +892,8 @@ impl HprofParser {
         let mut sankey_nodes = Vec::new();
         let mut sankey_links = Vec::new();
         let mut class_to_idx: HashMap<Id, usize> = HashMap::new();
-        let mut others_to_idx: HashMap<Id, usize> = HashMap::new();
 
-        // depth_map ensures we don't have cycles by only allowing links to strictly greater depth
+        // BFS to find min depth of each object to break cycles
         let mut depth_map: HashMap<Id, usize> = HashMap::new();
         let mut queue = VecDeque::new();
         queue.push_back((start_node, 0));
@@ -912,8 +911,8 @@ impl HprofParser {
             }
         }
 
-        let start_idx = sankey_nodes.len();
         let start_class_id = graph.obj_id_to_class_id.get(&start_node).cloned().unwrap_or(start_node);
+        let start_idx = sankey_nodes.len();
         class_to_idx.insert(start_class_id, start_idx);
 
         let start_name = if start_node == virtual_root {
@@ -930,159 +929,175 @@ impl HprofParser {
             shallow_size: graph.nodes.get(&start_node).map(|n| n.shallow_size as f64).unwrap_or(0.0),
         });
 
-        let mut current_level = vec![start_node];
+        // Class-based level-by-level traversal
+        // Track objects of each class at the current depth
+        let mut current_class_to_objs: HashMap<Id, Vec<Id>> = HashMap::new();
+        current_class_to_objs.insert(start_class_id, vec![start_node]);
+
         let depth_limit = max_depth.unwrap_or(3);
         let split_limit = split_count.unwrap_or(8);
 
         for d in 0..depth_limit {
-            let mut next_level = Vec::new();
-            let mut class_links: HashMap<(usize, Id), (f64, HashSet<String>)> = HashMap::new();
-            let mut others_links: HashMap<(usize, Id), (f64, HashSet<String>)> = HashMap::new();
+            let mut next_class_to_objs: HashMap<Id, Vec<Id>> = HashMap::new();
 
-            for &parent_id in &current_level {
-                let parent_class_id = graph.obj_id_to_class_id.get(&parent_id).cloned().unwrap_or(parent_id);
-                let parent_idx = class_to_idx[&parent_class_id];
+            // We iterate over the classes at the current level
+            let current_classes: Vec<Id> = current_class_to_objs.keys().cloned().collect();
+            for source_class_id in current_classes {
+                let source_idx = class_to_idx[&source_class_id];
+                let objs = &current_class_to_objs[&source_class_id];
 
-                if let Some(children) = graph.dom_children.get(&parent_id) {
-                    let mut sorted_children = children.clone();
-                    sorted_children.sort_by(|a, b| {
-                        let sa = graph.retained_sizes.get(a).cloned().unwrap_or(0);
-                        let sb = graph.retained_sizes.get(b).cloned().unwrap_or(0);
-                        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
-                    });
+                // Aggregate children across all objects of this class at this level
+                let mut aggregated_children: HashMap<Id, (f64, Vec<Id>, HashSet<String>)> = HashMap::new();
+                for &oid in objs {
+                    if let Some(children) = graph.dom_children.get(&oid) {
+                        for &child_id in children {
+                            if depth_map.get(&child_id).cloned().unwrap_or(0) <= d {
+                                continue;
+                            }
+                            let child_class_id = graph.obj_id_to_class_id.get(&child_id).cloned().unwrap_or(child_id);
+                            let entry = aggregated_children.entry(child_class_id).or_insert((0.0, Vec::new(), HashSet::new()));
+                            entry.0 += graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64;
+                            entry.1.push(child_id);
 
-                    let parent_id_str = format_id(parent_id);
-                    let limit = if expand_id_str.as_ref() == Some(&parent_id_str) { 1000 } else { split_limit };
-
-                    for (i, &child_id) in sorted_children.iter().enumerate() {
-                        let child_retained = graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64;
-                        let child_class_id = graph.obj_id_to_class_id.get(&child_id).cloned().unwrap_or(child_id);
-
-                        // Break cycles: only allow links to deeper nodes
-                        if depth_map.get(&child_id).cloned().unwrap_or(0) <= d {
-                            continue;
-                        }
-
-                        if i < limit {
-                            let (val, fields) = class_links.entry((parent_idx, child_class_id)).or_insert((0.0, HashSet::new()));
-                            *val += child_retained;
-                            if let Some(parent_node) = graph.nodes.get(&parent_id) {
-                                for (f_name, target_id) in &parent_node.references {
+                            // Field names from parent to child
+                            if let Some(node) = graph.nodes.get(&oid) {
+                                for (f_name, target_id) in &node.references {
                                     if *target_id == child_id {
-                                        if let Some(name) = f_name { fields.insert(name.clone()); }
+                                        if let Some(name) = f_name { entry.2.insert(name.clone()); }
                                     }
                                 }
-                            }
-                            if !class_to_idx.contains_key(&child_class_id) {
-                                next_level.push(child_id);
-                            }
-                        } else {
-                            let others_node_idx = if let Some(&idx) = others_to_idx.get(&parent_id) {
-                                idx
-                            } else {
-                                let idx = sankey_nodes.len();
-                                sankey_nodes.push(SankeyNode {
-                                    name: "Others".to_string(),
-                                    id: None,
-                                    parent_id: Some(parent_id_str.clone()),
-                                    retained_size: 0.0,
-                                    shallow_size: 0.0,
-                                });
-                                others_to_idx.insert(parent_id, idx);
-                                sankey_links.push(SankeyLink {
-                                    source: parent_idx,
-                                    target: idx,
-                                    value: 0.0,
-                                    field_names: None,
-                                });
-                                idx
-                            };
-
-                            sankey_nodes[others_node_idx].retained_size += child_retained;
-                            sankey_nodes[others_node_idx].shallow_size += child_retained;
-
-                            // Link from "Others" to the child's class
-                            let (val, _fields) = others_links.entry((others_node_idx, child_class_id)).or_insert((0.0, HashSet::new()));
-                            *val += child_retained;
-
-                            // Update the link from parent to "Others"
-                            if let Some(link) = sankey_links.iter_mut().find(|l| l.source == parent_idx && l.target == others_node_idx) {
-                                link.value += child_retained;
                             }
                         }
                     }
                 }
-            }
 
-            // Flush class_links to nodes and links
-            for ((p_idx, c_class_id), (val, fields)) in class_links {
-                let c_idx = if let Some(&idx) = class_to_idx.get(&c_class_id) {
-                    idx
-                } else {
-                    let idx = sankey_nodes.len();
-                    let name = graph.class_id_to_name.get(&c_class_id).cloned().unwrap_or_else(|| format_id(c_class_id));
-                    // Find an instance of this class to use its ID for zoom
-                    let representative_id = current_level.iter().find(|&&pid| {
-                        graph.dom_children.get(&pid).map_or(false, |children| {
-                            children.iter().any(|&cid| graph.obj_id_to_class_id.get(&cid).cloned().unwrap_or(cid) == c_class_id)
-                        })
-                    }).and_then(|&pid| {
-                        graph.dom_children.get(&pid).and_then(|children| {
-                            children.iter().find(|&&cid| graph.obj_id_to_class_id.get(&cid).cloned().unwrap_or(cid) == c_class_id).cloned()
-                        })
-                    }).unwrap_or(c_class_id);
+                let mut sorted_children: Vec<_> = aggregated_children.into_iter().collect();
+                sorted_children.sort_by(|a, b| b.1.0.partial_cmp(&a.1.0).unwrap());
 
+                // Does this class node have expansion requested?
+                // For class-aggregated view, we use the class ID as the zoom/expand target.
+                let is_expanded = expand_id_str.as_ref() == Some(&format_id(source_class_id));
+                let limit = if is_expanded { 1000 } else { split_limit };
+
+                let mut others_size = 0.0;
+                let mut others_targets: HashMap<Id, (f64, Vec<Id>, HashSet<String>)> = HashMap::new();
+
+                for (i, (child_class_id, (val, oids, fields))) in sorted_children.into_iter().enumerate() {
+                    if i < limit {
+                        let target_idx = if let Some(&idx) = class_to_idx.get(&child_class_id) {
+                            idx
+                        } else {
+                            let idx = sankey_nodes.len();
+                            let name = graph.class_id_to_name.get(&child_class_id).cloned().unwrap_or_else(|| format_id(child_class_id));
+                            sankey_nodes.push(SankeyNode {
+                                name,
+                                id: Some(format_id(child_class_id)),
+                                parent_id: None,
+                                retained_size: 0.0,
+                                shallow_size: 0.0,
+                            });
+                            class_to_idx.insert(child_class_id, idx);
+                            idx
+                        };
+
+                        sankey_links.push(SankeyLink {
+                            source: source_idx,
+                            target: target_idx,
+                            value: val,
+                            field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
+                        });
+
+                        next_class_to_objs.entry(child_class_id).or_default().extend(oids);
+                    } else {
+                        others_size += val;
+                        let entry = others_targets.entry(child_class_id).or_insert((0.0, Vec::new(), HashSet::new()));
+                        entry.0 += val;
+                        entry.1.extend(oids);
+                        entry.2.extend(fields);
+                    }
+                }
+
+                if others_size > 0.0 {
+                    let others_idx = sankey_nodes.len();
                     sankey_nodes.push(SankeyNode {
-                        name,
-                        id: Some(format_id(representative_id)),
-                        parent_id: None,
-                        retained_size: 0.0, // Will be updated by incoming links or initial calculation
-                        shallow_size: 0.0,
+                        name: format!("Others ({} classes)", others_targets.len()),
+                        id: None,
+                        parent_id: Some(format_id(source_class_id)),
+                        retained_size: others_size,
+                        shallow_size: others_size,
                     });
-                    class_to_idx.insert(c_class_id, idx);
-                    idx
-                };
 
-                sankey_links.push(SankeyLink {
-                    source: p_idx,
-                    target: c_idx,
-                    value: if val > 0.0 { val } else { 1e-9 },
-                    field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
-                });
+                    sankey_links.push(SankeyLink {
+                        source: source_idx,
+                        target: others_idx,
+                        value: others_size,
+                        field_names: None,
+                    });
+
+                    // Link from Others to classes within
+                    let mut others_vec: Vec<_> = others_targets.into_iter().collect();
+                    others_vec.sort_by(|a, b| b.1.0.partial_cmp(&a.1.0).unwrap());
+
+                    let mut remaining_size = 0.0;
+                    let mut remaining_count = 0;
+
+                    for (i, (t_class_id, (t_val, t_oids, t_fields))) in others_vec.into_iter().enumerate() {
+                        if i >= 10 {
+                            remaining_size += t_val;
+                            remaining_count += 1;
+                            continue;
+                        }
+
+                        let t_idx = if let Some(&idx) = class_to_idx.get(&t_class_id) {
+                            idx
+                        } else {
+                            let idx = sankey_nodes.len();
+                            let name = graph.class_id_to_name.get(&t_class_id).cloned().unwrap_or_else(|| format_id(t_class_id));
+                            sankey_nodes.push(SankeyNode {
+                                name,
+                                id: Some(format_id(t_class_id)),
+                                parent_id: None,
+                                retained_size: 0.0,
+                                shallow_size: 0.0,
+                            });
+                            class_to_idx.insert(t_class_id, idx);
+                            idx
+                        };
+
+                        sankey_links.push(SankeyLink {
+                            source: others_idx,
+                            target: t_idx,
+                            value: t_val,
+                            field_names: if t_fields.is_empty() { None } else { Some(t_fields.into_iter().collect()) },
+                        });
+
+                        next_class_to_objs.entry(t_class_id).or_default().extend(t_oids);
+                    }
+
+                    if remaining_size > 0.0 {
+                        let rem_idx = sankey_nodes.len();
+                        sankey_nodes.push(SankeyNode {
+                            name: format!("Others (+{} classes)", remaining_count),
+                            id: None,
+                            parent_id: None,
+                            retained_size: remaining_size,
+                            shallow_size: remaining_size,
+                        });
+                        sankey_links.push(SankeyLink {
+                            source: others_idx,
+                            target: rem_idx,
+                            value: remaining_size,
+                            field_names: None,
+                        });
+                    }
+                }
             }
 
-            // Flush others_links to links
-            for ((o_idx, c_class_id), (val, fields)) in others_links {
-                let c_idx = if let Some(&idx) = class_to_idx.get(&c_class_id) {
-                    idx
-                } else {
-                    let idx = sankey_nodes.len();
-                    let name = graph.class_id_to_name.get(&c_class_id).cloned().unwrap_or_else(|| format_id(c_class_id));
-                    sankey_nodes.push(SankeyNode {
-                        name,
-                        id: Some(format_id(c_class_id)),
-                        parent_id: None,
-                        retained_size: 0.0,
-                        shallow_size: 0.0,
-                    });
-                    class_to_idx.insert(c_class_id, idx);
-                    idx
-                };
-
-                sankey_links.push(SankeyLink {
-                    source: o_idx,
-                    target: c_idx,
-                    value: if val > 0.0 { val } else { 1e-9 },
-                    field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
-                });
-            }
-
-            if next_level.is_empty() { break; }
-            current_level = next_level;
+            if next_class_to_objs.is_empty() { break; }
+            current_class_to_objs = next_class_to_objs;
         }
 
-        // Final pass to ensure all nodes have correct retained/shallow size based on incoming links
-        // for nodes that were aggregated by class.
+        // Final pass to ensure all nodes have correct sizes based on incoming links.
         for node_idx in 1..sankey_nodes.len() {
             let incoming_value: f64 = sankey_links.iter()
                 .filter(|l| l.target == node_idx)
