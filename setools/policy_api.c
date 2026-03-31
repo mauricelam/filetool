@@ -2,7 +2,7 @@
 #include <sepol/policydb/avtab.h>
 #include <sepol/policydb/util.h>
 #include <sepol/policydb/services.h>
-#include <sepol/cil/cil.h>
+#include <cil/cil.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -271,6 +271,7 @@ static int collect_rules(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
     // Populate the result structure for JS to read from the WASM heap.
     state->rules[state->index].src = k->source_type;
     state->rules[state->index].tgt = k->target_type;
+    // Pack target class ID and specified mask into a single uint32
     state->rules[state->index].cls = k->target_class | (k->specified << 16);
     state->rules[state->index].data = d->data;
     state->index++;
@@ -344,7 +345,9 @@ void api_free_string(char *s) {
 
 /**
  * api_get_type_attributes: Returns a list of attribute IDs for a given type ID.
- * Returns the number of attributes found.
+ *
+ * Scans the type-attribute map for the given type and returns the IDs of all
+ * attributes associated with it. Matches are written to 'out_attrs' up to 'max_attrs'.
  */
 EMSCRIPTEN_KEEPALIVE
 int api_get_type_attributes(policy_handle_t *h, int type_val, uint32_t *out_attrs, int max_attrs) {
@@ -408,9 +411,10 @@ static int collect_rules_for_type(avtab_key_t *k, avtab_datum_t *d, void *ptr) {
 
     if (!match) return 0;
 
-    // Populate the result structure
+    // Populate the result structure for JS to read from the WASM heap.
     state->rules[state->index].src = k->source_type;
     state->rules[state->index].tgt = k->target_type;
+    // Pack target class ID and specified mask into a single uint32
     state->rules[state->index].cls = k->target_class | (k->specified << 16);
     state->rules[state->index].data = d->data;
     state->index++;
