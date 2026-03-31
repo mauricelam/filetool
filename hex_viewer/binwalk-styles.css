@@ -4,6 +4,26 @@
     gap: 12px;
 }
 
+.binwalk-options {
+    padding: 8px;
+    background-color: #252526;
+    border: 1px solid #333;
+    border-radius: 4px;
+}
+
+.binwalk-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #ccc;
+}
+
+.binwalk-option input {
+    margin: 0;
+}
+
 .scan-button {
     width: 100%;
     padding: 8px;
@@ -51,21 +71,26 @@
 
 .confidence-signal {
     display: flex;
-    flex-direction: column;
-    gap: 1px;
-    width: 8px;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 2px;
+    width: 16px;
     height: 12px;
 }
 
 .confidence-bar {
     flex: 1;
-    width: 100%;
-    background-color: #333;
+    background-color: #444;
     border-radius: 1px;
 }
 
+/* Three bars of increasing height */
+.confidence-signal .confidence-bar:nth-child(1) { height: 4px; }
+.confidence-signal .confidence-bar:nth-child(2) { height: 8px; }
+.confidence-signal .confidence-bar:nth-child(3) { height: 12px; }
+
 .confidence-bar.active {
-    background-color: inherit;
+    background-color: currentColor !important;
 }
 
 .binwalk-description {

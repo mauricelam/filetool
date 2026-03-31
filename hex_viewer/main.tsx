@@ -131,7 +131,7 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOp
     );
 }
 
-export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen, binwalkResults, onSetBinwalkResults }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (buffer?: Uint8Array, name?: string) => void, binwalkResults: BinwalkResult[] | null, onSetBinwalkResults: (results: BinwalkResult[]) => void }) {
+export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen, binwalkResults, onSetBinwalkResults }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (buffer?: Uint8Array, name?: string) => void, binwalkResults: BinwalkResult[] | null, onSetBinwalkResults: (results: BinwalkResult[] | null) => void }) {
     const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'markers' | 'binwalk'>('inspector');
 
     const handleJumpAndSelect = (offset: number, length: number = 0) => {
@@ -193,8 +193,9 @@ interface BinwalkResult {
     confidence: number;
 }
 
-function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, results: BinwalkResult[] | null, onSetResults: (results: BinwalkResult[]) => void, onJumpToOffset: (offset: number, length?: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (buffer: Uint8Array, name: string) => void }) {
+function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, results: BinwalkResult[] | null, onSetResults: (results: BinwalkResult[] | null) => void, onJumpToOffset: (offset: number, length?: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (buffer: Uint8Array, name: string) => void }) {
     const [loading, setLoading] = useState(false);
+    const [fullSearch, setFullSearch] = useState(false);
 
     const performScan = useCallback(async () => {
         if (results) return;
@@ -203,7 +204,7 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
             // @ts-ignore
             const m = await import('./hex-viewer-wasm.js');
             await m.default();
-            const scanner = new m.BinwalkScanner();
+            const scanner = new m.BinwalkScanner(fullSearch);
             const scanResults = scanner.scan(buffer) as BinwalkResult[];
             onSetResults(scanResults);
         } catch (e) {
@@ -211,7 +212,7 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
         } finally {
             setLoading(false);
         }
-    }, [buffer, results, onSetResults]);
+    }, [buffer, results, onSetResults, fullSearch]);
 
     useEffect(() => {
         if (!results && !loading) {
@@ -228,18 +229,31 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
 
     return (
         <div className="binwalk-tab">
+            <div className="binwalk-options">
+                <label className="binwalk-option">
+                    <input
+                        type="checkbox"
+                        checked={fullSearch}
+                        onChange={(e) => {
+                            setFullSearch(e.target.checked);
+                            onSetResults(null);
+                        }}
+                    />
+                    Search all signatures
+                </label>
+            </div>
             {loading && <div className="loading">Scanning with Binwalk...</div>}
-            {results && results.length === 0 && <div className="no-results">No signatures found.</div>}
-            {results && results.length > 0 && (
+            {!loading && results && results.length === 0 && <div className="no-results">No signatures found. {fullSearch ? "" : "Try searching all signatures."}</div>}
+            {!loading && results && results.length > 0 && (
                 <div className="binwalk-results">
                     {results.map((r, i) => (
                         <div key={i} className="binwalk-result-item" onClick={() => onJumpToOffset(r.offset, r.length)}>
                             <div className="binwalk-result-header">
                                 <span className="clickable-offset">0x{r.offset.toString(16).toUpperCase()} ({r.offset})</span>
                                 <div className="confidence-signal" style={{ color: getConfidenceColor(r.confidence) }} title={`Confidence: ${r.confidence}`}>
-                                    <div className={`confidence-bar ${r.confidence >= 200 ? 'active' : ''}`} />
-                                    <div className={`confidence-bar ${r.confidence >= 100 ? 'active' : ''}`} />
                                     <div className={`confidence-bar active`} />
+                                    <div className={`confidence-bar ${r.confidence >= 100 ? 'active' : ''}`} />
+                                    <div className={`confidence-bar ${r.confidence >= 200 ? 'active' : ''}`} />
                                 </div>
                             </div>
                             <div className="binwalk-description">{r.description}</div>

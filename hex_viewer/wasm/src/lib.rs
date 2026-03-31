@@ -25,10 +25,12 @@ pub struct BinwalkScanner {
 #[wasm_bindgen]
 impl BinwalkScanner {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
-        Self {
-            binwalker: Binwalk::new(),
-        }
+    pub fn new(full_search: bool) -> Result<BinwalkScanner, JsValue> {
+        let binwalker = Binwalk::configure(None, None, None, None, None, full_search)
+            .map_err(|e| JsValue::from_str(&e.message))?;
+        Ok(Self {
+            binwalker,
+        })
     }
 
     pub fn scan(&self, data: &[u8]) -> Result<JsValue, JsValue> {
