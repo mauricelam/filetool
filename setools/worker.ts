@@ -55,12 +55,19 @@ self.onmessage = async (e: MessageEvent) => {
             const dataPtr = mod._malloc(uint8Buffer.length);
             mod.HEAPU8.set(uint8Buffer, dataPtr);
 
-            // Detect if it's a CIL file (simple check for '(' as first non-whitespace)
+            // Detect if it's a CIL file (simple check for '(' as first non-whitespace, skipping comments)
             let isCil = false;
+            let inComment = false;
             for (let i = 0; i < uint8Buffer.length; i++) {
-                if (uint8Buffer[i] > 32) {
-                    if (uint8Buffer[i] === 40) isCil = true; // '('
-                    break;
+                const char = uint8Buffer[i];
+                if (inComment) {
+                    if (char === 10 || char === 13) inComment = false; // Newline ends comment
+                } else {
+                    if (char === 59) inComment = true; // ';' starts a comment
+                    else if (char > 32) {
+                        if (char === 40) isCil = true; // '('
+                        break;
+                    }
                 }
             }
 

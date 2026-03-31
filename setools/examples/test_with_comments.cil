@@ -1,3 +1,6 @@
+;; SPDX-FileCopyrightText: © 2025 Jules
+;; SPDX-License-Identifier: Unlicense
+
 (class file (read write getattr))
 (class process (setsched))
 (classorder (file process))
@@ -22,6 +25,3 @@
 (typeattributeset attr_1 (type_a))
 (allow type_a type_b (file (read)))
 (allow attr_1 type_b (file (write)))
-;; This is a leading comment
-   ;; And another one
-(allow type_a type_a (file (getattr)))
