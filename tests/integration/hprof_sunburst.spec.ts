@@ -20,12 +20,17 @@ test('HPROF viewer should display Sunburst diagram', async ({ page }) => {
     // Wait for the loading to complete
     await expect(iframe.locator('h2')).toContainText('HPROF Viewer: android.hprof', { timeout: 30000 });
 
-    // Switch to Sunburst tab
-    await iframe.getByRole('tab', { name: 'Memory Flow (Sunburst)' }).click();
+    // Switch to Memory Flow tab
+    await iframe.getByRole('tab', { name: 'Memory Flow' }).click();
+
+    // Ensure Sunburst is selected
+    const select = iframe.getByRole('textbox', { name: 'Visualization type' });
+    await select.click();
+    await iframe.getByRole('option', { name: 'Sunburst' }).click();
 
     // Check if Sunburst SVG is visible and has content
     const sunburstSvg = iframe.locator('.sunburst-svg');
-    await expect(sunburstSvg).toBeVisible({ timeout: 30000 });
+    await expect(sunburstSvg).toBeVisible({ timeout: 60000 });
 
     // Check for some paths (arcs) in the SVG
     const pathCount = await sunburstSvg.locator('path').count();

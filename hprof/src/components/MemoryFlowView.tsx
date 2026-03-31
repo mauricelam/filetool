@@ -42,6 +42,7 @@ export function MemoryFlowView({
                 <Group>
                     <Select
                         size="xs"
+                        aria-label="Visualization type"
                         data={[
                             { value: 'sankey', label: 'Sankey' },
                             { value: 'sunburst', label: 'Sunburst' },
