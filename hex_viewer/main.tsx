@@ -251,9 +251,9 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
                             <div className="binwalk-result-header">
                                 <span className="clickable-offset">0x{r.offset.toString(16).toUpperCase()} ({r.offset})</span>
                                 <div className="confidence-signal" style={{ color: getConfidenceColor(r.confidence) }} title={`Confidence: ${r.confidence}`}>
-                                    <div className={`confidence-bar ${r.confidence >= 200 ? 'active' : ''}`} />
-                                    <div className={`confidence-bar ${r.confidence >= 100 ? 'active' : ''}`} />
                                     <div className={`confidence-bar active`} />
+                                    <div className={`confidence-bar ${r.confidence >= 100 ? 'active' : ''}`} />
+                                    <div className={`confidence-bar ${r.confidence >= 200 ? 'active' : ''}`} />
                                 </div>
                             </div>
                             <div className="binwalk-description">{r.description}</div>
