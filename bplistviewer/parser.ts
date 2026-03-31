@@ -406,7 +406,14 @@ export const parseBuffer = function (buffer: Buffer): [any, string[]] {
         }
     }
 
-    return [parseObject(topObject), warnings];
+    try {
+        return [parseObject(topObject), warnings];
+    } catch (e: any) {
+        if (warnings.length > 0) {
+            return [{ error: e.message }, warnings];
+        }
+        throw e;
+    }
 };
 
 function readUInt(buffer: Buffer, start?: number) {
