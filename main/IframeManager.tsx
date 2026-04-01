@@ -19,12 +19,7 @@ const MAX_IFRAMES = 5;
 
 export function IframeManager({ activeHandler, files }: IframeManagerProps) {
     const [frames, setFrames] = useState<FrameData[]>([]);
-    const framesRef = useRef<FrameData[]>([]);
     const iframeRefs = useRef<Map<string, HTMLIFrameElement>>(new Map());
-
-    useEffect(() => {
-        framesRef.current = frames;
-    }, [frames]);
 
     useEffect(() => {
         setFrames(currentFrames => currentFrames.filter(frame => files.includes(frame.file)));
@@ -74,7 +69,7 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
             // Find which frame sent the message
             for (const [id, iframeEl] of iframeRefs.current.entries()) {
                 if (iframeEl && iframeEl.contentWindow === e.source) {
-                    matchedFrame = framesRef.current.find(f => f.id === id);
+                    matchedFrame = frames.find(f => f.id === id);
                     break;
                 }
             }

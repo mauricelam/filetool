@@ -890,7 +890,7 @@ impl HprofParser {
         };
 
         let mut sankey_nodes = Vec::new();
-        let mut sankey_links = Vec::new();
+        let mut aggregated_links: HashMap<(usize, usize), (f64, HashSet<String>)> = HashMap::new();
         let mut class_to_idx: HashMap<Id, usize> = HashMap::new();
 
         // BFS to find min depth of each object to break cycles
@@ -951,9 +951,6 @@ impl HprofParser {
                 for &oid in objs {
                     if let Some(children) = graph.dom_children.get(&oid) {
                         for &child_id in children {
-                            if depth_map.get(&child_id).cloned().unwrap_or(0) <= d {
-                                continue;
-                            }
                             let child_class_id = graph.obj_id_to_class_id.get(&child_id).cloned().unwrap_or(child_id);
                             let entry = aggregated_children.entry(child_class_id).or_insert((0.0, Vec::new(), HashSet::new()));
                             entry.0 += graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64;
@@ -1000,12 +997,9 @@ impl HprofParser {
                             idx
                         };
 
-                        sankey_links.push(SankeyLink {
-                            source: source_idx,
-                            target: target_idx,
-                            value: val,
-                            field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
-                        });
+                        let entry = aggregated_links.entry((source_idx, target_idx)).or_insert((0.0, HashSet::new()));
+                        entry.0 += val;
+                        entry.1.extend(fields);
 
                         next_class_to_objs.entry(child_class_id).or_default().extend(oids);
                     } else {
@@ -1027,12 +1021,8 @@ impl HprofParser {
                         shallow_size: others_size,
                     });
 
-                    sankey_links.push(SankeyLink {
-                        source: source_idx,
-                        target: others_idx,
-                        value: others_size,
-                        field_names: None,
-                    });
+                    let entry = aggregated_links.entry((source_idx, others_idx)).or_insert((0.0, HashSet::new()));
+                    entry.0 += others_size;
 
                     // Link from Others to classes within
                     let mut others_vec: Vec<_> = others_targets.into_iter().collect();
@@ -1064,12 +1054,9 @@ impl HprofParser {
                             idx
                         };
 
-                        sankey_links.push(SankeyLink {
-                            source: others_idx,
-                            target: t_idx,
-                            value: t_val,
-                            field_names: if t_fields.is_empty() { None } else { Some(t_fields.into_iter().collect()) },
-                        });
+                        let entry = aggregated_links.entry((others_idx, t_idx)).or_insert((0.0, HashSet::new()));
+                        entry.0 += t_val;
+                        entry.1.extend(t_fields);
 
                         next_class_to_objs.entry(t_class_id).or_default().extend(t_oids);
                     }
@@ -1083,12 +1070,8 @@ impl HprofParser {
                             retained_size: remaining_size,
                             shallow_size: remaining_size,
                         });
-                        sankey_links.push(SankeyLink {
-                            source: others_idx,
-                            target: rem_idx,
-                            value: remaining_size,
-                            field_names: None,
-                        });
+                        let entry = aggregated_links.entry((others_idx, rem_idx)).or_insert((0.0, HashSet::new()));
+                        entry.0 += remaining_size;
                     }
                 }
             }
@@ -1096,6 +1079,15 @@ impl HprofParser {
             if next_class_to_objs.is_empty() { break; }
             current_class_to_objs = next_class_to_objs;
         }
+
+        let sankey_links: Vec<SankeyLink> = aggregated_links.into_iter().map(|((source, target), (value, fields))| {
+            SankeyLink {
+                source,
+                target,
+                value,
+                field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
+            }
+        }).collect();
 
         // Final pass to ensure all nodes have correct sizes based on incoming links.
         for node_idx in 1..sankey_nodes.len() {

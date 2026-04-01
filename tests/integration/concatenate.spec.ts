@@ -4,7 +4,7 @@ test('should correctly concatenate multiple files and open it', async ({ page })
     await page.goto('/filetool/');
 
     // Wait for the drop target to be ready
-    const dropTarget = page.locator('#droptarget, #sidebar-droptarget').first();
+    const dropTarget = page.locator('#droptarget');
     await expect(dropTarget).toBeVisible({ timeout: 30000 });
 
     // Dispatch the 'openFiles' event with multiple mock File objects

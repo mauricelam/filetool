@@ -145,12 +145,11 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
         });
     };
 
-    if (files.length === 0) return null;
-
-    return (
-        <div
-            id="sidebar-droptarget"
-            className="sidebar"
+    return files.length === 0 ?
+        (<DropTarget onFiles={onAddFiles} />)
+        : (
+            <div
+                className="sidebar"
                 style={{
                     width: '240px',
                     borderRight: '1px solid #ccc',

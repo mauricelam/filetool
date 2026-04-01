@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { sankey, sankeyLinkHorizontal, sankeyCenter } from 'd3-sankey';
+import { sankeyCenter } from 'd3-sankey';
+import { sankeyCircular } from 'd3-sankey-circular';
 import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
 import { formatBytes } from '../utils/hierarchy';
 import { HoverInfo } from './MemoryFlowView';
@@ -24,12 +25,14 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
-        const sankeyGenerator = sankey<SankeyNode, SankeyLink>()
+        const sankeyGenerator = sankeyCircular<SankeyNode, SankeyLink>()
             .nodeWidth(15)
             .nodePadding(10)
             .extent([[1, 20], [width - 1, height - 20]])
             .nodeId(d => (d as any).index)
-            .nodeAlign(sankeyCenter);
+            .nodeAlign(sankeyCenter)
+            .iterations(64)
+            .circularLinkGap(2);
 
         let sankeyData;
         try {
@@ -43,7 +46,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
                 .attr("x", width / 2)
                 .attr("y", height / 2)
                 .attr("text-anchor", "middle")
-                .text("Failed to generate Sankey diagram. The graph might contain cycles.");
+                .text("Failed to generate Sankey diagram.");
             return;
         }
 
@@ -98,7 +101,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .style("mix-blend-mode", "multiply");
 
         link.append("path")
-            .attr("d", sankeyLinkHorizontal())
+            .attr("d", (d: any) => d.path)
             .attr("stroke", d => nodeColor(d.source))
             .attr("stroke-width", d => Math.max(1, (d as any).width || 0))
             .attr("stroke-opacity", 0)
