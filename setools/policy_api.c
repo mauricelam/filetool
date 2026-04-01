@@ -79,6 +79,9 @@ policy_handle_t* api_load_cil(const char *cil_data, size_t len) {
     // Set CIL log level to only report errors
     cil_set_log_level(CIL_ERR);
 
+    // Enable multiple declarations to support common CIL policy patterns
+    cil_set_multiple_decls(cil_db, 1);
+
     // Add the CIL file to the CIL database
     if (cil_add_file(cil_db, "policy.cil", cil_data, len) != SEPOL_OK) {
         cil_db_destroy(&cil_db);

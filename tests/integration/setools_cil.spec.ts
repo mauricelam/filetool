@@ -6,7 +6,7 @@ import * as path from 'path';
 test('SETools handler supports CIL and Type Details', async ({ page }) => {
     page.on('console', msg => console.log('BROWSER CONSOLE:', msg.text()));
 
-    const cilPath = path.join(__dirname, '../../setools/examples/test_with_comments.cil');
+    const cilPath = path.join(__dirname, '../../setools/examples/test.cil');
     const cilContent = fs.readFileSync(cilPath);
 
     const iframe = await runHandlerTest(page, {
