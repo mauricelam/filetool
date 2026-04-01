@@ -54,7 +54,10 @@ function parseAppleTagValue(tagId: number, data: Uint8Array): any {
     // Handle bplist tags (AEMatrix, RunTime, etc.)
     if (buf.slice(0, 6).toString('utf8') === 'bplist') {
         try {
-            const parsed = parseBuffer(buf)[0];
+            let [parsed] = parseBuffer(buf);
+            if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+                return buf.toString('hex');
+            }
             // If parsed result is a Buffer, hex encode it
             if (Buffer.isBuffer(parsed)) {
                 return parsed.toString('hex');

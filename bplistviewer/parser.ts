@@ -5,7 +5,7 @@ import { Buffer } from 'buffer';
 const debug = false;
 
 export const maxObjectSize = 100 * 1000 * 1000; // 100Meg
-export const maxObjectCount = 32768000;
+export const maxObjectCount = 128000000;
 
 // EPOCH = new SimpleDateFormat("yyyy MM dd zzz").parse("2001 01 01 GMT").getTime();
 // ...but that's annoying in a static initializer because it can throw exceptions, ick.
@@ -17,43 +17,71 @@ export class UID {
     constructor(public UID: number) { }
 }
 
-export const parseBuffer = function (buffer: Buffer) {
+export const parseBuffer = function (buffer: Buffer): [any, string[]] {
+    const warnings: string[] = [];
+
     // check header
     const header = buffer.slice(0, 'bplist'.length).toString('utf8');
-    console.log('header', header);
     if (header !== 'bplist') {
         throw new Error("Invalid binary plist. Expected 'bplist' at offset 0.");
     }
 
-    // Handle trailer, last 32 bytes of the file
-    const trailer = buffer.slice(buffer.length - 32, buffer.length);
-    // 6 null bytes (index 0 to 5)
-    const offsetSize = trailer.readUInt8(6);
-    if (debug) {
-        console.log('offsetSize: ' + offsetSize);
-    }
-    const objectRefSize = trailer.readUInt8(7);
-    if (debug) {
-        console.log('objectRefSize: ' + objectRefSize);
-    }
-    const numObjects = readUInt64BE(trailer, 8);
-    if (debug) {
-        console.log('numObjects: ' + numObjects);
-    }
-    const topObject = readUInt64BE(trailer, 16);
-    if (debug) {
-        console.log('topObject: ' + topObject);
-    }
-    const offsetTableOffset = readUInt64BE(trailer, 24);
-    if (debug) {
-        console.log('offsetTableOffset: ' + offsetTableOffset);
-    }
+    try {
+        if (buffer.length < 32) {
+            warnings.push('File too short to contain a binary plist trailer');
+            throw new Error('File too short to be a binary plist');
+        }
 
-    if (numObjects > maxObjectCount) {
-        throw new Error('maxObjectCount exceeded');
-    }
+        // Handle trailer, last 32 bytes of the file
+        const trailer = buffer.slice(buffer.length - 32, buffer.length);
+        // 6 null bytes (index 0 to 5)
+        for (let i = 0; i < 6; i++) {
+            if (trailer[i] !== 0) {
+                warnings.push(
+                    'Trailer format is invalid (expected null bytes). File may be truncated or corrupted.'
+                );
+                break;
+            }
+        }
 
-    // Handle offset table
+        const offsetSize = trailer.readUInt8(6);
+        if (debug) {
+            console.log('offsetSize: ' + offsetSize);
+        }
+        const objectRefSize = trailer.readUInt8(7);
+        if (debug) {
+            console.log('objectRefSize: ' + objectRefSize);
+        }
+        const numObjects = readUInt64BE(trailer, 8);
+        if (debug) {
+            console.log('numObjects: ' + numObjects);
+        }
+        const topObject = readUInt64BE(trailer, 16);
+        if (debug) {
+            console.log('topObject: ' + topObject);
+        }
+        const offsetTableOffset = readUInt64BE(trailer, 24);
+        if (debug) {
+            console.log('offsetTableOffset: ' + offsetTableOffset);
+        }
+
+        if (![1, 2, 4, 8].includes(offsetSize)) {
+            warnings.push(`Invalid offset size in trailer: ${offsetSize}. Expected 1, 2, 4, or 8.`);
+        }
+        if (![1, 2, 4, 8].includes(objectRefSize)) {
+            warnings.push(`Invalid object reference size in trailer: ${objectRefSize}. Expected 1, 2, 4, or 8.`);
+        }
+
+        const offsetTableEnd = offsetTableOffset + numObjects * offsetSize;
+        if (offsetTableEnd > buffer.length - 32) {
+            warnings.push('Offset table extends beyond the trailer. File may be truncated.');
+        }
+
+        if (numObjects > maxObjectCount) {
+            throw new Error(`Too many objects (${numObjects}). Maximum allowed is ${maxObjectCount}. File may be corrupted.`);
+        }
+
+        // Handle offset table
     const offsetTable: number[] = [];
 
     for (let i = 0; i < numObjects; i++) {
@@ -387,7 +415,13 @@ export const parseBuffer = function (buffer: Buffer) {
         }
     }
 
-    return [parseObject(topObject)];
+        return [parseObject(topObject), warnings];
+    } catch (e: any) {
+        if (warnings.length > 0) {
+            return [{ error: e.message }, warnings];
+        }
+        throw e;
+    }
 };
 
 function readUInt(buffer: Buffer, start?: number) {
@@ -400,8 +434,10 @@ function readUInt(buffer: Buffer, start?: number) {
     return l;
 }
 
-// we're just going to toss the high order bits because javascript doesn't have 64-bit ints
 function readUInt64BE(buffer: Buffer, start: number) {
+    if (typeof buffer.readBigUInt64BE === 'function') {
+        return Number(buffer.readBigUInt64BE(start));
+    }
     const data = buffer.slice(start, start + 8);
     return data.readUInt32BE(4);
 }
