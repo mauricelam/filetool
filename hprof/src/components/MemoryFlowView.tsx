@@ -97,7 +97,7 @@ export function MemoryFlowView({
                         value={splitCount}
                         min={1}
                         max={100}
-                        onChange={(val) => onSplitCountChange(Number(val) || 8)}
+                        onChange={(val) => onSplitCountChange(Number(val) || 5)}
                         style={{ width: '70px' }}
                     />
                 </Group>

@@ -61,6 +61,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
         const g = svg.append("g");
 
         const handleNodeClick = (event: any, d: any) => {
+            if (d.name.startsWith("Others")) return;
             if (d.id && onNodeClick) {
                 onNodeClick(d.id, d.name);
             } else if (!d.id && d.parent_id && onExpandOthers) {
@@ -83,7 +84,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .selection()
             .attr("fill", (d: any) => nodeColor(d))
             .attr("stroke", "#000")
-            .style("cursor", "pointer")
+            .style("cursor", (d: any) => d.name.startsWith("Others") ? "default" : "pointer")
             .on("click", handleNodeClick)
             .on("mouseenter", (event, d: any) => {
                 const lines = [`Retained: ${formatBytes(d.retained_size)}`];
@@ -153,7 +154,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .attr("y", d => ((d as any).y1 + (d as any).y0) / 2 - 25)
             .attr("width", 150)
             .attr("height", 50)
-            .style("cursor", "pointer")
+            .style("cursor", (d: any) => d.name.startsWith("Others") ? "default" : "pointer")
             .on("click", handleNodeClick)
             .on("mouseenter", (event, d: any) => {
                 const lines = [`Retained: ${formatBytes(d.retained_size)}`];

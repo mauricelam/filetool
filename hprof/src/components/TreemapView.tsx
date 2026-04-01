@@ -67,8 +67,9 @@ export function TreemapView({ data, onNodeClick, onExpandOthers, onHover }: Tree
                     while (curr.depth > 1) curr = curr.parent!;
                     return color(curr.data.name);
                 })
-                .style("cursor", "pointer")
+                .style("cursor", d => d.data.name.startsWith("Others") ? "default" : "pointer")
                 .on("click", (event, d) => {
+                    if (d.data.name.startsWith("Others")) return;
                     if (d.data.id && onNodeClick) {
                         onNodeClick(d.data.id, d.data.name);
                     } else if (!d.data.id && d.data.parent_id && onExpandOthers) {

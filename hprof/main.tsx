@@ -137,7 +137,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [sankeyRootId, setSankeyRootId] = useState<string | null>(null);
     const [sankeyHistory, setSankeyHistory] = useState<{ id: string | null, name: string }[]>([]);
     const [sankeyDepth, setSankeyDepth] = useState(3);
-    const [sankeySplitCount, setSankeySplitCount] = useState(8);
+    const [sankeySplitCount, setSankeySplitCount] = useState(5);
     const [sankeyExpandId, setSankeyExpandId] = useState<string | null>(null);
 
     useEffect(() => {
