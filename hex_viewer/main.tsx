@@ -11,6 +11,11 @@ export interface Marker {
     headerLength?: number;
 }
 
+export interface OpenItem {
+    buffer: Uint8Array;
+    name: string;
+}
+
 if (window.parent && window.parent !== window) {
     window.parent.postMessage({ 'action': 'requestFile' }, '*')
 }
@@ -43,7 +48,7 @@ async function handleFile(file: File) {
     OUTPUT?.render(<HexViewer buffer={buf} />)
 }
 
-function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOpen, onAddMarker, setPreviewMarker }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void, onOpen: () => void, onAddMarker: (format: string, length: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOpen, onAddMarker, setPreviewMarker }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void, onAddMarker: (format: string, length: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
     const start = selection ? selection[0] : 0;
     const end = selection ? selection[1] : 0;
     const length = selection ? end - start + 1 : 0;
@@ -131,7 +136,7 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOp
     );
 }
 
-export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen, binwalkResults, onSetBinwalkResults }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (buffer?: Uint8Array, name?: string) => void, binwalkResults: BinwalkResult[] | null, onSetBinwalkResults: (results: BinwalkResult[] | null) => void }) {
+export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen, binwalkResults, onSetBinwalkResults }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void, binwalkResults: BinwalkResult[] | null, onSetBinwalkResults: (results: BinwalkResult[] | null) => void }) {
     const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'markers' | 'binwalk'>('inspector');
 
     const handleJumpAndSelect = (offset: number, length: number = 0) => {
@@ -180,7 +185,7 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                 {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} matchLength={matchLength} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'markers' && <MarkersTab markers={markers} onRemoveMarker={onRemoveMarker} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={handleJumpAndSelect} />}
-                {activeTab === 'binwalk' && <BinwalkTab buffer={buffer} results={binwalkResults} onSetResults={onSetBinwalkResults} onJumpToOffset={handleJumpAndSelect} onAddMarker={onAddMarker} onOpen={(buf, name) => onOpen(buf, name)} />}
+                {activeTab === 'binwalk' && <BinwalkTab buffer={buffer} results={binwalkResults} onSetResults={onSetBinwalkResults} onJumpToOffset={handleJumpAndSelect} onAddMarker={onAddMarker} onOpen={(items) => onOpen(items)} />}
             </div>
         </div>
     );
@@ -193,9 +198,14 @@ interface BinwalkResult {
     confidence: number;
 }
 
-function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, results: BinwalkResult[] | null, onSetResults: (results: BinwalkResult[] | null) => void, onJumpToOffset: (offset: number, length?: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (buffer: Uint8Array, name: string) => void }) {
+function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, results: BinwalkResult[] | null, onSetResults: (results: BinwalkResult[] | null) => void, onJumpToOffset: (offset: number, length?: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void }) {
     const [loading, setLoading] = useState(false);
     const [fullSearch, setFullSearch] = useState(false);
+    const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+
+    useEffect(() => {
+        setSelectedIndices(new Set());
+    }, [results]);
 
     const performScan = useCallback(async () => {
         if (results) return;
@@ -227,6 +237,37 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
         return '#f44336'; // Red
     };
 
+    const toggleSelectAll = (checked: boolean) => {
+        if (checked && results) {
+            setSelectedIndices(new Set(results.keys()));
+        } else {
+            setSelectedIndices(new Set());
+        }
+    };
+
+    const toggleSelect = (i: number, e: React.MouseEvent | React.ChangeEvent) => {
+        e.stopPropagation();
+        const next = new Set(selectedIndices);
+        if (next.has(i)) next.delete(i);
+        else next.add(i);
+        setSelectedIndices(next);
+    };
+
+    const handleOpenSelected = () => {
+        if (!results) return;
+        const items = Array.from(selectedIndices)
+            .map(i => results[i])
+            .sort((a, b) => a.offset - b.offset)
+            .map(r => {
+                const name = `binwalk_0x${r.offset.toString(16)}_${r.description.replace(/[^a-z0-9]/gi, '_').slice(0, 32)}.bin`;
+                return {
+                    buffer: buffer.slice(r.offset, r.offset + r.length),
+                    name
+                };
+            });
+        onOpen(items);
+    };
+
     return (
         <div className="binwalk-tab">
             <div className="binwalk-options">
@@ -242,14 +283,41 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
                     Search all signatures
                 </label>
             </div>
+            {results && results.length > 0 && (
+                <div className="binwalk-actions">
+                    <label className="binwalk-option">
+                        <input
+                            type="checkbox"
+                            checked={results.length > 0 && selectedIndices.size === results.length}
+                            onChange={(e) => toggleSelectAll(e.target.checked)}
+                        />
+                        Select All
+                    </label>
+                    <button
+                        className="binwalk-action-button"
+                        disabled={selectedIndices.size === 0}
+                        onClick={handleOpenSelected}
+                    >
+                        {ICONS.open} Open {selectedIndices.size > 0 ? `(${selectedIndices.size})` : ''}
+                    </button>
+                </div>
+            )}
             {loading && <div className="loading">Scanning with Binwalk...</div>}
             {!loading && results && results.length === 0 && <div className="no-results">No signatures found. {fullSearch ? "" : "Try searching all signatures."}</div>}
             {!loading && results && results.length > 0 && (
                 <div className="binwalk-results">
                     {results.map((r, i) => (
-                        <div key={i} className="binwalk-result-item" onClick={() => onJumpToOffset(r.offset, r.length)}>
+                        <div key={i} className={`binwalk-result-item ${selectedIndices.has(i) ? 'selected' : ''}`} onClick={() => onJumpToOffset(r.offset, r.length)}>
                             <div className="binwalk-result-header">
-                                <span className="clickable-offset">0x{r.offset.toString(16).toUpperCase()} ({r.offset})</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIndices.has(i)}
+                                        onChange={(e) => toggleSelect(i, e)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <span className="clickable-offset">0x{r.offset.toString(16).toUpperCase()} ({r.offset})</span>
+                                </div>
                                 <div className="confidence-signal" style={{ color: getConfidenceColor(r.confidence) }} title={`Confidence: ${r.confidence}`}>
                                     <div className={`confidence-bar active`} />
                                     <div className={`confidence-bar ${r.confidence >= 100 ? 'active' : ''}`} />
@@ -794,10 +862,19 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
         onJumpToOffset(start);
     }, [onJumpToOffset]);
 
-    const handleOpen = useCallback((customBuffer?: Uint8Array, customName?: string) => {
+    const handleOpen = useCallback((arg?: OpenItem[] | Uint8Array, customName?: string) => {
+        if (Array.isArray(arg)) {
+            if (arg.length === 0) return;
+            const first = arg[0];
+            const primaryFile = new File([first.buffer.slice().buffer], first.name);
+            const additionalFiles = arg.slice(1).map(item => new File([item.buffer.slice().buffer], item.name));
+            window.parent.postMessage({ action: 'openFile', file: primaryFile, additionalFiles }, '*');
+            return;
+        }
+
         const start = selection ? selection[0] : 0;
         const end = selection ? selection[1] : 0;
-        const data = customBuffer || (selection ? buffer.slice(start, end + 1) : null);
+        const data = (arg instanceof Uint8Array ? arg : null) || (selection ? buffer.slice(start, end + 1) : null);
         if (!data) return;
         const name = customName || `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`;
         // Use slice().buffer to ensure the buffer is unshared for Blob/File creation

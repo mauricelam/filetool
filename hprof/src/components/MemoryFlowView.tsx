@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Stack, Group, Text, Button, Box, LoadingOverlay, Select, Breadcrumbs, Anchor, NumberInput, Paper } from '@mantine/core';
-import { SankeyData } from '../../hprof-wasm/pkg';
+import { Stack, Group, Text, Button, Box, LoadingOverlay, Select, Breadcrumbs, Anchor } from '@mantine/core';
+import { SankeyData, SankeyNode, SankeyLink } from '../../hprof-wasm/pkg';
 import { SankeyView } from './SankeyView';
 import { SunburstView } from './SunburstView';
 import { TreemapView } from './TreemapView';
 import { IcicleView } from './IcicleView';
+import { formatBytes } from '../utils/hierarchy';
 
 interface MemoryFlowViewProps {
     data: SankeyData | null;
@@ -22,12 +23,17 @@ interface MemoryFlowViewProps {
     onExpandOthers: (parentId: string) => void;
 }
 
-export type HoverInfo = {
-    title: string;
-    lines: string[];
-} | null;
-
 type VisualizationType = 'sankey' | 'sunburst' | 'treemap' | 'icicle';
+
+export interface HoverInfo {
+    title: string;
+    retainedSize: number;
+    shallowSize?: number;
+    type: 'node' | 'link';
+    targetName?: string;
+    fieldNames?: string[];
+    percentageOfParent?: string;
+}
 
 export function MemoryFlowView({
     data,
@@ -45,7 +51,7 @@ export function MemoryFlowView({
     onJump
 }: MemoryFlowViewProps) {
     const [vizType, setVizType] = useState<VisualizationType>('sankey');
-    const [hoverInfo, setHoverInfo] = useState<HoverInfo>(null);
+    const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
     const currentName = rootId === null ? 'Root GC' : (data?.nodes.find(n => n.id === rootId)?.name || rootId);
 
@@ -80,25 +86,25 @@ export function MemoryFlowView({
                         <Button size="compact-xs" variant="subtle" onClick={onBack}>Back</Button>
                     )}
                 </Group>
-                <Group gap="xs">
-                    <Text size="xs" fw={500}>Depth:</Text>
-                    <NumberInput
-                        size="xs"
+                <Group>
+                    <Text size="sm">Depth:</Text>
+                    <input
+                        type="number"
                         value={depth}
                         min={1}
                         max={10}
-                        onChange={(val) => onDepthChange(Number(val) || 1)}
-                        style={{ width: '60px' }}
+                        onChange={(e) => onDepthChange(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ width: '50px' }}
                     />
-                    <Text size="xs" fw={500} ml="xs">Split count:</Text>
-                    <NumberInput
-                        size="xs"
-                        aria-label="Split count"
+                    <Text size="sm">Split count:</Text>
+                    <input
+                        type="number"
                         value={splitCount}
                         min={1}
                         max={100}
-                        onChange={(val) => onSplitCountChange(Number(val) || 5)}
-                        style={{ width: '70px' }}
+                        onChange={(e) => onSplitCountChange(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ width: '50px' }}
+                        aria-label="Split count"
                     />
                 </Group>
             </Group>
@@ -112,22 +118,46 @@ export function MemoryFlowView({
                         {vizType === 'icicle' && <IcicleView data={data} onNodeClick={onZoom} onExpandOthers={onExpandOthers} onHover={setHoverInfo} />}
                     </>
                 )}
+
                 {hoverInfo && (
-                    <Paper
-                        className="memory-flow-tooltip"
-                        pos="absolute"
-                        top={10}
-                        left={10}
+                    <Box
                         p="xs"
-                        shadow="sm"
-                        withBorder
-                        style={{ pointerEvents: 'none', zIndex: 10, maxWidth: '300px', backgroundColor: 'rgba(255, 255, 255, 0.9)' }}
+                        bg="rgba(255, 255, 255, 0.9)"
+                        style={{
+                            position: 'absolute',
+                            top: 10,
+                            left: 10,
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            zIndex: 100,
+                            pointerEvents: 'none',
+                            maxWidth: '300px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
                     >
-                        <Text fw={700} size="sm">{hoverInfo.title}</Text>
-                        {hoverInfo.lines.map((line, i) => (
-                            <Text key={i} size="xs">{line}</Text>
-                        ))}
-                    </Paper>
+                        <Stack gap={2}>
+                            {hoverInfo.type === 'node' ? (
+                                <>
+                                    <Text fw={700} size="sm">{hoverInfo.title}</Text>
+                                    <Text size="xs">Retained: {formatBytes(hoverInfo.retainedSize)}</Text>
+                                    {hoverInfo.shallowSize && hoverInfo.shallowSize > 0 && (
+                                        <Text size="xs">Shallow: {formatBytes(hoverInfo.shallowSize)}</Text>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <Text fw={700} size="sm">{hoverInfo.title} → {hoverInfo.targetName}</Text>
+                                    {hoverInfo.fieldNames && hoverInfo.fieldNames.length > 0 && (
+                                        <Text size="xs" c="dimmed">{hoverInfo.fieldNames.join(', ')}</Text>
+                                    )}
+                                    <Text size="xs">Retained: {formatBytes(hoverInfo.retainedSize)}</Text>
+                                    {hoverInfo.percentageOfParent && (
+                                        <Text size="xs">{hoverInfo.percentageOfParent}% of parent</Text>
+                                    )}
+                                </>
+                            )}
+                        </Stack>
+                    </Box>
                 )}
             </Box>
         </Stack>

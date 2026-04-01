@@ -201,12 +201,12 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         if (activeTab === 'memory-flow') {
             setSankeyLoading(true);
             setTimeout(() => {
-                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth, sankeyExpandId || undefined, sankeySplitCount)) }
+                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth, sankeySplitCount, sankeyExpandId || undefined)) }
                 catch (e) { console.error(e) }
                 finally { setSankeyLoading(false) }
             }, 0);
         }
-    }, [activeTab, parser, sankeyRootId, sankeyDepth, sankeyExpandId, sankeySplitCount]);
+    }, [activeTab, parser, sankeyRootId, sankeyDepth, sankeySplitCount, sankeyExpandId]);
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)

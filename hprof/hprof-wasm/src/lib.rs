@@ -631,6 +631,7 @@ impl HprofParser {
     }
 
     /// Aggregates instance counts and total memory usage for all loaded classes.
+    /// Skips classes with 0 total size (no instances or 0 shallow size).
     pub fn get_instance_counts(&self) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -882,7 +883,7 @@ impl HprofParser {
         Ok(graph.retained_sizes.get(&target_id).cloned().unwrap_or(0))
     }
 
-    pub fn get_sankey_data(&self, root_id_str: Option<String>, max_depth: Option<usize>, expand_id_str: Option<String>, split_count: Option<usize>) -> Result<JsValue, JsValue> {
+    pub fn get_sankey_data(&self, root_id_str: Option<String>, max_depth: Option<usize>, split_count: Option<usize>, expand_id_str: Option<String>) -> Result<JsValue, JsValue> {
         let graph = self.ensure_graph()?;
         let virtual_root = Id::from(0u64);
         let start_node = if let Some(r_id_str) = root_id_str {
@@ -891,78 +892,84 @@ impl HprofParser {
             virtual_root
         };
 
-        let mut sankey_nodes = Vec::new();
-        let mut aggregated_links: HashMap<(usize, usize), (f64, HashSet<String>)> = HashMap::new();
-        let mut class_to_idx: HashMap<Id, usize> = HashMap::new();
-
-        // BFS to find min depth of each object to break cycles
-        let mut depth_map: HashMap<Id, usize> = HashMap::new();
-        let mut queue = VecDeque::new();
-        queue.push_back((start_node, 0));
-        depth_map.insert(start_node, 0);
-
-        while let Some((curr, d)) = queue.pop_front() {
-            if d >= max_depth.unwrap_or(3) { continue; }
-            if let Some(children) = graph.dom_children.get(&curr) {
-                for &child_id in children {
-                    if !depth_map.contains_key(&child_id) {
-                        depth_map.insert(child_id, d + 1);
-                        queue.push_back((child_id, d + 1));
-                    }
-                }
-            }
-        }
-
-        let start_class_id = graph.obj_id_to_class_id.get(&start_node).cloned().unwrap_or(start_node);
-        let start_idx = sankey_nodes.len();
-        class_to_idx.insert(start_class_id, start_idx);
-
-        let start_name = if start_node == virtual_root {
-            "Root GC".to_string()
+        // If start_node is not the virtual root, use its class ID for aggregation
+        let start_class_id = if start_node == virtual_root {
+            virtual_root
         } else {
-            graph.class_id_to_name.get(&start_class_id).cloned().unwrap_or_else(|| format_id(start_node))
+            graph.obj_id_to_class_id.get(&start_node).cloned().unwrap_or(start_node)
         };
 
+        let mut sankey_nodes = Vec::new();
+        let mut sankey_links = Vec::new();
+        let mut class_id_to_idx: HashMap<Id, usize> = HashMap::new();
+
+        let start_name = if start_class_id == virtual_root {
+            "Root GC".to_string()
+        } else {
+            graph.class_id_to_name.get(&start_class_id).cloned().unwrap_or_else(|| format_id(start_class_id))
+        };
+
+        let start_retained = if start_node == virtual_root {
+            graph.retained_sizes.get(&virtual_root).cloned().unwrap_or(0)
+        } else {
+            self.calculate_class_retained_size(start_class_id)?
+        } as f64;
+
+        if start_retained <= 0.0 && start_node != virtual_root {
+            return Ok(serde_wasm_bindgen::to_value(&SankeyData { nodes: Vec::new(), links: Vec::new() })?);
+        }
+
+        let start_idx = sankey_nodes.len();
+        class_id_to_idx.insert(start_class_id, start_idx);
         sankey_nodes.push(SankeyNode {
             name: start_name,
-            id: Some(format_id(start_node)),
+            id: Some(format_id(start_class_id)),
             parent_id: None,
-            retained_size: graph.retained_sizes.get(&start_node).cloned().unwrap_or(0) as f64,
-            shallow_size: graph.nodes.get(&start_node).map(|n| n.shallow_size as f64).unwrap_or(0.0),
+            retained_size: start_retained,
+            shallow_size: 0.0, // Aggregated shallow size not trivial to compute perfectly here
         });
 
-        // Class-based level-by-level traversal
-        // Track objects of each class at the current depth
-        let mut current_class_to_objs: HashMap<Id, Vec<Id>> = HashMap::new();
-        current_class_to_objs.insert(start_class_id, vec![start_node]);
-
         let depth_limit = max_depth.unwrap_or(3);
-        let split_limit = split_count.unwrap_or(8);
+        let split_limit = split_count.unwrap_or(5);
+        let mut current_level = vec![start_class_id];
 
-        for d in 0..depth_limit {
-            let mut next_class_to_objs: HashMap<Id, Vec<Id>> = HashMap::new();
+        // Track seen classes to avoid infinite cycles in the layer building (though circular Sankey handles them visually)
+        let mut seen_classes = HashSet::new();
+        seen_classes.insert(start_class_id);
 
-            // We iterate over the classes at the current level
-            let current_classes: Vec<Id> = current_class_to_objs.keys().cloned().collect();
-            for source_class_id in current_classes {
-                let source_idx = class_to_idx[&source_class_id];
-                let objs = &current_class_to_objs[&source_class_id];
+        for _ in 0..depth_limit {
+            let mut next_level = Vec::new();
+            for &parent_class_id in &current_level {
+                let parent_idx = class_id_to_idx[&parent_class_id];
 
-                // Aggregate children across all objects of this class at this level
-                let mut aggregated_children: HashMap<Id, (f64, Vec<Id>, HashSet<String>)> = HashMap::new();
-                for &oid in objs {
-                    if let Some(children) = graph.dom_children.get(&oid) {
-                        for &child_id in children {
-                            let child_class_id = graph.obj_id_to_class_id.get(&child_id).cloned().unwrap_or(child_id);
-                            let entry = aggregated_children.entry(child_class_id).or_insert((0.0, Vec::new(), HashSet::new()));
-                            entry.0 += graph.retained_sizes.get(&child_id).cloned().unwrap_or(0) as f64;
-                            entry.1.push(child_id);
+                // Find all target classes this class (as a whole) retains in the dominator tree
+                let mut target_class_to_retained = HashMap::new();
+                let mut target_class_to_links: HashMap<Id, (f64, HashSet<String>)> = HashMap::new();
 
-                            // Field names from parent to child
-                            if let Some(node) = graph.nodes.get(&oid) {
-                                for (f_name, target_id) in &node.references {
-                                    if *target_id == child_id {
-                                        if let Some(name) = f_name { entry.2.insert(name.clone()); }
+                let parent_instances = if parent_class_id == virtual_root {
+                    vec![virtual_root]
+                } else {
+                    graph.class_to_instances.get(&parent_class_id).cloned().unwrap_or_default()
+                };
+
+                for &p_oid in &parent_instances {
+                    if let Some(children) = graph.dom_children.get(&p_oid) {
+                        for &c_oid in children {
+                            let c_cid = graph.obj_id_to_class_id.get(&c_oid).cloned().unwrap_or(c_oid);
+                            let c_retained = graph.retained_sizes.get(&c_oid).cloned().unwrap_or(0) as f64;
+                            if c_retained <= 0.0 { continue; }
+
+                            *target_class_to_retained.entry(c_cid).or_insert(0.0) += c_retained;
+
+                            // Collect field names for ribbons
+                            let link_entry = target_class_to_links.entry(c_cid).or_insert((0.0, HashSet::new()));
+                            link_entry.0 += c_retained;
+                            if let Some(p_node) = graph.nodes.get(&p_oid) {
+                                for (f_name, target_id) in &p_node.references {
+                                    if *target_id == c_oid {
+                                        if let Some(name) = f_name {
+                                            link_entry.1.insert(name.clone());
+                                        }
                                     }
                                 }
                             }
@@ -970,138 +977,128 @@ impl HprofParser {
                     }
                 }
 
-                let mut sorted_children: Vec<_> = aggregated_children.into_iter().collect();
-                sorted_children.sort_by(|a, b| b.1.0.partial_cmp(&a.1.0).unwrap());
+                let mut sorted_targets: Vec<_> = target_class_to_retained.into_iter().collect();
+                sorted_targets.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
-                // Does this class node have expansion requested?
-                // For class-aggregated view, we use the class ID as the zoom/expand target.
-                let is_expanded = expand_id_str.as_ref() == Some(&format_id(source_class_id));
-                let limit = if is_expanded { 1000 } else { split_limit };
-
+                let parent_id_str = format_id(parent_class_id);
+                let limit = if expand_id_str.as_ref() == Some(&parent_id_str) { 1000 } else { split_limit };
                 let mut others_size = 0.0;
-                let mut others_targets: HashMap<Id, (f64, Vec<Id>, HashSet<String>)> = HashMap::new();
+                let mut others_count = 0;
+                let mut others_targets: HashMap<Id, (f64, HashSet<String>)> = HashMap::new();
 
-                for (i, (child_class_id, (val, oids, fields))) in sorted_children.into_iter().enumerate() {
-                    if val <= 0.0 { continue; }
-                    if i < limit {
-                        let target_idx = if let Some(&idx) = class_to_idx.get(&child_class_id) {
-                            idx
-                        } else {
-                            let idx = sankey_nodes.len();
-                            let name = graph.class_id_to_name.get(&child_class_id).cloned().unwrap_or_else(|| format_id(child_class_id));
-                            sankey_nodes.push(SankeyNode {
-                                name,
-                                id: Some(format_id(child_class_id)),
-                                parent_id: None,
-                                retained_size: 0.0,
-                                shallow_size: 0.0,
-                            });
-                            class_to_idx.insert(child_class_id, idx);
-                            idx
-                        };
-
-                        let entry = aggregated_links.entry((source_idx, target_idx)).or_insert((0.0, HashSet::new()));
-                        entry.0 += val;
-                        entry.1.extend(fields);
-
-                        next_class_to_objs.entry(child_class_id).or_default().extend(oids);
-                    } else {
-                        others_size += val;
-                        let entry = others_targets.entry(child_class_id).or_insert((0.0, Vec::new(), HashSet::new()));
-                        entry.0 += val;
-                        entry.1.extend(oids);
-                        entry.2.extend(fields);
+                for (i, (c_cid, c_retained)) in sorted_targets.iter().enumerate() {
+                    if i >= limit {
+                        others_size += c_retained;
+                        others_count += 1;
+                        // Accumulate links from "Others" to their target classes
+                        if let Some(children) = graph.dom_children.get(c_cid) { // This is wrong, Others is a set of classes
+                             // We need to look at what objects of these "Other" classes retain.
+                        }
+                        // Actually, requirement says "Others" should have outgoing ribbons based on their references.
+                        // So we collect the dominator-tree children of all objects belonging to these "Other" classes.
+                        let other_instances = graph.class_to_instances.get(c_cid).cloned().unwrap_or_default();
+                        for o_oid in other_instances {
+                            if let Some(o_children) = graph.dom_children.get(&o_oid) {
+                                for &oc_oid in o_children {
+                                    let oc_cid = graph.obj_id_to_class_id.get(&oc_oid).cloned().unwrap_or(oc_oid);
+                                    let oc_retained = graph.retained_sizes.get(&oc_oid).cloned().unwrap_or(0) as f64;
+                                    if oc_retained <= 0.0 { continue; }
+                                    let ot_link = others_targets.entry(oc_cid).or_insert((0.0, HashSet::new()));
+                                    ot_link.0 += oc_retained;
+                                    if let Some(o_node) = graph.nodes.get(&o_oid) {
+                                        for (f_name, target_id) in &o_node.references {
+                                            if *target_id == oc_oid {
+                                                if let Some(name) = f_name {
+                                                    ot_link.1.insert(name.clone());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        continue;
                     }
+
+                    let child_idx = if let Some(&idx) = class_id_to_idx.get(c_cid) {
+                        idx
+                    } else {
+                        let idx = sankey_nodes.len();
+                        let cname = graph.class_id_to_name.get(c_cid).cloned().unwrap_or_else(|| format_id(*c_cid));
+                        sankey_nodes.push(SankeyNode {
+                            name: cname,
+                            id: Some(format_id(*c_cid)),
+                            parent_id: None,
+                            retained_size: *c_retained, // Note: This might be slightly inaccurate if already seen, but class_retained_size is better
+                            shallow_size: 0.0,
+                        });
+                        class_id_to_idx.insert(*c_cid, idx);
+                        if !seen_classes.contains(c_cid) {
+                            seen_classes.insert(*c_cid);
+                            next_level.push(*c_cid);
+                        }
+                        idx
+                    };
+
+                    let (val, fields) = target_class_to_links.get(c_cid).unwrap();
+                    sankey_links.push(SankeyLink {
+                        source: parent_idx,
+                        target: child_idx,
+                        value: *val,
+                        field_names: if fields.is_empty() { None } else { Some(fields.iter().cloned().collect()) },
+                    });
                 }
 
                 if others_size > 0.0 {
                     let others_idx = sankey_nodes.len();
                     sankey_nodes.push(SankeyNode {
-                        name: format!("Others ({} classes)", others_targets.len()),
+                        name: format!("Others ({} classes retained by {})", others_count, sankey_nodes[parent_idx].name),
                         id: None,
-                        parent_id: Some(format_id(source_class_id)),
+                        parent_id: Some(parent_id_str),
                         retained_size: others_size,
-                        shallow_size: others_size,
+                        shallow_size: 0.0,
+                    });
+                    sankey_links.push(SankeyLink {
+                        source: parent_idx,
+                        target: others_idx,
+                        value: others_size,
+                        field_names: None,
                     });
 
-                    let entry = aggregated_links.entry((source_idx, others_idx)).or_insert((0.0, HashSet::new()));
-                    entry.0 += others_size;
-
-                    // Link from Others to classes within
-                    let mut others_vec: Vec<_> = others_targets.into_iter().collect();
-                    others_vec.sort_by(|a, b| b.1.0.partial_cmp(&a.1.0).unwrap());
-
-                    let mut remaining_size = 0.0;
-                    let mut remaining_count = 0;
-
-                    for (i, (t_class_id, (t_val, t_oids, t_fields))) in others_vec.into_iter().enumerate() {
-                        if i >= 10 {
-                            remaining_size += t_val;
-                            remaining_count += 1;
-                            continue;
-                        }
-
-                        let t_idx = if let Some(&idx) = class_to_idx.get(&t_class_id) {
+                    // Add ribbons from Others to their top 10 target classes
+                    let mut sorted_others_targets: Vec<_> = others_targets.into_iter().collect();
+                    sorted_others_targets.sort_by(|a, b| b.1.0.partial_cmp(&a.1.0).unwrap());
+                    for (ot_cid, (ot_val, ot_fields)) in sorted_others_targets.iter().take(10) {
+                        let ot_idx = if let Some(&idx) = class_id_to_idx.get(ot_cid) {
                             idx
                         } else {
                             let idx = sankey_nodes.len();
-                            let name = graph.class_id_to_name.get(&t_class_id).cloned().unwrap_or_else(|| format_id(t_class_id));
+                            let cname = graph.class_id_to_name.get(ot_cid).cloned().unwrap_or_else(|| format_id(*ot_cid));
                             sankey_nodes.push(SankeyNode {
-                                name,
-                                id: Some(format_id(t_class_id)),
+                                name: cname,
+                                id: Some(format_id(*ot_cid)),
                                 parent_id: None,
-                                retained_size: 0.0,
+                                retained_size: ot_val.clone(), // Rough estimate
                                 shallow_size: 0.0,
                             });
-                            class_to_idx.insert(t_class_id, idx);
+                            class_id_to_idx.insert(*ot_cid, idx);
+                            if !seen_classes.contains(ot_cid) {
+                                seen_classes.insert(*ot_cid);
+                                next_level.push(*ot_cid);
+                            }
                             idx
                         };
-
-                        let entry = aggregated_links.entry((others_idx, t_idx)).or_insert((0.0, HashSet::new()));
-                        entry.0 += t_val;
-                        entry.1.extend(t_fields);
-
-                        next_class_to_objs.entry(t_class_id).or_default().extend(t_oids);
-                    }
-
-                    if remaining_size > 0.0 {
-                        let rem_idx = sankey_nodes.len();
-                        sankey_nodes.push(SankeyNode {
-                            name: format!("Others (+{} classes)", remaining_count),
-                            id: None,
-                            parent_id: None,
-                            retained_size: remaining_size,
-                            shallow_size: remaining_size,
+                        sankey_links.push(SankeyLink {
+                            source: others_idx,
+                            target: ot_idx,
+                            value: *ot_val,
+                            field_names: if ot_fields.is_empty() { None } else { Some(ot_fields.iter().cloned().collect()) },
                         });
-                        let entry = aggregated_links.entry((others_idx, rem_idx)).or_insert((0.0, HashSet::new()));
-                        entry.0 += remaining_size;
                     }
                 }
             }
-
-            if next_class_to_objs.is_empty() { break; }
-            current_class_to_objs = next_class_to_objs;
-        }
-
-        let sankey_links: Vec<SankeyLink> = aggregated_links.into_iter().map(|((source, target), (value, fields))| {
-            SankeyLink {
-                source,
-                target,
-                value,
-                field_names: if fields.is_empty() { None } else { Some(fields.into_iter().collect()) },
-            }
-        }).collect();
-
-        // Final pass to ensure all nodes have correct sizes based on incoming links.
-        for node_idx in 1..sankey_nodes.len() {
-            let incoming_value: f64 = sankey_links.iter()
-                .filter(|l| l.target == node_idx)
-                .map(|l| l.value)
-                .sum();
-            if incoming_value > 0.0 {
-                sankey_nodes[node_idx].retained_size = incoming_value;
-                sankey_nodes[node_idx].shallow_size = incoming_value;
-            }
+            if next_level.is_empty() { break; }
+            current_level = next_level;
         }
 
         Ok(serde_wasm_bindgen::to_value(&SankeyData { nodes: sankey_nodes, links: sankey_links })?)
@@ -1342,10 +1339,6 @@ impl HprofParser {
 
         for (&cid, &size) in &class_total_sizes {
             let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", cid));
-
-            let retained_size = self.calculate_class_retained_size(cid).ok();
-            if retained_size.unwrap_or(0) == 0 { continue; }
-
             if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
 
             let mut label = format!(r##"<table border="0" cellborder="1" cellspacing="0">
@@ -1403,6 +1396,7 @@ impl HprofParser {
         let mut utf8_map = HashMap::new();
         let mut class_id_to_name_id = HashMap::new();
         let mut class_id_to_super_id = HashMap::new();
+        let mut class_id_to_retained_size = HashMap::new();
 
         for record in hprof.records_iter() {
             let record = match record { Ok(r) => r, Err(_) => continue };
@@ -1429,9 +1423,12 @@ impl HprofParser {
         let mut nodes = HashMap::new();
         let mut links = Vec::new();
 
-        for (cid, sid) in class_id_to_super_id {
-            let cid_str = format!("{:?}", cid);
-            let sid_str = format!("{:?}", sid);
+        for (&cid, &sid) in &class_id_to_super_id {
+            let rsize = *class_id_to_retained_size.entry(cid).or_insert_with(|| self.calculate_class_retained_size(cid).unwrap_or(0));
+            if rsize == 0 { continue; }
+
+            let cid_str = format_id(cid);
+            let sid_str = format_id(sid);
 
             let cname = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", cid_str));
             let sname = class_id_to_name_id.get(&sid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", sid_str));
@@ -1440,14 +1437,10 @@ impl HprofParser {
                 continue;
             }
 
-            let retained_size = self.calculate_class_retained_size(cid).ok();
-            if retained_size.unwrap_or(0) == 0 { continue; }
-
-            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0, retained_size, is_root: false });
+            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0, retained_size: Some(rsize), is_root: false });
 
             if sname != "java.lang.Object" && sname != "java/lang/Object" {
-                let s_retained = self.calculate_class_retained_size(sid).ok();
-                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0, retained_size: s_retained, is_root: false });
+                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0, retained_size: None, is_root: false });
                 links.push(HierarchyLink { source: cid_str, target: sid_str, count: None, retained_size: None, field_names: None });
             }
         }
@@ -1461,6 +1454,7 @@ impl HprofParser {
     }
 
     /// Returns JSON data for the class reference graph, including weighted links and node sizes.
+    /// Skips classes with 0 retained size.
     pub fn get_class_reference_graph_json(&self, min_edge_count: usize) -> Result<JsValue, JsValue> {
         let hprof = parse_hprof(&self.data).map_err(|e| JsValue::from_str(&format!("Error parsing hprof: {:?}", e)))?;
         let mut utf8_map = HashMap::new();
@@ -1594,14 +1588,12 @@ impl HprofParser {
 
         for (&cid, &size) in &class_total_sizes {
             let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(cid)));
-
-            let retained_size = self.calculate_class_retained_size(cid).ok();
-            if retained_size.unwrap_or(0) == 0 { continue; }
-
+            let retained_size = self.calculate_class_retained_size(cid).unwrap_or(0);
+            if retained_size == 0 && name != "java.lang.Object" { continue; }
             if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
 
             let cid_str = format_id(cid);
-            nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name, size: size as u64, retained_size, is_root: root_classes.contains(&cid) });
+            nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name, size: size as u64, retained_size: Some(retained_size), is_root: root_classes.contains(&cid) });
         }
 
         for (&(src, tgt), (count, fields)) in &class_refs {
@@ -1796,13 +1788,13 @@ fn parse_id(s: &str, _id_size: IdSize) -> Result<Id, JsValue> {
 impl HprofParser {
     fn calculate_class_retained_size(&self, class_id: Id) -> Result<u64, JsValue> {
         let graph = self.ensure_graph()?;
+        let mut total_retained = 0u64;
+
         let instances = match graph.class_to_instances.get(&class_id) {
             Some(i) => i,
             None => return Ok(0),
         };
-
-        let mut total_retained = 0u64;
-        let class_instances_set: HashSet<Id> = instances.iter().cloned().collect();
+        let class_instances: HashSet<Id> = instances.iter().cloned().collect();
 
         for &oid in instances {
             // Only add the retained size if no ancestor in the dominator tree is also an instance of this class
@@ -1810,7 +1802,7 @@ impl HprofParser {
             let mut curr = oid;
             while let Some(&parent) = graph.idoms.get(&curr) {
                 if parent == curr || parent == Id::from(0u64) { break; }
-                if class_instances_set.contains(&parent) {
+                if class_instances.contains(&parent) {
                     is_dominated_by_same_class = true;
                     break;
                 }

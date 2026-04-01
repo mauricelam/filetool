@@ -13,7 +13,6 @@ The Memory Flow diagram provides a visual representation of how memory is retain
 - **`<self>` Node:** This represents the **Shallow Size** of the parent object itself (the memory consumed by its own fields, excluding the objects it points to).
 - **`Others` Node:** When an object dominates a large number of smaller children, they are grouped into this node to keep the diagram readable.
 - **Edges:** The links between nodes represent references. Hovering over an edge will show the specific field names that form the reference (if available).
-- **Node Labels with `0x...`:** Hexadecimal IDs in the diagram represent specific object instances that are being treated as pseudo-classes (e.g., arrays or objects with no explicit class name in the HPROF). When such a node shows **0 bytes**, it means that while it is a distinct point in the reference graph, it doesn't contribute its own shallow size to the total, or its retained size is being accounted for elsewhere in the hierarchy.
 
 ### Interactions
 
