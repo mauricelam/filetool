@@ -676,7 +676,9 @@ impl HprofParser {
             let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(cid)));
             let mut size = total_sizes.get(&cid).cloned().unwrap_or(0);
             if let Some(&isize) = class_id_to_instance_size.get(&cid) { size += count * isize; }
-            result.push(InstanceCountEntry { class_id: format_id(cid), class_name: name, count, total_size: size });
+            if size > 0 {
+                result.push(InstanceCountEntry { class_id: format_id(cid), class_name: name, count, total_size: size });
+            }
         }
         result.sort_by(|a, b| b.total_size.cmp(&a.total_size));
         Ok(serde_wasm_bindgen::to_value(&result)?)
@@ -980,6 +982,7 @@ impl HprofParser {
                 let mut others_targets: HashMap<Id, (f64, Vec<Id>, HashSet<String>)> = HashMap::new();
 
                 for (i, (child_class_id, (val, oids, fields))) in sorted_children.into_iter().enumerate() {
+                    if val <= 0.0 { continue; }
                     if i < limit {
                         let target_idx = if let Some(&idx) = class_to_idx.get(&child_class_id) {
                             idx
@@ -1339,6 +1342,10 @@ impl HprofParser {
 
         for (&cid, &size) in &class_total_sizes {
             let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{:?}", cid));
+
+            let retained_size = self.calculate_class_retained_size(cid).ok();
+            if retained_size.unwrap_or(0) == 0 { continue; }
+
             if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
 
             let mut label = format!(r##"<table border="0" cellborder="1" cellspacing="0">
@@ -1433,10 +1440,14 @@ impl HprofParser {
                 continue;
             }
 
-            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0, retained_size: None, is_root: false });
+            let retained_size = self.calculate_class_retained_size(cid).ok();
+            if retained_size.unwrap_or(0) == 0 { continue; }
+
+            nodes.entry(cid_str.clone()).or_insert(HierarchyNode { id: cid_str.clone(), name: cname, size: 0, retained_size, is_root: false });
 
             if sname != "java.lang.Object" && sname != "java/lang/Object" {
-                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0, retained_size: None, is_root: false });
+                let s_retained = self.calculate_class_retained_size(sid).ok();
+                nodes.entry(sid_str.clone()).or_insert(HierarchyNode { id: sid_str.clone(), name: sname, size: 0, retained_size: s_retained, is_root: false });
                 links.push(HierarchyLink { source: cid_str, target: sid_str, count: None, retained_size: None, field_names: None });
             }
         }
@@ -1583,10 +1594,13 @@ impl HprofParser {
 
         for (&cid, &size) in &class_total_sizes {
             let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(cid)));
+
+            let retained_size = self.calculate_class_retained_size(cid).ok();
+            if retained_size.unwrap_or(0) == 0 { continue; }
+
             if size < (max_s * 0.05) as usize && class_total_sizes.len() > 20 && name != "java.lang.Object" { continue; }
 
             let cid_str = format_id(cid);
-            let retained_size = self.calculate_class_retained_size(cid).ok();
             nodes.insert(cid_str.clone(), HierarchyNode { id: cid_str, name, size: size as u64, retained_size, is_root: root_classes.contains(&cid) });
         }
 
@@ -1782,21 +1796,21 @@ fn parse_id(s: &str, _id_size: IdSize) -> Result<Id, JsValue> {
 impl HprofParser {
     fn calculate_class_retained_size(&self, class_id: Id) -> Result<u64, JsValue> {
         let graph = self.ensure_graph()?;
-        let mut total_retained = 0u64;
-        let mut class_instances = HashSet::new();
-        for node in graph.nodes.values() {
-            if node.class_id == class_id {
-                class_instances.insert(node.id);
-            }
-        }
+        let instances = match graph.class_to_instances.get(&class_id) {
+            Some(i) => i,
+            None => return Ok(0),
+        };
 
-        for &oid in &class_instances {
+        let mut total_retained = 0u64;
+        let class_instances_set: HashSet<Id> = instances.iter().cloned().collect();
+
+        for &oid in instances {
             // Only add the retained size if no ancestor in the dominator tree is also an instance of this class
             let mut is_dominated_by_same_class = false;
             let mut curr = oid;
             while let Some(&parent) = graph.idoms.get(&curr) {
                 if parent == curr || parent == Id::from(0u64) { break; }
-                if class_instances.contains(&parent) {
+                if class_instances_set.contains(&parent) {
                     is_dominated_by_same_class = true;
                     break;
                 }
