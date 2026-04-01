@@ -26,53 +26,62 @@ export const parseBuffer = function (buffer: Buffer): [any, string[]] {
         throw new Error("Invalid binary plist. Expected 'bplist' at offset 0.");
     }
 
-    if (buffer.length < 32) {
-        throw new Error('File too short to be a binary plist');
-    }
-
-    // Handle trailer, last 32 bytes of the file
-    const trailer = buffer.slice(buffer.length - 32, buffer.length);
-    // 6 null bytes (index 0 to 5)
-    for (let i = 0; i < 6; i++) {
-        if (trailer[i] !== 0) {
-            warnings.push(
-                'Trailer format is invalid (expected null bytes). File may be truncated or corrupted.'
-            );
-            break;
+    try {
+        if (buffer.length < 32) {
+            warnings.push('File too short to contain a binary plist trailer');
+            throw new Error('File too short to be a binary plist');
         }
-    }
 
-    const offsetSize = trailer.readUInt8(6);
-    if (debug) {
-        console.log('offsetSize: ' + offsetSize);
-    }
-    const objectRefSize = trailer.readUInt8(7);
-    if (debug) {
-        console.log('objectRefSize: ' + objectRefSize);
-    }
-    const numObjects = readUInt64BE(trailer, 8);
-    if (debug) {
-        console.log('numObjects: ' + numObjects);
-    }
-    const topObject = readUInt64BE(trailer, 16);
-    if (debug) {
-        console.log('topObject: ' + topObject);
-    }
-    const offsetTableOffset = readUInt64BE(trailer, 24);
-    if (debug) {
-        console.log('offsetTableOffset: ' + offsetTableOffset);
-    }
+        // Handle trailer, last 32 bytes of the file
+        const trailer = buffer.slice(buffer.length - 32, buffer.length);
+        // 6 null bytes (index 0 to 5)
+        for (let i = 0; i < 6; i++) {
+            if (trailer[i] !== 0) {
+                warnings.push(
+                    'Trailer format is invalid (expected null bytes). File may be truncated or corrupted.'
+                );
+                break;
+            }
+        }
 
-    if (numObjects > maxObjectCount) {
-        throw new Error('maxObjectCount exceeded');
-    }
+        const offsetSize = trailer.readUInt8(6);
+        if (debug) {
+            console.log('offsetSize: ' + offsetSize);
+        }
+        const objectRefSize = trailer.readUInt8(7);
+        if (debug) {
+            console.log('objectRefSize: ' + objectRefSize);
+        }
+        const numObjects = readUInt64BE(trailer, 8);
+        if (debug) {
+            console.log('numObjects: ' + numObjects);
+        }
+        const topObject = readUInt64BE(trailer, 16);
+        if (debug) {
+            console.log('topObject: ' + topObject);
+        }
+        const offsetTableOffset = readUInt64BE(trailer, 24);
+        if (debug) {
+            console.log('offsetTableOffset: ' + offsetTableOffset);
+        }
 
-    const offsetTableEnd = offsetTableOffset + numObjects * offsetSize;
-    if (offsetTableEnd > buffer.length - 32) {
-        warnings.push('Offset table extends beyond the trailer. File may be truncated.');
-    }
+        if (![1, 2, 4, 8].includes(offsetSize)) {
+            warnings.push(`Invalid offset size in trailer: ${offsetSize}. Expected 1, 2, 4, or 8.`);
+        }
+        if (![1, 2, 4, 8].includes(objectRefSize)) {
+            warnings.push(`Invalid object reference size in trailer: ${objectRefSize}. Expected 1, 2, 4, or 8.`);
+        }
 
-    // Handle offset table
+        const offsetTableEnd = offsetTableOffset + numObjects * offsetSize;
+        if (offsetTableEnd > buffer.length - 32) {
+            warnings.push('Offset table extends beyond the trailer. File may be truncated.');
+        }
+
+        if (numObjects > maxObjectCount) {
+            throw new Error(`Too many objects (${numObjects}). Maximum allowed is ${maxObjectCount}. File may be corrupted.`);
+        }
+
+        // Handle offset table
     const offsetTable: number[] = [];
 
     for (let i = 0; i < numObjects; i++) {
@@ -406,7 +415,6 @@ export const parseBuffer = function (buffer: Buffer): [any, string[]] {
         }
     }
 
-    try {
         return [parseObject(topObject), warnings];
     } catch (e: any) {
         if (warnings.length > 0) {

@@ -7,21 +7,32 @@ import { parseBuffer } from './parser';
 const App = () => {
     const [data, setData] = useState<Record<string, unknown> | null>(null);
     const [warnings, setWarnings] = useState<string[]>([]);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         window.onmessage = async (e) => {
             if (e.data.action === 'respondFile') {
                 try {
+                    setError(null);
                     const file = e.data.file;
                     const buffer = Buffer.from(await file.arrayBuffer());
                     const [parsed, warnings] = parseBuffer(buffer);
-                    setData(parsed);
+                    if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+                        setError(parsed.error);
+                        setData(null);
+                    } else {
+                        setData(parsed);
+                        setError(null);
+                    }
                     setWarnings(warnings);
                 } catch (err) {
                     console.error(err);
                     if (err instanceof Error) {
-                        setData({ error: err.message });
+                        setError(err.message);
+                    } else {
+                        setError(String(err));
                     }
+                    setData(null);
                 }
             }
         };
@@ -33,6 +44,18 @@ const App = () => {
 
     return (
         <div style={{ padding: '10px' }}>
+            {error && (
+                <div style={{
+                    backgroundColor: '#f8d7da',
+                    color: '#721c24',
+                    padding: '10px',
+                    marginBottom: '10px',
+                    borderRadius: '4px',
+                    border: '1px solid #f5c6cb'
+                }}>
+                    <strong>Error:</strong> {error}
+                </div>
+            )}
             {warnings.length > 0 && (
                 <div style={{
                     backgroundColor: '#fff3cd',
@@ -51,7 +74,7 @@ const App = () => {
             {data ? (
                 <ReactJson src={data} name={false} />
             ) : (
-                <p>Loading...</p>
+                !error && <p>Loading...</p>
             )}
         </div>
     );

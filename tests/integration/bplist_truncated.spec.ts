@@ -50,3 +50,22 @@ test('BplistViewer should display a warning for an invalid trailer format', asyn
     await expect(iframe.locator('text="Warning:"')).toBeVisible();
     await expect(iframe.locator('text="Trailer format is invalid (expected null bytes). File may be truncated or corrupted."')).toBeVisible();
 });
+
+test('BplistViewer should display error and warnings for a severely truncated file', async ({ page }) => {
+    // A file that will trigger maxObjectCount exceeded because the offsetTableEnd check is bypassed or fails
+    // Actually, let's just make it really short but with a valid header
+    const fileContent = Buffer.from('bplist00' + 'A'.repeat(40));
+
+    const iframe = await runHandlerTest(page, {
+        handler: 'bplistviewer',
+        file: {
+            content: fileContent,
+            name: 'short.bplist',
+            type: 'application/x-plist'
+        }
+    });
+
+    await expect(iframe.locator('text="Error:"')).toBeVisible();
+    // It should also show warnings if they were detected before the crash
+    await expect(iframe.locator('text="Warning:"')).toBeVisible();
+});
