@@ -677,7 +677,7 @@ impl HprofParser {
             let name = class_id_to_name_id.get(&cid).and_then(|nid| utf8_map.get(nid)).cloned().unwrap_or_else(|| format!("Class@{}", format_id(cid)));
             let mut size = total_sizes.get(&cid).cloned().unwrap_or(0);
             if let Some(&isize) = class_id_to_instance_size.get(&cid) { size += count * isize; }
-            if size > 0 {
+            if size > 0 || name == "java.lang.Object" || name == "java/lang/Object" {
                 result.push(InstanceCountEntry { class_id: format_id(cid), class_name: name, count, total_size: size });
             }
         }
@@ -915,7 +915,7 @@ impl HprofParser {
             self.calculate_class_retained_size(start_class_id)?
         } as f64;
 
-        if start_retained <= 0.0 && start_node != virtual_root {
+        if start_retained <= 0.0 && start_node != virtual_root && start_name != "java.lang.Object" {
             return Ok(serde_wasm_bindgen::to_value(&SankeyData { nodes: Vec::new(), links: Vec::new() })?);
         }
 
@@ -991,10 +991,7 @@ impl HprofParser {
                         others_size += c_retained;
                         others_count += 1;
                         // Accumulate links from "Others" to their target classes
-                        if let Some(children) = graph.dom_children.get(c_cid) { // This is wrong, Others is a set of classes
-                             // We need to look at what objects of these "Other" classes retain.
-                        }
-                        // Actually, requirement says "Others" should have outgoing ribbons based on their references.
+                        // Requirement says "Others" should have outgoing ribbons based on their references.
                         // So we collect the dominator-tree children of all objects belonging to these "Other" classes.
                         let other_instances = graph.class_to_instances.get(c_cid).cloned().unwrap_or_default();
                         for o_oid in other_instances {

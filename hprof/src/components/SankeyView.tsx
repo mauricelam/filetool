@@ -42,7 +42,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
                 value: Math.max(1e-9, d.value)
             }));
 
-            if (inputLinks.length === 0) {
+            if (inputLinks.length === 0 && inputNodes.length > 0) {
                 // Handle single node case which d3-sankey-circular might struggle with
                 const n = inputNodes[0] as any;
                 n.x0 = (width - 15) / 2;
@@ -50,7 +50,7 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
                 n.y0 = (height - 50) / 2;
                 n.y1 = n.y0 + 50;
                 sankeyData = { nodes: inputNodes, links: [] };
-            } else {
+            } else if (inputNodes.length > 0) {
                 sankeyData = sankeyGenerator({
                     nodes: inputNodes,
                     links: inputLinks
@@ -106,6 +106,12 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
                 if (onHover) onHover(null);
             });
 
+        link.append("title")
+            .text(d => {
+                const percentage = (d.value / (d.source as any).retained_size * 100).toFixed(1);
+                return `${(d.source as any).name} → ${(d.target as any).name}\n${(d as any).field_names?.join(', ') || 'retained'}\n${formatBytes(d.value)} (${percentage}% of parent)`;
+            });
+
         // Nodes
         const node = g.append("g")
             .selectAll("g")
@@ -139,16 +145,27 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .attr("height", d => Math.max(1, (d as any).y1 - (d as any).y0))
             .attr("width", d => (d as any).x1 - (d as any).x0)
             .attr("fill", (d: any) => nodeColor(d))
-            .attr("stroke", "#000");
+            .attr("stroke", "#000")
+            .append("title")
+            .text(d => {
+                const node = d as any;
+                let text = `${node.name}\nRetained: ${formatBytes(node.retained_size)}`;
+                if (node.shallow_size > 0) {
+                    text += `\nShallow: ${formatBytes(node.shallow_size)}`;
+                }
+                return text;
+            });
 
         // Labels
-        node.append("foreignObject")
+        const labels = node.append("foreignObject")
+            .attr("class", "node-label")
             .attr("x", d => (d as any).x0 < width / 2 ? (d as any).x1 + 6 : (d as any).x0 - 156)
             .attr("y", d => ((d as any).y1 + (d as any).y0) / 2 - 25)
             .attr("width", 150)
             .attr("height", 50)
-            .style("pointer-events", "none")
-            .append("xhtml:div")
+            .style("pointer-events", "none");
+
+        labels.append("xhtml:div")
             .style("font", "10px sans-serif")
             .style("text-align", d => (d as any).x0 < width / 2 ? "left" : "right")
             .style("white-space", "normal")
