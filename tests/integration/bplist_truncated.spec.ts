@@ -26,7 +26,7 @@ test('BplistViewer should display a warning for a truncated binary plist file', 
         }
     });
 
-    await expect(iframe.locator('text="Warning:"')).toBeVisible();
+    await expect(iframe.locator('text="Warning"')).toBeVisible();
     await expect(iframe.locator('text="Offset table extends beyond the trailer. File may be truncated."')).toBeVisible();
 });
 
@@ -47,7 +47,7 @@ test('BplistViewer should display a warning for an invalid trailer format', asyn
         }
     });
 
-    await expect(iframe.locator('text="Warning:"')).toBeVisible();
+    await expect(iframe.locator('text="Warning"')).toBeVisible();
     await expect(iframe.locator('text="Trailer format is invalid (expected null bytes). File may be truncated or corrupted."')).toBeVisible();
 });
 
@@ -65,7 +65,7 @@ test('BplistViewer should display error and warnings for a severely truncated fi
         }
     });
 
-    await expect(iframe.locator('text="Error:"')).toBeVisible();
+    await expect(iframe.locator('text="Error"')).toBeVisible();
     // It should also show warnings if they were detected before the crash
-    await expect(iframe.locator('text="Warning:"')).toBeVisible();
+    await expect(iframe.locator('text="Warning"')).toBeVisible();
 });

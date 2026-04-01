@@ -43,31 +43,40 @@ const App = () => {
     }, []);
 
     return (
-        <div style={{ padding: '10px' }}>
+        <div style={{
+            padding: '16px',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"',
+            fontSize: '14px',
+            lineHeight: '1.5',
+            color: '#333'
+        }}>
             {error && (
                 <div style={{
-                    backgroundColor: '#f8d7da',
-                    color: '#721c24',
-                    padding: '10px',
-                    marginBottom: '10px',
-                    borderRadius: '4px',
-                    border: '1px solid #f5c6cb'
+                    backgroundColor: '#fff5f5',
+                    color: '#c92a2a',
+                    padding: '12px 16px',
+                    marginBottom: '16px',
+                    borderRadius: '8px',
+                    border: '1px solid #ffc9c9',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                 }}>
-                    <strong>Error:</strong> {error}
+                    <strong style={{ display: 'block', marginBottom: '4px', fontSize: '15px' }}>Error</strong>
+                    {error}
                 </div>
             )}
             {warnings.length > 0 && (
                 <div style={{
-                    backgroundColor: '#fff3cd',
-                    color: '#856404',
-                    padding: '10px',
-                    marginBottom: '10px',
-                    borderRadius: '4px',
-                    border: '1px solid #ffeeba'
+                    backgroundColor: '#fff9db',
+                    color: '#e67700',
+                    padding: '12px 16px',
+                    marginBottom: '16px',
+                    borderRadius: '8px',
+                    border: '1px solid #ffe066',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                 }}>
-                    <strong>Warning:</strong>
-                    <ul style={{ margin: '5px 0 0 0', paddingLeft: '20px' }}>
-                        {warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    <strong style={{ display: 'block', marginBottom: '4px', fontSize: '15px' }}>Warning</strong>
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                        {warnings.map((w, i) => <li key={i} style={{ marginBottom: '2px' }}>{w}</li>)}
                     </ul>
                 </div>
             )}

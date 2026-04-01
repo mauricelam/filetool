@@ -4,17 +4,15 @@ const handler = params.get('handler');
 const iframeEl = document.getElementById('file-handler-iframe') as HTMLIFrameElement;
 
 let fileToProvide: File | null = null;
-let additionalFilesToProvide: File[] = [];
 let handlerIsReady = false;
 
 function sendFileIfReady() {
-    console.log('sendFileIfReady called', { fileToProvide, additionalFilesToProvide, handlerIsReady });
+    console.log('sendFileIfReady called', { fileToProvide, handlerIsReady });
     if (fileToProvide && handlerIsReady && iframeEl.contentWindow) {
         console.log('Sending file to handler');
         iframeEl.contentWindow.postMessage({
             action: 'respondFile',
-            file: fileToProvide,
-            additionalFiles: additionalFilesToProvide
+            file: fileToProvide
         }, '*');
     }
 }
@@ -24,16 +22,9 @@ window.addEventListener('message', (event: MessageEvent) => {
     console.log('Message received from parent', event.data);
     if (event.source === window.parent && event.data.action === 'setFile') {
         const { content, name, type } = event.data.file;
-        fileToProvide = new File([content], name, { type });
+        const fileContent = content;
 
-        if (event.data.additionalFiles) {
-            additionalFilesToProvide = event.data.additionalFiles.map((f: any) =>
-                new File([f.content], f.name, { type: f.type })
-            );
-        } else {
-            additionalFilesToProvide = [];
-        }
-
+        fileToProvide = new File([fileContent], name, { type });
         sendFileIfReady();
     }
 });

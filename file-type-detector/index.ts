@@ -253,7 +253,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
-        "name": "Binary Plist",
+        "name": "Binary Plist Viewer",
         "handler": "bplistviewer",
         "mimetypes": ["application/x-plist", { "filename": /\.bplist$/i }]
     },
