@@ -28,7 +28,7 @@ test('HPROF viewer Sankey diagram should have specific features', async ({ page 
     await expect(sankeySvg).toBeVisible({ timeout: 60000 });
 
     // Check for "Root GC" label and retained size
-    const rootLabel = iframe.locator('.node-label').filter({ hasText: 'Root GC' });
+    const rootLabel = iframe.locator('.node-label').filter({ hasText: /Root GC/ }).first();
     await expect(rootLabel).toBeVisible();
     await expect(rootLabel).toContainText(/MB|KB|B/);
 

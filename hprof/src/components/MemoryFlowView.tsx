@@ -5,14 +5,17 @@ import { SankeyView } from './SankeyView';
 import { SunburstView } from './SunburstView';
 import { TreemapView } from './TreemapView';
 import { IcicleView } from './IcicleView';
+import { formatBytes } from '../utils/hierarchy';
 
 interface MemoryFlowViewProps {
     data: SankeyData | null;
     loading: boolean;
     rootId: string | null;
     depth: number;
+    splitCount: number;
     history: { id: string | null, name: string }[];
     onDepthChange: (depth: number) => void;
+    onSplitCountChange: (count: number) => void;
     onZoom: (id: string, name: string) => void;
     onJump: (id: string | null, index: number) => void;
     onBack: () => void;
@@ -22,84 +25,14 @@ interface MemoryFlowViewProps {
 
 type VisualizationType = 'sankey' | 'sunburst' | 'treemap' | 'icicle';
 
-function groupSankeyData(data: SankeyData): SankeyData {
-    if (!data.nodes.length) return data;
-
-    const childrenMap = new Map<number, { target: number, value: number, field_names?: string[] }[]>();
-    data.links.forEach(link => {
-        const children = childrenMap.get(link.source) || [];
-        children.push({ target: link.target, value: link.value, field_names: link.field_names });
-        childrenMap.set(link.source, children);
-    });
-
-    const newNodes: SankeyNode[] = [];
-    const newLinks: SankeyLink[] = [];
-    const oldToNewIdx = new Map<number, number>();
-
-    function processNode(oldIdx: number): number {
-        if (oldToNewIdx.has(oldIdx)) return oldToNewIdx.get(oldIdx)!;
-
-        const node = data.nodes[oldIdx];
-        const newIdx = newNodes.length;
-        oldToNewIdx.set(oldIdx, newIdx);
-        newNodes.push({ ...node });
-
-        const childrenInfo = childrenMap.get(oldIdx) || [];
-        const groups = new Map<string, { nodes: number[], totalValue: number, field_names: Set<string> }>();
-        childrenInfo.forEach(info => {
-            const childNode = data.nodes[info.target];
-            const group = groups.get(childNode.name) || { nodes: [], totalValue: 0, field_names: new Set() };
-            group.nodes.push(info.target);
-            group.totalValue += info.value;
-            if (info.field_names) info.field_names.forEach(n => group.field_names.add(n));
-            groups.set(childNode.name, group);
-        });
-
-        groups.forEach((group, name) => {
-            if (group.nodes.length === 1) {
-                const targetNewIdx = processNode(group.nodes[0]);
-                newLinks.push({
-                    source: newIdx,
-                    target: targetNewIdx,
-                    value: group.totalValue,
-                    field_names: childrenInfo.find(i => i.target === group.nodes[0])?.field_names
-                });
-            } else {
-                const groupedNodeIdx = newNodes.length;
-                let groupRetained = 0;
-                let groupShallow = 0;
-                group.nodes.forEach(idx => {
-                    groupRetained += data.nodes[idx].retained_size;
-                    groupShallow += data.nodes[idx].shallow_size;
-                });
-
-                newNodes.push({
-                    name: `${name} (${group.nodes.length} objects)`,
-                    id: null,
-                    parent_id: node.id,
-                    retained_size: groupRetained,
-                    shallow_size: groupShallow
-                });
-
-                newLinks.push({
-                    source: newIdx,
-                    target: groupedNodeIdx,
-                    value: group.totalValue,
-                    field_names: group.field_names.size > 0 ? Array.from(group.field_names) : undefined
-                });
-
-                // For simplicity, we don't recurse into grouped children's children in Sankey
-                // as it's not a tree and would be hard to layout.
-                // But wait, it IS a tree (dominator tree).
-                // If we want it to be useful, we should probably just combine them.
-            }
-        });
-
-        return newIdx;
-    }
-
-    processNode(0);
-    return { nodes: newNodes, links: newLinks };
+export interface HoverInfo {
+    title: string;
+    retainedSize: number;
+    shallowSize?: number;
+    type: 'node' | 'link';
+    targetName?: string;
+    fieldNames?: string[];
+    percentageOfParent?: string;
 }
 
 export function MemoryFlowView({
@@ -107,8 +40,10 @@ export function MemoryFlowView({
     loading,
     rootId,
     depth,
+    splitCount,
     history,
     onDepthChange,
+    onSplitCountChange,
     onZoom,
     onBack,
     onReset,
@@ -116,12 +51,7 @@ export function MemoryFlowView({
     onJump
 }: MemoryFlowViewProps) {
     const [vizType, setVizType] = useState<VisualizationType>('sankey');
-
-    const groupedData = useMemo(() => {
-        if (!data) return null;
-        if (vizType === 'sankey') return groupSankeyData(data);
-        return data; // Tree views handle grouping in buildHierarchy
-    }, [data, vizType]);
+    const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
     const currentName = rootId === null ? 'Root GC' : (data?.nodes.find(n => n.id === rootId)?.name || rootId);
 
@@ -166,17 +96,68 @@ export function MemoryFlowView({
                         onChange={(e) => onDepthChange(Math.max(1, parseInt(e.target.value) || 1))}
                         style={{ width: '50px' }}
                     />
+                    <Text size="sm">Split count:</Text>
+                    <input
+                        type="number"
+                        value={splitCount}
+                        min={1}
+                        max={100}
+                        onChange={(e) => onSplitCountChange(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ width: '50px' }}
+                        aria-label="Split count"
+                    />
                 </Group>
             </Group>
             <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                 <LoadingOverlay visible={loading} />
-                {groupedData && (
+                {data && (
                     <>
-                        {vizType === 'sankey' && <SankeyView data={groupedData} onNodeClick={onZoom} onExpandOthers={onExpandOthers} />}
-                        {vizType === 'sunburst' && <SunburstView data={groupedData} onNodeClick={onZoom} onExpandOthers={onExpandOthers} />}
-                        {vizType === 'treemap' && <TreemapView data={groupedData} onNodeClick={onZoom} onExpandOthers={onExpandOthers} />}
-                        {vizType === 'icicle' && <IcicleView data={groupedData} onNodeClick={onZoom} onExpandOthers={onExpandOthers} />}
+                        {vizType === 'sankey' && <SankeyView data={data} onNodeClick={onZoom} onExpandOthers={onExpandOthers} onHover={setHoverInfo} />}
+                        {vizType === 'sunburst' && <SunburstView data={data} onNodeClick={onZoom} onExpandOthers={onExpandOthers} onHover={setHoverInfo} />}
+                        {vizType === 'treemap' && <TreemapView data={data} onNodeClick={onZoom} onExpandOthers={onExpandOthers} onHover={setHoverInfo} />}
+                        {vizType === 'icicle' && <IcicleView data={data} onNodeClick={onZoom} onExpandOthers={onExpandOthers} onHover={setHoverInfo} />}
                     </>
+                )}
+
+                {hoverInfo && (
+                    <Box
+                        p="xs"
+                        bg="rgba(255, 255, 255, 0.9)"
+                        style={{
+                            position: 'absolute',
+                            top: 10,
+                            left: 10,
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            zIndex: 100,
+                            pointerEvents: 'none',
+                            maxWidth: '300px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                    >
+                        <Stack gap={2}>
+                            {hoverInfo.type === 'node' ? (
+                                <>
+                                    <Text fw={700} size="sm">{hoverInfo.title}</Text>
+                                    <Text size="xs">Retained: {formatBytes(hoverInfo.retainedSize)}</Text>
+                                    {hoverInfo.shallowSize && hoverInfo.shallowSize > 0 && (
+                                        <Text size="xs">Shallow: {formatBytes(hoverInfo.shallowSize)}</Text>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <Text fw={700} size="sm">{hoverInfo.title} → {hoverInfo.targetName}</Text>
+                                    {hoverInfo.fieldNames && hoverInfo.fieldNames.length > 0 && (
+                                        <Text size="xs" c="dimmed">{hoverInfo.fieldNames.join(', ')}</Text>
+                                    )}
+                                    <Text size="xs">Retained: {formatBytes(hoverInfo.retainedSize)}</Text>
+                                    {hoverInfo.percentageOfParent && (
+                                        <Text size="xs">{hoverInfo.percentageOfParent}% of parent</Text>
+                                    )}
+                                </>
+                            )}
+                        </Stack>
+                    </Box>
                 )}
             </Box>
         </Stack>

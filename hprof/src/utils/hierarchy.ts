@@ -20,8 +20,24 @@ export function buildHierarchy(data: SankeyData): HierarchyNode | null {
         childrenMap.set(link.source, children);
     });
 
+    const visited = new Set<number>();
+
     function buildNode(nodeIdx: number): HierarchyNode {
         const node = data.nodes[nodeIdx];
+
+        if (visited.has(nodeIdx)) {
+            // Cycle detected or node already present in another branch.
+            // Return a leaf node to avoid infinite recursion.
+            return {
+                name: `${node.name} (already seen)`,
+                id: null,
+                parent_id: null,
+                retained_size: 0,
+                shallow_size: 0
+            };
+        }
+        visited.add(nodeIdx);
+
         const childrenInfo = childrenMap.get(nodeIdx) || [];
 
         // Group children by name
@@ -60,7 +76,7 @@ export function buildHierarchy(data: SankeyData): HierarchyNode | null {
                 // For now, let's just combine the top level and show "(N objects)".
 
                 children.push({
-                    name: `${name} (${group.nodes.length} objects)`,
+                    name: `${name} (${group.nodes.length} classes)`,
                     id: null, // Grouped node has no single ID
                     parent_id: node.id,
                     retained_size: totalRetained,
@@ -87,8 +103,8 @@ export function buildHierarchy(data: SankeyData): HierarchyNode | null {
 function mergeSiblings(nodes: HierarchyNode[]): HierarchyNode[] {
     const groups = new Map<string, HierarchyNode[]>();
     nodes.forEach(node => {
-        // Strip "(N objects)" if it's already there to merge properly
-        const baseName = node.name.replace(/ \(\d+ objects\)$/, "");
+        // Strip grouping labels if already there to merge properly
+        const baseName = node.name.replace(/ \(\d+ (objects|classes)\)$/, "");
         const group = groups.get(baseName) || [];
         group.push(node);
         groups.set(baseName, group);
@@ -109,9 +125,9 @@ function mergeSiblings(nodes: HierarchyNode[]): HierarchyNode[] {
             });
             result.push({
                 name: `${name} (${group.reduce((acc, n) => {
-                    const m = n.name.match(/ \((\d+) objects\)$/);
+                    const m = n.name.match(/ \((\d+) (objects|classes)\)$/);
                     return acc + (m ? parseInt(m[1]) : 1);
-                }, 0)} objects)`,
+                }, 0)} classes)`,
                 id: null,
                 parent_id: group[0].parent_id,
                 retained_size: totalRetained,
