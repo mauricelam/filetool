@@ -177,7 +177,6 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             "application/x-tar", { "filename": /\.tar$/i }, "application/x-cpio", { "filename": /\.cpio$/i }
         ]
     },
-    { "name": "ClassyShark", "handler": "classyshark", "mimetypes": [] },
     {
         "name": "Android APK",
         "handler": "apk-viewer",
