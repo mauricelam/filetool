@@ -35,8 +35,8 @@ test('should correctly show diff between two files', async ({ page }) => {
     await expect(groupButton).toBeVisible();
     await groupButton.click();
 
-    // Now the group should be selected and "Diff Viewer" should be visible in promoted handlers
-    const diffViewerButton = page.locator('button', { hasText: 'Diff Viewer' });
+    // Now the group should be selected and "Diff" should be visible in promoted handlers
+    const diffViewerButton = page.locator('button', { hasText: 'Diff' });
     await expect(diffViewerButton).toBeVisible();
     await diffViewerButton.click();
 
