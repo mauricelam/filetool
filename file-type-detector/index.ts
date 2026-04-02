@@ -167,7 +167,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             { "filename": /\.glb$/i }, { "filename": /\.fbx$/i }, { "filename": /\.ply$/i }
         ]
     },
-    { "name": "Webassembly text viewer", "handler": "wat_viewer", "mimetypes": ["application/wasm"] },
+    { "name": "Webassembly text", "handler": "wat_viewer", "mimetypes": ["application/wasm"] },
     {
         "name": "Archive",
         "handler": "archive",
@@ -236,8 +236,8 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             { "description": /FlatBuffers/i }
         ]
     },
-    { "name": "SQLite Viewer", "handler": "sqliteviewer", "mimetypes": [{ "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3"] },
-    { "name": "Proguard Viewer", "handler": "proguardviewer", "mimetypes": [{ "filename": /(\.(map|mapping)|proguard\.txt)$/i }] },
+    { "name": "SQLite", "handler": "sqliteviewer", "mimetypes": [{ "filename": /\.(sqlite|db)$/i }, "application/x-sqlite3", "application/vnd.sqlite3"] },
+    { "name": "Proguard", "handler": "proguardviewer", "mimetypes": [{ "filename": /(\.(map|mapping)|proguard\.txt)$/i }] },
     {
         "name": "Decompressor",
         "handler": "decompressor",
@@ -278,7 +278,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
-        "name": "HPROF Viewer",
+        "name": "HPROF",
         "handler": "hprof",
         "mimetypes": [
             { "filename": /\.hprof$/i },
@@ -286,7 +286,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
-        "name": "Diff Viewer",
+        "name": "Diff",
         "handler": "diffviewer",
         "mimetypes": []
     },
