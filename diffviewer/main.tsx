@@ -55,11 +55,35 @@ async function handleFiles(file: File, additionalFiles: File[]) {
 function DiffViewer({ file1, file2, buf1, buf2, initialMode }: { file1: File, file2: File, buf1: Uint8Array, buf2: Uint8Array, initialMode: 'text' | 'binary' }) {
     const [viewMode, setViewMode] = useState<'unified' | 'side-by-side'>('unified');
     const [diffMode, setDiffMode] = useState<'text' | 'binary'>(initialMode);
+    const [byteDiffs, setByteDiffs] = useState<jsdiff.Change[]>([]);
+    const [isDiffing, setIsDiffing] = useState(false);
 
-    const text1 = new TextDecoder().decode(buf1);
-    const text2 = new TextDecoder().decode(buf2);
-    const textDiffs = React.useMemo(() => jsdiff.diffLines(text1, text2), [text1, text2]);
-    const byteDiffs = React.useMemo(() => diffMode === 'binary' ? jsdiff.diffArrays(Array.from(buf1), Array.from(buf2)) : [], [buf1, buf2, diffMode]);
+    const isTooLargeForText = buf1.length > 2 * 1024 * 1024 || buf2.length > 2 * 1024 * 1024;
+    const isTooLargeForBinary = buf1.length > 10 * 1024 * 1024 || buf2.length > 10 * 1024 * 1024;
+
+    const text1 = React.useMemo(() => (diffMode === 'text' && !isTooLargeForText) ? new TextDecoder().decode(buf1) : "", [buf1, diffMode, isTooLargeForText]);
+    const text2 = React.useMemo(() => (diffMode === 'text' && !isTooLargeForText) ? new TextDecoder().decode(buf2) : "", [buf2, diffMode, isTooLargeForText]);
+    const textDiffs = React.useMemo(() => (diffMode === 'text' && !isTooLargeForText) ? jsdiff.diffLines(text1, text2) : [], [text1, text2, diffMode, isTooLargeForText]);
+
+    useEffect(() => {
+        if (diffMode === 'binary') {
+            if (isTooLargeForBinary) {
+                // Too large for jsdiff.diffArrays (very slow/hangs)
+                return;
+            }
+            if (byteDiffs.length > 0) return; // Already computed
+
+            setIsDiffing(true);
+            const worker = new Worker(new URL('./diff-worker.js', import.meta.url), { type: 'module' });
+            worker.onmessage = (e) => {
+                setByteDiffs(e.data.diffs);
+                setIsDiffing(false);
+                worker.terminate();
+            };
+            worker.postMessage({ buf1, buf2 });
+            return () => worker.terminate();
+        }
+    }, [buf1, buf2, diffMode, isTooLargeForBinary, byteDiffs.length]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -213,7 +237,23 @@ function DiffViewer({ file1, file2, buf1, buf2, initialMode }: { file1: File, fi
                     </div>
                 </div>
             </div>
-            {diffMode === 'text' ? (viewMode === 'unified' ? renderUnified(textDiffs) : renderSideBySide(textDiffs)) : <BinaryDiffViewer file1={file1} file2={file2} diffs={byteDiffs} />}
+            {diffMode === 'text' ? (
+                isTooLargeForText ? (
+                    <div style={{ padding: '20px', color: 'red' }}>Files are too large for text diffing (max 2MB).</div>
+                ) : (
+                    (viewMode === 'unified' ? renderUnified(textDiffs) : renderSideBySide(textDiffs))
+                )
+            ) : (
+                isDiffing ? (
+                    <div style={{ padding: '20px', textAlign: 'center' }}>Computing binary diff...</div>
+                ) : (
+                    isTooLargeForBinary ? (
+                        <div style={{ padding: '20px', color: 'red' }}>Files are too large for binary diffing (max 10MB).</div>
+                    ) : (
+                        <BinaryDiffViewer file1={file1} file2={file2} diffs={byteDiffs} />
+                    )
+                )
+            )}
         </div>
     );
 }
@@ -259,6 +299,8 @@ function BinaryDiffViewer({ file1, file2, diffs }: { file1: File, file2: File, d
             if (!isSyncingLeft) {
                 isSyncingRight = true;
                 right.scrollTop = left.scrollTop;
+                // Dispatch event to trigger re-render of right pane for virtualization
+                right.dispatchEvent(new Event('scroll'));
                 setTimeout(() => { isSyncingRight = false; }, 0);
             }
         };
@@ -267,6 +309,8 @@ function BinaryDiffViewer({ file1, file2, diffs }: { file1: File, file2: File, d
             if (!isSyncingRight) {
                 isSyncingLeft = true;
                 left.scrollTop = right.scrollTop;
+                // Dispatch event to trigger re-render of left pane for virtualization
+                left.dispatchEvent(new Event('scroll'));
                 setTimeout(() => { isSyncingLeft = false; }, 0);
             }
         };
@@ -289,51 +333,77 @@ function BinaryDiffViewer({ file1, file2, diffs }: { file1: File, file2: File, d
 }
 
 function HexDiffPane({ fileName, bytes, scrollRef }: { fileName: string, bytes: { value: number, type: 'normal' | 'removed' | 'added' | 'empty' }[], scrollRef: React.RefObject<HTMLDivElement> }) {
+    const [scrollTop, setScrollTop] = useState(0);
+    const [paneHeight, setPaneHeight] = useState(0);
+
     const lineCount = Math.ceil(bytes.length / 16);
-    const lines = [];
-    for (let i = 0; i < lineCount; i++) {
-        lines.push(bytes.slice(i * 16, i * 16 + 16));
+    const LINE_HEIGHT = 15.6; // Approximate line height for 13px monospace
+
+    useEffect(() => {
+        const pane = scrollRef.current;
+        if (!pane) return;
+        setPaneHeight(pane.clientHeight);
+        const ro = new ResizeObserver(() => setPaneHeight(pane.clientHeight));
+        ro.observe(pane);
+        return () => ro.disconnect();
+    }, [scrollRef]);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        setScrollTop(e.currentTarget.scrollTop);
+    };
+
+    const visibleStart = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - 20);
+    const visibleEnd = Math.min(lineCount, Math.ceil((scrollTop + paneHeight) / LINE_HEIGHT) + 20);
+
+    const visibleLines = [];
+    for (let i = visibleStart; i < visibleEnd; i++) {
+        visibleLines.push({
+            index: i,
+            data: bytes.slice(i * 16, i * 16 + 16)
+        });
     }
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid #ccc', overflow: 'hidden' }}>
             <div style={{ padding: '4px', backgroundColor: '#f5f5f5', borderBottom: '1px solid #ccc', fontWeight: 'bold', fontSize: '12px' }}>{fileName}</div>
-            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '10px', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.2' }}>
-                <div style={{ display: 'flex' }}>
-                    <div style={{ color: '#888', marginRight: '16px', userSelect: 'none' }}>
-                        {Array.from({ length: lineCount }).map((_, i) => (
-                            <div key={i}>{(i * 16).toString(16).padStart(8, '0')}</div>
-                        ))}
-                    </div>
-                    <div style={{ marginRight: '16px' }}>
-                        {lines.map((line, i) => (
-                            <div key={i} style={{ display: 'flex' }}>
-                                {line.map((b, j) => (
-                                    <span key={j} style={{
-                                        width: '2ch',
-                                        marginRight: '1ch',
-                                        backgroundColor: b.type === 'added' ? '#e6ffec' : b.type === 'removed' ? '#ffebe9' : 'transparent',
-                                        color: b.type === 'empty' ? 'transparent' : (b.type === 'added' ? 'green' : b.type === 'removed' ? 'red' : 'black')
-                                    }}>
-                                        {b.type === 'empty' ? '  ' : b.value.toString(16).padStart(2, '0').toUpperCase()}
-                                    </span>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                    <div style={{ borderLeft: '1px solid #eee', paddingLeft: '8px' }}>
-                        {lines.map((line, i) => (
-                            <div key={i}>
-                                {line.map((b, j) => (
-                                    <span key={j} style={{
-                                        backgroundColor: b.type === 'added' ? '#e6ffec' : b.type === 'removed' ? '#ffebe9' : 'transparent',
-                                        color: b.type === 'empty' ? 'transparent' : (b.type === 'added' ? 'green' : b.type === 'removed' ? 'red' : 'black')
-                                    }}>
-                                        {b.type === 'empty' ? ' ' : ((b.value > 31 && b.value < 127) || b.value > 159 ? String.fromCharCode(b.value) : '.')}
-                                    </span>
-                                ))}
-                            </div>
-                        ))}
+            <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '10px', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.2' }}>
+                <div style={{ height: lineCount * LINE_HEIGHT, position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: visibleStart * LINE_HEIGHT, left: 0, right: 0, display: 'flex' }}>
+                        <div style={{ color: '#888', marginRight: '16px', userSelect: 'none' }}>
+                            {visibleLines.map(line => (
+                                <div key={line.index}>{(line.index * 16).toString(16).padStart(8, '0')}</div>
+                            ))}
+                        </div>
+                        <div style={{ marginRight: '16px' }}>
+                            {visibleLines.map(line => (
+                                <div key={line.index} style={{ display: 'flex' }}>
+                                    {line.data.map((b, j) => (
+                                        <span key={j} style={{
+                                            width: '2ch',
+                                            marginRight: '1ch',
+                                            backgroundColor: b.type === 'added' ? '#e6ffec' : b.type === 'removed' ? '#ffebe9' : 'transparent',
+                                            color: b.type === 'empty' ? 'transparent' : (b.type === 'added' ? 'green' : b.type === 'removed' ? 'red' : 'black')
+                                        }}>
+                                            {b.type === 'empty' ? '  ' : b.value.toString(16).padStart(2, '0').toUpperCase()}
+                                        </span>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ borderLeft: '1px solid #eee', paddingLeft: '8px' }}>
+                            {visibleLines.map(line => (
+                                <div key={line.index}>
+                                    {line.data.map((b, j) => (
+                                        <span key={j} style={{
+                                            backgroundColor: b.type === 'added' ? '#e6ffec' : b.type === 'removed' ? '#ffebe9' : 'transparent',
+                                            color: b.type === 'empty' ? 'transparent' : (b.type === 'added' ? 'green' : b.type === 'removed' ? 'red' : 'black')
+                                        }}>
+                                            {b.type === 'empty' ? ' ' : ((b.value > 31 && b.value < 127) || b.value > 159 ? String.fromCharCode(b.value) : '.')}
+                                        </span>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>

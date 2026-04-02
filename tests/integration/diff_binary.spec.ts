@@ -49,7 +49,7 @@ test('should correctly show binary diff between two binary files', async ({ page
     await expect(binaryButton).toHaveCSS('background-color', 'rgb(102, 102, 102)'); // #666
 
     // Check for hex offsets (e.g., 00000000)
-    await expect(iframe.getByText('00000000').first()).toBeVisible();
+    await expect(iframe.getByText('00000000').first()).toBeVisible({ timeout: 20000 });
 
     // Check for some diff content (hex values)
     // 'World' is [57, 6f, 72, 6c, 64]
