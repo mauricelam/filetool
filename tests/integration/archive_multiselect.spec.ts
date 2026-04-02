@@ -49,7 +49,7 @@ test.describe('Archive Viewer Multi-selection', () => {
         await expect(secondColumnItems.nth(1)).toHaveClass(/selected/);
 
         // Take a screenshot showing multi-selection
-        await page.screenshot({ path: 'verification/screenshots/multi_selected.png' });
+        await page.screenshot({ path: 'test-results/multi_selected.png' });
 
         // Verify the download button title/text changed
         const downloadBtn = iframe.locator('button[title*="Download"]');
@@ -71,6 +71,6 @@ test.describe('Archive Viewer Multi-selection', () => {
         await expect(perFileButtons).toHaveCount(0);
 
         // Take a screenshot for verification
-        await page.screenshot({ path: 'verification/screenshots/final_check.png' });
+        await page.screenshot({ path: 'test-results/screenshots/final_check.png' });
     });
 });

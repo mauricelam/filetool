@@ -10,3 +10,4 @@
 6. When using Rust wasm builds, use `wasm-bindgen` to create bindings, and `tsify` to create TypeScript types.
 7. When using emsdk, install it in a temporary directory outside of this project.
 8. This project utilizes turborepo for build caching and parallelization. When setting up the build, always include a turbo.json file.
+9. All testing artifacts should be placed under the test-results/ directory.
