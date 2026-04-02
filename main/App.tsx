@@ -40,7 +40,13 @@ export function App() {
     const [sidebarOrder, setSidebarOrder] = useState<string[]>([]);
     const [pastedText, setPastedText] = useState<string | null>(null);
 
-    const generateId = () => crypto.randomUUID();
+    const generateId = () => {
+        try {
+            return crypto.randomUUID();
+        } catch (e) {
+            return Math.random().toString(36).substring(2) + Date.now().toString(36);
+        }
+    };
 
     // Global paste handler
     useEffect(() => {
@@ -542,7 +548,7 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
                 const fileBuf = new Uint8Array(await f.file.arrayBuffer());
                 return mimeMagic.detect(fileBuf);
             }));
-            setGroupMimetypes(Array.from(new Set(mimes)));
+            setGroupMimetypes(mimes);
         };
         loadMimes();
     }, [files]);
@@ -571,6 +577,8 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
         if (h.handler === 'dexviewer') return matchesGroup(h);
         if (h.handler === 'diffviewer') return files.length >= 2;
         if (h.handler === 'concatenate') return files.length >= 2;
+        // Text viewer is useful for groups of text files
+        if (h.handler === 'textviewer') return matchesGroup(h);
         return false;
     });
 
@@ -641,6 +649,7 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
                                     {allVisibleGroupHandlers.map(handler => (
                                         <button
                                             key={handler.handler}
+                                            data-handler={handler.handler}
                                             onClick={() => onOpenFile({
                                                 file: files[0].file,
                                                 additionalFiles: files.slice(1).map(f => f.file),
