@@ -137,6 +137,7 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
     const [sankeyRootId, setSankeyRootId] = useState<string | null>(null);
     const [sankeyHistory, setSankeyHistory] = useState<{ id: string | null, name: string }[]>([]);
     const [sankeyDepth, setSankeyDepth] = useState(3);
+    const [sankeySplitCount, setSankeySplitCount] = useState(5);
     const [sankeyExpandId, setSankeyExpandId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -200,12 +201,12 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
         if (activeTab === 'memory-flow') {
             setSankeyLoading(true);
             setTimeout(() => {
-                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth, sankeyExpandId || undefined)) }
+                try { setSankeyData(parser.get_sankey_data(sankeyRootId || undefined, sankeyDepth, sankeySplitCount, sankeyExpandId || undefined)) }
                 catch (e) { console.error(e) }
                 finally { setSankeyLoading(false) }
             }, 0);
         }
-    }, [activeTab, parser, sankeyRootId, sankeyDepth, sankeyExpandId]);
+    }, [activeTab, parser, sankeyRootId, sankeyDepth, sankeySplitCount, sankeyExpandId]);
 
     const handleRecordClick = (index: number) => {
         setSelectedRecordIndex(index)
@@ -382,8 +383,10 @@ function HprofViewer({ parser, fileName }: { parser: HprofParser, fileName: stri
                         loading={sankeyLoading}
                         rootId={sankeyRootId}
                         depth={sankeyDepth}
+                        splitCount={sankeySplitCount}
                         history={sankeyHistory}
                         onDepthChange={setSankeyDepth}
+                        onSplitCountChange={setSankeySplitCount}
                         onZoom={handleSankeyZoom}
                         onJump={handleSankeyJump}
                         onBack={handleSankeyBack}
