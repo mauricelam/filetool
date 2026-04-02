@@ -1,9 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { test, expect, Page } from '@playwright/test';
-import { runHandlerTest } from '../../tests/integration/test-utils.ts';
+import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('should correctly deobfuscate a class name', async ({ page }: { page: Page }) => {
     await runHandlerTest(page, {

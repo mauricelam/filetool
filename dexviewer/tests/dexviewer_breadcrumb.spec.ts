@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { test, expect } from '@playwright/test';
-import { runHandlerTest } from '../../tests/integration/test-utils.ts';
+import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('DEX Viewer Breadcrumb "Show in Packages"', () => {
     test('should show current package in packages tab when clicking the target icon', async ({ page }) => {

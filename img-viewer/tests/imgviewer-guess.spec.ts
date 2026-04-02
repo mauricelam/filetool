@@ -1,9 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { test, expect } from '@playwright/test';
-import { runHandlerTest } from '../../tests/integration/test-utils.ts';
+import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('img-viewer should show a helpful error for NTFS .img files', async ({ page }) => {
     // NTFS magic "NTFS    " at offset 3

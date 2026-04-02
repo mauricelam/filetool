@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { test, expect } from '@playwright/test';
 
-import { runHandlerTest, HandlerTestOptions } from '../../tests/integration/test-utils.ts';
+import { runHandlerTest, HandlerTestOptions } from '@filetool/integration-test-harness';
 
 test.describe('der handler', () => {
     let validFile: HandlerTestOptions['file'];

@@ -1,9 +1,6 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { test, expect } from '@playwright/test';
-import { runHandlerTest } from '../../tests/integration/test-utils.ts';
+import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('HPROF enhanced features', () => {
     test('HPROF viewer should support drill-down and retained size calculation', async ({ page }) => {
