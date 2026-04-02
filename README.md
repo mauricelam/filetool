@@ -76,7 +76,6 @@ window.onmessage = (e) => {
 | [SELinux Policy](https://github.com/SELinuxProject/setools) | SELinux policy files |
 | [Graphviz Viewer](https://gitlab.com/graphviz/graphviz) | .dot, .gv |
 | [CheerpJ](https://leaningtech.com/cheerpj/) | JVM in browser |
-| [ClassyShark](https://github.com/google/android-classyshark) | Android executable inspection |
 | [SquashFS](https://github.com/plougher/squashfs-tools) | .squashfs, .sqfs |
 | Archive | ZIP, GZIP, XZ, APK, RAR, 7Z, JAR, LZH |
 | Android APK | APK files |
