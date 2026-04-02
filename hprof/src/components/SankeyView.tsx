@@ -117,12 +117,10 @@ export function SankeyView({ data, onNodeClick, onExpandOthers, onHover }: Sanke
             .selectAll("g")
             .data(nodes)
             .join("g")
-            .style("cursor", d => d.id || (!d.id && d.parent_id) ? "pointer" : "default")
+            .style("cursor", d => d.id ? "pointer" : "default")
             .on("click", (event, d: any) => {
                 if (d.id && onNodeClick) {
                     onNodeClick(d.id, d.name);
-                } else if (!d.id && d.parent_id && onExpandOthers) {
-                    onExpandOthers(d.parent_id);
                 }
             })
             .on("mouseover", (event, d: any) => {

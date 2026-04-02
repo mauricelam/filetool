@@ -65,12 +65,10 @@ export function SunburstView({ data, onNodeClick, onExpandOthers, onHover }: Sun
             })
             .attr("fill-opacity", 0.6)
             .attr("d", arc)
-            .style("cursor", "pointer")
+            .style("cursor", d => d.data.id ? "pointer" : "default")
             .on("click", (event, d) => {
                 if (d.data.id && onNodeClick) {
                     onNodeClick(d.data.id, d.data.name);
-                } else if (!d.data.id && d.data.parent_id && onExpandOthers) {
-                    onExpandOthers(d.data.parent_id);
                 }
             })
             .on("mouseover", function(event, d: any) {
