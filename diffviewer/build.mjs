@@ -3,7 +3,7 @@ import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 
 const SETTINGS = {
-  entryPoints: ['main.tsx'],
+  entryPoints: ['main.tsx', 'diff-worker.ts'],
   outdir: "../dist/diffviewer",
   bundle: true,
   format: "esm",

@@ -29,20 +29,61 @@ async function handleFiles(file: File, additionalFiles: File[]) {
     const file2 = additionalFiles[0];
 
     try {
-        const text1 = await file1.text();
-        const text2 = await file2.text();
+        const [buf1, buf2] = await Promise.all([
+            file1.arrayBuffer(),
+            file2.arrayBuffer()
+        ]);
+        const uint8_1 = new Uint8Array(buf1);
+        const uint8_2 = new Uint8Array(buf2);
 
-        const diffs = jsdiff.diffLines(text1, text2);
+        const isBinary = (buf: Uint8Array) => {
+            for (let i = 0; i < Math.min(buf.length, 8192); i++) {
+                if (buf[i] === 0) return true;
+            }
+            return false;
+        }
 
-        ROOT.render(<DiffViewer file1={file1} file2={file2} diffs={diffs} />);
+        const initialMode = (isBinary(uint8_1) || isBinary(uint8_2)) ? 'binary' : 'text';
+
+        ROOT.render(<DiffViewer file1={file1} file2={file2} buf1={uint8_1} buf2={uint8_2} initialMode={initialMode} />);
     } catch (err) {
         console.error('Error generating diff:', err);
         ROOT.render(<div>Error generating diff: {String(err)}</div>);
     }
 }
 
-function DiffViewer({ file1, file2, diffs }: { file1: File, file2: File, diffs: jsdiff.Change[] }) {
+function DiffViewer({ file1, file2, buf1, buf2, initialMode }: { file1: File, file2: File, buf1: Uint8Array, buf2: Uint8Array, initialMode: 'text' | 'binary' }) {
     const [viewMode, setViewMode] = useState<'unified' | 'side-by-side'>('unified');
+    const [diffMode, setDiffMode] = useState<'text' | 'binary'>(initialMode);
+    const [byteDiffs, setByteDiffs] = useState<jsdiff.Change[]>([]);
+    const [isDiffing, setIsDiffing] = useState(false);
+
+    const isTooLargeForText = buf1.length > 2 * 1024 * 1024 || buf2.length > 2 * 1024 * 1024;
+    const isTooLargeForBinary = buf1.length > 10 * 1024 * 1024 || buf2.length > 10 * 1024 * 1024;
+
+    const text1 = React.useMemo(() => (diffMode === 'text' && !isTooLargeForText) ? new TextDecoder().decode(buf1) : "", [buf1, diffMode, isTooLargeForText]);
+    const text2 = React.useMemo(() => (diffMode === 'text' && !isTooLargeForText) ? new TextDecoder().decode(buf2) : "", [buf2, diffMode, isTooLargeForText]);
+    const textDiffs = React.useMemo(() => (diffMode === 'text' && !isTooLargeForText) ? jsdiff.diffLines(text1, text2) : [], [text1, text2, diffMode, isTooLargeForText]);
+
+    useEffect(() => {
+        if (diffMode === 'binary') {
+            if (isTooLargeForBinary) {
+                // Too large for jsdiff.diffArrays (very slow/hangs)
+                return;
+            }
+            if (byteDiffs.length > 0) return; // Already computed
+
+            setIsDiffing(true);
+            const worker = new Worker(new URL('./diff-worker.js', import.meta.url), { type: 'module' });
+            worker.onmessage = (e) => {
+                setByteDiffs(e.data.diffs);
+                setIsDiffing(false);
+                worker.terminate();
+            };
+            worker.postMessage({ buf1, buf2 });
+            return () => worker.terminate();
+        }
+    }, [buf1, buf2, diffMode, isTooLargeForBinary, byteDiffs.length]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -57,7 +98,7 @@ function DiffViewer({ file1, file2, diffs }: { file1: File, file2: File, diffs: 
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const renderUnified = () => (
+    const renderUnified = (diffs: jsdiff.Change[]) => (
         <div style={{ whiteSpace: 'pre-wrap', border: '1px solid #ccc', padding: '10px' }}>
             {diffs.map((part, index) => {
                 const color = part.added ? 'green' : part.removed ? 'red' : 'black';
@@ -76,7 +117,7 @@ function DiffViewer({ file1, file2, diffs }: { file1: File, file2: File, diffs: 
         </div>
     );
 
-    const renderSideBySide = () => {
+    const renderSideBySide = (diffs: jsdiff.Change[]) => {
         const leftLines: { text: string, type: 'normal' | 'removed' | 'empty' }[] = [];
         const rightLines: { text: string, type: 'normal' | 'added' | 'empty' }[] = [];
 
@@ -139,32 +180,233 @@ function DiffViewer({ file1, file2, diffs }: { file1: File, file2: File, diffs: 
                 <div>
                     <strong>Diffing:</strong> {file1.name} vs {file2.name}
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                        onClick={() => setViewMode('unified')}
-                        style={{
-                            padding: '4px 8px',
-                            backgroundColor: viewMode === 'unified' ? '#0066cc' : '#fff',
-                            color: viewMode === 'unified' ? '#fff' : '#0066cc',
-                            border: '1px solid #0066cc',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                        }}
-                    >Unified</button>
-                    <button
-                        onClick={() => setViewMode('side-by-side')}
-                        style={{
-                            padding: '4px 8px',
-                            backgroundColor: viewMode === 'side-by-side' ? '#0066cc' : '#fff',
-                            color: viewMode === 'side-by-side' ? '#fff' : '#0066cc',
-                            border: '1px solid #0066cc',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                        }}
-                    >Side-by-Side</button>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', border: '1px solid #ccc', borderRadius: '4px', padding: '2px' }}>
+                        <button
+                            onClick={() => setDiffMode('text')}
+                            style={{
+                                padding: '2px 8px',
+                                fontSize: '12px',
+                                backgroundColor: diffMode === 'text' ? '#666' : '#fff',
+                                color: diffMode === 'text' ? '#fff' : '#666',
+                                border: 'none',
+                                borderRadius: '2px',
+                                cursor: 'pointer'
+                            }}
+                        >Text</button>
+                        <button
+                            onClick={() => setDiffMode('binary')}
+                            style={{
+                                padding: '2px 8px',
+                                fontSize: '12px',
+                                backgroundColor: diffMode === 'binary' ? '#666' : '#fff',
+                                color: diffMode === 'binary' ? '#fff' : '#666',
+                                border: 'none',
+                                borderRadius: '2px',
+                                cursor: 'pointer'
+                            }}
+                        >Binary</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            disabled={diffMode === 'binary'}
+                            onClick={() => setViewMode('unified')}
+                            style={{
+                                padding: '4px 8px',
+                                backgroundColor: viewMode === 'unified' && diffMode === 'text' ? '#0066cc' : '#fff',
+                                color: viewMode === 'unified' && diffMode === 'text' ? '#fff' : '#0066cc',
+                                border: '1px solid #0066cc',
+                                borderRadius: '4px',
+                                cursor: diffMode === 'binary' ? 'not-allowed' : 'pointer',
+                                opacity: diffMode === 'binary' ? 0.5 : 1
+                            }}
+                        >Unified</button>
+                        <button
+                            disabled={diffMode === 'binary'}
+                            onClick={() => setViewMode('side-by-side')}
+                            style={{
+                                padding: '4px 8px',
+                                backgroundColor: viewMode === 'side-by-side' && diffMode === 'text' ? '#0066cc' : '#fff',
+                                color: viewMode === 'side-by-side' && diffMode === 'text' ? '#fff' : '#0066cc',
+                                border: '1px solid #0066cc',
+                                borderRadius: '4px',
+                                cursor: diffMode === 'binary' ? 'not-allowed' : 'pointer',
+                                opacity: diffMode === 'binary' ? 0.5 : 1
+                            }}
+                        >Side-by-Side</button>
+                    </div>
                 </div>
             </div>
-            {viewMode === 'unified' ? renderUnified() : renderSideBySide()}
+            {diffMode === 'text' ? (
+                isTooLargeForText ? (
+                    <div style={{ padding: '20px', color: 'red' }}>Files are too large for text diffing (max 2MB).</div>
+                ) : (
+                    (viewMode === 'unified' ? renderUnified(textDiffs) : renderSideBySide(textDiffs))
+                )
+            ) : (
+                isDiffing ? (
+                    <div style={{ padding: '20px', textAlign: 'center' }}>Computing binary diff...</div>
+                ) : (
+                    isTooLargeForBinary ? (
+                        <div style={{ padding: '20px', color: 'red' }}>Files are too large for binary diffing (max 10MB).</div>
+                    ) : (
+                        <BinaryDiffViewer file1={file1} file2={file2} diffs={byteDiffs} />
+                    )
+                )
+            )}
+        </div>
+    );
+}
+
+function BinaryDiffViewer({ file1, file2, diffs }: { file1: File, file2: File, diffs: jsdiff.Change[] }) {
+    const leftBytes: { value: number, type: 'normal' | 'removed' | 'empty' }[] = [];
+    const rightBytes: { value: number, type: 'normal' | 'added' | 'empty' }[] = [];
+
+    diffs.forEach(part => {
+        const bytes = part.value as unknown as number[];
+        if (part.added) {
+            bytes.forEach(b => {
+                rightBytes.push({ value: b, type: 'added' });
+            });
+        } else if (part.removed) {
+            bytes.forEach(b => {
+                leftBytes.push({ value: b, type: 'removed' });
+            });
+        } else {
+            while (leftBytes.length < rightBytes.length) leftBytes.push({ value: 0, type: 'empty' });
+            while (rightBytes.length < leftBytes.length) rightBytes.push({ value: 0, type: 'empty' });
+            bytes.forEach(b => {
+                leftBytes.push({ value: b, type: 'normal' });
+                rightBytes.push({ value: b, type: 'normal' });
+            });
+        }
+    });
+    while (leftBytes.length < rightBytes.length) leftBytes.push({ value: 0, type: 'empty' });
+    while (rightBytes.length < leftBytes.length) rightBytes.push({ value: 0, type: 'empty' });
+
+    const leftRef = React.useRef<HTMLDivElement>(null);
+    const rightRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const left = leftRef.current;
+        const right = rightRef.current;
+        if (!left || !right) return;
+
+        let isSyncingLeft = false;
+        let isSyncingRight = false;
+
+        const handleScrollLeft = () => {
+            if (!isSyncingLeft) {
+                isSyncingRight = true;
+                right.scrollTop = left.scrollTop;
+                // Dispatch event to trigger re-render of right pane for virtualization
+                right.dispatchEvent(new Event('scroll'));
+                setTimeout(() => { isSyncingRight = false; }, 0);
+            }
+        };
+
+        const handleScrollRight = () => {
+            if (!isSyncingRight) {
+                isSyncingLeft = true;
+                left.scrollTop = right.scrollTop;
+                // Dispatch event to trigger re-render of left pane for virtualization
+                left.dispatchEvent(new Event('scroll'));
+                setTimeout(() => { isSyncingLeft = false; }, 0);
+            }
+        };
+
+        left.addEventListener('scroll', handleScrollLeft);
+        right.addEventListener('scroll', handleScrollRight);
+
+        return () => {
+            left.removeEventListener('scroll', handleScrollLeft);
+            right.removeEventListener('scroll', handleScrollRight);
+        };
+    }, []);
+
+    return (
+        <div style={{ display: 'flex', border: '1px solid #ccc', height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+            <HexDiffPane fileName={file1.name} bytes={leftBytes} scrollRef={leftRef} />
+            <HexDiffPane fileName={file2.name} bytes={rightBytes} scrollRef={rightRef} />
+        </div>
+    );
+}
+
+function HexDiffPane({ fileName, bytes, scrollRef }: { fileName: string, bytes: { value: number, type: 'normal' | 'removed' | 'added' | 'empty' }[], scrollRef: React.RefObject<HTMLDivElement> }) {
+    const [scrollTop, setScrollTop] = useState(0);
+    const [paneHeight, setPaneHeight] = useState(0);
+
+    const lineCount = Math.ceil(bytes.length / 16);
+    const LINE_HEIGHT = 15.6; // Approximate line height for 13px monospace
+
+    useEffect(() => {
+        const pane = scrollRef.current;
+        if (!pane) return;
+        setPaneHeight(pane.clientHeight);
+        const ro = new ResizeObserver(() => setPaneHeight(pane.clientHeight));
+        ro.observe(pane);
+        return () => ro.disconnect();
+    }, [scrollRef]);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        setScrollTop(e.currentTarget.scrollTop);
+    };
+
+    const visibleStart = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - 20);
+    const visibleEnd = Math.min(lineCount, Math.ceil((scrollTop + paneHeight) / LINE_HEIGHT) + 20);
+
+    const visibleLines = [];
+    for (let i = visibleStart; i < visibleEnd; i++) {
+        visibleLines.push({
+            index: i,
+            data: bytes.slice(i * 16, i * 16 + 16)
+        });
+    }
+
+    return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid #ccc', overflow: 'hidden' }}>
+            <div style={{ padding: '4px', backgroundColor: '#f5f5f5', borderBottom: '1px solid #ccc', fontWeight: 'bold', fontSize: '12px' }}>{fileName}</div>
+            <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '10px', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.2' }}>
+                <div style={{ height: lineCount * LINE_HEIGHT, position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: visibleStart * LINE_HEIGHT, left: 0, right: 0, display: 'flex' }}>
+                        <div style={{ color: '#888', marginRight: '16px', userSelect: 'none' }}>
+                            {visibleLines.map(line => (
+                                <div key={line.index}>{(line.index * 16).toString(16).padStart(8, '0')}</div>
+                            ))}
+                        </div>
+                        <div style={{ marginRight: '16px' }}>
+                            {visibleLines.map(line => (
+                                <div key={line.index} style={{ display: 'flex' }}>
+                                    {line.data.map((b, j) => (
+                                        <span key={j} style={{
+                                            width: '2ch',
+                                            marginRight: '1ch',
+                                            backgroundColor: b.type === 'added' ? '#e6ffec' : b.type === 'removed' ? '#ffebe9' : 'transparent',
+                                            color: b.type === 'empty' ? 'transparent' : (b.type === 'added' ? 'green' : b.type === 'removed' ? 'red' : 'black')
+                                        }}>
+                                            {b.type === 'empty' ? '  ' : b.value.toString(16).padStart(2, '0').toUpperCase()}
+                                        </span>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ borderLeft: '1px solid #eee', paddingLeft: '8px' }}>
+                            {visibleLines.map(line => (
+                                <div key={line.index}>
+                                    {line.data.map((b, j) => (
+                                        <span key={j} style={{
+                                            backgroundColor: b.type === 'added' ? '#e6ffec' : b.type === 'removed' ? '#ffebe9' : 'transparent',
+                                            color: b.type === 'empty' ? 'transparent' : (b.type === 'added' ? 'green' : b.type === 'removed' ? 'red' : 'black')
+                                        }}>
+                                            {b.type === 'empty' ? ' ' : ((b.value > 31 && b.value < 127) || b.value > 159 ? String.fromCharCode(b.value) : '.')}
+                                        </span>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
