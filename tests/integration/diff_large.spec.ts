@@ -40,7 +40,7 @@ test('should show warning for large binary files', async ({ page }) => {
     await groupButton.click();
 
     // Open Diff Viewer
-    const diffButton = page.locator('button', { hasText: 'Diff Viewer' });
+    const diffButton = page.locator('button', { hasText: 'Diff' });
     await expect(diffButton).toBeVisible({ timeout: 10000 });
     await diffButton.click();
 
@@ -91,7 +91,7 @@ test('should show warning for extremely large binary files', async ({ page }) =>
     await groupButton.click();
 
     // Open Diff Viewer
-    const diffButton = page.locator('button', { hasText: 'Diff Viewer' });
+    const diffButton = page.locator('button', { hasText: 'Diff' });
     await expect(diffButton).toBeVisible({ timeout: 10000 });
     await diffButton.click();
 

@@ -39,7 +39,7 @@ test('should correctly show binary diff between two binary files', async ({ page
     await groupButton.click();
 
     // Open Diff Viewer
-    const diffViewerButton = page.locator('button', { hasText: 'Diff Viewer' });
+    const diffViewerButton = page.locator('button', { hasText: 'Diff' });
     await expect(diffViewerButton).toBeVisible({ timeout: 10000 });
     await diffViewerButton.click();
 
