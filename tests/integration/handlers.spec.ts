@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { runHandlerTest } from './test-utils';
+import { runHandlerTest } from './test-utils.ts';
 
 test('should correctly process and display a text file in the textviewer', async ({ page }) => {
     const iframe = await runHandlerTest(page, {

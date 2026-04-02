@@ -43,3 +43,7 @@ export const runHandlerTest = async (page: Page, { handler, file, additionalFile
     await iframe.waitForSelector('body', { state: 'visible', timeout: 10000 });
     return iframe;
 };
+
+export default {
+    runHandlerTest
+};

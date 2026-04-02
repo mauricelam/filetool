@@ -1,0 +1,5 @@
+{
+  "name": "filetool-ffmpeg-tests",
+  "private": true,
+  "type": "module"
+}
