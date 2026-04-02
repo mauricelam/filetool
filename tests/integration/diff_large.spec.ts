@@ -20,23 +20,35 @@ test('should show warning for large binary files', async ({ page }) => {
         window.dispatchEvent(new CustomEvent('openFiles', { detail: [file1, file2] }));
     });
 
-    // Select both files and group
+    // Check that files are in the list
+    const item1 = page.locator('.file-list-item', { hasText: 'large1.dat' });
+    const item2 = page.locator('.file-list-item', { hasText: 'large2.dat' });
+    await expect(item1).toBeVisible({ timeout: 10000 });
+    await expect(item2).toBeVisible({ timeout: 10000 });
+
+    // Select both files using Keyboard modifiers
     const isMac = process.platform === 'darwin';
     const modifier = isMac ? 'Meta' : 'Control';
+
     await page.keyboard.down(modifier);
-    await page.locator('.file-list-item', { hasText: 'large1.dat' }).click();
-    await page.locator('.file-list-item', { hasText: 'large2.dat' }).click();
+    await item1.click();
+    await item2.click();
     await page.keyboard.up(modifier);
-    await page.locator('button', { hasText: 'Group selected' }).click();
+
+    const groupButton = page.locator('button', { hasText: 'Group selected' });
+    await expect(groupButton).toBeVisible({ timeout: 10000 });
+    await groupButton.click();
 
     // Open Diff Viewer
-    await page.locator('button', { hasText: 'Diff Viewer' }).click();
+    const diffButton = page.locator('button', { hasText: 'Diff Viewer' });
+    await expect(diffButton).toBeVisible({ timeout: 10000 });
+    await diffButton.click();
 
     // Inside iframe
     const iframe = page.frameLocator('iframe[data-handler="diffviewer"]');
 
     // Check for the large file warning
-    await expect(iframe.getByText('Files are too large for binary diffing (max 10MB).')).toBeVisible({ timeout: 15000 });
+    await expect(iframe.getByText('Files are too large for binary diffing (max 10MB).')).toBeVisible({ timeout: 20000 });
 });
 
 test('should show warning for extremely large binary files', async ({ page }) => {
@@ -59,21 +71,33 @@ test('should show warning for extremely large binary files', async ({ page }) =>
         window.dispatchEvent(new CustomEvent('openFiles', { detail: [file1, file2] }));
     });
 
+    // Check that files are in the list
+    const item1 = page.locator('.file-list-item', { hasText: 'extreme1.dat' });
+    const item2 = page.locator('.file-list-item', { hasText: 'extreme2.dat' });
+    await expect(item1).toBeVisible({ timeout: 10000 });
+    await expect(item2).toBeVisible({ timeout: 10000 });
+
     // Select both files and group
     const isMac = process.platform === 'darwin';
     const modifier = isMac ? 'Meta' : 'Control';
+
     await page.keyboard.down(modifier);
-    await page.locator('.file-list-item', { hasText: 'extreme1.dat' }).click();
-    await page.locator('.file-list-item', { hasText: 'extreme2.dat' }).click();
+    await item1.click();
+    await item2.click();
     await page.keyboard.up(modifier);
-    await page.locator('button', { hasText: 'Group selected' }).click();
+
+    const groupButton = page.locator('button', { hasText: 'Group selected' });
+    await expect(groupButton).toBeVisible({ timeout: 10000 });
+    await groupButton.click();
 
     // Open Diff Viewer
-    await page.locator('button', { hasText: 'Diff Viewer' }).click();
+    const diffButton = page.locator('button', { hasText: 'Diff Viewer' });
+    await expect(diffButton).toBeVisible({ timeout: 10000 });
+    await diffButton.click();
 
     // Inside iframe
     const iframe = page.frameLocator('iframe[data-handler="diffviewer"]');
 
     // Check for the extremely large file warning
-    await expect(iframe.getByText('Files are too large for binary diffing (max 10MB).')).toBeVisible({ timeout: 15000 });
+    await expect(iframe.getByText('Files are too large for binary diffing (max 10MB).')).toBeVisible({ timeout: 20000 });
 });

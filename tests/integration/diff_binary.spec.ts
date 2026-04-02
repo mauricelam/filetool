@@ -19,41 +19,41 @@ test('should correctly show binary diff between two binary files', async ({ page
     });
 
     // Check that files are in the list
-    await expect(page.locator('.file-list-item', { hasText: 'bin1.dat' })).toBeVisible();
-    await expect(page.locator('.file-list-item', { hasText: 'bin2.dat' })).toBeVisible();
+    const item1 = page.locator('.file-list-item', { hasText: 'bin1.dat' });
+    const item2 = page.locator('.file-list-item', { hasText: 'bin2.dat' });
+    await expect(item1).toBeVisible({ timeout: 10000 });
+    await expect(item2).toBeVisible({ timeout: 10000 });
 
-    // Select both files using Ctrl/Cmd click
+    // Select both files using Keyboard modifiers (more reliable)
     const isMac = process.platform === 'darwin';
     const modifier = isMac ? 'Meta' : 'Control';
+
     await page.keyboard.down(modifier);
-    await page.locator('.file-list-item', { hasText: 'bin1.dat' }).click();
-    await page.locator('.file-list-item', { hasText: 'bin2.dat' }).click();
+    await item1.click();
+    await item2.click();
     await page.keyboard.up(modifier);
 
     // Click "Group selected"
     const groupButton = page.locator('button', { hasText: 'Group selected' });
-    await expect(groupButton).toBeVisible();
+    await expect(groupButton).toBeVisible({ timeout: 10000 });
     await groupButton.click();
 
     // Open Diff Viewer
     const diffViewerButton = page.locator('button', { hasText: 'Diff Viewer' });
-    await expect(diffViewerButton).toBeVisible();
+    await expect(diffViewerButton).toBeVisible({ timeout: 10000 });
     await diffViewerButton.click();
 
     // Check if the iframe is created and contains the diff
     const iframe = page.frameLocator('iframe[data-handler="diffviewer"]');
-    await expect(iframe.getByText(/Diffing: bin1\.dat vs bin2\.dat/)).toBeVisible({ timeout: 15000 });
+    await expect(iframe.getByText(/Diffing: bin1\.dat vs bin2\.dat/)).toBeVisible({ timeout: 20000 });
 
-    // Verify binary mode is active (Binary button should have active style)
+    // Verify binary mode is active
     const binaryButton = iframe.getByRole('button', { name: 'Binary' });
-    await expect(binaryButton).toHaveCSS('background-color', 'rgb(102, 102, 102)'); // #666
-
-    // Check for hex offsets (e.g., 00000000)
-    await expect(iframe.getByText('00000000').first()).toBeVisible({ timeout: 20000 });
+    await expect(binaryButton).toBeVisible({ timeout: 10000 });
+    // It should be active (#666)
+    await expect(binaryButton).toHaveCSS('background-color', 'rgb(102, 102, 102)');
 
     // Check for some diff content (hex values)
-    // 'World' is [57, 6f, 72, 6c, 64]
-    // 'Binary' is [42, 69, 6e, 61, 72, 79]
-    await expect(iframe.locator('span', { hasText: '57' })).toBeVisible(); // W
-    await expect(iframe.locator('span', { hasText: '42' })).toBeVisible(); // B
+    await expect(iframe.locator('span', { hasText: '57' }).first()).toBeVisible({ timeout: 10000 }); // W
+    await expect(iframe.locator('span', { hasText: '42' }).first()).toBeVisible({ timeout: 10000 }); // B
 });

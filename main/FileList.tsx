@@ -87,7 +87,7 @@ export function FileList({ files, groups, sidebarOrder, setSidebarOrder, selecte
         }
     };
 
-    const isGroupSelected = multiSelectedIds.length > 1;
+    const isGroupSelected = multiSelectedIds.length > 1 || (multiSelectedIds.length === 1 && files.some(f => f.id === multiSelectedIds[0]));
 
     const handleDragStart = (e: React.DragEvent, id: string) => {
         const ids = multiSelectedIds.includes(id) ? multiSelectedIds : [id];
