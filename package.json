@@ -6,6 +6,7 @@
     "apk-viewer",
     "archive",
     "binutils",
+    "bloaty",
     "bplistviewer",
     "browser",
     "cborviewer",

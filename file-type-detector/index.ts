@@ -257,6 +257,14 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "mimetypes": ["application/x-plist", { "filename": /\.bplist$/i }]
     },
     {
+        "name": "Bloaty Size Profiler",
+        "handler": "bloaty",
+        "mimetypes": [
+            "application/x-mach-binary", "application/x-executable", "application/x-sharedlib", "application/wasm",
+            { "filename": /\.(elf|so|dylib|wasm|exe)$/i }
+        ]
+    },
+    {
         "name": "Parquet",
         "handler": "parquetviewer",
         "mimetypes": [

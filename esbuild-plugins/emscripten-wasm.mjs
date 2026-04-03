@@ -96,6 +96,7 @@ export const emscriptenWasm = (options) => {
             files.forEach(file => {
               const sourcePath = path.join(projectDir, file);
               const destPath = path.join(outDir, file);
+              ensureDir(path.dirname(destPath));
               fs.copyFileSync(sourcePath, destPath);
             });
           }
