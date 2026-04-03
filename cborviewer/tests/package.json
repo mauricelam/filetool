@@ -1,0 +1,5 @@
+{
+  "name": "filetool-cborviewer-tests",
+  "private": true,
+  "type": "module"
+}

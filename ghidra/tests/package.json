@@ -1,0 +1,5 @@
+{
+  "name": "filetool-ghidra-tests",
+  "private": true,
+  "type": "module"
+}

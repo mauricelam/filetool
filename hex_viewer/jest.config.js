@@ -5,6 +5,7 @@ module.exports = {
     // Mock CSS Modules if they were used, but they are not in this project
     // '\\.css$': 'identity-obj-proxy',
   },
+  testPathIgnorePatterns: ['<rootDir>/tests/'],
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',
