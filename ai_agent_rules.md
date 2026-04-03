@@ -11,3 +11,4 @@
 7. When using emsdk, install it in a temporary directory outside of this project.
 8. This project utilizes turborepo for build caching and parallelization. When setting up the build, always include a turbo.json file.
 9. All testing artifacts should be placed under the test-results/ directory.
+10. When testing a handler, always prefer to use `tests/harness` to run the test.

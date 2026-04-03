@@ -1,0 +1,5 @@
+{
+  "name": "filetool-squashfs-tests",
+  "private": true,
+  "type": "module"
+}

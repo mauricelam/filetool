@@ -47,7 +47,8 @@
     "svgviewer",
     "textviewer",
     "wat_viewer",
-    "webgl_previewer"
+    "webgl_previewer",
+    "tests/harness"
   ],
   "scripts": {
     "start": "node serve.mts",
@@ -56,7 +57,7 @@
     "build": "turbo build",
     "zip-dist": "cd dist && zip -r dist.zip . -x dist.zip",
     "test": "turbo test",
-    "test:integration": "npm run build && node tests/integration/build.mjs && playwright test"
+    "test:integration": "npm run build && node tests/harness/build.mjs && playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
