@@ -1,4 +1,4 @@
-import GhidraDecompiler from './ghidra_decompiler.js';
+import GhidraDecompiler from '@mauricelam/ghidra-decompiler-wasm';
 
 let decompilerModule: any = null;
 
