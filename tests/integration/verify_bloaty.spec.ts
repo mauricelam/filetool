@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { runHandlerTest } from './test-utils.ts';
+import { runHandlerTest } from './test-utils';
 import fs from 'node:fs';
 
 test.setTimeout(300000); // 5 minutes
