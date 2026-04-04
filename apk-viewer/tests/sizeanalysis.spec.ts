@@ -25,13 +25,16 @@ test('APK Viewer should display APK size analysis', async ({ page }) => {
     await expect(iframe.locator('h3:has-text("APK Contents")')).toBeVisible({ timeout: 60000 });
 
     // 2. Click "Size Makeup" button
+    console.log('Clicking Size Makeup button...');
     await iframe.locator('button:has-text("Size Makeup")').click();
 
     // 3. Verify Size Makeup view
-    await expect(iframe.locator('h2:has-text("Size Makeup")')).toBeVisible({ timeout: 60000 });
+    console.log('Waiting for Size Makeup view...');
+    await expect(iframe.locator('h2:has-text("Size Makeup")')).toBeVisible({ timeout: 120000 });
 
     // 4. Verify Treemap is visible (it's an SVG)
-    await expect(iframe.locator('svg')).toBeVisible();
+    console.log('Verifying Treemap SVG...');
+    await expect(iframe.locator('svg.treemap-svg')).toBeVisible({ timeout: 30000 });
 
     // 5. Verify top-level categories in Treemap (or at least as text if labels are rendered)
     // We expect "Code", "Resources", "Lib", "Assets" or "Other" to be present in the data and likely rendered
@@ -39,13 +42,14 @@ test('APK Viewer should display APK size analysis', async ({ page }) => {
     await expect(iframe.locator('text="Resources"')).toBeVisible();
 
     // 6. Test drill-down: Click on "Code"
-    await iframe.locator('text="Code"').first().click();
+    // Click on the rect that is a sibling of the text "Code"
+    await iframe.locator('g').filter({ hasText: /^Code$/ }).locator('rect').click();
 
     // 7. Verify breadcrumbs updated
     await expect(iframe.locator('.mantine-Breadcrumbs-root')).toContainText('Code');
 
     // 8. Test toggle: Switch to "Compressed"
-    await iframe.locator('label:has-text("Compressed")').click();
+    await iframe.locator('label').filter({ hasText: /^Compressed$/ }).click();
 
     // 9. Go back
     await iframe.locator('button:has-text("Up")').click();

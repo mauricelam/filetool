@@ -449,23 +449,40 @@ pub fn analyze_apk_size(
         let mut package_map: HashMap<String, (u64, Vec<SizeBreakdown>)> = HashMap::new();
         let mut total_class_size = 0;
 
-        for class in dex.classes() {
-            if let Ok(class) = class {
+        use dex::scroll::Pread;
+        let endian = dex.get_endian();
+        for class_def in dex.class_defs() {
+            if let Ok(class_def) = class_def {
                 let mut class_size = 0;
-                for method in class.methods() {
-                    if let Some(code) = method.code() {
-                        class_size += (code.insns().len() * 2) as u64;
+
+                if let Ok(Some(class_data)) = dex.get_class_data(class_def.class_data_off()) {
+                    if let Some(direct_methods) = class_data.direct_methods() {
+                        for method in direct_methods.iter() {
+                            let off = *method.code_offset() as usize;
+                            if off != 0 && off + 16 <= content.len() {
+                                if let Ok(insns_size) = content.pread_with::<u32>(off + 12, endian) {
+                                    class_size += (insns_size * 2) as u64;
+                                }
+                            }
+                        }
+                    }
+                    if let Some(virtual_methods) = class_data.virtual_methods() {
+                        for method in virtual_methods.iter() {
+                            let off = *method.code_offset() as usize;
+                            if off != 0 && off + 16 <= content.len() {
+                                if let Ok(insns_size) = content.pread_with::<u32>(off + 12, endian) {
+                                    class_size += (insns_size * 2) as u64;
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Add some size for fields if they are not shared
-                // This is a rough estimation but better than 0 for some classes
-                // In reality, class definition itself also takes some space
                 class_size += 32;
-
                 total_class_size += class_size;
 
-                let full_name = class.jtype().to_string();
+                let jtype = dex.get_type(class_def.class_idx()).map(|t| t.to_string()).unwrap_or_default();
+                let full_name = jtype;
                 let (package, name) = if let Some(last_slash) = full_name.rfind('/') {
                     (full_name[1..last_slash].replace('/', "."), &full_name[last_slash + 1..full_name.len() - 1])
                 } else {

@@ -1208,7 +1208,7 @@ function Treemap({ data, mode, onNodeClick, formatSize }: {
 
     return (
         <>
-            <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+            <svg ref={svgRef} className="treemap-svg" style={{ width: '100%', height: '100%' }} />
             <div
                 ref={tooltipRef}
                 style={{
