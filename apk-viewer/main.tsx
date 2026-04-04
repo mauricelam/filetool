@@ -1173,7 +1173,7 @@ function Treemap({ data, mode, onNodeClick, formatSize }: {
         leaf.append("rect")
             .attr("width", d => d.x1 - d.x0)
             .attr("height", d => d.y1 - d.y0)
-            .attr("fill", d => color(d.data.name))
+            .attr("fill", d => d.data.group ? color(d.data.group) : color(d.data.name))
             .attr("fill-opacity", 0.6)
             .attr("stroke", "#fff")
             .style("cursor", d => (d.data.children && d.data.children.length > 0) ? "pointer" : "default")
@@ -1186,7 +1186,7 @@ function Treemap({ data, mode, onNodeClick, formatSize }: {
                     tooltipRef.current.innerHTML = `
                         <strong>${d.data.name}</strong><br/>
                         Uncompressed: ${formatSize(d.data.uncompressed_size)}<br/>
-                        Compressed: ${formatSize(d.data.compressed_size)}
+                        ${d.data.compressed_size > 0 ? `Compressed: ${formatSize(d.data.compressed_size)}` : ''}
                     `;
                 }
             })

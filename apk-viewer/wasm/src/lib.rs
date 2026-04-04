@@ -91,6 +91,7 @@ pub struct SizeBreakdown {
     pub name: String,
     pub compressed_size: u64,
     pub uncompressed_size: u64,
+    pub group: Option<String>,
     pub children: Option<Vec<SizeBreakdown>>,
 }
 
@@ -495,6 +496,7 @@ pub fn analyze_apk_size(
                     name: name.to_string(),
                     compressed_size: 0, // We don't have per-class compressed size
                     uncompressed_size: class_size,
+                    group: None,
                     children: None,
                 });
             }
@@ -507,6 +509,7 @@ pub fn analyze_apk_size(
             name: "[Shared/Overhead]".to_string(),
             compressed_size: 0,
             uncompressed_size: overhead,
+            group: None,
             children: None,
         });
 
@@ -515,6 +518,7 @@ pub fn analyze_apk_size(
                 name: pkg_name,
                 compressed_size: 0,
                 uncompressed_size: pkg_size,
+                group: None,
                 children: Some(classes),
             });
         }
@@ -523,41 +527,73 @@ pub fn analyze_apk_size(
             name: file.name.clone(),
             compressed_size: file.compressed_size,
             uncompressed_size: file.uncompressed_size,
+            group: None,
             children: Some(dex_children),
         });
     }
 
     // 2. Lib Breakdown (Architecture)
-    let mut lib_arch_map: HashMap<String, (u64, u64, Vec<SizeBreakdown>)> = HashMap::new();
+    let mut lib_children: Vec<SizeBreakdown> = Vec::new();
     for file in lib_files {
         let parts: Vec<&str> = file.name.split('/').collect();
         let arch = if parts.len() >= 2 { parts[1] } else { "unknown" };
-        let entry = lib_arch_map.entry(arch.to_string()).or_insert((0, 0, Vec::new()));
-        entry.0 += file.compressed_size;
-        entry.1 += file.uncompressed_size;
-        entry.2.push(SizeBreakdown {
-            name: parts.last().unwrap_or(&file.name.as_str()).to_string(),
+        lib_children.push(SizeBreakdown {
+            name: format!("{}:{}", arch, parts.last().unwrap_or(&file.name.as_str())),
             compressed_size: file.compressed_size,
             uncompressed_size: file.uncompressed_size,
+            group: Some(arch.to_string()),
             children: None,
         });
     }
-    let lib_children: Vec<SizeBreakdown> = lib_arch_map
-        .into_iter()
-        .map(|(arch, (c, u, children))| SizeBreakdown {
-            name: arch,
-            compressed_size: c,
-            uncompressed_size: u,
-            children: Some(children),
-        })
-        .collect();
 
     // 3. Resource Breakdown (Type)
     let mut res_type_map: HashMap<String, (u64, u64, Vec<SizeBreakdown>)> = HashMap::new();
     for file in resource_files {
-        let res_type = if file.name == "resources.arsc" {
-            "ARSC"
-        } else if file.name.starts_with("res/") {
+        if file.name == "resources.arsc" {
+            // Further breakdown for resources.arsc
+            if let Ok(content) = apk.extract_file(&file.name, &system_resources) {
+                if let Ok(decoder) = abxml::decoder::Decoder::from_arsc(&system_resources, &content) {
+                    let mut arsc_type_map: HashMap<String, u64> = HashMap::new();
+                    let resources = decoder.get_resources();
+                    for (_package_id, package) in resources.packages.iter() {
+                        for (type_id, _type_spec) in package.iter_specs() {
+                            let type_name = package.get_spec_string(*type_id)
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|_| format!("type_{}", type_id));
+
+                            let mut type_size = 0;
+                            // This is a very rough estimation:
+                            // sum of sizes of entries of this type.
+                            // ARSC doesn't store exact byte sizes per type chunk easily without low-level parsing.
+                            // But we can count entries.
+                            if let Some(entries) = package.iter_entries().find(|(id, _)| (*id >> 16) == *type_id).map(|(_, e)| e) {
+                                type_size += (entries.len() * 16) as u64; // arbitrary weight
+                            }
+                            *arsc_type_map.entry(type_name).or_insert(0) += type_size;
+                        }
+                    }
+                    let total_arsc_weight: u64 = arsc_type_map.values().sum();
+                    let arsc_children: Vec<SizeBreakdown> = arsc_type_map.into_iter().map(|(t, w)| {
+                        let ratio = if total_arsc_weight > 0 { w as f64 / total_arsc_weight as f64 } else { 0.0 };
+                        SizeBreakdown {
+                            name: t,
+                            compressed_size: (file.compressed_size as f64 * ratio) as u64,
+                            uncompressed_size: (file.uncompressed_size as f64 * ratio) as u64,
+                            group: None,
+                            children: None,
+                        }
+                    }).collect();
+
+                    let entry = res_type_map.entry("ARSC".to_string()).or_insert((0, 0, Vec::new()));
+                    entry.0 += file.compressed_size;
+                    entry.1 += file.uncompressed_size;
+                    entry.2.extend(arsc_children);
+                    continue;
+                }
+            }
+        }
+
+        let res_type = if file.name.starts_with("res/") {
             let parts: Vec<&str> = file.name.split('/').collect();
             if parts.len() >= 2 {
                 parts[1].split('-').next().unwrap_or("unknown")
@@ -574,6 +610,7 @@ pub fn analyze_apk_size(
             name: file.name,
             compressed_size: file.compressed_size,
             uncompressed_size: file.uncompressed_size,
+            group: None,
             children: None,
         });
     }
@@ -583,6 +620,7 @@ pub fn analyze_apk_size(
             name: t.to_string(),
             compressed_size: c,
             uncompressed_size: u,
+            group: None,
             children: Some(children),
         })
         .collect();
@@ -600,6 +638,7 @@ pub fn analyze_apk_size(
             name: file.name,
             compressed_size: file.compressed_size,
             uncompressed_size: file.uncompressed_size,
+            group: None,
             children: None,
         });
     }
@@ -609,6 +648,7 @@ pub fn analyze_apk_size(
             name: top,
             compressed_size: c,
             uncompressed_size: u,
+            group: None,
             children: Some(children),
         })
         .collect();
@@ -621,35 +661,41 @@ pub fn analyze_apk_size(
             + res_children.iter().map(|c| c.uncompressed_size).sum::<u64>()
             + asset_children.iter().map(|c| c.uncompressed_size).sum::<u64>()
             + other_files.iter().map(|c| c.uncompressed_size).sum::<u64>(),
+        group: None,
         children: Some(vec![
             SizeBreakdown {
                 name: "Code".to_string(),
                 compressed_size: code_children.iter().map(|c| c.compressed_size).sum(),
                 uncompressed_size: code_children.iter().map(|c| c.uncompressed_size).sum(),
+                group: None,
                 children: Some(code_children),
             },
             SizeBreakdown {
                 name: "Lib".to_string(),
                 compressed_size: lib_children.iter().map(|c| c.compressed_size).sum(),
                 uncompressed_size: lib_children.iter().map(|c| c.uncompressed_size).sum(),
+                group: None,
                 children: Some(lib_children),
             },
             SizeBreakdown {
                 name: "Resources".to_string(),
                 compressed_size: res_children.iter().map(|c| c.compressed_size).sum(),
                 uncompressed_size: res_children.iter().map(|c| c.uncompressed_size).sum(),
+                group: None,
                 children: Some(res_children),
             },
             SizeBreakdown {
                 name: "Assets".to_string(),
                 compressed_size: asset_children.iter().map(|c| c.compressed_size).sum(),
                 uncompressed_size: asset_children.iter().map(|c| c.uncompressed_size).sum(),
+                group: None,
                 children: Some(asset_children),
             },
             SizeBreakdown {
                 name: "Other".to_string(),
                 compressed_size: other_files.iter().map(|c| c.compressed_size).sum(),
                 uncompressed_size: other_files.iter().map(|c| c.uncompressed_size).sum(),
+                group: None,
                 children: Some(
                     other_files
                         .into_iter()
@@ -657,6 +703,7 @@ pub fn analyze_apk_size(
                             name: f.name,
                             compressed_size: f.compressed_size,
                             uncompressed_size: f.uncompressed_size,
+                            group: None,
                             children: None,
                         })
                         .collect(),
