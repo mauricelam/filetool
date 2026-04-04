@@ -1,0 +1,11 @@
+diff --git a/Makefile.wasm b/Makefile.wasm
+index 5bbe04a..214f563 100644
+--- a/Makefile.wasm
++++ b/Makefile.wasm
+@@ -48,6 +48,7 @@ wasm_module: wasm_lib
+		-L$(WASM_BUILD_DIR)/third_party/abseil-cpp/absl/profiling -labsl_exponential_biased \
+		-L$(WASM_BUILD_DIR)/third_party/abseil-cpp/absl/crc -labsl_crc32c -labsl_crc_internal -labsl_crc_cpu_detect -labsl_crc_cord_state \
+		-s EXPORTED_RUNTIME_METHODS='["FS"]' -s MODULARIZE=1 -s EXPORT_NAME='BloatyModule' \
++		-s EXPORT_ES6=1 -s ENVIRONMENT=web,worker \
+		-s ALLOW_MEMORY_GROWTH=1 \
+		--bind -o $(WEB_DIR)/bloaty.js

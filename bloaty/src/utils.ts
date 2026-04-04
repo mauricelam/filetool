@@ -33,11 +33,15 @@ export function parseBloatyTsv(tsv: string): BloatyNode {
     const filesizeIdx = header.indexOf('filesize');
     const domainCount = vmsizeIdx; // All columns before vmsize are domains
 
+    if (vmsizeIdx === -1 || filesizeIdx === -1) {
+        return { name: 'root', vmsize: 0, filesize: 0 };
+    }
+
     const root: BloatyNode = { name: 'root', vmsize: 0, filesize: 0, children: [] };
 
     for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split('\t');
-        if (cols.length < domainCount + 2) continue;
+        if (cols.length < vmsizeIdx + 2) continue;
 
         const vmsize = parseInt(cols[vmsizeIdx]) || 0;
         const filesize = parseInt(cols[filesizeIdx]) || 0;

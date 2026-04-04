@@ -26,10 +26,18 @@ const SETTINGS = {
     emscriptenWasm({
       name: 'bloaty',
       projectDir: 'bloaty-src',
-      command: `make -f Makefile.wasm`,
-      artifacts: ['web/bloaty.js', 'web/bloaty.wasm'],
-      resolveArtifacts: true,
+      command: `patch -p1 < ../Makefile.wasm.patch && make -f Makefile.wasm WEB_DIR=../dist/bloaty`,
     }),
+    {
+      name: 'resolve-bloaty',
+      setup(build) {
+        // Match the import in worker.ts and mark it as external
+        // so it stays as a relative import in the bundled worker.js
+        build.onResolve({ filter: /^\.\/bloaty\.js$/ }, args => {
+          return { path: './bloaty.js', external: true }
+        })
+      },
+    },
   ],
   loader: {
     '.css': 'css',
