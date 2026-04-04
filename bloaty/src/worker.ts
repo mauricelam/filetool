@@ -8,8 +8,10 @@ self.onmessage = async (e: MessageEvent) => {
     const { action, buffer, fileName, dataSources } = e.data;
 
     if (action === "run") {
+        console.log(`[BloatyWorker] Running analysis for ${fileName}`, { dataSources });
         try {
             if (!bloaty) {
+                console.log("[BloatyWorker] Initializing Bloaty WASM module...");
                 if (!bloatyPromise) {
                     bloatyPromise = BloatyModule({
                         locateFile: (path: string) => {
@@ -17,13 +19,17 @@ self.onmessage = async (e: MessageEvent) => {
                                 return new URL('bloaty.wasm', import.meta.url).href;
                             }
                             return path;
-                        }
+                        },
+                        print: (text: string) => console.log(`[Bloaty] ${text}`),
+                        printErr: (text: string) => console.error(`[Bloaty Error] ${text}`),
                     });
                 }
                 bloaty = await bloatyPromise;
+                console.log("[BloatyWorker] Bloaty WASM module initialized.");
             }
 
             const virtualPath = "/" + fileName;
+            console.log(`[BloatyWorker] Writing ${buffer.byteLength} bytes to virtual path ${virtualPath}`);
             bloaty.FS.writeFile(virtualPath, new Uint8Array(buffer));
 
             if (typeof bloaty.run_bloaty !== 'function') {
@@ -32,6 +38,7 @@ self.onmessage = async (e: MessageEvent) => {
             }
 
             // Run for TSV
+            console.log("[BloatyWorker] Running Bloaty for TSV output...");
             const tsvArgs = new bloaty.StringVector();
             tsvArgs.push_back("bloaty");
             tsvArgs.push_back("--tsv");
@@ -42,6 +49,7 @@ self.onmessage = async (e: MessageEvent) => {
             tsvArgs.push_back(virtualPath);
             const tsvResult = bloaty.run_bloaty(tsvArgs);
             tsvArgs.delete();
+            console.log("[BloatyWorker] TSV output received.", { length: tsvResult.length });
 
             if (tsvResult.startsWith("bloaty: ")) {
                 self.postMessage({ action: "error", error: tsvResult.substring(8) });
@@ -50,6 +58,7 @@ self.onmessage = async (e: MessageEvent) => {
             }
 
             // Run for text
+            console.log("[BloatyWorker] Running Bloaty for human-readable output...");
             const textArgs = new bloaty.StringVector();
             textArgs.push_back("bloaty");
             if (dataSources && dataSources.length > 0) {
@@ -59,6 +68,7 @@ self.onmessage = async (e: MessageEvent) => {
             textArgs.push_back(virtualPath);
             const textResult = bloaty.run_bloaty(textArgs);
             textArgs.delete();
+            console.log("[BloatyWorker] Human-readable output received.", { length: textResult.length });
 
             if (textResult.startsWith("bloaty: ")) {
                 self.postMessage({ action: "error", error: textResult.substring(8) });

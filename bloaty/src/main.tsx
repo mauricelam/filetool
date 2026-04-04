@@ -43,6 +43,11 @@ function App() {
   useEffect(() => {
     // Standard worker initialization for this repo
     workerRef.current = new Worker(new URL('worker.js', import.meta.url), { type: 'module' });
+    workerRef.current.onerror = (e) => {
+      console.error("[BloatyApp] Worker error:", e);
+      setError(`Worker error: ${e.message || "Unknown error"}`);
+      setLoading(false);
+    };
     workerRef.current.onmessage = (e) => {
       const { action, text, tsv, error } = e.data;
       if (action === 'result') {
@@ -103,7 +108,7 @@ function App() {
         <Paper p="md" mb="md" withBorder shadow="sm">
           <Group justify="space-between" align="flex-end">
             <Stack gap="xs" style={{ flexGrow: 1 }}>
-              <Title order={2}>Bloaty Size Profiler</Title>
+              <Title order={2}>Bloaty</Title>
               {file && (
                 <Text size="sm" c="dimmed">
                   File: <strong>{file.name}</strong> ({formatBytes(file.buffer.byteLength)})

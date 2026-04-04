@@ -257,7 +257,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "mimetypes": ["application/x-plist", { "filename": /\.bplist$/i }]
     },
     {
-        "name": "Bloaty Size Profiler",
+        "name": "Bloaty",
         "handler": "bloaty",
         "mimetypes": [
             "application/x-mach-binary", "application/x-executable", "application/x-sharedlib", "application/wasm",

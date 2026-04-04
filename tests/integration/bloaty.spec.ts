@@ -20,8 +20,8 @@ test('bloaty handler works', async ({ page }) => {
     },
   });
 
-  // Try to find the title by text
-  await expect(iframe.getByText('Bloaty Size Profiler')).toBeVisible({ timeout: 30000 });
+  // Try to find the title by role
+  await expect(iframe.getByRole('heading', { name: 'Bloaty' })).toBeVisible({ timeout: 30000 });
 
   // Wait for Bloaty to finish
   const output = iframe.locator('pre');
