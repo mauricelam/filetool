@@ -82,6 +82,16 @@ pub struct ApkMetadata {
     pub jar_signatures: Vec<String>,
     pub file_count: usize,
     pub uncompressed_size: u64,
+    pub compressed_size: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct SizeBreakdown {
+    pub name: String,
+    pub compressed_size: u64,
+    pub uncompressed_size: u64,
+    pub children: Option<Vec<SizeBreakdown>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Tsify)]
@@ -145,6 +155,7 @@ pub fn decode_apk(
             jar_signatures: metadata.jar_signatures,
             file_count: metadata.file_count,
             uncompressed_size: metadata.uncompressed_size,
+            compressed_size: bytes.len() as u64,
         },
     })
 }
@@ -201,6 +212,7 @@ pub fn decode_apk_minimal(
             jar_signatures: metadata.jar_signatures,
             file_count: metadata.file_count,
             uncompressed_size: metadata.uncompressed_size,
+            compressed_size: bytes.len() as u64,
         },
         file_names,
     })
@@ -386,6 +398,257 @@ pub fn extract_arsc(
 
     info!("Successfully extracted {} resources", result.len());
     Ok(result)
+}
+
+#[wasm_bindgen]
+pub fn analyze_apk_size(
+    bytes: Vec<u8>,
+    system_resources: Vec<u8>,
+) -> Result<SizeBreakdown, wasm_bindgen::JsError> {
+    info!("Analyzing APK size of {} bytes", bytes.len());
+    let mut apk = Apk::<std::io::Cursor<&[u8]>>::from_bytes(&bytes).map_err(|e| {
+        error!("Failed to decode APK: {}", e);
+        JsError::new(&format!("{e}"))
+    })?;
+
+    let files = apk.get_files_info();
+
+    let mut code_files = Vec::new();
+    let mut lib_files = Vec::new();
+    let mut resource_files = Vec::new();
+    let mut asset_files = Vec::new();
+    let mut other_files = Vec::new();
+
+    for file in files {
+        if file.name.ends_with(".dex") {
+            code_files.push(file);
+        } else if file.name.starts_with("lib/") {
+            lib_files.push(file);
+        } else if file.name.starts_with("res/") || file.name == "resources.arsc" {
+            resource_files.push(file);
+        } else if file.name.starts_with("assets/") {
+            asset_files.push(file);
+        } else {
+            other_files.push(file);
+        }
+    }
+
+    // 1. Code Breakdown (DEX)
+    let mut code_children = Vec::new();
+    for file in &code_files {
+        let content = apk.extract_file(&file.name, &system_resources).map_err(|e| {
+            error!("Failed to extract {}: {}", file.name, e);
+            JsError::new(&format!("{e}"))
+        })?;
+
+        let dex = dex::DexReader::from_vec(&content).map_err(|e| {
+            error!("Failed to parse DEX {}: {:?}", file.name, e);
+            JsError::new(&format!("Failed to parse DEX {}: {:?}", file.name, e))
+        })?;
+
+        let mut package_map: HashMap<String, (u64, Vec<SizeBreakdown>)> = HashMap::new();
+        let mut total_class_size = 0;
+
+        for class in dex.classes() {
+            if let Ok(class) = class {
+                let mut class_size = 0;
+                for method in class.methods() {
+                    if let Some(code) = method.code() {
+                        class_size += (code.insns().len() * 2) as u64;
+                    }
+                }
+
+                // Add some size for fields if they are not shared
+                // This is a rough estimation but better than 0 for some classes
+                // In reality, class definition itself also takes some space
+                class_size += 32;
+
+                total_class_size += class_size;
+
+                let full_name = class.jtype().to_string();
+                let (package, name) = if let Some(last_slash) = full_name.rfind('/') {
+                    (full_name[1..last_slash].replace('/', "."), &full_name[last_slash + 1..full_name.len() - 1])
+                } else {
+                    ("".to_string(), &full_name[1..full_name.len() - 1])
+                };
+
+                let entry = package_map.entry(package).or_insert((0, Vec::new()));
+                entry.0 += class_size;
+                entry.1.push(SizeBreakdown {
+                    name: name.to_string(),
+                    compressed_size: 0, // We don't have per-class compressed size
+                    uncompressed_size: class_size,
+                    children: None,
+                });
+            }
+        }
+
+        let mut dex_children = Vec::new();
+        // Add Shared/Overhead
+        let overhead = file.uncompressed_size.saturating_sub(total_class_size);
+        dex_children.push(SizeBreakdown {
+            name: "[Shared/Overhead]".to_string(),
+            compressed_size: 0,
+            uncompressed_size: overhead,
+            children: None,
+        });
+
+        for (pkg_name, (pkg_size, classes)) in package_map {
+            dex_children.push(SizeBreakdown {
+                name: pkg_name,
+                compressed_size: 0,
+                uncompressed_size: pkg_size,
+                children: Some(classes),
+            });
+        }
+
+        code_children.push(SizeBreakdown {
+            name: file.name.clone(),
+            compressed_size: file.compressed_size,
+            uncompressed_size: file.uncompressed_size,
+            children: Some(dex_children),
+        });
+    }
+
+    // 2. Lib Breakdown (Architecture)
+    let mut lib_arch_map: HashMap<String, (u64, u64, Vec<SizeBreakdown>)> = HashMap::new();
+    for file in lib_files {
+        let parts: Vec<&str> = file.name.split('/').collect();
+        let arch = if parts.len() >= 2 { parts[1] } else { "unknown" };
+        let entry = lib_arch_map.entry(arch.to_string()).or_insert((0, 0, Vec::new()));
+        entry.0 += file.compressed_size;
+        entry.1 += file.uncompressed_size;
+        entry.2.push(SizeBreakdown {
+            name: parts.last().unwrap_or(&file.name.as_str()).to_string(),
+            compressed_size: file.compressed_size,
+            uncompressed_size: file.uncompressed_size,
+            children: None,
+        });
+    }
+    let lib_children: Vec<SizeBreakdown> = lib_arch_map
+        .into_iter()
+        .map(|(arch, (c, u, children))| SizeBreakdown {
+            name: arch,
+            compressed_size: c,
+            uncompressed_size: u,
+            children: Some(children),
+        })
+        .collect();
+
+    // 3. Resource Breakdown (Type)
+    let mut res_type_map: HashMap<String, (u64, u64, Vec<SizeBreakdown>)> = HashMap::new();
+    for file in resource_files {
+        let res_type = if file.name == "resources.arsc" {
+            "ARSC"
+        } else if file.name.starts_with("res/") {
+            let parts: Vec<&str> = file.name.split('/').collect();
+            if parts.len() >= 2 {
+                parts[1].split('-').next().unwrap_or("unknown")
+            } else {
+                "unknown"
+            }
+        } else {
+            "unknown"
+        };
+        let entry = res_type_map.entry(res_type.to_string()).or_insert((0, 0, Vec::new()));
+        entry.0 += file.compressed_size;
+        entry.1 += file.uncompressed_size;
+        entry.2.push(SizeBreakdown {
+            name: file.name,
+            compressed_size: file.compressed_size,
+            uncompressed_size: file.uncompressed_size,
+            children: None,
+        });
+    }
+    let res_children: Vec<SizeBreakdown> = res_type_map
+        .into_iter()
+        .map(|(t, (c, u, children))| SizeBreakdown {
+            name: t.to_string(),
+            compressed_size: c,
+            uncompressed_size: u,
+            children: Some(children),
+        })
+        .collect();
+
+    // 4. Assets Breakdown (Hierarchy)
+    // A simpler way for assets: just group by first level of assets/
+    let mut asset_map: HashMap<String, (u64, u64, Vec<SizeBreakdown>)> = HashMap::new();
+    for file in asset_files {
+        let parts: Vec<&str> = file.name.split('/').collect();
+        let top = if parts.len() >= 2 { parts[1] } else { "root" };
+        let entry = asset_map.entry(top.to_string()).or_insert((0, 0, Vec::new()));
+        entry.0 += file.compressed_size;
+        entry.1 += file.uncompressed_size;
+        entry.2.push(SizeBreakdown {
+            name: file.name,
+            compressed_size: file.compressed_size,
+            uncompressed_size: file.uncompressed_size,
+            children: None,
+        });
+    }
+    let asset_children: Vec<SizeBreakdown> = asset_map
+        .into_iter()
+        .map(|(top, (c, u, children))| SizeBreakdown {
+            name: top,
+            compressed_size: c,
+            uncompressed_size: u,
+            children: Some(children),
+        })
+        .collect();
+
+    let root = SizeBreakdown {
+        name: "APK".to_string(),
+        compressed_size: bytes.len() as u64,
+        uncompressed_size: code_children.iter().map(|c| c.uncompressed_size).sum::<u64>()
+            + lib_children.iter().map(|c| c.uncompressed_size).sum::<u64>()
+            + res_children.iter().map(|c| c.uncompressed_size).sum::<u64>()
+            + asset_children.iter().map(|c| c.uncompressed_size).sum::<u64>()
+            + other_files.iter().map(|c| c.uncompressed_size).sum::<u64>(),
+        children: Some(vec![
+            SizeBreakdown {
+                name: "Code".to_string(),
+                compressed_size: code_children.iter().map(|c| c.compressed_size).sum(),
+                uncompressed_size: code_children.iter().map(|c| c.uncompressed_size).sum(),
+                children: Some(code_children),
+            },
+            SizeBreakdown {
+                name: "Lib".to_string(),
+                compressed_size: lib_children.iter().map(|c| c.compressed_size).sum(),
+                uncompressed_size: lib_children.iter().map(|c| c.uncompressed_size).sum(),
+                children: Some(lib_children),
+            },
+            SizeBreakdown {
+                name: "Resources".to_string(),
+                compressed_size: res_children.iter().map(|c| c.compressed_size).sum(),
+                uncompressed_size: res_children.iter().map(|c| c.uncompressed_size).sum(),
+                children: Some(res_children),
+            },
+            SizeBreakdown {
+                name: "Assets".to_string(),
+                compressed_size: asset_children.iter().map(|c| c.compressed_size).sum(),
+                uncompressed_size: asset_children.iter().map(|c| c.uncompressed_size).sum(),
+                children: Some(asset_children),
+            },
+            SizeBreakdown {
+                name: "Other".to_string(),
+                compressed_size: other_files.iter().map(|c| c.compressed_size).sum(),
+                uncompressed_size: other_files.iter().map(|c| c.uncompressed_size).sum(),
+                children: Some(
+                    other_files
+                        .into_iter()
+                        .map(|f| SizeBreakdown {
+                            name: f.name,
+                            compressed_size: f.compressed_size,
+                            uncompressed_size: f.uncompressed_size,
+                            children: None,
+                        })
+                        .collect(),
+                ),
+            },
+        ]),
+    };
+
+    Ok(root)
 }
 
 #[wasm_bindgen]

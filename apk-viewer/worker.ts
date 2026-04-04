@@ -1,4 +1,4 @@
-import init, { decode_apk_minimal, extract_file, extract_arsc, ApkMetadata, ArscResource } from './wasm/pkg';
+import init, { decode_apk_minimal, extract_file, extract_arsc, analyze_apk_size, ApkMetadata, ArscResource } from './wasm/pkg';
 
 let wasmInitialized = false;
 let systemResources: Uint8Array | null = null;
@@ -36,6 +36,19 @@ self.onmessage = async (e) => {
                     payload: {
                         metadata: minimalResponse.metadata,
                         fileNames: minimalResponse.file_names
+                    }
+                });
+                break;
+
+            case 'analyze-size':
+                console.log(`Worker: Analyzing APK size...`);
+                if (!apkBytes || !systemResources) throw new Error("WASM or APK not initialized");
+                const sizeBreakdown = analyze_apk_size(apkBytes, systemResources);
+                console.log(`Worker: Size analysis complete`);
+                self.postMessage({
+                    action: 'analyze-size-complete',
+                    payload: {
+                        sizeBreakdown
                     }
                 });
                 break;

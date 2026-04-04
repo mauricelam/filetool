@@ -1,10 +1,11 @@
 import { createRoot } from 'react-dom/client'
-import type { ArscResource, ApkMetadata } from './wasm/pkg'
+import type { ArscResource, ApkMetadata, SizeBreakdown } from './wasm/pkg'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
-import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse, Loader, Center } from '@mantine/core';
+import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse, Loader, Center, SegmentedControl, Breadcrumbs } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import * as d3 from 'd3';
 import '@mantine/core/styles.css';
 
 const OUTPUT = createRoot(document.getElementById('output')!);
@@ -57,13 +58,14 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => v
 }
 
 function App() {
-    const [view, setView] = useState<'file' | 'resource' | 'metadata' | 'file-preview'>('file');
+    const [view, setView] = useState<'file' | 'resource' | 'metadata' | 'file-preview' | 'size-analysis'>('file');
     const [fileTree, setFileTree] = useState<{ [key: string]: any }>({});
     const [selectedFilePath, setSelectedFilePath] = useState<string[] | undefined>(undefined);
     const [previewPath, setPreviewPath] = useState<string[] | null>(null);
     const [previewContent, setPreviewContent] = useState<Uint8Array | null>(null);
     const [resources, setResources] = useState<ArscResource[]>([]);
     const [metadata, setMetadata] = useState<ApkMetadata | null>(null);
+    const [sizeBreakdown, setSizeBreakdown] = useState<SizeBreakdown | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [extractingFile, setExtractingFile] = useState<string | null>(null);
@@ -128,6 +130,12 @@ function App() {
                     setView('resource');
                     setLoading(false);
                     break;
+                case 'analyze-size-complete':
+                    console.log('App: Size analysis complete', payload.sizeBreakdown);
+                    setSizeBreakdown(payload.sizeBreakdown);
+                    setView('size-analysis');
+                    setLoading(false);
+                    break;
                 case 'error':
                     setError(payload.message);
                     setLoading(false);
@@ -175,6 +183,17 @@ function App() {
             window.removeEventListener('message', handleMessage);
         };
     }, []);
+
+    const analyzeSize = useCallback(() => {
+        if (sizeBreakdown) {
+            setView('size-analysis');
+            return;
+        }
+        setLoading(true);
+        workerRef.current?.postMessage({ action: 'analyze-size' });
+        // Give the worker some breathing room if the APK is large
+        // By not immediately closing any loading state elsewhere
+    }, [sizeBreakdown]);
 
     const extractFile = useCallback((name: string): Promise<Uint8Array> => {
         return new Promise((resolve) => {
@@ -290,6 +309,8 @@ function App() {
         );
     } else if (view === 'metadata') {
         content = <MetadataViewer metadata={metadata} onBack={() => setView('file')} />;
+    } else if (view === 'size-analysis') {
+        content = <SizeAnalysisView breakdown={sizeBreakdown!} onBack={() => setView('file')} />;
     } else {
         content = (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -308,13 +329,22 @@ function App() {
                                 {metadata.manifest?.version_name} ({metadata.manifest?.version_code})
                             </span>
                         </div>
-                        <Button
-                            variant="outline"
-                            size="compact-sm"
-                            onClick={() => setView('metadata')}
-                        >
-                            View APK Metadata
-                        </Button>
+                        <Group>
+                            <Button
+                                variant="outline"
+                                size="compact-sm"
+                                onClick={analyzeSize}
+                            >
+                                Size Makeup
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="compact-sm"
+                                onClick={() => setView('metadata')}
+                            >
+                                View APK Metadata
+                            </Button>
+                        </Group>
                     </div>
                 )}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -1007,6 +1037,193 @@ function MetadataViewer({ metadata, onBack }: { metadata: ApkMetadata | null, on
                 </section>
             </div>
         </div>
+    );
+}
+
+function SizeAnalysisView({ breakdown, onBack }: { breakdown: SizeBreakdown, onBack: () => void }) {
+    const [mode, setMode] = useState<'compressed' | 'uncompressed'>('uncompressed');
+    const [currentRoot, setCurrentRoot] = useState<SizeBreakdown>(breakdown);
+    const [history, setHistory] = useState<SizeBreakdown[]>([]);
+
+    const formatSize = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const handleNodeClick = (node: SizeBreakdown) => {
+        if (node.children && node.children.length > 0) {
+            setHistory(prev => [...prev, currentRoot]);
+            setCurrentRoot(node);
+        }
+    };
+
+    const handleBackClick = () => {
+        if (history.length > 0) {
+            const last = history[history.length - 1];
+            setHistory(prev => prev.slice(0, -1));
+            setCurrentRoot(last);
+        } else {
+            onBack();
+        }
+    };
+
+    const breadcrumbs = [
+        <Anchor key="root" onClick={() => { setCurrentRoot(breakdown); setHistory([]); }}>
+            APK
+        </Anchor>,
+        ...history.slice(1).map((node, i) => (
+            <Anchor key={i} onClick={() => {
+                const index = history.indexOf(node);
+                setCurrentRoot(node);
+                setHistory(history.slice(0, index));
+            }}>
+                {node.name}
+            </Anchor>
+        )),
+        history.length > 0 ? <Text key="current">{currentRoot.name}</Text> : null
+    ].filter(Boolean);
+
+    return (
+        <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <Group>
+                    <Button
+                        variant="default"
+                        onClick={handleBackClick}
+                        leftSection={
+                            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343">
+                                <path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z" />
+                            </svg>
+                        }
+                    >
+                        {history.length > 0 ? 'Up' : 'Back'}
+                    </Button>
+                    <h2 style={{ margin: 0 }}>Size Makeup</h2>
+                </Group>
+                <SegmentedControl
+                    value={mode}
+                    onChange={(value) => setMode(value as any)}
+                    data={[
+                        { label: 'Uncompressed', value: 'uncompressed' },
+                        { label: 'Compressed', value: 'compressed' },
+                    ]}
+                />
+            </div>
+
+            <Breadcrumbs mb="md">{breadcrumbs}</Breadcrumbs>
+
+            <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+                <Treemap
+                    data={currentRoot}
+                    mode={mode}
+                    onNodeClick={handleNodeClick}
+                    formatSize={formatSize}
+                />
+            </div>
+        </div>
+    );
+}
+
+function Treemap({ data, mode, onNodeClick, formatSize }: {
+    data: SizeBreakdown,
+    mode: 'compressed' | 'uncompressed',
+    onNodeClick: (node: SizeBreakdown) => void,
+    formatSize: (bytes: number) => string
+}) {
+    const svgRef = useRef<SVGSVGElement>(null);
+    const tooltipRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!svgRef.current || !data.children) return;
+
+        const container = svgRef.current.parentElement!;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        const svg = d3.select(svgRef.current)
+            .attr("viewBox", [0, 0, width, height])
+            .attr("width", width)
+            .attr("height", height)
+            .style("font", "10px sans-serif");
+
+        svg.selectAll("*").remove();
+
+        const root = d3.hierarchy(data)
+            .sum(d => mode === 'compressed' ? d.compressed_size : d.uncompressed_size)
+            .sort((a, b) => (b.value || 0) - (a.value || 0));
+
+        d3.treemap<SizeBreakdown>()
+            .size([width, height])
+            .paddingOuter(3)
+            .paddingTop(19)
+            .paddingInner(1)
+            .round(true)
+            (root);
+
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+        const leaf = svg.selectAll("g")
+            .data(root.children || [])
+            .join("g")
+            .attr("transform", d => `translate(${d.x0},${d.y0})`);
+
+        leaf.append("rect")
+            .attr("width", d => d.x1 - d.x0)
+            .attr("height", d => d.y1 - d.y0)
+            .attr("fill", d => color(d.data.name))
+            .attr("fill-opacity", 0.6)
+            .attr("stroke", "#fff")
+            .style("cursor", d => (d.data.children && d.data.children.length > 0) ? "pointer" : "default")
+            .on("click", (event, d) => onNodeClick(d.data))
+            .on("mousemove", (event, d) => {
+                if (tooltipRef.current) {
+                    tooltipRef.current.style.display = 'block';
+                    tooltipRef.current.style.left = `${event.pageX + 10}px`;
+                    tooltipRef.current.style.top = `${event.pageY + 10}px`;
+                    tooltipRef.current.innerHTML = `
+                        <strong>${d.data.name}</strong><br/>
+                        Uncompressed: ${formatSize(d.data.uncompressed_size)}<br/>
+                        Compressed: ${formatSize(d.data.compressed_size)}
+                    `;
+                }
+            })
+            .on("mouseout", () => {
+                if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+            });
+
+        leaf.append("text")
+            .attr("x", 3)
+            .attr("y", 13)
+            .style("pointer-events", "none")
+            .text(d => {
+                const label = d.data.name;
+                if (d.x1 - d.x0 < label.length * 6) return "";
+                return label;
+            });
+
+    }, [data, mode, onNodeClick]);
+
+    return (
+        <>
+            <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+            <div
+                ref={tooltipRef}
+                style={{
+                    position: 'fixed',
+                    display: 'none',
+                    backgroundColor: 'rgba(0,0,0,0.8)',
+                    color: '#fff',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    pointerEvents: 'none',
+                    zIndex: 1000,
+                    fontSize: '12px'
+                }}
+            />
+        </>
     );
 }
 
