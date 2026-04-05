@@ -1,6 +1,9 @@
 console.log("[BloatyWorker] Script starting...");
 
-const BloatyModulePromise = import("./bloaty.js");
+// @ts-ignore
+import BloatyModule from "./bloaty.js";
+
+console.log("[BloatyWorker] Module imported:", typeof BloatyModule);
 
 self.onerror = (message, source, lineno, colno, error) => {
     console.error("[BloatyWorker] Global error:", { message, source, lineno, colno, error });
@@ -30,9 +33,6 @@ self.onmessage = async (e: MessageEvent) => {
                         }
                         return path;
                     };
-
-                    const BloatyModule = (await BloatyModulePromise).default;
-                    console.log("[BloatyWorker] Module imported:", typeof BloatyModule);
 
                     bloatyPromise = BloatyModule({
                         locateFile,

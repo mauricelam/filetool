@@ -26,7 +26,8 @@ const SETTINGS = {
     emscriptenWasm({
       name: 'bloaty',
       projectDir: 'bloaty-src',
-      command: `git checkout Makefile.wasm && (grep -q "EXPORT_ES6=1" Makefile.wasm || patch -p1 < ../Makefile.wasm.patch) && make -f Makefile.wasm WEB_DIR=../dist/bloaty`,
+      command: `git checkout Makefile.wasm && (grep -q "EXPORT_ES6=1" Makefile.wasm || patch -p1 < ../Makefile.wasm.patch) && make -f Makefile.wasm WEB_DIR=.`,
+      artifacts: ['bloaty.js', 'bloaty.wasm']
     }),
     {
       name: 'resolve-bloaty',
