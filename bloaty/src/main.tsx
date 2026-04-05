@@ -41,11 +41,25 @@ function App() {
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
+    const workerUrl = new URL('worker.js', import.meta.url);
+    console.log("[BloatyApp] Initializing worker at:", workerUrl.href);
+
     // Standard worker initialization for this repo
-    workerRef.current = new Worker(new URL('worker.js', import.meta.url), { type: 'module' });
+    workerRef.current = new Worker(workerUrl, { type: 'module' });
     workerRef.current.onerror = (e) => {
-      console.error("[BloatyApp] Worker error:", e);
-      setError(`Worker error: ${e.message || "Unknown error"}`);
+      console.error("[BloatyApp] Worker error event:", e);
+      let errorMsg = "Unknown worker error";
+
+      if (e instanceof ErrorEvent) {
+          errorMsg = `${e.message} at ${e.filename}:${e.lineno}:${e.colno}`;
+          console.error(`[BloatyApp] Worker ErrorEvent: ${errorMsg}`);
+      } else {
+          // Generic Event could be a load failure (e.g. 404)
+          console.error("[BloatyApp] Worker generic error event - possibly failed to load script");
+          errorMsg = "Failed to load or execute worker script. Check network tab and console.";
+      }
+
+      setError(`Worker error: ${errorMsg}`);
       setLoading(false);
     };
     workerRef.current.onmessage = (e) => {
@@ -91,6 +105,31 @@ function App() {
     setResult('');
     setTsvResult('');
     setError(null);
+
+    console.log("[BloatyApp] Sending analysis request to worker...");
+
+    // Add a safety timeout for the analysis
+    const timeoutId = setTimeout(() => {
+        if (loading) {
+            console.warn("[BloatyApp] Analysis taking longer than expected...");
+        }
+    }, 15000);
+
+    workerRef.current.onmessage = (e) => {
+      console.log("[BloatyApp] Message from worker:", e.data);
+      clearTimeout(timeoutId);
+      const { action, text, tsv, error } = e.data;
+      if (action === 'result') {
+        console.log("[BloatyApp] Received result from worker");
+        setResult(text);
+        setTsvResult(tsv);
+        setLoading(false);
+      } else if (action === 'error') {
+        console.error("[BloatyApp] Received error from worker:", error);
+        setError(error);
+        setLoading(false);
+      }
+    };
 
     workerRef.current.postMessage({
       action: 'run',

@@ -1,5 +1,14 @@
-// @ts-ignore
-import BloatyModule from "./bloaty.js";
+console.log("[BloatyWorker] Script starting...");
+
+const BloatyModulePromise = import("./bloaty.js");
+
+self.onerror = (message, source, lineno, colno, error) => {
+    console.error("[BloatyWorker] Global error:", { message, source, lineno, colno, error });
+};
+
+self.onunhandledrejection = (event) => {
+    console.error("[BloatyWorker] Unhandled rejection:", event.reason);
+};
 
 let bloaty: any;
 let bloatyPromise: Promise<any> | null = null;
@@ -13,13 +22,20 @@ self.onmessage = async (e: MessageEvent) => {
             if (!bloaty) {
                 console.log("[BloatyWorker] Initializing Bloaty WASM module...");
                 if (!bloatyPromise) {
+                    const locateFile = (path: string) => {
+                        if (path.endsWith('.wasm')) {
+                            const url = new URL('bloaty.wasm', import.meta.url).href;
+                            console.log("[BloatyWorker] Locating WASM at:", url);
+                            return url;
+                        }
+                        return path;
+                    };
+
+                    const BloatyModule = (await BloatyModulePromise).default;
+                    console.log("[BloatyWorker] Module imported:", typeof BloatyModule);
+
                     bloatyPromise = BloatyModule({
-                        locateFile: (path: string) => {
-                            if (path.endsWith('.wasm')) {
-                                return new URL('bloaty.wasm', import.meta.url).href;
-                            }
-                            return path;
-                        },
+                        locateFile,
                         print: (text: string) => console.log(`[Bloaty] ${text}`),
                         printErr: (text: string) => console.error(`[Bloaty Error] ${text}`),
                     });
