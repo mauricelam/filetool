@@ -21,8 +21,8 @@ const SETTINGS = {
           to: ["index.html"],
         },
         {
-          from: ["processors.json"],
-          to: ["processors.json"],
+          from: ["ghidra-decompiler/wasm_examples/processors.json"],
+          to: ["."],
         },
         {
           from: ["../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/ghidra_decompiler.wasm"],
@@ -47,7 +47,7 @@ if (process.env['BUILD_MODE'] === 'dev') {
 }
 
 // Manual copy for processors to ensure they are available at the paths specified in processors.json
-const processorsDir = path.join(projectDir, 'Processors');
+const processorsDir = path.join(projectDir, 'ghidra-decompiler', 'Processors');
 const targetDir = path.join(projectDir, '..', 'dist', 'ghidra', 'Processors');
 
 function copyProcessors(src, dest) {

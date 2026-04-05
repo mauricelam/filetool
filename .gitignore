@@ -10,5 +10,3 @@ playwright-report/
 setools/build/
 .turbo/
 android.arsc.zip
-ghidra/Processors
-ghidra/processors.json
