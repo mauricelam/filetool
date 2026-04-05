@@ -85,7 +85,7 @@ pub struct ApkMetadata {
     pub compressed_size: u64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Tsify)]
+#[derive(serde::Serialize, serde::Deserialize, Tsify, Clone)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct SizeBreakdown {
     pub name: String,
@@ -436,6 +436,11 @@ pub fn analyze_apk_size(
 
     // 1. Code Breakdown (DEX)
     let mut code_children = Vec::new();
+    let mut all_packages_map: HashMap<String, (u64, Vec<SizeBreakdown>)> = HashMap::new();
+    let mut all_dex_total_uncompressed = 0;
+    let mut all_dex_total_compressed = 0;
+    let mut total_overhead = 0;
+
     for file in &code_files {
         let content = apk.extract_file(&file.name, &system_resources).map_err(|e| {
             error!("Failed to extract {}: {}", file.name, e);
@@ -490,21 +495,27 @@ pub fn analyze_apk_size(
                     ("".to_string(), &full_name[1..full_name.len() - 1])
                 };
 
-                let entry = package_map.entry(package).or_insert((0, Vec::new()));
+                let entry = package_map.entry(package.clone()).or_insert((0, Vec::new()));
                 entry.0 += class_size;
-                entry.1.push(SizeBreakdown {
+                let class_node = SizeBreakdown {
                     name: name.to_string(),
                     compressed_size: 0, // We don't have per-class compressed size
                     uncompressed_size: class_size,
                     group: None,
                     children: None,
-                });
+                };
+                entry.1.push(class_node.clone());
+
+                let all_entry = all_packages_map.entry(package).or_insert((0, Vec::new()));
+                all_entry.0 += class_size;
+                all_entry.1.push(class_node);
             }
         }
 
         let mut dex_children = Vec::new();
         // Add Shared/Overhead
         let overhead = file.uncompressed_size.saturating_sub(total_class_size);
+        total_overhead += overhead;
         dex_children.push(SizeBreakdown {
             name: "[Shared/Overhead]".to_string(),
             compressed_size: 0,
@@ -523,6 +534,9 @@ pub fn analyze_apk_size(
             });
         }
 
+        all_dex_total_uncompressed += file.uncompressed_size;
+        all_dex_total_compressed += file.compressed_size;
+
         code_children.push(SizeBreakdown {
             name: file.name.clone(),
             compressed_size: file.compressed_size,
@@ -531,6 +545,40 @@ pub fn analyze_apk_size(
             children: Some(dex_children),
         });
     }
+
+    let mut combined_code_children = Vec::new();
+    combined_code_children.push(SizeBreakdown {
+        name: "[Shared/Overhead]".to_string(),
+        compressed_size: 0,
+        uncompressed_size: total_overhead,
+        group: None,
+        children: None,
+    });
+    for (pkg_name, (pkg_size, classes)) in all_packages_map {
+        combined_code_children.push(SizeBreakdown {
+            name: pkg_name,
+            compressed_size: 0,
+            uncompressed_size: pkg_size,
+            group: None,
+            children: Some(classes),
+        });
+    }
+
+    let mut code_top_level = Vec::new();
+    code_top_level.push(SizeBreakdown {
+        name: "Group by DEX".to_string(),
+        compressed_size: all_dex_total_compressed,
+        uncompressed_size: all_dex_total_uncompressed,
+        group: None,
+        children: Some(code_children.clone()),
+    });
+    code_top_level.push(SizeBreakdown {
+        name: "All Packages".to_string(),
+        compressed_size: all_dex_total_compressed,
+        uncompressed_size: all_dex_total_uncompressed,
+        group: None,
+        children: Some(combined_code_children),
+    });
 
     // 2. Lib Breakdown (Architecture)
     let mut lib_children: Vec<SizeBreakdown> = Vec::new();
@@ -556,20 +604,20 @@ pub fn analyze_apk_size(
                     let mut arsc_type_map: HashMap<String, u64> = HashMap::new();
                     let resources = decoder.get_resources();
                     for (_package_id, package) in resources.packages.iter() {
-                        for (type_id, _type_spec) in package.iter_specs() {
-                            let type_name = package.get_spec_string(*type_id)
-                                .map(|s| s.to_string())
-                                .unwrap_or_else(|_| format!("type_{}", type_id));
+                        for (entry_id, all_entries) in package.iter_entries() {
+                            let spec_id = u32::from(entry_id.get_spec());
+                            let type_name = package.get_spec_as_str(spec_id)
+                                .unwrap_or_else(|_| format!("type_{}", spec_id));
 
-                            let mut type_size = 0;
-                            // This is a very rough estimation:
-                            // sum of sizes of entries of this type.
-                            // ARSC doesn't store exact byte sizes per type chunk easily without low-level parsing.
-                            // But we can count entries.
-                            if let Some(entries) = package.iter_entries().find(|(id, _)| (*id >> 16) == *type_id).map(|(_, e)| e) {
-                                type_size += (entries.len() * 16) as u64; // arbitrary weight
+                            let mut entry_size = 0;
+                            for (_, entry) in all_entries {
+                                entry_size += match entry {
+                                    Entry::Simple(_) => 16,
+                                    Entry::Complex(c) => 16 + (c.get_entries().len() * 12) as u64,
+                                    Entry::Empty(_, _) => 0,
+                                };
                             }
-                            *arsc_type_map.entry(type_name).or_insert(0) += type_size;
+                            *arsc_type_map.entry(type_name).or_insert(0) += entry_size;
                         }
                     }
                     let total_arsc_weight: u64 = arsc_type_map.values().sum();
@@ -665,10 +713,10 @@ pub fn analyze_apk_size(
         children: Some(vec![
             SizeBreakdown {
                 name: "Code".to_string(),
-                compressed_size: code_children.iter().map(|c| c.compressed_size).sum(),
-                uncompressed_size: code_children.iter().map(|c| c.uncompressed_size).sum(),
+                compressed_size: all_dex_total_compressed,
+                uncompressed_size: all_dex_total_uncompressed,
                 group: None,
-                children: Some(code_children),
+                children: Some(code_top_level),
             },
             SizeBreakdown {
                 name: "Lib".to_string(),

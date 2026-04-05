@@ -1042,6 +1042,7 @@ function MetadataViewer({ metadata, onBack }: { metadata: ApkMetadata | null, on
 
 function SizeAnalysisView({ breakdown, onBack }: { breakdown: SizeBreakdown, onBack: () => void }) {
     const [mode, setMode] = useState<'compressed' | 'uncompressed'>('uncompressed');
+    const [codeGrouping, setCodeGrouping] = useState<'dex' | 'all'>('all');
     const [currentRoot, setCurrentRoot] = useState<SizeBreakdown>(breakdown);
     const [history, setHistory] = useState<SizeBreakdown[]>([]);
 
@@ -1054,7 +1055,12 @@ function SizeAnalysisView({ breakdown, onBack }: { breakdown: SizeBreakdown, onB
     };
 
     const handleNodeClick = (node: SizeBreakdown) => {
-        if (node.children && node.children.length > 0) {
+        if (node.name === 'Code') {
+            const newNode = { ...node, name: 'Code' }; // Ensure the name remains 'Code' for UI purposes
+            setHistory(prev => [...prev, currentRoot]);
+            const childNode = codeGrouping === 'dex' ? groupByDexNode! : allPackagesNode!;
+            setCurrentRoot({ ...childNode, name: 'Code' });
+        } else if (node.children && node.children.length > 0) {
             setHistory(prev => [...prev, currentRoot]);
             setCurrentRoot(node);
         }
@@ -1086,6 +1092,31 @@ function SizeAnalysisView({ breakdown, onBack }: { breakdown: SizeBreakdown, onB
         history.length > 0 ? <Text key="current">{currentRoot.name}</Text> : null
     ].filter(Boolean);
 
+    const codeNode = breakdown.children?.find(c => c.name === 'Code');
+    const codeTopLevel = codeNode?.children;
+    const groupByDexNode = codeTopLevel?.find(c => c.name === 'Group by DEX');
+    const allPackagesNode = codeTopLevel?.find(c => c.name === 'All Packages');
+
+    useEffect(() => {
+        if (currentRoot.name === 'Code' || history.some(h => h.name === 'Code')) {
+            // If we are currently viewing or drilled into the Code node
+            const isAtCodeLevel = currentRoot.name === 'Code';
+            if (isAtCodeLevel) {
+                setCurrentRoot(codeGrouping === 'dex' ? groupByDexNode! : allPackagesNode!);
+            } else {
+                // If we are deeper than the Code level, we might need to reset or handle switching
+                // For simplicity, if they toggle, we just go back to the top level of Code
+                setCurrentRoot(codeGrouping === 'dex' ? groupByDexNode! : allPackagesNode!);
+                setHistory(prev => {
+                    const codeIndex = prev.findIndex(h => h.name === 'Code');
+                    return prev.slice(0, codeIndex + 1);
+                });
+            }
+        }
+    }, [codeGrouping]);
+
+    const isInsideCode = currentRoot.name === 'Code' || history.some(h => h.name === 'Code' || h.name === 'Group by DEX' || h.name === 'All Packages');
+
     return (
         <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -1103,14 +1134,26 @@ function SizeAnalysisView({ breakdown, onBack }: { breakdown: SizeBreakdown, onB
                     </Button>
                     <h2 style={{ margin: 0 }}>Size Makeup</h2>
                 </Group>
-                <SegmentedControl
-                    value={mode}
-                    onChange={(value) => setMode(value as any)}
-                    data={[
-                        { label: 'Uncompressed', value: 'uncompressed' },
-                        { label: 'Compressed', value: 'compressed' },
-                    ]}
-                />
+                <Group>
+                    {isInsideCode && (
+                        <SegmentedControl
+                            value={codeGrouping}
+                            onChange={(value) => setCodeGrouping(value as any)}
+                            data={[
+                                { label: 'By DEX', value: 'dex' },
+                                { label: 'All Packages', value: 'all' },
+                            ]}
+                        />
+                    )}
+                    <SegmentedControl
+                        value={mode}
+                        onChange={(value) => setMode(value as any)}
+                        data={[
+                            { label: 'Uncompressed', value: 'uncompressed' },
+                            { label: 'Compressed', value: 'compressed' },
+                        ]}
+                    />
+                </Group>
             </div>
 
             <Breadcrumbs mb="md">{breadcrumbs}</Breadcrumbs>
