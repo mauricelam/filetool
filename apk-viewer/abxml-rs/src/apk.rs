@@ -62,6 +62,13 @@ pub struct ArscResource {
     pub value: String,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct FileInfo {
+    pub name: String,
+    pub compressed_size: u64,
+    pub uncompressed_size: u64,
+}
+
 impl<Reader: Read + Seek> Apk<Reader> {
     pub fn get_metadata_with_bytes(&mut self, bytes: &[u8], buffer_android: &[u8]) -> Result<ApkMetadata, Error> {
         let mut v1_signature = false;
@@ -528,6 +535,20 @@ impl<Reader: Read + Seek> Apk<Reader> {
 
     pub fn get_file_names(&self) -> Vec<String> {
         self.handler.file_names().map(|s| s.to_string()).collect()
+    }
+
+    pub fn get_files_info(&mut self) -> Vec<FileInfo> {
+        let mut result = Vec::new();
+        for i in 0..self.handler.len() {
+            if let Ok(file) = self.handler.by_index(i) {
+                result.push(FileInfo {
+                    name: file.name().to_string(),
+                    compressed_size: file.compressed_size(),
+                    uncompressed_size: file.size(),
+                });
+            }
+        }
+        result
     }
 
     pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {

@@ -14,6 +14,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 abxml = { path = "../../apk-viewer/abxml-rs" }
+dex = { path = "../../dexviewer/dex-parser" }
 wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 tsify = "0.5.6"
 js-sys = "0.3"
