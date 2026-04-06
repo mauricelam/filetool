@@ -10,7 +10,7 @@ test.describe('Archive Viewer Multi-selection', () => {
     test.slow();
 
     test('should allow shift-selection and update download button', async ({ page }) => {
-        const filePath = path.join(__dirname, '../../ghidra/ghidra-decompiler/Processors/JVM/lib/JVM-src.zip');
+        const filePath = path.join(__dirname, '../../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/Processors/JVM/lib/JVM-src.zip');
         const fileBuffer = fs.readFileSync(filePath);
         const iframe = await runHandlerTest(page, {
             handler: 'archive',
