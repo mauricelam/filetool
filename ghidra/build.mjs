@@ -3,7 +3,6 @@ import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import path from 'path';
 import fs from 'fs';
-import { emscriptenWasm } from '../esbuild-plugins/emscripten-wasm.mjs';
 
 const projectDir = process.cwd();
 
@@ -22,17 +21,14 @@ const SETTINGS = {
           to: ["index.html"],
         },
         {
-          from: ["ghidra-decompiler/wasm_examples/processors.json"],
+          from: ["../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/processors.json"],
           to: ["."],
+        },
+        {
+          from: ["../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/ghidra_decompiler.wasm"],
+          to: ["ghidra_decompiler.wasm"],
         }
       ]
-    }),
-    emscriptenWasm({
-      name: 'ghidra',
-      projectDir: 'ghidra-decompiler',
-      command: `make -j -f Makefile.wasm ghidra_decompiler.js`,
-      artifacts: ['ghidra_decompiler.js', 'ghidra_decompiler.wasm'],
-      resolveArtifacts: true,
     }),
   ],
   loader: {
@@ -50,8 +46,7 @@ if (process.env['BUILD_MODE'] === 'dev') {
   await esbuild.build({ ...SETTINGS, minify: true });
 }
 
-// Manual copy for processors to ensure they are available at the paths specified in processors.json
-const processorsDir = path.join(projectDir, 'ghidra-decompiler', 'Processors');
+const processorsDir = path.join(projectDir, '..', 'node_modules', '@mauricelam', 'ghidra-decompiler-wasm', 'dist', 'Processors');
 const targetDir = path.join(projectDir, '..', 'dist', 'ghidra', 'Processors');
 
 function copyProcessors(src, dest) {
@@ -74,7 +69,8 @@ function copyProcessors(src, dest) {
 console.log('Copying processor specifications...');
 const oldTarget = path.join(projectDir, '..', 'dist', 'ghidra', 'processors');
 if (fs.existsSync(oldTarget)) {
-    fs.rmSync(oldTarget, { recursive: true, force: true });
+  fs.rmSync(oldTarget, { recursive: true, force: true });
 }
 copyProcessors(processorsDir, targetDir);
 console.log('Done copying processors.');
+
