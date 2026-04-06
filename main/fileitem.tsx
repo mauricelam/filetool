@@ -275,6 +275,7 @@ export function FileItem(
                                     return (
                                         <div key={handlerConfig.handler} style={{ marginRight: '10px', display: 'inline-block', marginBottom: '5px' }}>
                                             <button
+                                                data-handler={handlerConfig.handler}
                                                 onClick={() => {
                                                     setActiveHandlerId(handlerConfig.handler);
                                                     onOpenHandler({ handler: handlerConfig.handler, file, magicMime: mimetype });
