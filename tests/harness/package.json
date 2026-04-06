@@ -1,0 +1,14 @@
+{
+  "name": "@filetool/integration-test-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./test-utils.ts",
+  "types": "./test-utils.ts",
+  "exports": {
+    ".": "./test-utils.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

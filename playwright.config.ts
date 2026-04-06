@@ -1,7 +1,9 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/integration',
+  testDir: '.',
+  testMatch: /.*\.spec\.ts/,
+  testIgnore: '**/node_modules/**',
   use: {
     headless: true,
     viewport: { width: 1920, height: 1200 },
