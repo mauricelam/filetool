@@ -96,7 +96,7 @@ function App() {
     if (file) {
       runBloaty();
     }
-  }, [file]);
+  }, [file, dataSources]);
 
   const runBloaty = () => {
     if (!file || !workerRef.current) return;
@@ -164,7 +164,7 @@ function App() {
                 style={{ width: 300 }}
               />
               <Button onClick={runBloaty} loading={loading} disabled={!file}>
-                Run Bloaty
+                Bloaty
               </Button>
             </Group>
           </Group>
