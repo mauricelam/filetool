@@ -50,7 +50,7 @@ export const rustWasm = (options) => {
         }
         isBuilding = true;
         try {
-          execSync(`npx wasm-pack --quiet build "${projectDir}" --target web --out-name "${outName}"`, {
+          execSync(`wasm-pack --quiet build "${projectDir}" --target web --out-name "${outName}"`, {
             stdio: 'inherit',
           });
 

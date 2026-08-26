@@ -2,6 +2,7 @@ import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
+import { goWasm } from '../esbuild-plugins/go-wasm.mjs';
 
 const isDev = process.env.BUILD_MODE === 'dev';
 const isWatch = process.argv.includes('--watch');
@@ -17,6 +18,11 @@ const context = await esbuild.context({
             projectDir: 'ext4-wasm',
             outName: 'ext4-wasm',
             watchPaths: ['src/**/*.rs']
+        }),
+        goWasm({
+            projectDir: 'erofs-wasm',
+            outWasmFile: 'erofs.wasm',
+            watchPaths: ['main.go', 'go.mod']
         }),
         copy({
             assets: [
