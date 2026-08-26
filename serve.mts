@@ -29,7 +29,6 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // Map the URL path 'filetool' to the directory 'dist'
-// Express automatically handles stripping '/filetool' before serveStatic looks at the disk
 app.use('/filetool', serveStatic(path.join(__dirname, 'dist'), {
   setHeaders: setHeaders,
   index: ['index.html'] // Default file to serve

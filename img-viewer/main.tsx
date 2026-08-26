@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import init, { parse_ext4, read_ext4_file, Ext4File } from './ext4-wasm/pkg';
+import init, { parse_ext4, read_ext4_file } from './ext4-wasm/pkg';
+import { parseErofs, readErofsFile } from './erofs-wasm';
 import { ColumnView } from '../components/ColumnView';
 
 const guessImageType = (data: Uint8Array): string | null => {
@@ -21,6 +22,7 @@ const guessImageType = (data: Uint8Array): string | null => {
     if (checkString(0x20, "NXSB") || checkString(0x0, "NXSB") || checkString(0x8, "NXSB")) return "APFS";
     if (checkString(0x8001, "CD001")) return "ISO9660";
     if (checkString(0x10040, "_BHRfS_M")) return "Btrfs";
+    if (data.length >= 0x404 && data[0x400] === 0xE2 && data[0x401] === 0xE1 && data[0x402] === 0xF5 && data[0x403] === 0xE0) return "EROFS";
     if (data.length > 0x400 + 4 && data[0x400] === 0x10 && data[0x401] === 0x20 && data[0x402] === 0xF5 && data[0x403] === 0xF2) return "F2FS";
     if (checkString(0x400, "H+") || checkString(0x400, "HX")) return "HFS+";
     if (checkString(0x0, "hsqs")) return "SquashFS";
@@ -30,9 +32,10 @@ const guessImageType = (data: Uint8Array): string | null => {
     return null;
 };
 
-const Ext4Viewer: React.FC = () => {
+const ImageViewer: React.FC = () => {
     const [fileData, setFileData] = useState<Uint8Array | null>(null);
     const [tree, setTree] = useState<any>(null);
+    const [imageType, setImageType] = useState<'ext4' | 'erofs' | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
@@ -52,25 +55,40 @@ const Ext4Viewer: React.FC = () => {
 
                 // ext4 magic number 0xEF53 at offset 1080 (0x438)
                 const isExt4 = data.length > 1081 && data[1080] === 0x53 && data[1081] === 0xEF;
-                if (!isExt4) {
+                // erofs magic number 0xE0F5E1E2 (0xE2, 0xE1, 0xF5, 0xE0) at offset 1024 (0x400)
+                const isErofs = data.length >= 0x404 && data[0x400] === 0xE2 && data[0x401] === 0xE1 && data[0x402] === 0xF5 && data[0x403] === 0xE0;
+
+                if (isExt4) {
+                    setImageType('ext4');
+                    try {
+                        setLoading(true);
+                        const parsedTree = parse_ext4(data);
+                        setTree(parsedTree);
+                    } catch (err) {
+                        setError(`Failed to parse ext4: ${err}`);
+                        console.error(err);
+                    } finally {
+                        setLoading(false);
+                    }
+                } else if (isErofs) {
+                    setImageType('erofs');
+                    try {
+                        setLoading(true);
+                        const parsedTree = await parseErofs(data);
+                        setTree(parsedTree);
+                    } catch (err) {
+                        setError(`Failed to parse erofs: ${err}`);
+                        console.error(err);
+                    } finally {
+                        setLoading(false);
+                    }
+                } else {
                     const guessedType = guessImageType(data);
                     if (guessedType) {
-                        setError(`.img file with type ${guessedType} is not supported yet. Try an ext4 formatted img file instead`);
+                        setError(`.img file with type ${guessedType} is not supported yet. Try an ext4 or EROFS formatted img file instead`);
                     } else {
-                        setError("This file does not appear to be a valid ext4 filesystem image.");
+                        setError("This file does not appear to be a valid ext4 or EROFS filesystem image.");
                     }
-                    return;
-                }
-
-                try {
-                    setLoading(true);
-                    const parsedTree = parse_ext4(data);
-                    setTree(parsedTree);
-                } catch (err) {
-                    setError(`Failed to parse ext4: ${err}`);
-                    console.error(err);
-                } finally {
-                    setLoading(false);
                 }
             }
         };
@@ -79,10 +97,18 @@ const Ext4Viewer: React.FC = () => {
         return () => window.removeEventListener('message', handleMessage);
     }, []);
 
+    const extractFileContent = async (file: any): Promise<Uint8Array> => {
+        if (!fileData) throw new Error("No image file loaded");
+        if (imageType === 'erofs') {
+            return await readErofsFile(fileData, file._path);
+        } else {
+            return read_ext4_file(fileData, file._path);
+        }
+    };
+
     const handleDownload = async (file: any, name: string) => {
-        if (!fileData) return;
         try {
-            const content = read_ext4_file(fileData, file._path);
+            const content = await extractFileContent(file);
             const blob = new Blob([content]);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -96,9 +122,8 @@ const Ext4Viewer: React.FC = () => {
     };
 
     const handleOpen = async (file: any, name: string) => {
-        if (!fileData) return;
         try {
-            const content = read_ext4_file(fileData, file._path);
+            const content = await extractFileContent(file);
             const newFile = new File([content], name, { type: 'application/octet-stream' });
             window.parent?.postMessage({
                 action: 'openFile',
@@ -110,9 +135,6 @@ const Ext4Viewer: React.FC = () => {
     };
 
     const renderFileActions = (item: any, path: string[]) => {
-        // If it's a file, it will have _path (from Rust struct Ext4File)
-        // tsify removes the underscores in the TS types but Rust serde [serde(rename = "_path")]
-        // means the JSON object WILL have the underscores.
         if (item._path) {
             const name = path[path.length - 1];
             return (
@@ -194,6 +216,7 @@ const Ext4Viewer: React.FC = () => {
                         setError(null);
                         setTree(null);
                         setFileData(null);
+                        setImageType(null);
                         window.parent.postMessage({ action: 'requestFile' });
                     }}
                     style={{
@@ -212,7 +235,7 @@ const Ext4Viewer: React.FC = () => {
     }
 
     if (loading) {
-        return <div style={{ padding: '20px' }}>Parsing ext4 image...</div>;
+        return <div style={{ padding: '20px' }}>Parsing {imageType || 'filesystem'} image...</div>;
     }
 
     if (!tree) {
@@ -222,7 +245,7 @@ const Ext4Viewer: React.FC = () => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <div style={{ padding: '0 20px' }}>
-                <h2>ext4 Image Explorer</h2>
+                <h2>{imageType === 'erofs' ? 'EROFS Image Explorer' : 'ext4 Image Explorer'}</h2>
             </div>
             <ColumnView
                 initialContent={tree}
@@ -235,5 +258,5 @@ const Ext4Viewer: React.FC = () => {
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
-    createRoot(rootElement).render(<Ext4Viewer />);
+    createRoot(rootElement).render(<ImageViewer />);
 }

@@ -16,5 +16,5 @@ test('img-viewer should show a helpful error for non-ext4 files', async ({ page 
     });
 
     await expect(iframe.getByText('Error Loading Image')).toBeVisible();
-    await expect(iframe.getByText('This file does not appear to be a valid ext4 filesystem image.')).toBeVisible();
+    await expect(iframe.getByText('This file does not appear to be a valid ext4 or EROFS filesystem image.')).toBeVisible();
 });
