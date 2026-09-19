@@ -50,8 +50,13 @@ export const rustWasm = (options) => {
         }
         isBuilding = true;
         try {
-          execSync(`npx wasm-pack --quiet build "${projectDir}" --target web --out-name "${outName}"`, {
+          const env = {
+            ...process.env,
+            PATH: `${process.env.HOME}/.cargo/bin:${process.env.PATH}`
+          };
+          execSync(`wasm-pack --quiet build "${projectDir}" --target web --out-name "${outName}"`, {
             stdio: 'inherit',
+            env,
           });
 
           // Ensure the output directory exists

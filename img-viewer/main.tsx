@@ -30,6 +30,14 @@ const guessImageType = (data: Uint8Array): string | null => {
     return null;
 };
 
+let initPromise: Promise<any> | null = null;
+const ensureWasmInitialized = () => {
+    if (!initPromise) {
+        initPromise = init();
+    }
+    return initPromise;
+};
+
 const Ext4Viewer: React.FC = () => {
     const [fileData, setFileData] = useState<Uint8Array | null>(null);
     const [tree, setTree] = useState<any>(null);
@@ -37,7 +45,7 @@ const Ext4Viewer: React.FC = () => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        init().then(() => {
+        ensureWasmInitialized().then(() => {
             if (window.parent) {
                 window.parent.postMessage({ action: 'requestFile' });
             }
@@ -64,6 +72,7 @@ const Ext4Viewer: React.FC = () => {
 
                 try {
                     setLoading(true);
+                    await ensureWasmInitialized();
                     const parsedTree = parse_ext4(data);
                     setTree(parsedTree);
                 } catch (err) {
@@ -82,6 +91,7 @@ const Ext4Viewer: React.FC = () => {
     const handleDownload = async (file: any, name: string) => {
         if (!fileData) return;
         try {
+            await ensureWasmInitialized();
             const content = read_ext4_file(fileData, file._path);
             const blob = new Blob([content]);
             const url = URL.createObjectURL(blob);
@@ -98,6 +108,7 @@ const Ext4Viewer: React.FC = () => {
     const handleOpen = async (file: any, name: string) => {
         if (!fileData) return;
         try {
+            await ensureWasmInitialized();
             const content = read_ext4_file(fileData, file._path);
             const newFile = new File([content], name, { type: 'application/octet-stream' });
             window.parent?.postMessage({
