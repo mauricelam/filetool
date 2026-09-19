@@ -224,7 +224,7 @@ const DecompressorViewer: React.FC = () => {
                     <iframe
                         ref={iframeRef}
                         src={`../${activeHandler.handler}`}
-                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                         onLoad={handleIframeLoad}
                         key={activeHandler.handler}
                     />

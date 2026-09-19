@@ -193,10 +193,6 @@
     ],
     "compressible": false
   },
-  "application/vnd.android.apex": {
-    "compressible": false,
-    "extensions": ["apex", "capex"]
-  },
   "application/vnd.android.package-archive": {
     "compressible": false
   },

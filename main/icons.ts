@@ -67,8 +67,6 @@ export default {
         "ai",
         "ai2"
     ],
-    "apex": ["apex"],
-    "capex": ["apex"],
     "dal": ["al_dal"],
     ".all-contributorsrc": ["allcontributors"],
     "afdesign": ["affinitydesigner"],
