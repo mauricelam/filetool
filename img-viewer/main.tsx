@@ -4,6 +4,22 @@ import init, { parse_ext4, read_ext4_file } from './ext4-wasm/pkg';
 import { parseErofs, readErofsFile } from './erofs-wasm';
 import { ColumnView } from '../components/ColumnView';
 
+/**
+ * Checks if the binary buffer contains an ext4 filesystem.
+ * ext4 magic number 0xEF53 at offset 1080 (0x438).
+ */
+const isExt4Image = (data: Uint8Array): boolean => {
+    return data.length > 1081 && data[1080] === 0x53 && data[1081] === 0xEF;
+};
+
+/**
+ * Checks if the binary buffer contains an EROFS filesystem.
+ * EROFS magic number 0xE0F5E1E2 (0xE2, 0xE1, 0xF5, 0xE0) at offset 1024 (0x400).
+ */
+const isErofsImage = (data: Uint8Array): boolean => {
+    return data.length >= 0x404 && data[0x400] === 0xE2 && data[0x401] === 0xE1 && data[0x402] === 0xF5 && data[0x403] === 0xE0;
+};
+
 const guessImageType = (data: Uint8Array): string | null => {
     const checkString = (offset: number, str: string) => {
         if (data.length < offset + str.length) return false;
@@ -22,7 +38,7 @@ const guessImageType = (data: Uint8Array): string | null => {
     if (checkString(0x20, "NXSB") || checkString(0x0, "NXSB") || checkString(0x8, "NXSB")) return "APFS";
     if (checkString(0x8001, "CD001")) return "ISO9660";
     if (checkString(0x10040, "_BHRfS_M")) return "Btrfs";
-    if (data.length >= 0x404 && data[0x400] === 0xE2 && data[0x401] === 0xE1 && data[0x402] === 0xF5 && data[0x403] === 0xE0) return "EROFS";
+    if (isErofsImage(data)) return "EROFS";
     if (data.length > 0x400 + 4 && data[0x400] === 0x10 && data[0x401] === 0x20 && data[0x402] === 0xF5 && data[0x403] === 0xF2) return "F2FS";
     if (checkString(0x400, "H+") || checkString(0x400, "HX")) return "HFS+";
     if (checkString(0x0, "hsqs")) return "SquashFS";
@@ -39,6 +55,43 @@ const ImageViewer: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    const loadExt4 = (data: Uint8Array) => {
+        setImageType('ext4');
+        try {
+            setLoading(true);
+            const parsedTree = parse_ext4(data);
+            setTree(parsedTree);
+        } catch (err) {
+            setError(`Failed to parse ext4: ${err}`);
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadErofs = async (data: Uint8Array) => {
+        setImageType('erofs');
+        try {
+            setLoading(true);
+            const parsedTree = await parseErofs(data);
+            setTree(parsedTree);
+        } catch (err) {
+            setError(`Failed to parse erofs: ${err}`);
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUnsupportedImage = (data: Uint8Array) => {
+        const guessedType = guessImageType(data);
+        if (guessedType) {
+            setError(`.img file with type ${guessedType} is not supported yet. Try an ext4 or EROFS formatted img file instead`);
+        } else {
+            setError("This file does not appear to be a valid ext4 or EROFS filesystem image.");
+        }
+    };
+
     useEffect(() => {
         init().then(() => {
             if (window.parent) {
@@ -53,42 +106,12 @@ const ImageViewer: React.FC = () => {
                 const data = new Uint8Array(buffer);
                 setFileData(data);
 
-                // ext4 magic number 0xEF53 at offset 1080 (0x438)
-                const isExt4 = data.length > 1081 && data[1080] === 0x53 && data[1081] === 0xEF;
-                // erofs magic number 0xE0F5E1E2 (0xE2, 0xE1, 0xF5, 0xE0) at offset 1024 (0x400)
-                const isErofs = data.length >= 0x404 && data[0x400] === 0xE2 && data[0x401] === 0xE1 && data[0x402] === 0xF5 && data[0x403] === 0xE0;
-
-                if (isExt4) {
-                    setImageType('ext4');
-                    try {
-                        setLoading(true);
-                        const parsedTree = parse_ext4(data);
-                        setTree(parsedTree);
-                    } catch (err) {
-                        setError(`Failed to parse ext4: ${err}`);
-                        console.error(err);
-                    } finally {
-                        setLoading(false);
-                    }
-                } else if (isErofs) {
-                    setImageType('erofs');
-                    try {
-                        setLoading(true);
-                        const parsedTree = await parseErofs(data);
-                        setTree(parsedTree);
-                    } catch (err) {
-                        setError(`Failed to parse erofs: ${err}`);
-                        console.error(err);
-                    } finally {
-                        setLoading(false);
-                    }
+                if (isExt4Image(data)) {
+                    loadExt4(data);
+                } else if (isErofsImage(data)) {
+                    await loadErofs(data);
                 } else {
-                    const guessedType = guessImageType(data);
-                    if (guessedType) {
-                        setError(`.img file with type ${guessedType} is not supported yet. Try an ext4 or EROFS formatted img file instead`);
-                    } else {
-                        setError("This file does not appear to be a valid ext4 or EROFS filesystem image.");
-                    }
+                    handleUnsupportedImage(data);
                 }
             }
         };
@@ -135,6 +158,9 @@ const ImageViewer: React.FC = () => {
     };
 
     const renderFileActions = (item: any, path: string[]) => {
+        // If it's a file, it will have _path (from Rust struct Ext4File or EROFS tree)
+        // tsify removes the underscores in the TS types but Rust serde / C JSON [serde(rename = "_path")]
+        // means the JSON object WILL have the underscores.
         if (item._path) {
             const name = path[path.length - 1];
             return (

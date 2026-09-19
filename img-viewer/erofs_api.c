@@ -1,3 +1,12 @@
+/**
+ * @file erofs_api.c
+ * @brief WebAssembly API bridge for EROFS filesystem reader.
+ *
+ * This file provides a simplified C API wrapping liberofs (from erofs-utils).
+ * It is compiled with Emscripten into WebAssembly and exposed to TypeScript/JavaScript
+ * for traversing directory structures and reading file contents from EROFS images.
+ */
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,12 +17,20 @@
 #include "erofs/dir.h"
 #include "erofs/print.h"
 
+/**
+ * @struct strbuf_t
+ * @brief Dynamic string buffer for JSON string construction.
+ */
 typedef struct {
-    char *buf;
-    size_t len;
-    size_t cap;
+    char *buf;   /**< Pointer to heap-allocated string buffer */
+    size_t len;  /**< Current length of string in bytes */
+    size_t cap;  /**< Allocated capacity of buffer in bytes */
 } strbuf_t;
 
+/**
+ * @brief Initializes a dynamic string buffer with default capacity.
+ * @param sb Pointer to the string buffer to initialize.
+ */
 static void strbuf_init(strbuf_t *sb) {
     sb->cap = 1024;
     sb->len = 0;
@@ -21,6 +38,11 @@ static void strbuf_init(strbuf_t *sb) {
     if (sb->buf) sb->buf[0] = '\0';
 }
 
+/**
+ * @brief Appends a string to the dynamic buffer, reallocating if needed.
+ * @param sb Pointer to string buffer.
+ * @param str Null-terminated string to append.
+ */
 static void strbuf_append(strbuf_t *sb, const char *str) {
     if (!str) return;
     size_t l = strlen(str);
@@ -33,6 +55,11 @@ static void strbuf_append(strbuf_t *sb, const char *str) {
     sb->buf[sb->len] = '\0';
 }
 
+/**
+ * @brief Appends a JSON-escaped string enclosed in quotes.
+ * @param sb Pointer to string buffer.
+ * @param str Raw string to escape and append.
+ */
 static void strbuf_append_escaped(strbuf_t *sb, const char *str) {
     strbuf_append(sb, "\"");
     for (const char *p = str; *p; p++) {
@@ -49,15 +76,24 @@ static void strbuf_append_escaped(strbuf_t *sb, const char *str) {
     strbuf_append(sb, "\"");
 }
 
+/**
+ * @struct custom_dir_context
+ * @brief Wrapper around erofs_dir_context to pass tree traversal state to callbacks.
+ */
 struct custom_dir_context {
-    struct erofs_dir_context ctx;
-    strbuf_t *sb;
-    char path[PATH_MAX];
-    bool first;
+    struct erofs_dir_context ctx; /**< Embedded liberofs directory context */
+    strbuf_t *sb;                  /**< Target JSON string buffer */
+    char path[PATH_MAX];           /**< Current parent path string */
+    bool first;                    /**< Flag indicating if this is the first entry in directory */
 };
 
 static int build_tree_node(struct erofs_sb_info *sbi, struct erofs_inode *vi, const char *curr_path, strbuf_t *sb);
 
+/**
+ * @brief Callback function invoked by erofs_iterate_dir for each directory entry.
+ * @param ctx Pointer to the embedded erofs_dir_context inside custom_dir_context.
+ * @return 0 on success, or non-zero error code.
+ */
 static int build_tree_cb(struct erofs_dir_context *ctx) {
     if (ctx->dot_dotdot) return 0;
 
@@ -89,6 +125,18 @@ static int build_tree_cb(struct erofs_dir_context *ctx) {
     return build_tree_node(ctx->dir->sbi, &vi, next_path, cctx->sb);
 }
 
+/**
+ * @brief Recursively builds a JSON object representation for a directory or file inode.
+ *
+ * For directories, it constructs an object with entry names as keys.
+ * For regular files, it constructs an object with metadata fields (_size, _mode, _uid, _gid, _path).
+ *
+ * @param sbi Pointer to super block info.
+ * @param vi Pointer to the inode.
+ * @param curr_path Absolute path string within EROFS.
+ * @param sb Dynamic string buffer for JSON output.
+ * @return 0 on success, or error code.
+ */
 static int build_tree_node(struct erofs_sb_info *sbi, struct erofs_inode *vi, const char *curr_path, strbuf_t *sb) {
     if (S_ISDIR(vi->i_mode)) {
         strbuf_append(sb, "{");
@@ -119,6 +167,12 @@ static int build_tree_node(struct erofs_sb_info *sbi, struct erofs_inode *vi, co
     return 0;
 }
 
+/**
+ * @brief WASM Export: Parses an EROFS image file and returns its directory hierarchy as JSON.
+ *
+ * @param img_path Path to image file in WebAssembly virtual filesystem (MEMFS).
+ * @return Pointer to heap-allocated JSON string, or NULL on error. Caller must free with api_free_buf.
+ */
 EMSCRIPTEN_KEEPALIVE
 char* api_parse_erofs(const char *img_path) {
     erofs_init_configure();
@@ -166,6 +220,14 @@ char* api_parse_erofs(const char *img_path) {
     return sb.buf;
 }
 
+/**
+ * @brief WASM Export: Reads the full content of a file from an EROFS image.
+ *
+ * @param img_path Path to image file in WebAssembly virtual filesystem (MEMFS).
+ * @param file_path Absolute path of file within EROFS image (e.g. "/hello.txt").
+ * @param out_size Output pointer where total file byte count is written.
+ * @return Pointer to heap-allocated buffer containing file bytes, or NULL on error. Caller must free with api_free_buf.
+ */
 EMSCRIPTEN_KEEPALIVE
 uint8_t* api_read_file(const char *img_path, const char *file_path, uint32_t *out_size) {
     if (!out_size) return NULL;
@@ -234,6 +296,10 @@ uint8_t* api_read_file(const char *img_path, const char *file_path, uint32_t *ou
     return buf;
 }
 
+/**
+ * @brief WASM Export: Frees memory allocated by api_parse_erofs or api_read_file.
+ * @param ptr Pointer to memory block to free.
+ */
 EMSCRIPTEN_KEEPALIVE
 void api_free_buf(void *ptr) {
     if (ptr) free(ptr);
