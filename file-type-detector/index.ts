@@ -174,14 +174,15 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "mimetypes": [
             "application/zip", "application/gzip", "application/x-xz", "application/vnd.android.package-archive",
             "application/x-rar", "application/x-7z-compressed", "application/java-archive", "application/x-lzh-compressed",
-            "application/x-tar", { "filename": /\.tar$/i }, "application/x-cpio", { "filename": /\.cpio$/i }
+            "application/x-tar", { "filename": /\.tar$/i }, "application/x-cpio", { "filename": /\.cpio$/i },
+            "application/vnd.android.apex", { "filename": /\.(apex|capex)$/i }
         ]
     },
     {
         "name": "Android APK",
         "handler": "apk-viewer",
         "mimetypes": [
-            "application/vnd.android.package-archive",
+            { "mime": "application/vnd.android.package-archive", "filename": /^(?!.*\.(apex|capex)$).*/i },
             { "mime": "application/zip", "filename": /.*\.apk$/i }
         ]
     },

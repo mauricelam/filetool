@@ -1,4 +1,4 @@
-import { HANDLERS, matchMimetype } from './index';
+import { HANDLERS, matchMimetype, getHandlersForFileNameAndType } from './index';
 
 // Local type definition
 interface LocalMimeMatchDetailed {
@@ -236,6 +236,24 @@ describe('Handler Tests', () => {
                 h.mimetypes.some(m => matchMimetype(m, 'application/x-cpio', 'test.bin'))
             );
             expect(matchedHandlers.some(h => h.handler === 'archive')).toBe(true);
+        });
+    });
+
+    describe('APEX vs APK Handler Matching', () => {
+        it('matches .apex and .capex files with Archive handler and not APK handler', () => {
+            const apexHandlers = getHandlersForFileNameAndType('com.android.runtime.apex', 'application/vnd.android.package-archive', '');
+            expect(apexHandlers.some(h => h.handler === 'archive')).toBe(true);
+            expect(apexHandlers.some(h => h.handler === 'apk-viewer')).toBe(false);
+
+            const capexHandlers = getHandlersForFileNameAndType('module.capex', 'application/vnd.android.apex', '');
+            expect(capexHandlers.some(h => h.handler === 'archive')).toBe(true);
+            expect(capexHandlers.some(h => h.handler === 'apk-viewer')).toBe(false);
+        });
+
+        it('matches .apk files with Android APK handler', () => {
+            const apkHandlers = getHandlersForFileNameAndType('sample.apk', 'application/vnd.android.package-archive', '');
+            expect(apkHandlers.some(h => h.handler === 'apk-viewer')).toBe(true);
+            expect(apkHandlers[0].handler).toBe('apk-viewer');
         });
     });
 });

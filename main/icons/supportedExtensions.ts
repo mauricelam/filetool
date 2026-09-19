@@ -461,7 +461,7 @@ export const extensions = {
     },
     {
       icon: 'apex',
-      extensions: [],
+      extensions: ['apex', 'capex'],
       format: FileFormat.svg,
     },
     {
