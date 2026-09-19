@@ -35,6 +35,7 @@
     "main",
     "markdown",
     "mhtml",
+    "ooxmlviewer",
     "parquetviewer",
     "pdfjs",
     "proguardviewer",
@@ -83,9 +84,10 @@
     "turbo": "^2.8.14",
     "typescript": "^5.5.4",
     "vitest": "4.0.16",
-    "wasm-pack": "^0.14.0"
+    "wasm-pack": "^0.15.0"
   },
   "dependencies": {
+    "@silurus/ooxml": "^0.84.1",
     "@types/d3-sankey": "^0.12.5",
     "d3-sankey": "^0.12.3",
     "diff": "^8.0.4",
