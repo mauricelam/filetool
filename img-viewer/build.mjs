@@ -2,11 +2,11 @@ import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
 import { rustWasm } from '../esbuild-plugins/rust-wasm.mjs';
+import { emscriptenWasm } from '../esbuild-plugins/emscripten-wasm.mjs';
 
 const isDev = process.env.BUILD_MODE === 'dev';
 const isWatch = process.argv.includes('--watch');
 
-// Build the main bundle
 const context = await esbuild.context({
     entryPoints: ['main.tsx'],
     bundle: true,
@@ -18,6 +18,20 @@ const context = await esbuild.context({
             outName: 'ext4-wasm',
             watchPaths: ['src/**/*.rs']
         }),
+        emscriptenWasm({
+            name: 'erofs',
+            projectDir: '.',
+            command: 'bash build-erofs.sh',
+            watchFiles: ['erofs_api.c', 'build-erofs.sh']
+        }),
+        {
+            name: 'resolve-erofs',
+            setup(build) {
+                build.onResolve({ filter: /^\.\/erofs\.js$/ }, args => {
+                    return { path: './erofs.js', external: true };
+                });
+            }
+        },
         copy({
             assets: [
                 {
