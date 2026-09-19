@@ -132,6 +132,9 @@ function XmlViewer({ content, filename }: { content: string, filename: string })
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0 }}>Binary XML Content</h3>
+            </div>
             <div style={{ flex: 1, position: 'relative', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
                 <iframe
                     ref={iframeRef}
