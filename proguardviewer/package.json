@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "BUILD_MODE=dev node build.mjs",
-    "test": "npm-run-all test:*",
+    "test": "npm run test:vitest && npm run test:cargo",
     "test:vitest": "vitest run",
     "test:cargo": "cd proguard-wasm && cargo test"
   },
