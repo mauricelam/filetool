@@ -6,16 +6,17 @@
     "watch": "BUILD_MODE=dev node build.mjs"
   },
   "dependencies": {
+    "@mauricelam/selinux-wasm": "^0.0.310",
     "ace-builds": "^1.36.2",
     "react": "^18.3.1",
     "react-ace": "^12.0.0",
-    "react-tabs": "^6.0.2",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-tabs": "^6.0.2"
   },
   "devDependencies": {
+    "@filetool/esbuild-plugins": "*",
     "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
-    "@filetool/esbuild-plugins": "*"
+    "@types/react-dom": "^18.3.0"
   },
   "license": "MIT"
 }
