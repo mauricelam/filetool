@@ -89,7 +89,7 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
                 <iframe
                     ref={iframeRef}
                     src={previewUrl}
-                    style={{ width: '100%', height: '100%', border: 'none' }}
+                    style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                     onLoad={handleIframeLoad}
                     key={previewUrl}
                 />
