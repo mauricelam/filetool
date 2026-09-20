@@ -1,6 +1,20 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
+import path from 'path';
+import fs from 'fs';
+import { execSync } from 'child_process';
+
+const selinuxDir = path.resolve('../node_modules/@mauricelam/selinux-wasm');
+const jsPath = path.join(selinuxDir, 'dist', 'libsepol_browser.js');
+
+if (!fs.existsSync(jsPath)) {
+  const libsepolDir = path.join(selinuxDir, 'libsepol');
+  if (fs.existsSync(libsepolDir)) {
+    console.log('Building @mauricelam/selinux-wasm dist artifacts...');
+    execSync('make -f Makefile.wasm dist', { cwd: libsepolDir, stdio: 'inherit' });
+  }
+}
 
 const SETTINGS = {
   entryPoints: ['main.tsx', 'worker.ts'],

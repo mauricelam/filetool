@@ -1,6 +1,6 @@
-# TODO: Restore SETools Functionality
+# SETools Functionality Status
 
-The transition from a git submodule to the `@mauricelam/selinux-wasm` npm package has been completed in this codebase, but the current package version (`0.0.310`) is missing the required custom API exports.
+The transition from a git submodule to the `@mauricelam/selinux-wasm` package (`github:mauricelam/selinux#main`) is completed. The `main` branch of `mauricelam/selinux` now integrates `policy_api.c` and exports all required `api_*` bridge functions natively in its WASM build.
 
 ## Why Custom `api_*` Bridge Exports Are Needed
 
@@ -22,16 +22,10 @@ In contrast, the SETools viewer in `filetool` provides full binary SELinux polic
    - `api_get_rule_count` and `api_get_rules` run the traversal and filtering logic natively in C inside the WASM module.
    - `api_get_permissions` uses `sepol_av_to_string` to resolve numeric access vector bitmasks to human-readable permission lists (e.g., `{ find read write }`).
 
-Without these `api_*` bridge exports in `@mauricelam/selinux-wasm`, calling `mod.ccall('api_load_policy', ...)` throws an error because the symbol is missing from the compiled WASM binary.
+All required `api_*` bridge functions are now integrated directly into the `main` branch of `https://github.com/mauricelam/selinux`.
 
-## Remaining Tasks
+## Status
 
-- [ ] **Update `@mauricelam/selinux-wasm` npm package**:
-    - The package build must integrate the C logic from `setools/policy_api.c`.
-    - It must export all functions starting with `api_` (`api_load_policy`, `api_free_policy`, `api_get_version`, `api_get_symbol_count`, `api_get_symbol_name`, `api_get_rule_count`, `api_get_rules`, `api_is_type_attribute`, `api_get_boolean_state`, `api_get_permissions`, `api_free_string`).
-    - Standard Emscripten methods (`ccall`, `cwrap`, `HEAPU32`, `HEAPU8`, `UTF8ToString`) must be exported.
-- [ ] **Verify Worker Integration**:
-    - Once the updated package version is published, update the version in `setools/package.json`.
-    - Run `npx playwright test setools/tests/setools.spec.ts` to confirm full policy loading, filtering, and search functionality.
-- [ ] **Cleanup**:
-    - Remove `setools/SELINUX_WASM_CHANGES.md` once the package update task is completed.
+- [x] **Update `@mauricelam/selinux-wasm` dependency**:
+    - `setools/package.json` uses `"@mauricelam/selinux-wasm": "github:mauricelam/selinux#main"`.
+    - All `api_*` bridge functions and Emscripten runtime methods (`ccall`, `cwrap`, `HEAPU32`, `HEAPU8`, `UTF8ToString`) are exported by `Makefile.wasm`.
