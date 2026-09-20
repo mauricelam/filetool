@@ -8,7 +8,7 @@ function OOXMLViewerApp() {
     const [file, setFile] = useState<File | null>(null);
     const [error, setError] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const currentViewerRef = useRef<DocxViewer | DocxScrollViewer | XlsxViewer | PptxViewer | PptxScrollViewer | null>(null);
+    const currentViewerRef = useRef<DocxViewer | XlsxViewer | PptxScrollViewer | null>(null);
 
     useEffect(() => {
         const handleMessage = (e: MessageEvent) => {

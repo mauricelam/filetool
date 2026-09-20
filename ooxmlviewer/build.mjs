@@ -1,6 +1,13 @@
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
+import { execSync } from 'child_process';
+
+try {
+  execSync('node ../scripts/patch-ooxml.mjs', { stdio: 'inherit' });
+} catch (e) {
+  console.warn('Failed to run patch-ooxml.mjs:', e);
+}
 
 const args = process.argv.slice(2);
 const isDev = process.env['BUILD_MODE'] === 'dev' || args.includes('--dev');

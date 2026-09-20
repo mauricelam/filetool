@@ -54,6 +54,7 @@
     "start": "node serve.mts",
     "watch:workspaces": "turbo watch build",
     "serve": "run-p --silent \"watch:workspaces\" start",
+    "postinstall": "node scripts/patch-ooxml.mjs",
     "build": "turbo build",
     "zip-dist": "cd dist && zip -r dist.zip . -x dist.zip",
     "test": "turbo test",
