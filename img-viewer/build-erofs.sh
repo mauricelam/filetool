@@ -3,6 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EROFS_DIR="${SCRIPT_DIR}/erofs-wasm/erofs-utils"
+WASM_DIST_DIR="${SCRIPT_DIR}/erofs-wasm/dist"
 DIST_DIR="${SCRIPT_DIR}/../dist/img-viewer"
 
 if ! command -v emcc &> /dev/null; then
@@ -36,12 +37,12 @@ if [ ! -f "lib/.libs/liberofs.a" ]; then
 fi
 
 cd "${SCRIPT_DIR}"
-mkdir -p erofs-wasm
+mkdir -p "${WASM_DIST_DIR}"
 mkdir -p "${DIST_DIR}"
 
 emcc -O2 -I"${EROFS_DIR}/include" -I"${EROFS_DIR}" \
     erofs-wasm/erofs_api.c "${EROFS_DIR}/lib/.libs/liberofs.a" \
-    -o erofs-wasm/erofs.js \
+    -o erofs-wasm/dist/erofs.js \
     -s WASM=1 \
     -s MODULARIZE=1 \
     -s EXPORT_NAME="createErofsModule" \
@@ -52,4 +53,4 @@ emcc -O2 -I"${EROFS_DIR}/include" -I"${EROFS_DIR}" \
     -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "FS", "UTF8ToString", "HEAPU8", "HEAP32"]' \
     -s EXPORTED_FUNCTIONS='["_malloc", "_free", "_erofs_parse_tree", "_erofs_read_file_data", "_erofs_free_buf"]'
 
-cp erofs-wasm/erofs.wasm "${DIST_DIR}/erofs.wasm"
+cp erofs-wasm/dist/erofs.wasm "${DIST_DIR}/erofs.wasm"

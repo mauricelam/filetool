@@ -1,5 +1,5 @@
 // @ts-ignore
-import createErofsModule from './erofs-wasm/erofs.js';
+import createErofsModule from './erofs-wasm/dist/erofs.js';
 
 let erofsModulePromise: Promise<any> | null = null;
 

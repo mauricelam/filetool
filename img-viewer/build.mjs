@@ -32,7 +32,7 @@ const context = await esbuild.context({
                     to: 'index.html'
                 },
                 {
-                    from: './erofs-wasm/erofs.wasm',
+                    from: './erofs-wasm/dist/erofs.wasm',
                     to: 'erofs.wasm'
                 }
             ]
