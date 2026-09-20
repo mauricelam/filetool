@@ -256,4 +256,27 @@ describe('Handler Tests', () => {
             expect(apkHandlers[0].handler).toBe('apk-viewer');
         });
     });
+
+    describe('Office Open XML Handler', () => {
+        it('correctly matches .docx, .xlsx, and .pptx files by extension', () => {
+            const matchedHandlers = HANDLERS.filter(h =>
+                h.mimetypes.some(m => matchMimetype(m, 'application/octet-stream', 'document.docx'))
+            );
+            expect(matchedHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+        });
+
+        it('correctly matches OOXML files by MIME type', () => {
+            const matchedHandlers = HANDLERS.filter(h =>
+                h.mimetypes.some(m => matchMimetype(m, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'document.zip'))
+            );
+            expect(matchedHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+        });
+
+        it('correctly matches OOXML files by magic description', () => {
+            const matchedHandlers = HANDLERS.filter(h =>
+                h.mimetypes.some(m => matchMimetype(m, 'application/zip', 'file.zip', 'Microsoft Excel 2007+'))
+            );
+            expect(matchedHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+        });
+    });
 });
