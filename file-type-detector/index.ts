@@ -119,7 +119,10 @@ const ALL_HANDLERS: HandlerDefinition[] = [
     {
         "name": "img viewer",
         "handler": "img-viewer",
-        "mimetypes": [{ "filename": /\.img$/i }]
+        "mimetypes": [
+            { "filename": /\.(img|erofs)$/i },
+            { "description": /EROFS/i }
+        ]
     },
     {
         "name": "SquashFS",
