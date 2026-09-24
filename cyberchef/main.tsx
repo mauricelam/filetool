@@ -16,7 +16,7 @@ async function handleFile(file: File) {
     const iframe = document.createElement('iframe');
     iframe.id = 'cyberchef';
     iframe.src = `CyberChef/CyberChef_v10.19.4.html`;
-    iframe.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-downloads', 'allow-forms');
+    iframe.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-downloads', 'allow-forms', 'allow-modals');
 
     iframe.onload = async () => {
         try {

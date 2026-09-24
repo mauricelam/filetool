@@ -49,6 +49,6 @@ window.addEventListener('message', (event: MessageEvent) => {
 
 // 4. Set iframe src after all listeners are registered
 if (handler) {
-    iframeEl.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
+    iframeEl.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-downloads', 'allow-modals');
     iframeEl.src = `/filetool/${handler}/index.html`;
 }

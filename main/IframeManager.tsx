@@ -128,7 +128,7 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                         data-handler={frame.handler}
                         style={{ display: isActive ? 'block' : 'none' }}
                         title={frame.file.name}
-                        sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals"
                     />
                 );
             })}

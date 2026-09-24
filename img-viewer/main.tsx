@@ -56,6 +56,7 @@ const ImgViewer: React.FC = () => {
     const [fsType, setFsType] = useState<'ext4' | 'erofs' | null>(null);
     const [tree, setTree] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -121,6 +122,7 @@ const ImgViewer: React.FC = () => {
 
     const handleDownload = async (file: any, name: string) => {
         if (!fileData) return;
+        setActionError(null);
         try {
             let content: Uint8Array;
             if (fsType === 'erofs') {
@@ -138,12 +140,19 @@ const ImgViewer: React.FC = () => {
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {
-            alert(`Failed to extract file: ${err}`);
+            const errMsg = `Failed to extract file: ${err}`;
+            setActionError(errMsg);
+            try {
+                alert(errMsg);
+            } catch (e) {
+                console.error(e);
+            }
         }
     };
 
     const handleOpen = async (file: any, name: string) => {
         if (!fileData) return;
+        setActionError(null);
         try {
             let content: Uint8Array;
             if (fsType === 'erofs') {
@@ -159,7 +168,13 @@ const ImgViewer: React.FC = () => {
                 file: newFile
             }, "*");
         } catch (err) {
-            alert(`Failed to open file: ${err}`);
+            const errMsg = `Failed to open file: ${err}`;
+            setActionError(errMsg);
+            try {
+                alert(errMsg);
+            } catch (e) {
+                console.error(e);
+            }
         }
     };
 
@@ -277,6 +292,36 @@ const ImgViewer: React.FC = () => {
             <div style={{ padding: '0 20px' }}>
                 <h2>{fsType === 'erofs' ? 'EROFS Image Explorer' : 'ext4 Image Explorer'}</h2>
             </div>
+            {actionError && (
+                <div style={{
+                    margin: '0 20px 10px 20px',
+                    padding: '8px 12px',
+                    backgroundColor: '#fdecea',
+                    color: '#d32f2f',
+                    border: '1px solid #f5c6cb',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}>
+                    <span>{actionError}</span>
+                    <button
+                        onClick={() => setActionError(null)}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#d32f2f',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            fontSize: '16px',
+                            marginLeft: '10px'
+                        }}
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
             <ColumnView
                 initialContent={tree}
                 renderFileActions={renderFileActions}

@@ -32,8 +32,20 @@ test('img-viewer should list files in an EROFS image', async ({ page }) => {
     await expect(iframe.getByText('File Details')).toBeVisible();
     await expect(iframe.getByText('/hello.txt')).toBeVisible();
 
+    // Test download action on hello.txt
+    const downloadPromise = page.waitForEvent('download');
+    await iframe.locator('.column-item[title="hello.txt"]').locator('button[title="Download"]').click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('hello.txt');
+
     // Check for subdir
     await expect(iframe.getByText('subdir')).toBeVisible();
     await iframe.getByText('subdir').click();
     await expect(iframe.getByText('nested.txt')).toBeVisible();
+
+    // Test download action on nested.txt inside subdir
+    const downloadPromiseNested = page.waitForEvent('download');
+    await iframe.locator('.column-item[title="nested.txt"]').locator('button[title="Download"]').click();
+    const downloadNested = await downloadPromiseNested;
+    expect(downloadNested.suggestedFilename()).toBe('nested.txt');
 });
