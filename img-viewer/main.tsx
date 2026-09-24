@@ -4,16 +4,24 @@ import init, { parse_ext4, read_ext4_file } from './ext4-wasm/pkg';
 import { parse_erofs, read_erofs_file, ensureErofsInitialized } from './erofs-wasm-wrapper';
 import { ColumnView } from '../components/ColumnView';
 
-let wasmInitPromise: Promise<void> | null = null;
+let ext4InitPromise: Promise<void> | null = null;
 
-function ensureWasmInitialized(): Promise<void> {
-    if (!wasmInitPromise) {
-        wasmInitPromise = (async () => {
-            await init();
-            await ensureErofsInitialized();
+function ensureExt4Initialized(): Promise<void> {
+    if (!ext4InitPromise) {
+        ext4InitPromise = (async () => {
+            try {
+                await init();
+            } catch (err) {
+                ext4InitPromise = null;
+                throw err;
+            }
         })();
     }
-    return wasmInitPromise;
+    return ext4InitPromise;
+}
+
+function ensureWasmInitialized(): Promise<void> {
+    return Promise.all([ensureExt4Initialized(), ensureErofsInitialized()]).then(() => {});
 }
 
 const guessImageType = (data: Uint8Array): string | null => {
@@ -74,6 +82,7 @@ const ImgViewer: React.FC = () => {
                     setFsType('ext4');
                     try {
                         setLoading(true);
+                        await ensureExt4Initialized();
                         const parsedTree = parse_ext4(data);
                         setTree(parsedTree);
                     } catch (err) {
@@ -86,6 +95,7 @@ const ImgViewer: React.FC = () => {
                     setFsType('erofs');
                     try {
                         setLoading(true);
+                        await ensureErofsInitialized();
                         const parsedTree = await parse_erofs(data);
                         setTree(parsedTree);
                     } catch (err) {
@@ -112,9 +122,14 @@ const ImgViewer: React.FC = () => {
     const handleDownload = async (file: any, name: string) => {
         if (!fileData) return;
         try {
-            const content = fsType === 'erofs'
-                ? await read_erofs_file(fileData, file._path)
-                : read_ext4_file(fileData, file._path);
+            let content: Uint8Array;
+            if (fsType === 'erofs') {
+                await ensureErofsInitialized();
+                content = await read_erofs_file(fileData, file._path);
+            } else {
+                await ensureExt4Initialized();
+                content = read_ext4_file(fileData, file._path);
+            }
             const blob = new Blob([content]);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -130,9 +145,14 @@ const ImgViewer: React.FC = () => {
     const handleOpen = async (file: any, name: string) => {
         if (!fileData) return;
         try {
-            const content = fsType === 'erofs'
-                ? await read_erofs_file(fileData, file._path)
-                : read_ext4_file(fileData, file._path);
+            let content: Uint8Array;
+            if (fsType === 'erofs') {
+                await ensureErofsInitialized();
+                content = await read_erofs_file(fileData, file._path);
+            } else {
+                await ensureExt4Initialized();
+                content = read_ext4_file(fileData, file._path);
+            }
             const newFile = new File([content], name, { type: 'application/octet-stream' });
             window.parent?.postMessage({
                 action: 'openFile',
@@ -226,6 +246,7 @@ const ImgViewer: React.FC = () => {
                         setTree(null);
                         setFileData(null);
                         setFsType(null);
+                        ensureWasmInitialized().catch(() => {});
                         window.parent.postMessage({ action: 'requestFile' });
                     }}
                     style={{

@@ -5,9 +5,16 @@ let erofsModulePromise: Promise<any> | null = null;
 
 export async function ensureErofsInitialized(): Promise<any> {
     if (!erofsModulePromise) {
-        erofsModulePromise = createErofsModule({
-            locateFile: (path: string) => path
-        });
+        erofsModulePromise = (async () => {
+            try {
+                return await createErofsModule({
+                    locateFile: (path: string) => path
+                });
+            } catch (err) {
+                erofsModulePromise = null;
+                throw err;
+            }
+        })();
     }
     return erofsModulePromise;
 }
