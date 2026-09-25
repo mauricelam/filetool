@@ -286,6 +286,22 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
+        "name": "Office Open XML Viewer",
+        "handler": "ooxmlviewer",
+        "mimetypes": [
+            { "filename": /\.(docx|docm|dotx|dotm|xlsx|xlsm|xlsb|xltx|xltm|pptx|pptm|potx|potm|ppsx)$/i },
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.ms-excel.sheet.macroEnabled.12",
+            "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
+            "application/vnd.ms-word.document.macroEnabled.12",
+            { "description": /Microsoft Word 2007\+/i },
+            { "description": /Microsoft Excel 2007\+/i },
+            { "description": /Microsoft PowerPoint 2007\+/i }
+        ]
+    },
+    {
         "name": "Diff",
         "handler": "diffviewer",
         "mimetypes": []
