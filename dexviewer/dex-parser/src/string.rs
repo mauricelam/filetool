@@ -127,10 +127,10 @@ where
         let source = &self.source;
         let offset = self.offset as usize + id as usize * 4;
         let string_data_off: uint = source.pread_with(offset, self.endian)?;
-        if !self.data_section.contains(&string_data_off) {
+        if string_data_off == 0 || (string_data_off as usize) >= source.as_ref().len() {
             return Err(error::Error::BadOffset(
                 string_data_off as usize,
-                format!("string_data_off not in data section for StringId: {}", id),
+                format!("string_data_off out of bounds for StringId: {}", id),
             ));
         }
         source.pread(string_data_off as usize)

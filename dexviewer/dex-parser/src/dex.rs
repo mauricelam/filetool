@@ -190,10 +190,10 @@ impl<'a> ctx::TryFromCtx<'a, ()> for DexInner {
             _ => return Err(error::Error::MalFormed("Bad endian tag".to_string())),
         };
         let header = source.pread_with::<Header>(0, endian)?;
-        if !header.data_section().contains(&header.map_off) {
+        if header.map_off == 0 || (header.map_off as usize) >= source.len() {
             return Err(error::Error::BadOffset(
                 header.map_off as usize,
-                "map_list not in data section".to_string(),
+                "map_list offset out of bounds".to_string(),
             ));
         }
         let found = header.checksum();
@@ -347,7 +347,7 @@ where
     }
 
     pub(crate) fn is_offset_in_data_section(&self, offset: uint) -> bool {
-        self.inner.data_section().contains(&offset)
+        offset > 0 && (offset as usize) < self.source.as_ref().len()
     }
 
     /// Source file name in which a class is defined.
@@ -753,25 +753,10 @@ pub struct DexReader;
 impl DexReader {
     /// Try to read a `Dex` from the given path, returns error if
     /// the file is not a dex or in case of I/O errors
-    // pub fn from_file<P: AsRef<Path>>(file: P) -> Result<Dex<Mmap>> {
-    //     let map = unsafe { MmapOptions::new().map(&File::open(file.as_ref())?)? };
-    //     let inner: DexInner = map.pread(0)?;
-    //     let endian = inner.endian();
-    //     let source = Source::new(map);
-    //     let cache = Strings::new(
-    //         source.clone(),
-    //         endian,
-    //         inner.strings_offset(),
-    //         inner.strings_len(),
-    //         NonZeroUsize::new(4096).unwrap(),
-    //         inner.data_section(),
-    //     );
-    //     Ok(Dex {
-    //         source: source.clone(),
-    //         strings: cache,
-    //         inner,
-    //     })
-    // }
+    pub fn from_file<P: AsRef<std::path::Path>>(file: P) -> Result<Dex<Vec<u8>>> {
+        let data = std::fs::read(file)?;
+        Self::from_vec(data)
+    }
 
     /// Loads a `Dex` from a `Vec<u8>`
     pub fn from_vec<B: AsRef<[u8]>>(buf: B) -> Result<Dex<B>> {
@@ -797,8 +782,6 @@ impl DexReader {
 #[cfg(test)]
 mod tests {
 
-    // use memmap2::MmapOptions;
-    use std::fs::File;
     use super::Result;
     use std::path::Path;
 
@@ -818,11 +801,10 @@ mod tests {
         assert!(count > 0);
     }
 
-    // fn load_example_dex_as_vec<P: AsRef<Path>>(file: P) -> Result<Vec<u8>> {
-    //     let map = unsafe { MmapOptions::new().map(&File::open(file.as_ref())?)? };
-    //     let data = map.to_vec();
-    //     Ok(data)
-    // }
+    fn load_example_dex_as_vec<P: AsRef<Path>>(file: P) -> Result<Vec<u8>> {
+        let data = std::fs::read(file.as_ref())?;
+        Ok(data)
+    }
 
     #[test]
     fn test_find_class_by_name_from_vec() {
@@ -851,5 +833,21 @@ mod tests {
         assert!(jtype.is_some());
         let jtype = jtype.unwrap();
         assert_eq!(jtype.type_descriptor(), "Lorg/adw/launcher/Launcher;")
+    }
+
+    #[test]
+    fn test_map_off_outside_data_section() {
+        let mut data = std::fs::read("resources/classes.dex").expect("cannot open classes.dex");
+        // Clear data_size at offset 104..108 (little-endian uint)
+        data[104..108].copy_from_slice(&0u32.to_le_bytes());
+
+        // Recompute adler32 checksum over data[12..]
+        let checksum = adler32::adler32(std::io::BufReader::new(&data[12..])).expect("checksum failed");
+        data[8..12].copy_from_slice(&checksum.to_le_bytes());
+
+        let dex = super::DexReader::from_vec(&data);
+        assert!(dex.is_ok(), "Failed to parse DEX with map_off outside data section: {:?}", dex.err());
+        let dex = dex.unwrap();
+        assert!(dex.classes().count() > 0);
     }
 }
