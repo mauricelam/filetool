@@ -21,26 +21,34 @@ export async function ensureErofsInitialized(): Promise<any> {
 
 export async function parse_erofs_file(file: File): Promise<any> {
     const Module = await ensureErofsInitialized();
-    const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
-    const filepath = `/${filename}`;
+    const folder = `dir_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+    const folderPath = `/${folder}`;
+    const filePath = `${folderPath}/${file.name}`;
 
     try {
-        if (Module.FS && Module.FS.createLazyFile) {
-            Module.FS.createLazyFile('/', filename, file, true, false);
+        if (Module.WORKERFS) {
+            Module.FS.mkdir(folderPath);
+            Module.FS.mount(Module.WORKERFS, { files: [file] }, folderPath);
         } else {
             const buffer = await file.arrayBuffer();
-            Module.FS.createDataFile('/', filename, new Uint8Array(buffer), true, true);
+            Module.FS.createDataFile('/', file.name, new Uint8Array(buffer), true, true);
         }
 
+        const targetPath = Module.WORKERFS ? filePath : `/${file.name}`;
         const erofsParseTree = Module.cwrap('erofs_parse_tree', 'string', ['string']);
-        const treeJson = erofsParseTree(filepath);
+        const treeJson = erofsParseTree(targetPath);
         if (!treeJson) {
             throw new Error('Failed to parse EROFS superblock or directory tree');
         }
         return JSON.parse(treeJson);
     } finally {
         try {
-            Module.FS.unlink(filepath);
+            if (Module.WORKERFS) {
+                Module.FS.unmount(folderPath);
+                Module.FS.rmdir(folderPath);
+            } else {
+                Module.FS.unlink(`/${file.name}`);
+            }
         } catch (e) {
             // ignore cleanup errors
         }
@@ -71,22 +79,25 @@ export async function parse_erofs(data: Uint8Array): Promise<any> {
 
 export async function read_erofs_file_from_blob(file: File, path: string): Promise<Uint8Array> {
     const Module = await ensureErofsInitialized();
-    const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
-    const filepath = `/${filename}`;
+    const folder = `dir_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+    const folderPath = `/${folder}`;
+    const filePath = `${folderPath}/${file.name}`;
 
     try {
-        if (Module.FS && Module.FS.createLazyFile) {
-            Module.FS.createLazyFile('/', filename, file, true, false);
+        if (Module.WORKERFS) {
+            Module.FS.mkdir(folderPath);
+            Module.FS.mount(Module.WORKERFS, { files: [file] }, folderPath);
         } else {
             const buffer = await file.arrayBuffer();
-            Module.FS.createDataFile('/', filename, new Uint8Array(buffer), true, true);
+            Module.FS.createDataFile('/', file.name, new Uint8Array(buffer), true, true);
         }
 
+        const targetPath = Module.WORKERFS ? filePath : `/${file.name}`;
         const erofsReadFileData = Module.cwrap('erofs_read_file_data', 'number', ['string', 'string', 'number']);
         const erofsFreeBuf = Module.cwrap('erofs_free_buf', null, ['number']);
 
         const outSizePtr = Module._malloc(4);
-        const dataPtr = erofsReadFileData(filepath, path, outSizePtr);
+        const dataPtr = erofsReadFileData(targetPath, path, outSizePtr);
         const size = Module.HEAP32[outSizePtr >> 2];
         Module._free(outSizePtr);
 
@@ -102,7 +113,12 @@ export async function read_erofs_file_from_blob(file: File, path: string): Promi
         return result;
     } finally {
         try {
-            Module.FS.unlink(filepath);
+            if (Module.WORKERFS) {
+                Module.FS.unmount(folderPath);
+                Module.FS.rmdir(folderPath);
+            } else {
+                Module.FS.unlink(`/${file.name}`);
+            }
         } catch (e) {
             // ignore cleanup errors
         }
