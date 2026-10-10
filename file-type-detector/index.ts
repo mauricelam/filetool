@@ -332,6 +332,8 @@ export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: s
 
 export async function getHandlersForFile(file: File): Promise<[string, HandlerDefinition[]]> {
     const [magic, mimeMagic] = await Promise.all([getMagic(), getMimeMagic()]);
+    // Slicing the first 1MB is sufficient because WASMagic (libmagic) identifies file signatures
+    // and MIME types solely from magic bytes located in the header at the start of the file.
     const buffer = new Uint8Array(await file.slice(0, 1024 * 1024).arrayBuffer());
     const mime = file.type || mimeMagic.detect(buffer) || 'application/octet-stream';
     const description = magic.detect(buffer);

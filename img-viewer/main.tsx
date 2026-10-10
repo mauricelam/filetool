@@ -76,6 +76,7 @@ const ImgViewer: React.FC = () => {
                 try {
                     headerBuf = await file.slice(0, 65536).arrayBuffer();
                 } catch (err) {
+                    console.error("Failed to read file header:", err);
                     setError(`Failed to read file header: ${err}`);
                     return;
                 }
@@ -94,6 +95,8 @@ const ImgViewer: React.FC = () => {
                         setLoading(true);
                         await ensureExt4Initialized();
                         let parsedTree: any;
+                        // FileReaderSync is available in Web Workers for zero-copy synchronous block reads.
+                        // In the main thread context, FileReaderSync is undefined, so we fall back to in-memory buffering.
                         if (typeof FileReaderSync !== 'undefined') {
                             const syncReader = new FileReaderSync();
                             const readFn = (offset: number, length: number) => {
@@ -151,6 +154,8 @@ const ImgViewer: React.FC = () => {
                 content = await read_erofs_file(sourceFile || fileData!, file._path);
             } else {
                 await ensureExt4Initialized();
+                // FileReaderSync is defined in Web Worker contexts for synchronous block reading from disk images.
+                // In main window context (where FileReaderSync is undefined), we read from loaded fileData.
                 if (typeof FileReaderSync !== 'undefined' && sourceFile) {
                     const syncReader = new FileReaderSync();
                     const readFn = (offset: number, length: number) => {

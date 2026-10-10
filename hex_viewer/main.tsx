@@ -29,13 +29,20 @@ window.onmessage = (e) => {
 const outputElement = document.getElementById('output');
 const OUTPUT = outputElement ? createRoot(outputElement) : null
 
+/**
+ * Processes incoming files for the Hex Viewer.
+ * Uses the transferred initialBuffer if provided by postMessage, or reads the first 100MB
+ * slice of the file to prevent V8 ArrayBuffer memory allocation limits and browser crashes.
+ */
 async function handleFile(file: File, initialBuffer?: ArrayBuffer) {
     try {
         let isTruncated = file.size > 100 * 1024 * 1024;
         let buf: Uint8Array;
+        // Use transferred buffer if available from postMessage
         if (initialBuffer && initialBuffer.byteLength > 0) {
             buf = new Uint8Array(initialBuffer);
         } else {
+            // Slice the first 100MB preview to avoid exceeding V8 TypedArray memory limits
             let fileToRead = file;
             const MAX_HEX_VIEW_SIZE = 100 * 1024 * 1024;
             if (file.size > MAX_HEX_VIEW_SIZE) {
@@ -657,6 +664,9 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
         const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         const id = ++requestIdRef.current;
 
+        // Create a copy via data.slice() to get a new Uint8Array backed by its own ArrayBuffer.
+        // Transferring dataCopy.buffer to the Web Worker detaches only the newly allocated copy,
+        // leaving the primary 'buffer' in HexViewer intact for future renders and calculations.
         const dataCopy = data.slice();
         workerRef.current.postMessage({ data: dataCopy, algorithms, id }, [dataCopy.buffer]);
     }, [buffer, selection]);
@@ -823,6 +833,7 @@ export function InspectorTab({ buffer, index, selection, markers, onAddMarker, o
     )
 }
 
+// TODO: Implement full virtualized chunk-based / on-demand block fetching for files >100MB instead of a static 100MB head preview.
 function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, totalSize?: number, isTruncated?: boolean }) {
     const [scrollTop, setScrollTop] = useState(0);
 

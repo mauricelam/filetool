@@ -10,6 +10,12 @@ use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 use ext4_view::Ext4;
 
+/// Custom block reader that bridges `ext4-view` with JavaScript's range-based `file.slice()`.
+///
+/// Implements `ext4_view::Ext4Read` by calling a JS callback (`read_fn`) passed from
+/// `img-viewer/main.tsx` (`parse_ext4_stream` / `read_ext4_file_stream`).
+/// In Web Workers, `read_fn` uses `FileReaderSync.readAsArrayBuffer(file.slice(offset, offset + length))`
+/// to fetch requested disk blocks synchronously on demand without buffering the entire image in memory.
 struct JsReader {
     func: js_sys::Function,
     pos: u64,

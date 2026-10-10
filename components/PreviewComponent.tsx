@@ -51,6 +51,8 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
         if (iframeRef.current && previewFile) {
             const transferables: Transferable[] = [];
             try {
+                // Populate transferables for files under 500MB to enable fast zero-copy postMessage transfers.
+                // Files over 500MB skip buffering to prevent memory allocation failures / NotReadableError.
                 if (previewFile.size < 500 * 1024 * 1024) {
                     transferables.push(await previewFile.arrayBuffer());
                 }
