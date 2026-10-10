@@ -19,7 +19,7 @@ const OUTPUT = createRoot(document.getElementById('editor'))
 
 async function handleFile(file: File) {
     const myWorker = new Worker(new URL("worker.js", import.meta.url));
-    myWorker.postMessage({ 'action': 'fileToWat', file }, [await file.arrayBuffer()])
+    myWorker.postMessage({ 'action': 'fileToWat', file });
     myWorker.onmessage = (e) => {
         OUTPUT.render(
             <AceEditor value={e.data} width="100%" height="100%" theme="twilight" mode="lisp" />

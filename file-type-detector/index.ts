@@ -332,7 +332,7 @@ export function sortHandlersBySpecificity(handlers: HandlerDefinition[], mime: s
 
 export async function getHandlersForFile(file: File): Promise<[string, HandlerDefinition[]]> {
     const [magic, mimeMagic] = await Promise.all([getMagic(), getMimeMagic()]);
-    const buffer = new Uint8Array(await file.arrayBuffer());
+    const buffer = new Uint8Array(await file.slice(0, 1024 * 1024).arrayBuffer());
     const mime = file.type || mimeMagic.detect(buffer) || 'application/octet-stream';
     const description = magic.detect(buffer);
 

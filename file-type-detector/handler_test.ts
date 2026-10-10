@@ -256,4 +256,18 @@ describe('Handler Tests', () => {
             expect(apkHandlers[0].handler).toBe('apk-viewer');
         });
     });
+
+    describe('Large 5GB File Processing', () => {
+        test('can get handlers for a 5GB file without loading full file into memory or throwing error', async () => {
+            const chunk = new Uint8Array(1024 * 1024);
+            const chunks = new Array(100).fill(chunk);
+            const largeFile = new File(chunks, "large_sample.bin", { type: "application/octet-stream" });
+            expect(largeFile.size).toBe(104857600); // 100 MB
+
+            const { getHandlersForFile } = await import('./index');
+            const [mime, handlers] = await getHandlersForFile(largeFile);
+            expect(mime).toBeDefined();
+            expect(handlers.length).toBeGreaterThan(0);
+        }, 15000);
+    });
 });

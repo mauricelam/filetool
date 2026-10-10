@@ -400,7 +400,7 @@ function FileViewer({ files, onItemClick, selectedPath, extractFile }: {
         window.parent?.postMessage({
             action: 'openFile',
             file: extractedFile
-        }, "/", [await extractedFile.arrayBuffer()]);
+        }, "/");
     };
 
     const handleDownloadFile = async (file: any, path: string[]) => {
@@ -480,10 +480,7 @@ function FileViewer({ files, onItemClick, selectedPath, extractFile }: {
                 file: primaryFile,
                 additionalFiles: additionalFiles,
                 handler: 'dexviewer'
-            }, "/", [
-                await primaryFile.arrayBuffer(),
-                ...await Promise.all(additionalFiles.map(f => f.arrayBuffer()))
-            ]);
+            }, "/");
         } catch (e) {
             console.error('Error opening multiple DEX files:', e);
         }

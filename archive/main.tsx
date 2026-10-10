@@ -459,7 +459,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             window.parent?.postMessage({
                 action: 'openFile',
                 file: extractedFile
-            }, "/", [await extractedFile.arrayBuffer()]);
+            }, "/");
         } catch (e) {
             console.error('Error opening file:', e);
         }
@@ -521,10 +521,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                 file: primaryFile,
                 additionalFiles: additionalFiles,
                 handler: 'dexviewer'
-            }, "/", [
-                await primaryFile.arrayBuffer(),
-                ...await Promise.all(additionalFiles.map(f => f.arrayBuffer()))
-            ]);
+            }, "/");
         } catch (e) {
             console.error('Error opening multiple DEX files:', e);
         }
@@ -579,10 +576,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
                 action: 'openFile',
                 file: primaryFile,
                 additionalFiles: additionalFiles
-            }, "/", [
-                await primaryFile.arrayBuffer(),
-                ...await Promise.all(additionalFiles.map(f => f.arrayBuffer()))
-            ]);
+            }, "/");
         } catch (e) {
             console.error('Error opening selected files:', e);
         } finally {

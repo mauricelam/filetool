@@ -47,12 +47,12 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
         getPreview();
     }, [path, filePromise]);
 
-    const handleIframeLoad = async () => {
+    const handleIframeLoad = () => {
         if (iframeRef.current && previewFile) {
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: previewFile,
-            }, '/', [await previewFile.arrayBuffer()]);
+            }, '/');
         }
     };
 

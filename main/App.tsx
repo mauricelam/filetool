@@ -473,7 +473,7 @@ function LoadFileItem({ file, openHandler, initialActiveHandler, pinnedHandlers,
         const effect = async () => {
             const magic = await magicPromise;
             const mimeMagic = await mimeMagicPromise;
-            const fileBuf = new Uint8Array(await file.arrayBuffer());
+            const fileBuf = new Uint8Array(await file.slice(0, 1024 * 1024).arrayBuffer());
             const mime = mimeMagic.detect(fileBuf);
             const fileDescription = magic.detect(fileBuf);
             const handlers = getHandlersForFileNameAndType(file.name, mime, fileDescription);
@@ -545,7 +545,7 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
         const loadMimes = async () => {
             const mimeMagic = await mimeMagicPromise;
             const mimes = await Promise.all(files.map(async f => {
-                const fileBuf = new Uint8Array(await f.file.arrayBuffer());
+                const fileBuf = new Uint8Array(await f.file.slice(0, 1024 * 1024).arrayBuffer());
                 return mimeMagic.detect(fileBuf);
             }));
             setGroupMimetypes(mimes);

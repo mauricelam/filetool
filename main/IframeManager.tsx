@@ -84,10 +84,6 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                     }
                     const fileCopy = new File([file], file.name, { type: mime });
                     const additionalFiles = matchedFrame.additionalFiles || [];
-                    const transferables = [await file.arrayBuffer()];
-                    for (const f of additionalFiles) {
-                        transferables.push(await f.arrayBuffer());
-                    }
 
                     (e.source as WindowProxy).postMessage(
                         {

@@ -118,13 +118,12 @@ const DecompressorViewer: React.FC = () => {
         return null;
     }, [file, decompressedFile]);
 
-    const handleIframeLoad = async () => {
+    const handleIframeLoad = () => {
         if (iframeRef.current && decompressedFile) {
-            const buffer = await decompressedFile.arrayBuffer();
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: decompressedFile,
-            }, '/', [buffer]);
+            }, '/');
         }
     };
 
@@ -135,13 +134,12 @@ const DecompressorViewer: React.FC = () => {
         }
     };
 
-    const handleOpenInParent = async () => {
+    const handleOpenInParent = () => {
         if (!decompressedFile) return;
-        const buffer = await decompressedFile.arrayBuffer();
         window.parent?.postMessage({
             action: 'openFile',
             file: decompressedFile,
-        }, '/', [buffer]);
+        }, '/');
     };
 
     return (
