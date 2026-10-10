@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import init, { parse_ext4, parse_ext4_stream, read_ext4_file, read_ext4_file_stream } from './ext4-wasm/pkg';
-import { parse_erofs, parse_erofs_file, read_erofs_file, read_erofs_file_from_blob, ensureErofsInitialized } from './erofs-wasm-wrapper';
+import { parse_erofs, read_erofs_file, ensureErofsInitialized } from './erofs-wasm-wrapper';
 import { ColumnView } from '../components/ColumnView';
 
 let ext4InitPromise: Promise<void> | null = null;
@@ -118,7 +118,7 @@ const ImgViewer: React.FC = () => {
                     try {
                         setLoading(true);
                         await ensureErofsInitialized();
-                        const parsedTree = await parse_erofs_file(file);
+                        const parsedTree = await parse_erofs(file);
                         setTree(parsedTree);
                     } catch (err) {
                         setError(`Failed to parse EROFS: ${err}`);
@@ -142,16 +142,16 @@ const ImgViewer: React.FC = () => {
     }, []);
 
     const handleDownload = async (file: any, name: string) => {
-        if (!sourceFile) return;
+        if (!sourceFile && !fileData) return;
         setActionError(null);
         try {
             let content: Uint8Array;
             if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file_from_blob(sourceFile, file._path);
+                content = await read_erofs_file(sourceFile || fileData!, file._path);
             } else {
                 await ensureExt4Initialized();
-                if (typeof FileReaderSync !== 'undefined') {
+                if (typeof FileReaderSync !== 'undefined' && sourceFile) {
                     const syncReader = new FileReaderSync();
                     const readFn = (offset: number, length: number) => {
                         const slice = sourceFile.slice(offset, offset + length);
@@ -160,8 +160,7 @@ const ImgViewer: React.FC = () => {
                     };
                     content = read_ext4_file_stream(BigInt(sourceFile.size), readFn, file._path);
                 } else {
-                    const data = new Uint8Array(await sourceFile.slice(0, Math.min(sourceFile.size, 500 * 1024 * 1024)).arrayBuffer());
-                    content = read_ext4_file(data, file._path);
+                    content = read_ext4_file(fileData!, file._path);
                 }
             }
             const blob = new Blob([content]);
@@ -183,16 +182,16 @@ const ImgViewer: React.FC = () => {
     };
 
     const handleOpen = async (file: any, name: string) => {
-        if (!sourceFile) return;
+        if (!sourceFile && !fileData) return;
         setActionError(null);
         try {
             let content: Uint8Array;
             if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file_from_blob(sourceFile, file._path);
+                content = await read_erofs_file(sourceFile || fileData!, file._path);
             } else {
                 await ensureExt4Initialized();
-                if (typeof FileReaderSync !== 'undefined') {
+                if (typeof FileReaderSync !== 'undefined' && sourceFile) {
                     const syncReader = new FileReaderSync();
                     const readFn = (offset: number, length: number) => {
                         const slice = sourceFile.slice(offset, offset + length);
@@ -201,8 +200,7 @@ const ImgViewer: React.FC = () => {
                     };
                     content = read_ext4_file_stream(BigInt(sourceFile.size), readFn, file._path);
                 } else {
-                    const data = new Uint8Array(await sourceFile.slice(0, Math.min(sourceFile.size, 500 * 1024 * 1024)).arrayBuffer());
-                    content = read_ext4_file(data, file._path);
+                    content = read_ext4_file(fileData!, file._path);
                 }
             }
             const newFile = new File([content], name, { type: 'application/octet-stream' });
