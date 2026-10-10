@@ -70,7 +70,17 @@ const ImgViewer: React.FC = () => {
             if (e.data.action === 'respondFile') {
                 await ensureWasmInitialized();
                 const file = e.data.file as File;
-                const buffer = await file.arrayBuffer();
+                if (file.size > 2 * 1024 * 1024 * 1024) {
+                    setError("The filesystem image is too large (>2GB) to fit into browser memory.");
+                    return;
+                }
+                let buffer: ArrayBuffer;
+                try {
+                    buffer = e.data.initialBuffer || await file.arrayBuffer();
+                } catch (err) {
+                    setError(`The requested file could not be read: ${err}`);
+                    return;
+                }
                 const data = new Uint8Array(buffer);
                 setFileData(data);
 

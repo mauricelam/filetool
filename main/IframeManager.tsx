@@ -85,18 +85,15 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                     const fileCopy = file.type === mime ? file : new File([file], file.name, { type: mime });
                     const additionalFiles = matchedFrame.additionalFiles || [];
                     const transferables: Transferable[] = [];
+                    let initialBuffer: ArrayBuffer | undefined;
+
                     try {
-                        // Only buffer into transferables if under 500MB to avoid OOM / NotReadableError on large files
-                        if (file.size < 500 * 1024 * 1024) {
-                            transferables.push(await file.arrayBuffer());
-                        }
-                        for (const f of additionalFiles) {
-                            if (f.size < 500 * 1024 * 1024) {
-                                transferables.push(await f.arrayBuffer());
-                            }
-                        }
+                        const MAX_TRANSFER_SIZE = 100 * 1024 * 1024; // 100 MB max slice buffer
+                        const slice = file.slice(0, Math.min(file.size, MAX_TRANSFER_SIZE));
+                        initialBuffer = await slice.arrayBuffer();
+                        transferables.push(initialBuffer);
                     } catch (err) {
-                        console.warn("Skipping transferables for large/unreadable file:", err);
+                        console.warn("Skipping transferables for file:", err);
                     }
 
                     (e.source as WindowProxy).postMessage(

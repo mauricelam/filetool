@@ -22,12 +22,38 @@ if (window.parent && window.parent !== window) {
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
-        handleFile(e.data.file)
+        handleFile(e.data.file, e.data.initialBuffer)
     }
 }
 
 const outputElement = document.getElementById('output');
 const OUTPUT = outputElement ? createRoot(outputElement) : null
+
+async function handleFile(file: File, initialBuffer?: ArrayBuffer) {
+    try {
+        let isTruncated = file.size > 100 * 1024 * 1024;
+        let buf: Uint8Array;
+        if (initialBuffer && initialBuffer.byteLength > 0) {
+            buf = new Uint8Array(initialBuffer);
+        } else {
+            let fileToRead = file;
+            const MAX_HEX_VIEW_SIZE = 100 * 1024 * 1024;
+            if (file.size > MAX_HEX_VIEW_SIZE) {
+                fileToRead = file.slice(0, MAX_HEX_VIEW_SIZE) as File;
+                isTruncated = true;
+            }
+            buf = new Uint8Array(await fileToRead.arrayBuffer());
+        }
+        OUTPUT?.render(<HexViewer buffer={buf} totalSize={file.size} isTruncated={isTruncated} />);
+    } catch (err) {
+        console.error("Error reading file in HexViewer:", err);
+        OUTPUT?.render(
+            <div style={{ padding: '20px', color: '#d32f2f', fontFamily: 'sans-serif' }}>
+                Failed to read file: {String(err)}
+            </div>
+        );
+    }
+}
 
 const ICONS = {
     inspector: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>,
@@ -43,10 +69,6 @@ const ICONS = {
     chevronRight: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 };
 
-async function handleFile(file: File) {
-    const buf = new Uint8Array(await file.arrayBuffer())
-    OUTPUT?.render(<HexViewer buffer={buf} />)
-}
 
 function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOpen, onAddMarker, setPreviewMarker }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void, onAddMarker: (format: string, length: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
     const start = selection ? selection[0] : 0;
@@ -635,7 +657,8 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
         const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         const id = ++requestIdRef.current;
 
-        workerRef.current.postMessage({ data, algorithms, id }, [data.buffer.slice(0)]);
+        const dataCopy = data.slice();
+        workerRef.current.postMessage({ data: dataCopy, algorithms, id }, [dataCopy.buffer]);
     }, [buffer, selection]);
 
     return (
@@ -681,7 +704,8 @@ export function InspectorTab({ buffer, index, selection, markers, onAddMarker, o
         const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         const id = ++requestIdRef.current;
 
-        workerRef.current.postMessage({ data, algorithms, id }, [data.buffer.slice(0)]);
+        const dataCopy = data.slice();
+        workerRef.current.postMessage({ data: dataCopy, algorithms, id }, [dataCopy.buffer]);
     }, [buffer, selection]);
 
     const targetIndex = index !== null ? index : (selection ? selection[0] : null);
@@ -799,7 +823,7 @@ export function InspectorTab({ buffer, index, selection, markers, onAddMarker, o
     )
 }
 
-function HexViewer({ buffer }: { buffer: Uint8Array }) {
+function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, totalSize?: number, isTruncated?: boolean }) {
     const [scrollTop, setScrollTop] = useState(0);
 
     const onJumpToOffset = useCallback((offset: number) => {
@@ -942,7 +966,21 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
     }, [resize, stopResizing]);
 
     return (
-        <div style={{ display: 'flex', height: '100%', userSelect: isResizing ? 'none' : 'auto', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {isTruncated && totalSize && (
+                <div style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#fff3cd',
+                    color: '#856404',
+                    borderBottom: '1px solid #ffeeba',
+                    fontSize: '12px',
+                    fontFamily: 'sans-serif',
+                    flexShrink: 0
+                }}>
+                    ⚠️ Large file ({(totalSize / (1024 * 1024 * 1024)).toFixed(2)} GB). Showing preview of first 100 MB.
+                </div>
+            )}
+            <div style={{ display: 'flex', flex: 1, userSelect: isResizing ? 'none' : 'auto', position: 'relative', overflow: 'hidden' }}>
             <div id="hexviewer" style={{ flex: 1, overflowY: 'auto' }} onScroll={onScroll}>
                 <Column id="offset" lineCount={lineCount} scrollTop={scrollTop}
                     header="Offset"
@@ -989,6 +1027,7 @@ function HexViewer({ buffer }: { buffer: Uint8Array }) {
                     onSetBinwalkResults={setBinwalkResults}
                 />
             </div>
+        </div>
         </div>
     )
 }
