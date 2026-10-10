@@ -82,8 +82,22 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                     if (file.type !== mime) {
                         console.log("Mismatched mime types", file.type, mime);
                     }
-                    const fileCopy = new File([file], file.name, { type: mime });
+                    const fileCopy = file.type === mime ? file : new File([file], file.name, { type: mime });
                     const additionalFiles = matchedFrame.additionalFiles || [];
+                    const transferables: Transferable[] = [];
+                    try {
+                        // Only buffer into transferables if under 500MB to avoid OOM / NotReadableError on large files
+                        if (file.size < 500 * 1024 * 1024) {
+                            transferables.push(await file.arrayBuffer());
+                        }
+                        for (const f of additionalFiles) {
+                            if (f.size < 500 * 1024 * 1024) {
+                                transferables.push(await f.arrayBuffer());
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("Skipping transferables for large/unreadable file:", err);
+                    }
 
                     (e.source as WindowProxy).postMessage(
                         {

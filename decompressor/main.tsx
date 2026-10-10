@@ -118,12 +118,20 @@ const DecompressorViewer: React.FC = () => {
         return null;
     }, [file, decompressedFile]);
 
-    const handleIframeLoad = () => {
+    const handleIframeLoad = async () => {
         if (iframeRef.current && decompressedFile) {
+            const transferables: Transferable[] = [];
+            try {
+                if (decompressedFile.size < 500 * 1024 * 1024) {
+                    transferables.push(await decompressedFile.arrayBuffer());
+                }
+            } catch (err) {
+                console.warn("Skipping transferables for decompressed file:", err);
+            }
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: decompressedFile,
-            }, '/');
+            }, '/', transferables);
         }
     };
 

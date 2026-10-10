@@ -47,12 +47,20 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
         getPreview();
     }, [path, filePromise]);
 
-    const handleIframeLoad = () => {
+    const handleIframeLoad = async () => {
         if (iframeRef.current && previewFile) {
+            const transferables: Transferable[] = [];
+            try {
+                if (previewFile.size < 500 * 1024 * 1024) {
+                    transferables.push(await previewFile.arrayBuffer());
+                }
+            } catch (err) {
+                console.warn("Skipping transferables for preview file:", err);
+            }
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: previewFile,
-            }, '/');
+            }, '/', transferables);
         }
     };
 

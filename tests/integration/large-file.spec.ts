@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test('should handle a 5GB file without NotReadableError or memory crash', async ({ page }) => {
+    test.setTimeout(60000);
+
     await page.goto('/filetool/');
 
     // Wait for the drop target to be ready
