@@ -19,6 +19,34 @@ export async function ensureErofsInitialized(): Promise<any> {
     return erofsModulePromise;
 }
 
+export async function parse_erofs_file(file: File): Promise<any> {
+    const Module = await ensureErofsInitialized();
+    const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
+    const filepath = `/${filename}`;
+
+    try {
+        if (Module.FS && Module.FS.createLazyFile) {
+            Module.FS.createLazyFile('/', filename, file, true, false);
+        } else {
+            const buffer = await file.arrayBuffer();
+            Module.FS.createDataFile('/', filename, new Uint8Array(buffer), true, true);
+        }
+
+        const erofsParseTree = Module.cwrap('erofs_parse_tree', 'string', ['string']);
+        const treeJson = erofsParseTree(filepath);
+        if (!treeJson) {
+            throw new Error('Failed to parse EROFS superblock or directory tree');
+        }
+        return JSON.parse(treeJson);
+    } finally {
+        try {
+            Module.FS.unlink(filepath);
+        } catch (e) {
+            // ignore cleanup errors
+        }
+    }
+}
+
 export async function parse_erofs(data: Uint8Array): Promise<any> {
     const Module = await ensureErofsInitialized();
     const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
@@ -32,6 +60,46 @@ export async function parse_erofs(data: Uint8Array): Promise<any> {
             throw new Error('Failed to parse EROFS superblock or directory tree');
         }
         return JSON.parse(treeJson);
+    } finally {
+        try {
+            Module.FS.unlink(filepath);
+        } catch (e) {
+            // ignore cleanup errors
+        }
+    }
+}
+
+export async function read_erofs_file_from_blob(file: File, path: string): Promise<Uint8Array> {
+    const Module = await ensureErofsInitialized();
+    const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
+    const filepath = `/${filename}`;
+
+    try {
+        if (Module.FS && Module.FS.createLazyFile) {
+            Module.FS.createLazyFile('/', filename, file, true, false);
+        } else {
+            const buffer = await file.arrayBuffer();
+            Module.FS.createDataFile('/', filename, new Uint8Array(buffer), true, true);
+        }
+
+        const erofsReadFileData = Module.cwrap('erofs_read_file_data', 'number', ['string', 'string', 'number']);
+        const erofsFreeBuf = Module.cwrap('erofs_free_buf', null, ['number']);
+
+        const outSizePtr = Module._malloc(4);
+        const dataPtr = erofsReadFileData(filepath, path, outSizePtr);
+        const size = Module.HEAP32[outSizePtr >> 2];
+        Module._free(outSizePtr);
+
+        if (!dataPtr && size > 0) {
+            throw new Error(`Failed to read EROFS file at path ${path}`);
+        }
+
+        const result = new Uint8Array(size);
+        if (size > 0 && dataPtr) {
+            result.set(Module.HEAPU8.subarray(dataPtr, dataPtr + size));
+            erofsFreeBuf(dataPtr);
+        }
+        return result;
     } finally {
         try {
             Module.FS.unlink(filepath);

@@ -50,6 +50,7 @@ name = "ext4-wasm"
 version = "0.1.0"
 dependencies = [
  "ext4-view",
+ "js-sys",
  "serde",
  "serde_json",
  "tsify",
