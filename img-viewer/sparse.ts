@@ -1,3 +1,5 @@
+import type { LpExtentInfo } from './lpmeta';
+
 /**
  * Interface representing a chunk in an Android sparse image file.
  */
@@ -311,60 +313,95 @@ export class SparseImage {
 }
 
 /**
- * Wraps a sub-region (offset and size) of a SparseImage or raw File object.
+ * Wraps a sub-region (single offset or multiple extents) of a SparseImage or raw File object.
  * Used for inspecting logical partitions inside super.img without copying.
  */
 export class SparseSubImage {
     parent: SparseImage | File;
-    offset: number;
+    extents: LpExtentInfo[];
     unsparsedSize: number;
 
-    constructor(parent: SparseImage | File, offset: number, sizeBytes: number) {
+    constructor(parent: SparseImage | File, extentsOrOffset: LpExtentInfo[] | number, sizeBytes?: number) {
         this.parent = parent;
-        this.offset = offset;
-        this.unsparsedSize = sizeBytes;
+        if (typeof extentsOrOffset === 'number') {
+            const size = sizeBytes || 0;
+            this.extents = [{ offset: extentsOrOffset, size, targetType: 0 }];
+            this.unsparsedSize = size;
+        } else {
+            this.extents = extentsOrOffset;
+            this.unsparsedSize = extentsOrOffset.reduce((sum, e) => sum + e.size, 0);
+        }
+    }
+
+    get offset(): number {
+        return this.extents.length > 0 ? this.extents[0].offset : 0;
     }
 
     /**
-     * Synchronously reads a range of bytes relative to this sub-image offset.
+     * Synchronously reads a range of bytes relative to this sub-image virtual stream.
      */
     readSync(unsparseOffset: number, length: number): Uint8Array {
-        const actualPos = this.offset + unsparseOffset;
-        const parentSize = this.parent instanceof SparseImage ? this.parent.unsparsedSize : this.parent.size;
-        if (actualPos >= parentSize) {
-            return new Uint8Array(0);
+        const outBuf = new Uint8Array(length);
+        if (unsparseOffset >= this.unsparsedSize || length <= 0) {
+            return outBuf.subarray(0, 0);
         }
+
         const bytesToRead = Math.min(length, this.unsparsedSize - unsparseOffset);
-        if (bytesToRead <= 0) {
-            return new Uint8Array(0);
-        }
+        let bytesRead = 0;
+        let currentPartOffset = 0;
 
-        if (this.parent instanceof SparseImage) {
-            return this.parent.readSync(actualPos, bytesToRead);
-        } else {
-            const slice = this.parent.slice(actualPos, actualPos + bytesToRead);
-            if (typeof FileReaderSync !== 'undefined') {
-                const reader = new FileReaderSync();
-                const ab = reader.readAsArrayBuffer(slice);
-                return new Uint8Array(ab);
-            } else {
-                const blobUrl = URL.createObjectURL(slice);
-                const xhr = new XMLHttpRequest();
-                xhr.open('GET', blobUrl, false);
-                xhr.overrideMimeType('text/plain; charset=x-user-defined');
-                xhr.send(null);
-                URL.revokeObjectURL(blobUrl);
+        for (const ext of this.extents) {
+            if (bytesRead >= bytesToRead) break;
 
-                const out = new Uint8Array(bytesToRead);
-                if (xhr.status === 200 || xhr.status === 0) {
-                    const text = xhr.responseText;
-                    const len = Math.min(out.length, text.length);
-                    for (let i = 0; i < len; i++) {
-                        out[i] = text.charCodeAt(i) & 0xff;
+            const extStart = currentPartOffset;
+            const extEnd = currentPartOffset + ext.size;
+            currentPartOffset = extEnd;
+
+            const targetReadStart = unsparseOffset + bytesRead;
+            const targetReadEnd = unsparseOffset + bytesToRead;
+
+            if (targetReadStart < extEnd && targetReadEnd > extStart) {
+                const overlapStart = Math.max(targetReadStart, extStart);
+                const overlapEnd = Math.min(targetReadEnd, extEnd);
+                const overlapLen = overlapEnd - overlapStart;
+
+                const extRelOffset = overlapStart - extStart;
+                const dstOffset = overlapStart - unsparseOffset;
+
+                if (ext.targetType === 1) { // ZERO
+                    outBuf.fill(0, dstOffset, dstOffset + overlapLen);
+                } else { // LINEAR
+                    const actualPos = ext.offset + extRelOffset;
+                    if (this.parent instanceof SparseImage) {
+                        this.parent.readSync(actualPos, overlapLen, outBuf, dstOffset);
+                    } else {
+                        const slice = this.parent.slice(actualPos, actualPos + overlapLen);
+                        if (typeof FileReaderSync !== 'undefined') {
+                            const reader = new FileReaderSync();
+                            const ab = reader.readAsArrayBuffer(slice);
+                            outBuf.set(new Uint8Array(ab), dstOffset);
+                        } else {
+                            const blobUrl = URL.createObjectURL(slice);
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('GET', blobUrl, false);
+                            xhr.overrideMimeType('text/plain; charset=x-user-defined');
+                            xhr.send(null);
+                            URL.revokeObjectURL(blobUrl);
+
+                            if (xhr.status === 200 || xhr.status === 0) {
+                                const text = xhr.responseText;
+                                const len = Math.min(overlapLen, text.length);
+                                for (let i = 0; i < len; i++) {
+                                    outBuf[dstOffset + i] = text.charCodeAt(i) & 0xff;
+                                }
+                            }
+                        }
                     }
                 }
-                return out;
+                bytesRead += overlapLen;
             }
         }
+
+        return outBuf.subarray(0, bytesRead);
     }
 }

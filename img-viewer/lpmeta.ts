@@ -1,28 +1,61 @@
 /**
+ * Information about an extent belonging to a logical partition in super.img.
+ */
+export interface LpExtentInfo {
+    /** Physical byte offset in the unsparsed super.img where this extent starts */
+    offset: number;
+    /** Size of the extent in bytes */
+    size: number;
+    /** Target type: 0 = LINEAR, 1 = ZERO */
+    targetType: number;
+}
+
+/**
  * Information about a logical partition inside an Android super.img.
  */
 export interface LpPartitionInfo {
     /** Name of the partition (e.g., "system_a", "vendor_a", "product") */
     name: string;
-    /** Physical byte offset in the unsparsed super.img where this partition begins */
+    /** Extents composing this partition */
+    extents: LpExtentInfo[];
+    /** Physical byte offset of the first extent (for backward compatibility) */
     startOffset: number;
-    /** Size of the partition in bytes */
+    /** Total size of the partition in bytes across all extents */
     sizeBytes: number;
 }
 
 /**
+ * Constants from Android liblp / lpunpack.py
+ */
+export const LP_PARTITION_RESERVED_BYTES = 4096;
+export const LP_METADATA_GEOMETRY_MAGIC = 0x616C4467; // "gDlA"
+export const LP_METADATA_GEOMETRY_MAGIC_LEGACY = 0x616C706D;
+export const LP_METADATA_GEOMETRY_SIZE = 4096;
+export const LP_METADATA_HEADER_MAGIC = 0x414C5030; // "0PLA"
+export const LP_SECTOR_SIZE = 512;
+
+export const LP_TARGET_TYPE_LINEAR = 0;
+export const LP_TARGET_TYPE_ZERO = 1;
+
+/**
  * Parser for Android Logical Partition Metadata (lpmake / liblp / super.img).
- * Detects LP geometry header (magic 0x616C706D) and partition tables.
+ * Detects LP geometry header (magic 0x616C4467 or 0x616C706D) and partition tables.
  */
 export class LpMetadata {
     /**
-     * Checks if the header buffer contains a valid LP metadata geometry header at offset 4096.
+     * Checks if the header buffer contains a valid LP metadata geometry header at offset 4096 or offset 8192.
      */
     static isLpMetadata(headerData: Uint8Array): boolean {
         if (headerData.length < 4096 + 52) return false;
         const view = new DataView(headerData.buffer, headerData.byteOffset, headerData.byteLength);
-        const magic = view.getUint32(4096, true);
-        return magic === 0x616C706D; // LP_METADATA_GEOMETRY_MAGIC
+
+        const checkMagicAt = (off: number) => {
+            if (headerData.length < off + 52) return false;
+            const magic = view.getUint32(off, true);
+            return magic === LP_METADATA_GEOMETRY_MAGIC || magic === LP_METADATA_GEOMETRY_MAGIC_LEGACY;
+        };
+
+        return checkMagicAt(4096) || checkMagicAt(8192);
     }
 
     /**
@@ -32,20 +65,53 @@ export class LpMetadata {
     static parsePartitions(data: Uint8Array): LpPartitionInfo[] {
         if (data.length < 4096 + 52) return [];
         const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-        const magic = view.getUint32(4096, true);
-        if (magic !== 0x616C706D) {
+
+        let geomOffset = -1;
+        if (data.length >= 4096 + 52) {
+            const m = view.getUint32(4096, true);
+            if (m === LP_METADATA_GEOMETRY_MAGIC || m === LP_METADATA_GEOMETRY_MAGIC_LEGACY) {
+                geomOffset = 4096;
+            }
+        }
+        if (geomOffset === -1 && data.length >= 8192 + 52) {
+            const m = view.getUint32(8192, true);
+            if (m === LP_METADATA_GEOMETRY_MAGIC || m === LP_METADATA_GEOMETRY_MAGIC_LEGACY) {
+                geomOffset = 8192;
+            }
+        }
+
+        if (geomOffset === -1) {
             return [];
         }
 
-        const metadataMaxSize = view.getUint32(4096 + 40, true); // metadata_max_size
+        const metadataMaxSize = view.getUint32(geomOffset + 40, true);
+        const metadataSlotCount = view.getUint32(geomOffset + 44, true);
 
-        const slotOffset = 4096 + metadataMaxSize;
-        if (data.length < slotOffset + 104) {
+        if (metadataSlotCount === 0 || metadataMaxSize === 0) {
             return [];
         }
 
-        const headerMagic = view.getUint32(slotOffset, true);
-        if (headerMagic !== 0x414C5030) { // LP_METADATA_HEADER_MAGIC
+        // Standard offsets according to lpunpack.py / liblp:
+        // base = LP_PARTITION_RESERVED_BYTES + (LP_METADATA_GEOMETRY_SIZE * 2) = 12288 (0x3000)
+        const baseOffset = LP_PARTITION_RESERVED_BYTES + (LP_METADATA_GEOMETRY_SIZE * 2);
+        const candidateSlotOffsets: number[] = [
+            baseOffset, // Slot 0 primary
+            baseOffset + metadataMaxSize * metadataSlotCount, // Slot 0 backup
+            4096 + metadataMaxSize // legacy fallback offset
+        ];
+
+        let slotOffset = -1;
+        for (const candidate of candidateSlotOffsets) {
+            if (data.length >= candidate + 104) {
+                const headerMagic = view.getUint32(candidate, true);
+                if (headerMagic === LP_METADATA_HEADER_MAGIC) {
+                    slotOffset = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (slotOffset === -1) {
             return [];
         }
 
@@ -83,26 +149,40 @@ export class LpMetadata {
 
             if (numExtents === 0) continue;
 
+            const extents: LpExtentInfo[] = [];
+            let totalSizeBytes = 0;
+
             for (let k = 0; k < numExtents; k++) {
-                const eOffset = extStart + (firstExtentIndex + k) * extentsEntrySize;
+                const eIdx = firstExtentIndex + k;
+                if (eIdx >= extentsNumEntries) break;
+
+                const eOffset = extStart + eIdx * extentsEntrySize;
                 if (eOffset + 24 > data.length) break;
 
                 const numSectors = view.getBigUint64(eOffset, true);
                 const targetType = view.getUint32(eOffset + 8, true);
                 const targetData = view.getBigUint64(eOffset + 12, true);
 
-                if (targetType === 0) { // LINEAR
-                    const startOffset = Number(targetData) * 512;
-                    const sizeBytes = Number(numSectors) * 512;
+                const sizeBytes = Number(numSectors) * LP_SECTOR_SIZE;
+                const offsetBytes = targetType === LP_TARGET_TYPE_LINEAR ? Number(targetData) * LP_SECTOR_SIZE : 0;
 
-                    if (sizeBytes > 0) {
-                        results.push({
-                            name,
-                            startOffset,
-                            sizeBytes
-                        });
-                    }
+                if (sizeBytes > 0) {
+                    extents.push({
+                        offset: offsetBytes,
+                        size: sizeBytes,
+                        targetType
+                    });
+                    totalSizeBytes += sizeBytes;
                 }
+            }
+
+            if (extents.length > 0) {
+                results.push({
+                    name,
+                    extents,
+                    startOffset: extents[0].offset,
+                    sizeBytes: totalSizeBytes
+                });
             }
         }
 

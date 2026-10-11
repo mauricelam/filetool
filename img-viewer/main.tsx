@@ -139,7 +139,7 @@ const ImgViewer: React.FC = () => {
                         const subMap: Record<string, { sub: SparseSubImage, isErofs: boolean }> = {};
 
                         for (const p of partitions) {
-                            const sub = new SparseSubImage(file, p.startOffset, p.sizeBytes);
+                            const sub = new SparseSubImage(file, p.extents);
                             const pHeader = sub.readSync(0, 65536);
 
                             const isExt4 = pHeader.length > 1081 && pHeader[1080] === 0x53 && pHeader[1081] === 0xEF;
