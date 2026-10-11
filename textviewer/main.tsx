@@ -66,21 +66,10 @@ window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
 
 const OUTPUT = createRoot(document.getElementById('output')!)
 
-const MAX_TEXT_LOAD_SIZE = 50 * 1024 * 1024; // 50MB safe text size limit
+import { FileChunkReader, formatBytes } from 'filetool-common/largeFile';
 
 async function handleFile(file: File, originalType?: string) {
-    let content: string;
-    let truncated = false;
-
-    if (file.size > MAX_TEXT_LOAD_SIZE) {
-        const slice = file.slice(0, MAX_TEXT_LOAD_SIZE);
-        content = await slice.text();
-        truncated = true;
-    } else {
-        content = await file.text();
-    }
-
-    OUTPUT.render(<TextViewer content={content} filename={file.name} mimeType={originalType || file.type} truncated={truncated} totalSize={file.size} />)
+    OUTPUT.render(<TextViewer file={file} filename={file.name} mimeType={originalType || file.type} />)
 }
 
 function getAceMode(filename: string, mimeType: string): string {
@@ -111,13 +100,31 @@ function getAceMode(filename: string, mimeType: string): string {
     return 'text';
 }
 
-function TextViewer({ content, filename, mimeType, truncated, totalSize }: { content: string, filename: string, mimeType: string, truncated?: boolean, totalSize?: number }) {
+function TextViewer({ file, filename, mimeType }: { file: File, filename: string, mimeType: string }) {
     const [mode, setMode] = useState(() => getAceMode(filename, mimeType));
+    const [content, setContent] = useState<string>('');
+    const [chunkIndex, setChunkIndex] = useState<number>(0);
+    const [chunkReader] = useState(() => new FileChunkReader(file, 16 * 1024 * 1024));
+    const [loading, setLoading] = useState<boolean>(true);
 
-    // Update mode when file changes
+    const totalChunks = chunkReader.totalChunks;
+
     useEffect(() => {
         setMode(getAceMode(filename, mimeType));
     }, [filename, mimeType]);
+
+    useEffect(() => {
+        let active = true;
+        setLoading(true);
+        chunkReader.getChunk(chunkIndex).then(async (chunkInfo) => {
+            const text = await chunkInfo.data.text();
+            if (active) {
+                setContent(text);
+                setLoading(false);
+            }
+        });
+        return () => { active = false; };
+    }, [chunkIndex, chunkReader]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
@@ -126,52 +133,63 @@ function TextViewer({ content, filename, mimeType, truncated, totalSize }: { con
                 background: '#272822',
                 borderBottom: '1px solid #444',
                 display: 'flex',
-                justifyContent: 'flex-end',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: '8px'
             }}>
-                <label htmlFor="mode-select" style={{ color: '#ccc', fontSize: '12px', fontFamily: 'sans-serif' }}>Language:</label>
-                <select
-                    id="mode-select"
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value)}
-                    style={{
-                        background: '#3e3d32',
-                        color: '#f8f8f2',
-                        border: '1px solid #75715e',
-                        borderRadius: '2px',
-                        fontSize: '12px',
-                        padding: '2px 4px'
-                    }}
-                >
-                    {SUPPORTED_MODES.map(m => (
-                        <option key={m} value={m}>{m}</option>
-                    ))}
-                </select>
-            </div>
-            {truncated && (
-                <div style={{
-                    padding: '6px 12px',
-                    background: '#553311',
-                    color: '#ffddaa',
-                    fontSize: '12px',
-                    fontFamily: 'sans-serif',
-                    borderBottom: '1px solid #774422'
-                }}>
-                    ⚠️ File size ({(totalSize! / (1024 * 1024 * 1024)).toFixed(2)} GB) exceeds text viewer memory limit. Displaying first 50 MB preview.
+                <div style={{ color: '#ccc', fontSize: '12px', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Size: {formatBytes(file.size)}</span>
+                    {totalChunks > 1 && (
+                        <>
+                            <span>| Chunk: {chunkIndex + 1} / {totalChunks}</span>
+                            <button
+                                disabled={chunkIndex === 0 || loading}
+                                onClick={() => setChunkIndex(i => Math.max(0, i - 1))}
+                                style={{ background: '#3e3d32', color: '#fff', border: '1px solid #75715e', borderRadius: '2px', cursor: 'pointer', padding: '1px 6px' }}
+                            >
+                                Prev
+                            </button>
+                            <button
+                                disabled={chunkIndex >= totalChunks - 1 || loading}
+                                onClick={() => setChunkIndex(i => Math.min(totalChunks - 1, i + 1))}
+                                style={{ background: '#3e3d32', color: '#fff', border: '1px solid #75715e', borderRadius: '2px', cursor: 'pointer', padding: '1px 6px' }}
+                            >
+                                Next
+                            </button>
+                        </>
+                    )}
                 </div>
-            )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label htmlFor="mode-select" style={{ color: '#ccc', fontSize: '12px', fontFamily: 'sans-serif' }}>Language:</label>
+                    <select
+                        id="mode-select"
+                        value={mode}
+                        onChange={(e) => setMode(e.target.value)}
+                        style={{
+                            background: '#3e3d32',
+                            color: '#f8f8f2',
+                            border: '1px solid #75715e',
+                            borderRadius: '2px',
+                            fontSize: '12px',
+                            padding: '2px 4px'
+                        }}
+                    >
+                        {SUPPORTED_MODES.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
             <div style={{ flex: 1, overflow: 'hidden' }}>
                 <AceEditor
                     mode={mode}
                     theme="monokai"
-                    value={content}
+                    value={loading ? 'Loading chunk slice...' : content}
                     readOnly={true}
                     width="100%"
                     height="100%"
                     name="textviewer-editor"
                     onLoad={(editor) => {
-                        // Ensure the editor's main element has the id="textviewer" for backward compatibility with tests
                         editor.container.id = 'textviewer';
                     }}
                     setOptions={{

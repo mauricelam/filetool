@@ -37,8 +37,7 @@ self.onmessage = async (e: MessageEvent<SqliteWorkerMessage>) => {
             }
             try {
                 const file = e.data.file;
-                const MAX_SQLITE_SIZE = 100 * 1024 * 1024;
-                const slice = file.size > MAX_SQLITE_SIZE ? file.slice(0, MAX_SQLITE_SIZE) : file;
+                const slice = file.slice(0, Math.min(file.size, 100 * 1024 * 1024));
                 const buffer = await slice.arrayBuffer();
                 const u8 = new Uint8Array(buffer);
 

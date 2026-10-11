@@ -4,8 +4,9 @@
 `filetool` is a web-based file analysis platform comprising a host application (`main`) and numerous specialized viewer modules hosted inside isolated `<iframe>` sandboxes. Previously, the host shell transferred file data to viewer iframes by reading up to 100 MB into an `ArrayBuffer` and posting transferable buffers. This approach faced critical scalability issues for files larger than 4GB (or even >100 MB):
 1. Eager buffer allocation attempted to load entire or large portions of multi-gigabyte files into JavaScript heap memory, triggering `RangeError: ArrayBuffer allocation failed` or V8 string length limit exceptions.
 2. Unnecessary copying and buffer transfer overhead delayed initial viewer rendering.
+3. Simply truncating files at a single static offset loses data and breaks multi-GB file viewing.
 
-To support files arbitrarily larger than 4GB (limited only by the operating system and browser file system limits, as JavaScript `Number.MAX_SAFE_INTEGER` allows offsets up to 9 Petabytes), a general, zero-copy, lazy-loading mechanism was designed and implemented across the system via the `@filetool/common` helper utilities.
+To support files arbitrarily larger than 4GB (limited only by the operating system and browser file system limits, as JavaScript `Number.MAX_SAFE_INTEGER` allows offsets up to 9 Petabytes), a general, zero-copy, chunked slice mechanism was designed and implemented across the system via `@filetool/common`.
 
 ---
 
@@ -18,46 +19,33 @@ When a `File` object is sent across `window.postMessage` between window boundari
 - The browser transfers the lightweight handle reference in $O(1)$ time and memory.
 - The receiving iframe receives a full, functional `File` instance capable of slicing and reading any range of the underlying file on demand.
 
-### 2. Streamlined Host Shell (`IframeManager.tsx`)
-The Host Shell's `IframeManager` acts as the central router for file payloads requested by active viewer instances via the `requestFile` / `respondFile` protocol.
-
-**Changes:**
-- Removed eager `file.slice(0, 100MB).arrayBuffer()` loading and transferable `ArrayBuffer` management.
-- When an iframe posts `{ action: 'requestFile' }`, the host directly sends `{ action: 'respondFile', file, originalType, additionalFiles }` containing the raw `File` object handles.
-- Message delivery is instant, zero-memory, and independent of file size.
-
-### 3. Shared Large File Helper (`@filetool/common/largeFile`)
-A common abstraction `safeSliceFile` and `formatBytes` is provided in `@filetool/common` to standardize safe buffer slicing, size checks, and human-readable truncation reporting across all viewers.
+### 2. Shared Chunked Reader Utility (`@filetool/common/largeFile`)
+To handle files of any size by breaking them down into smaller slices, `@filetool/common` provides `FileChunkReader`, `readInChunks`, and `readByteRange`.
 
 ```typescript
-export interface FileSliceResult {
-    file: File;
-    slice: Blob;
-    isTruncated: boolean;
-    totalSize: number;
-    sliceSize: number;
+export class FileChunkReader {
+    constructor(file: File, chunkSize: number = 16 * 1024 * 1024);
+    get totalChunks(): number;
+    async readRange(offset: number, length: number): Promise<Uint8Array>;
+    async getChunk(index: number): Promise<ChunkInfo>;
+    async *chunkStream(): AsyncIterableIterator<ChunkInfo>;
+    async processInChunks(callback: (chunk: ChunkInfo) => Promise<boolean | void>): Promise<void>;
 }
-
-export function safeSliceFile(file: File, maxBytes: number = 100 * 1024 * 1024): FileSliceResult;
 ```
 
-### 4. Layered Processing Strategies for Viewer Implementations
+### 3. Layered Processing Strategies for Viewer Implementations
 
-Viewers in `filetool` are categorized into two primary processing paradigms based on file format structure:
+Viewers in `filetool` process multi-GB files using chunked slice strategies suited to their data structures:
 
-#### Paradigm A: Chunked & On-Demand Viewers (Lazy Random Access)
-Used by viewers inspecting large structured formats, binary dumps, or filesystem images:
-- **`hex_viewer`**: Uses virtualized canvas rendering combined with sliding-window `file.slice(offset, offset + length)` buffer reads. It can display 10GB+ files seamlessly without loading more than a few megabytes into memory at any given time.
-- **`img-viewer` (ext4 / EROFS / Sparse / LPMeta)**: Reads superblock metadata and translates logical partition offset requests on demand using `file.slice()`. WebAssembly modules (`ext4-wasm`, `erofs-wasm`) utilize lazy Emscripten file wrappers (`FS.createLazyFile`) or synchronous chunk fetching via Web Workers (`FileReaderSync`).
-- **`sqliteviewer`**: Executes SQL queries over database files using WASM with page-level virtual filesystem (VFS) chunk fetching on demand / safe chunking.
-- **`diffviewer`**: Uses block-level diffing in a Web Worker, loading sliding binary windows via `file.slice()` and displaying virtualized hex/text diff lines.
+#### Paradigm A: Chunked & Streaming Slices (Sequential Processing)
+- **`textviewer`**: Loads initial chunk slices on launch and supports chunked slice pagination/loading as needed for multi-GB files.
+- **`binutils` / `decompressor`**: Streams 16MB slices iteratively through WASM or processing pipelines.
 
-#### Paradigm B: Safe Buffer Ingestion Safeguards (Whole-File / Dense Formats)
-For format viewers that require contiguous memory or whole-file parsing in WebAssembly/JS (e.g., compressed archives, PDFs, text/code highlighters, WASM tools):
-- **Safe Single-Buffer Thresholding**: A standard safe memory threshold (e.g., 50MB – 100MB via `safeSliceFile`) is applied.
-- **Truncated Preview / Sliced Access**:
-  - When file size exceeds the safe contiguous buffer threshold (e.g. >100MB or >4GB), the viewer safely slices the initial header / preview chunk (`file.slice(0, SAFE_MAX_SIZE)`).
-  - The viewer renders the available preview data along with an informative UI banner stating that the file exceeds full-memory buffer limits and displays the total file size.
+#### Paradigm B: On-Demand Random Access Slices (Virtual File Systems & Sliding Windows)
+- **`hex_viewer`**: Uses virtualized canvas rendering combined with sliding-window `file.slice(offset, offset + length)` buffer reads (`readByteRange`).
+- **`img-viewer` (ext4 / EROFS / Sparse / LPMeta)**: Reads superblock metadata and translates logical partition offset requests on demand using `file.slice()`. WebAssembly modules utilize lazy Emscripten file wrappers (`FS.createLazyFile`) or synchronous chunk fetching via Web Workers (`FileReaderSync`).
+- **`sqliteviewer`**: Executes SQL queries over multi-GB database files using page-level or chunked slice VFS fetching on demand.
+- **`diffviewer`**: Uses block-level diffing in a Web Worker, loading sliding binary windows via `file.slice()`.
 
 ---
 

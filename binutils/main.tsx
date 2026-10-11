@@ -10,6 +10,7 @@ import "ace-builds/src-noconflict/ext-searchbox"
 import './styles.css';
 import { Sidebar } from './Sidebar';
 import { Controls } from './Controls';
+import { FileChunkReader } from 'filetool-common/largeFile';
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -93,9 +94,9 @@ function App({ file }: { file: File }) {
         currentWorker?.terminate();
         setOutput(`Running ${tool} ${flags}...`);
         currentWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
-        const MAX_BINUTILS_SIZE = 100 * 1024 * 1024;
-        const slice = file.size > MAX_BINUTILS_SIZE ? file.slice(0, MAX_BINUTILS_SIZE) : file;
-        const buffer = await slice.arrayBuffer();
+        const reader = new FileChunkReader(file, 16 * 1024 * 1024);
+        const chunk = await reader.getChunk(0);
+        const buffer = await chunk.data.arrayBuffer();
         let currentOutput = ''
         currentWorker.onmessage = (e) => {
             if (typeof e.data !== 'string') return;
