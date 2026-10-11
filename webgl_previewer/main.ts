@@ -131,7 +131,7 @@ function loadModel(file: File): void {
 
     // Setup DRACO loader for GLTF compression
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    dracoLoader.setDecoderPath('./draco/');
 
     try {
         if (filename.endsWith('.stl')) {

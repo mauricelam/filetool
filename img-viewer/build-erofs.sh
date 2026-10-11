@@ -15,12 +15,17 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 if ! command -v emcc &> /dev/null; then
-    echo "Error: emcc command not found. Please install Emscripten SDK or activate it via: source /path/to/emsdk/emsdk_env.sh"
-    exit 1
+    if [ -f "${WASM_DIST_DIR}/erofs.js" ] && [ -f "${DIST_DIR}/erofs.wasm" ]; then
+        echo "[build-erofs.sh] emcc not found, but prebuilt erofs artifacts exist. Skipping compilation."
+        exit 0
+    else
+        echo "Error: emcc command not found. Please install Emscripten SDK or activate it via: source /path/to/emsdk/emsdk_env.sh"
+        exit 1
+    fi
 fi
 
 if [ ! -d "${LZ4_DIR}/lib" ]; then
-    echo "Error: LZ4 submodule directory ${LZ4_DIR} not found. Please ensure submodules are initialized."
+    echo "Error: lz4 submodule not found at ${LZ4_DIR}. Please initialize git submodules before building."
     exit 1
 fi
 
@@ -33,7 +38,7 @@ if [ ! -f "${LZ4_LIB_DIR}/liblz4.a" ]; then
 fi
 
 if [ ! -d "${EROFS_DIR}" ]; then
-    echo "Error: erofs-utils submodule directory ${EROFS_DIR} not found. Please ensure submodules are initialized."
+    echo "Error: erofs-utils submodule not found at ${EROFS_DIR}. Please initialize git submodules before building."
     exit 1
 fi
 
