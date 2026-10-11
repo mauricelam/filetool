@@ -9,7 +9,7 @@ export const goWasm = (options) => {
     setup(build) {
       const {
         projectDir,
-        goBuildCommand = 'GOPROXY=off GOOS=js GOARCH=wasm go build -mod=vendor -o',
+        goBuildCommand = 'GOOS=js GOARCH=wasm go build -o',
         outWasmFile, // e.g., 'module.wasm' relative to esbuild outdir
         wasmExecJsDest = 'wasm_exec.js', // relative to esbuild outdir
         watchPaths = ['**/*.go', 'go.mod'] // paths relative to projectDir
@@ -28,7 +28,7 @@ export const goWasm = (options) => {
       let watcher = null;
       let goRoot = '';
 
-      goRoot = execSync('go env GOROOT', { encoding: 'utf-8', env: { ...process.env, GOPROXY: 'off' } }).trim();
+      goRoot = execSync('go env GOROOT', { encoding: 'utf-8' }).trim();
 
       const candidates = [
         // Go 1.23 or lower

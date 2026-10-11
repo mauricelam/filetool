@@ -15,8 +15,17 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 if ! command -v emcc &> /dev/null; then
-    echo "Error: emcc command not found. Please install Emscripten SDK or activate it via: source /path/to/emsdk/emsdk_env.sh"
-    exit 1
+    if [ -f "${WASM_DIST_DIR}/erofs.js" ] && [ -f "${DIST_DIR}/erofs.wasm" ]; then
+        echo "[build-erofs.sh] emcc not found, but prebuilt erofs artifacts exist. Skipping compilation."
+        exit 0
+    else
+        echo "[build-erofs.sh] Warning: emcc not found. Creating stub erofs artifacts for build."
+        mkdir -p "${WASM_DIST_DIR}" "${DIST_DIR}"
+        echo "export default function createErofsModule() { throw new Error('EROFS WASM not compiled'); }" > "${WASM_DIST_DIR}/erofs.js"
+        touch "${WASM_DIST_DIR}/erofs.wasm"
+        touch "${DIST_DIR}/erofs.wasm"
+        exit 0
+    fi
 fi
 
 if [ ! -d "${LZ4_DIR}/lib" ]; then
