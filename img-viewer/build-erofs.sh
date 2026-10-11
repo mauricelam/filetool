@@ -20,8 +20,8 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 if [ ! -d "${LZ4_DIR}/lib" ]; then
-    echo "[build-erofs.sh] Initializing lz4 submodule..."
-    git submodule update --init --recursive "${LZ4_DIR}"
+    echo "Error: lz4 submodule not found at ${LZ4_DIR}. Please initialize git submodules before building."
+    exit 1
 fi
 
 if [ ! -f "${LZ4_LIB_DIR}/liblz4.a" ]; then
@@ -33,8 +33,8 @@ if [ ! -f "${LZ4_LIB_DIR}/liblz4.a" ]; then
 fi
 
 if [ ! -d "${EROFS_DIR}" ]; then
-    echo "[build-erofs.sh] Cloning erofs-utils..."
-    git clone --depth 1 https://github.com/erofs/erofs-utils.git "${EROFS_DIR}"
+    echo "Error: erofs-utils submodule not found at ${EROFS_DIR}. Please initialize git submodules before building."
+    exit 1
 fi
 
 cd "${EROFS_DIR}"

@@ -17,6 +17,11 @@ const SETTINGS = {
                     to: ["index.html"],
                     watch: process.env['BUILD_MODE'] === 'dev',
                 },
+                {
+                    from: ["../node_modules/three/examples/jsm/libs/draco/gltf/*"],
+                    to: ["draco"],
+                    watch: process.env['BUILD_MODE'] === 'dev',
+                },
             ]
         }),
     ],

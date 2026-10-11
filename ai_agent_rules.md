@@ -12,3 +12,4 @@
 8. This project utilizes turborepo for build caching and parallelization. When setting up the build, always include a turbo.json file.
 9. All testing artifacts should be placed under the test-results/ directory.
 10. When testing a handler, always prefer to use `tests/harness` to run the test.
+11. Builds must be completely hermetic. Build scripts and compilation processes must not fetch data or dependencies over the network (e.g., via `curl`, `wget`, `git clone`, `git submodule update`, `go get`, or external asset CDNs). External source repositories must be configured as Git submodules in `.gitmodules`, Go module dependencies must be vendored using `go mod vendor` (`-mod=vendor` and `GOPROXY=off`), `wasm-pack` must use `--mode no-install`, and runtime assets must be bundled and served locally.

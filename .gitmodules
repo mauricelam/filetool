@@ -4,3 +4,6 @@
 [submodule "img-viewer/erofs-wasm/lz4"]
 	path = img-viewer/erofs-wasm/lz4
 	url = https://github.com/lz4/lz4
+[submodule "img-viewer/erofs-wasm/erofs-utils"]
+	path = img-viewer/erofs-wasm/erofs-utils
+	url = https://github.com/erofs/erofs-utils.git

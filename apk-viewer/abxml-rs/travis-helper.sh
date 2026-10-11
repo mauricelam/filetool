@@ -22,26 +22,7 @@ elif [ "$action" = "clippy_check" ]; then
 
 # Upload code coverage report for stable builds in Linux.
 elif [ "$action" = "upload_code_coverage" ]; then
-  if [[ "$TRAVIS_BUILD_STAGE_NAME" == "Test" &&
-        "$TRAVIS_RUST_VERSION" == "stable" &&
-        "$TRAVIS_OS_NAME" == "linux" ]]; then
-    wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-    tar xzf master.tar.gz &&
-    cd kcov-master &&
-    mkdir build &&
-    cd build &&
-    cmake .. &&
-    make &&
-    sudo make install &&
-    cd ../.. &&
-    rm -rf kcov-master &&
-    for file in target/debug/abxml-*[^\.d] target/debug/lib-*[^\.d]; do
-      mkdir -p "target/cov/$(basename $file)";
-      kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file";
-    done &&
-    bash <(curl -s https://codecov.io/bash) &&
-    echo "Uploaded code coverage"
-  fi
+  echo "Code coverage upload disabled for hermeticity."
 
 # Upload development documentation for the develop branch.
 elif [ "$action" = "documentation" ]; then
