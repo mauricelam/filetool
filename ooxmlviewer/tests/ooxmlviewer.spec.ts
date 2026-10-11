@@ -1,6 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { runHandlerTest } from '../../tests/harness/test-utils.js';
 import AdmZip from 'adm-zip';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function createDocxBuffer(text: string): Buffer {
     const zip = new AdmZip();
@@ -163,6 +169,20 @@ test.describe('ooxmlviewer handler', () => {
                 content: pptxContent,
                 name: 'sample.pptx',
                 type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            },
+        });
+        await expect(iframe.locator('.viewer-container')).toBeVisible();
+    });
+
+    test('should load and render real sample Excel file (file_example_XLSX_10.xlsx)', async ({ page }) => {
+        const samplePath = path.join(__dirname, '../testdata/file_example_XLSX_10.xlsx');
+        const sampleBuffer = fs.readFileSync(samplePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'ooxmlviewer',
+            file: {
+                content: sampleBuffer,
+                name: 'file_example_XLSX_10.xlsx',
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             },
         });
         await expect(iframe.locator('.viewer-container')).toBeVisible();
