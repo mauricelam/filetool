@@ -35,6 +35,11 @@ self.onmessage = async (event) => {
         // Check for Android Sparse Image magic 0xED26FF3A ([0x3a, 0xff, 0x26, 0xed])
         if (compressedArray.length >= 28 && compressedArray[0] === 0x3a && compressedArray[1] === 0xff && compressedArray[2] === 0x26 && compressedArray[3] === 0xed) {
             const sparse = await SparseImage.create(file);
+            const MAX_IN_MEMORY_SIZE = 500 * 1024 * 1024; // 500 MB limit for contiguous in-memory ArrayBuffer
+            if (sparse.unsparsedSize > MAX_IN_MEMORY_SIZE) {
+                const sizeGb = (sparse.unsparsedSize / (1024 * 1024 * 1024)).toFixed(2);
+                throw new Error(`Unsparsed sparse image size (${sizeGb} GB) exceeds in-memory buffer limit. Please open this file directly using 'img viewer' for on-demand streaming.`);
+            }
             const unsparsed = sparse.readSync(0, sparse.unsparsedSize);
             self.postMessage({
                 type: 'done',
