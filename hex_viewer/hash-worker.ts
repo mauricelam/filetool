@@ -14,6 +14,7 @@ self.onmessage = async (e) => {
 
     const results: { label: string, value: string }[] = [];
 
+    // Extract raw byte array from incoming payload (either a slice/chunk Blob or raw Uint8Array/ArrayBuffer)
     let bytes: Uint8Array;
     if (blob) {
         bytes = new Uint8Array(await blob.arrayBuffer());
@@ -25,6 +26,7 @@ self.onmessage = async (e) => {
 
     if (algorithms.includes('MD5')) {
         try {
+            // compute_md5 calls into compiled Rust WASM; wrapped in try-catch in case of WASM allocation/panic errors
             results.push({ label: 'MD5', value: compute_md5(bytes) });
         } catch (err) {
             results.push({ label: 'MD5', value: 'Error' });
