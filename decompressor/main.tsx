@@ -19,6 +19,7 @@ const getDecompressedFileName = (originalName: string, format: string): string =
         'ZLIB': ['.zlib', '.zz'],
         'BZIP2': ['.bz2'],
         'LZFSE': ['.lzfse'],
+        'Android Sparse': ['.simg', '.sparse'],
     };
 
     const extensions = formatToExtensions[format];
@@ -28,6 +29,10 @@ const getDecompressedFileName = (originalName: string, format: string): string =
                 return originalName.slice(0, -ext.length);
             }
         }
+    }
+
+    if (format === 'Android Sparse') {
+        return originalName;
     }
 
     return `${originalName}.decoded`;
@@ -60,21 +65,19 @@ const DecompressorViewer: React.FC = () => {
                     setCompressionType(format);
                     setStatus('');
 
-                    setDecompressedFile(prev => {
-                        const fileName = file?.name ? getDecompressedFileName(file.name, format) : 'decompressed.bin';
-                        const decodedFile = new File([data], fileName);
+                    const decodedFile: File = data
+                        ? new File([data], file?.name ? getDecompressedFileName(file.name, format) : 'decompressed.bin')
+                        : (event.data.file as File);
 
-                        // Async handler detection
-                        getHandlersForFile(decodedFile).then(([mime, sortedHandlers]) => {
-                            setHandlers(sortedHandlers);
-                            if (sortedHandlers.length > 0) {
-                                const defaultHandlerId = getDefaultHandler(mime, fileName);
-                                const handlerToUse = sortedHandlers.find(h => h.handler === defaultHandlerId) || sortedHandlers[0];
-                                setActiveHandler(handlerToUse);
-                            }
-                        });
+                    setDecompressedFile(decodedFile);
 
-                        return decodedFile;
+                    getHandlersForFile(decodedFile).then(([mime, sortedHandlers]) => {
+                        setHandlers(sortedHandlers);
+                        if (sortedHandlers.length > 0) {
+                            const defaultHandlerId = getDefaultHandler(mime, decodedFile.name);
+                            const handlerToUse = sortedHandlers.find(h => h.handler === defaultHandlerId) || sortedHandlers[0];
+                            setActiveHandler(handlerToUse);
+                        }
                     });
                     break;
                 case 'error':

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import init, { parse_ext4, parse_ext4_stream, read_ext4_file, read_ext4_file_stream } from './ext4-wasm/pkg';
 import { parse_erofs, read_erofs_file, ensureErofsInitialized } from './erofs-wasm-wrapper';
+import { SparseImage, SparseSubImage } from './sparse';
+import { LpMetadata } from './lpmeta';
 import { ColumnView } from '../components/ColumnView';
 
 let ext4InitPromise: Promise<void> | null = null;
@@ -51,9 +53,38 @@ const guessImageType = (data: Uint8Array): string | null => {
     return null;
 };
 
+const makeReadFn = (file: File) => {
+    return (offset: number, length: number): Uint8Array => {
+        if (typeof FileReaderSync !== 'undefined') {
+            const syncReader = new FileReaderSync();
+            const slice = file.slice(offset, offset + length);
+            const buf = syncReader.readAsArrayBuffer(slice);
+            return new Uint8Array(buf);
+        } else {
+            const blobUrl = URL.createObjectURL(file.slice(offset, offset + length));
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', blobUrl, false);
+            xhr.overrideMimeType('text/plain; charset=x-user-defined');
+            xhr.send(null);
+            URL.revokeObjectURL(blobUrl);
+
+            const out = new Uint8Array(length);
+            if (xhr.status === 200 || xhr.status === 0) {
+                const text = xhr.responseText;
+                const len = Math.min(out.length, text.length);
+                for (let i = 0; i < len; i++) {
+                    out[i] = text.charCodeAt(i) & 0xff;
+                }
+            }
+            return out;
+        }
+    };
+};
+
 const ImgViewer: React.FC = () => {
     const [sourceFile, setSourceFile] = useState<File | null>(null);
-    const [fsType, setFsType] = useState<'ext4' | 'erofs' | null>(null);
+    const [fsType, setFsType] = useState<string | null>(null);
+    const [subImageMap, setSubImageMap] = useState<Record<string, { sub: SparseSubImage, isErofs: boolean }>>({});
     const [tree, setTree] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -69,9 +100,8 @@ const ImgViewer: React.FC = () => {
         const handleMessage = async (e: MessageEvent) => {
             if (e.data.action === 'respondFile') {
                 await ensureWasmInitialized();
-                const file = e.data.file as File;
+                let file = e.data.file as File;
 
-                // Inspect only the first 64KB for filesystem detection
                 let headerBuf: ArrayBuffer;
                 try {
                     headerBuf = await file.slice(0, 65536).arrayBuffer();
@@ -80,35 +110,86 @@ const ImgViewer: React.FC = () => {
                     setError(`Failed to read file header: ${err}`);
                     return;
                 }
-                const headerData = new Uint8Array(headerBuf);
+                let headerData = new Uint8Array(headerBuf);
+
+                if (SparseImage.isSparseHeader(headerData)) {
+                    try {
+                        const parsedSparse = await SparseImage.create(file);
+                        file = parsedSparse.toUnsparsedBlob(file.name);
+                        headerBuf = await file.slice(0, 65536).arrayBuffer();
+                        headerData = new Uint8Array(headerBuf);
+                    } catch (err) {
+                        console.error("Failed to parse sparse image:", err);
+                        setError(`Failed to parse Android sparse image header: ${err}`);
+                        return;
+                    }
+                }
+
+                setSourceFile(file);
+
+                const readSync = makeReadFn(file);
+                const firstMb = readSync(0, 131072);
+
+                if (LpMetadata.isLpMetadata(firstMb)) {
+                    setFsType('super.img');
+                    try {
+                        setLoading(true);
+                        const partitions = LpMetadata.parsePartitions(firstMb);
+                        const rootTree: Record<string, any> = {};
+                        const subMap: Record<string, { sub: SparseSubImage, isErofs: boolean }> = {};
+
+                        for (const p of partitions) {
+                            const sub = new SparseSubImage(file, p.startOffset, p.sizeBytes);
+                            const pHeader = sub.readSync(0, 65536);
+
+                            const isExt4 = pHeader.length > 1081 && pHeader[1080] === 0x53 && pHeader[1081] === 0xEF;
+                            const isErofs = pHeader.length > 0x400 + 4 && pHeader[0x400] === 0xE2 && pHeader[0x401] === 0xE1 && pHeader[0x402] === 0xF5 && pHeader[0x403] === 0xE0;
+
+                            subMap[p.name] = { sub, isErofs };
+
+                            if (isExt4) {
+                                await ensureExt4Initialized();
+                                const pTree = parse_ext4_stream(BigInt(p.sizeBytes), (off, len) => sub.readSync(off, len));
+                                rootTree[p.name] = pTree;
+                            } else if (isErofs) {
+                                await ensureErofsInitialized();
+                                const pTree = await parse_erofs(sub);
+                                rootTree[p.name] = pTree;
+                            } else {
+                                rootTree[p.name] = {
+                                    _size: p.sizeBytes,
+                                    _path: `/${p.name}`,
+                                    _mode: 0o644,
+                                    _uid: 0,
+                                    _gid: 0
+                                };
+                            }
+                        }
+
+                        setSubImageMap(subMap);
+                        setTree(rootTree);
+                    } catch (err) {
+                        setError(`Failed to parse Android super.img logical partitions: ${err}`);
+                        console.error(err);
+                    } finally {
+                        setLoading(false);
+                    }
+                    return;
+                }
 
                 // ext4 magic number 0xEF53 at offset 1080 (0x438)
                 const isExt4 = headerData.length > 1081 && headerData[1080] === 0x53 && headerData[1081] === 0xEF;
                 // EROFS magic number 0xE0F5E1E2 at offset 0x400
                 const isErofs = headerData.length > 0x400 + 4 && headerData[0x400] === 0xE2 && headerData[0x401] === 0xE1 && headerData[0x402] === 0xF5 && headerData[0x403] === 0xE0;
 
-                setSourceFile(file);
-
                 if (isExt4) {
                     setFsType('ext4');
                     try {
                         setLoading(true);
                         await ensureExt4Initialized();
-                        let parsedTree: any;
-                        // FileReaderSync is available in Web Workers for zero-copy synchronous block reads.
-                        // In the main thread context, FileReaderSync is undefined, so we fall back to in-memory buffering.
-                        if (typeof FileReaderSync !== 'undefined') {
-                            const syncReader = new FileReaderSync();
-                            const readFn = (offset: number, length: number) => {
-                                const slice = file.slice(offset, offset + length);
-                                const buf = syncReader.readAsArrayBuffer(slice);
-                                return new Uint8Array(buf);
-                            };
-                            parsedTree = parse_ext4_stream(BigInt(file.size), readFn);
-                        } else {
-                            const data = new Uint8Array(await file.slice(0, Math.min(file.size, 500 * 1024 * 1024)).arrayBuffer());
-                            parsedTree = parse_ext4(data);
-                        }
+                        const unsparsedSize = BigInt(file.size);
+                        const readFn = makeReadFn(file);
+                        const parsedTree = parse_ext4_stream(unsparsedSize, readFn);
                         setTree(parsedTree);
                     } catch (err) {
                         setError(`Failed to parse ext4: ${err}`);
@@ -144,29 +225,44 @@ const ImgViewer: React.FC = () => {
         return () => window.removeEventListener('message', handleMessage);
     }, []);
 
+    const findSubImageForPath = (filePath: string) => {
+        const parts = filePath.split('/').filter(Boolean);
+        if (parts.length > 0) {
+            const partitionName = parts[0];
+            if (subImageMap[partitionName]) {
+                const subObj = subImageMap[partitionName];
+                const relPath = '/' + parts.slice(1).join('/');
+                return { sub: subObj.sub, isErofs: subObj.isErofs, relPath };
+            }
+        }
+        return null;
+    };
+
     const handleDownload = async (file: any, name: string) => {
-        if (!sourceFile && !fileData) return;
+        if (!sourceFile) return;
         setActionError(null);
         try {
             let content: Uint8Array;
-            if (fsType === 'erofs') {
+            const subInfo = findSubImageForPath(file._path);
+
+            if (subInfo) {
+                if (subInfo.isErofs) {
+                    await ensureErofsInitialized();
+                    content = await read_erofs_file(subInfo.sub, subInfo.relPath);
+                } else {
+                    await ensureExt4Initialized();
+                    const unsparsedSize = BigInt(subInfo.sub.unsparsedSize);
+                    const readFn = (off: number, len: number) => subInfo.sub.readSync(off, len);
+                    content = read_ext4_file_stream(unsparsedSize, readFn, subInfo.relPath);
+                }
+            } else if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file(sourceFile || fileData!, file._path);
+                content = await read_erofs_file(sourceFile, file._path);
             } else {
                 await ensureExt4Initialized();
-                // FileReaderSync is defined in Web Worker contexts for synchronous block reading from disk images.
-                // In main window context (where FileReaderSync is undefined), we read from loaded fileData.
-                if (typeof FileReaderSync !== 'undefined' && sourceFile) {
-                    const syncReader = new FileReaderSync();
-                    const readFn = (offset: number, length: number) => {
-                        const slice = sourceFile.slice(offset, offset + length);
-                        const buf = syncReader.readAsArrayBuffer(slice);
-                        return new Uint8Array(buf);
-                    };
-                    content = read_ext4_file_stream(BigInt(sourceFile.size), readFn, file._path);
-                } else {
-                    content = read_ext4_file(fileData!, file._path);
-                }
+                const unsparsedSize = BigInt(sourceFile.size);
+                const readFn = makeReadFn(sourceFile);
+                content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
             }
             const blob = new Blob([content]);
             const url = URL.createObjectURL(blob);
@@ -187,26 +283,30 @@ const ImgViewer: React.FC = () => {
     };
 
     const handleOpen = async (file: any, name: string) => {
-        if (!sourceFile && !fileData) return;
+        if (!sourceFile) return;
         setActionError(null);
         try {
             let content: Uint8Array;
-            if (fsType === 'erofs') {
+            const subInfo = findSubImageForPath(file._path);
+
+            if (subInfo) {
+                if (subInfo.isErofs) {
+                    await ensureErofsInitialized();
+                    content = await read_erofs_file(subInfo.sub, subInfo.relPath);
+                } else {
+                    await ensureExt4Initialized();
+                    const unsparsedSize = BigInt(subInfo.sub.unsparsedSize);
+                    const readFn = (off: number, len: number) => subInfo.sub.readSync(off, len);
+                    content = read_ext4_file_stream(unsparsedSize, readFn, subInfo.relPath);
+                }
+            } else if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file(sourceFile || fileData!, file._path);
+                content = await read_erofs_file(sourceFile, file._path);
             } else {
                 await ensureExt4Initialized();
-                if (typeof FileReaderSync !== 'undefined' && sourceFile) {
-                    const syncReader = new FileReaderSync();
-                    const readFn = (offset: number, length: number) => {
-                        const slice = sourceFile.slice(offset, offset + length);
-                        const buf = syncReader.readAsArrayBuffer(slice);
-                        return new Uint8Array(buf);
-                    };
-                    content = read_ext4_file_stream(BigInt(sourceFile.size), readFn, file._path);
-                } else {
-                    content = read_ext4_file(fileData!, file._path);
-                }
+                const unsparsedSize = BigInt(sourceFile.size);
+                const readFn = makeReadFn(sourceFile);
+                content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
             }
             const newFile = new File([content], name, { type: 'application/octet-stream' });
             window.parent?.postMessage({
@@ -305,8 +405,9 @@ const ImgViewer: React.FC = () => {
                     onClick={() => {
                         setError(null);
                         setTree(null);
-                        setFileData(null);
                         setFsType(null);
+                        setSourceFile(null);
+                        setSubImageMap({});
                         ensureWasmInitialized().catch(() => {});
                         window.parent.postMessage({ action: 'requestFile' });
                     }}
@@ -326,7 +427,7 @@ const ImgViewer: React.FC = () => {
     }
 
     if (loading) {
-        return <div style={{ padding: '20px' }}>Parsing {fsType === 'erofs' ? 'EROFS' : 'ext4'} image...</div>;
+        return <div style={{ padding: '20px' }}>Parsing image...</div>;
     }
 
     if (!tree) {
@@ -336,7 +437,7 @@ const ImgViewer: React.FC = () => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <div style={{ padding: '0 20px' }}>
-                <h2>{fsType === 'erofs' ? 'EROFS Image Explorer' : 'ext4 Image Explorer'}</h2>
+                <h2>{fsType === 'erofs' ? 'EROFS Image Explorer' : (fsType === 'super.img' ? 'Android super.img Explorer' : 'ext4 Image Explorer')}</h2>
             </div>
             {actionError && (
                 <div style={{
