@@ -41,9 +41,8 @@ test.describe('Decompressor Handler', () => {
 
             // Check for the decompressed content within the nested handler iframe
             // For text files, it will likely be the textviewer
-            const content = await handlerFrame!.locator('body').textContent();
             for (const chunk of expectedChunks) {
-                expect(content?.toLowerCase()).toContain(chunk.toLowerCase());
+                await expect(handlerFrame!.locator('body')).toContainText(chunk, { ignoreCase: true });
             }
 
             // Verify metadata is displayed in the decompressor (parent of the nested iframe)
