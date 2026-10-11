@@ -172,7 +172,9 @@ export const App: React.FC = () => {
         if (!wasmReady) return;
 
         try {
-            const mainFileArrayBuffer = await mainFile.arrayBuffer();
+            const MAX_PROTO_SIZE = 50 * 1024 * 1024;
+            const slice = mainFile.size > MAX_PROTO_SIZE ? mainFile.slice(0, MAX_PROTO_SIZE) : mainFile;
+            const mainFileArrayBuffer = await slice.arrayBuffer();
             const mainFileUint8Array = new Uint8Array(mainFileArrayBuffer);
 
             if (typeof window.protoscope?.protoscopeFile !== 'function') {

@@ -17,7 +17,9 @@ if (window.parent) {
 const OUTPUT = createRoot(document.getElementById('output'))
 
 async function handleFile(file: File) {
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const MAX_CLASSFILE_SIZE = 50 * 1024 * 1024;
+    const slice = file.size > MAX_CLASSFILE_SIZE ? file.slice(0, MAX_CLASSFILE_SIZE) : file;
+    const fileBytes = new Uint8Array(await slice.arrayBuffer());
     await init()
     const parsed = parse_classfile(fileBytes)
     OUTPUT.render(<JvmClass classContent={parsed} />);

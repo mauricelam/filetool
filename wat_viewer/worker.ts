@@ -12,7 +12,9 @@ self.onmessage = async (e) => {
 
 async function fileToWat(file: File): Promise<string> {
     const wabtool = await wabt()
-    const module = wabtool.readWasm(new Uint8Array(await file.arrayBuffer()), ALL_WASM_FEATURES)
+    const MAX_WAT_SIZE = 50 * 1024 * 1024;
+    const slice = file.size > MAX_WAT_SIZE ? file.slice(0, MAX_WAT_SIZE) : file;
+    const module = wabtool.readWasm(new Uint8Array(await slice.arrayBuffer()), ALL_WASM_FEATURES)
     return module.toText({})
 }
 

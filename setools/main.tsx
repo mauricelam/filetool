@@ -66,7 +66,9 @@ function App({ file }: { file: File }) {
                 // Create worker from worker.js (bundled from worker.ts via build.mjs)
                 currentWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
 
-                const buffer = await file.arrayBuffer();
+                const MAX_SETOOLS_SIZE = 100 * 1024 * 1024;
+                const slice = file.size > MAX_SETOOLS_SIZE ? file.slice(0, MAX_SETOOLS_SIZE) : file;
+                const buffer = await slice.arrayBuffer();
 
                 // Listen for messages from the worker
                 currentWorker.onmessage = (e) => {

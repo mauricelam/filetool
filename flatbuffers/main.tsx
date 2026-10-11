@@ -94,7 +94,9 @@ const FlatBuffersViewer: React.FC = () => {
             if (e.data.action === 'respondFile' && e.data.file) {
                 const file = e.data.file as File;
                 setMainFile(file);
-                const buffer = await file.arrayBuffer();
+                const MAX_FB_SIZE = 50 * 1024 * 1024;
+                const slice = file.size > MAX_FB_SIZE ? file.slice(0, MAX_FB_SIZE) : file;
+                const buffer = await slice.arrayBuffer();
                 const uint8Array = new Uint8Array(buffer);
                 setMainFileData(uint8Array);
 

@@ -20,7 +20,9 @@ const CBORViewer: React.FC = () => {
             if (e.data.action === 'respondFile') {
                 try {
                     const file = e.data.file as File;
-                    const arrayBuffer = await file.arrayBuffer();
+                    const MAX_CBOR_SIZE = 50 * 1024 * 1024;
+                    const slice = file.size > MAX_CBOR_SIZE ? file.slice(0, MAX_CBOR_SIZE) : file;
+                    const arrayBuffer = await slice.arrayBuffer();
                     setCborInput(new Uint8Array(arrayBuffer));
                     setOutput(null); // Clear previous output
                     setError(''); // Clear previous error

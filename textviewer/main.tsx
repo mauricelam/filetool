@@ -66,8 +66,21 @@ window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
 
 const OUTPUT = createRoot(document.getElementById('output')!)
 
+const MAX_TEXT_LOAD_SIZE = 50 * 1024 * 1024; // 50MB safe text size limit
+
 async function handleFile(file: File, originalType?: string) {
-    OUTPUT.render(<TextViewer content={await file.text()} filename={file.name} mimeType={originalType || file.type} />)
+    let content: string;
+    let truncated = false;
+
+    if (file.size > MAX_TEXT_LOAD_SIZE) {
+        const slice = file.slice(0, MAX_TEXT_LOAD_SIZE);
+        content = await slice.text();
+        truncated = true;
+    } else {
+        content = await file.text();
+    }
+
+    OUTPUT.render(<TextViewer content={content} filename={file.name} mimeType={originalType || file.type} truncated={truncated} totalSize={file.size} />)
 }
 
 function getAceMode(filename: string, mimeType: string): string {
@@ -98,7 +111,7 @@ function getAceMode(filename: string, mimeType: string): string {
     return 'text';
 }
 
-function TextViewer({ content, filename, mimeType }: { content: string, filename: string, mimeType: string }) {
+function TextViewer({ content, filename, mimeType, truncated, totalSize }: { content: string, filename: string, mimeType: string, truncated?: boolean, totalSize?: number }) {
     const [mode, setMode] = useState(() => getAceMode(filename, mimeType));
 
     // Update mode when file changes
@@ -136,6 +149,18 @@ function TextViewer({ content, filename, mimeType }: { content: string, filename
                     ))}
                 </select>
             </div>
+            {truncated && (
+                <div style={{
+                    padding: '6px 12px',
+                    background: '#553311',
+                    color: '#ffddaa',
+                    fontSize: '12px',
+                    fontFamily: 'sans-serif',
+                    borderBottom: '1px solid #774422'
+                }}>
+                    ⚠️ File size ({(totalSize! / (1024 * 1024 * 1024)).toFixed(2)} GB) exceeds text viewer memory limit. Displaying first 50 MB preview.
+                </div>
+            )}
             <div style={{ flex: 1, overflow: 'hidden' }}>
                 <AceEditor
                     mode={mode}

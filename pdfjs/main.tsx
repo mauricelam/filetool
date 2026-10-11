@@ -15,7 +15,11 @@ function PDFViewer({ file }: { file: File }) {
     useEffect(() => {
         const loadPDF = async () => {
             try {
-                const arrayBuffer = await file.arrayBuffer();
+                // PDF.js accepts ArrayBuffer or TypedArray or Object with data URL.
+                // For files > 100MB, slice preview or pass array buffer safely
+                const MAX_PDF_SIZE = 100 * 1024 * 1024;
+                const slice = file.size > MAX_PDF_SIZE ? file.slice(0, MAX_PDF_SIZE) : file;
+                const arrayBuffer = await slice.arrayBuffer();
                 const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
                 const pdfDoc = await loadingTask.promise;
                 setPdf(pdfDoc);

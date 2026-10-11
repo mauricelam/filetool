@@ -84,17 +84,6 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                     }
                     const fileCopy = file.type === mime ? file : new File([file], file.name, { type: mime });
                     const additionalFiles = matchedFrame.additionalFiles || [];
-                    const transferables: Transferable[] = [];
-                    let initialBuffer: ArrayBuffer | undefined;
-
-                    try {
-                        const MAX_TRANSFER_SIZE = 100 * 1024 * 1024; // 100 MB max slice buffer
-                        const slice = file.slice(0, Math.min(file.size, MAX_TRANSFER_SIZE));
-                        initialBuffer = await slice.arrayBuffer();
-                        transferables.push(initialBuffer);
-                    } catch (err) {
-                        console.warn("Skipping transferables for file:", err);
-                    }
 
                     (e.source as WindowProxy).postMessage(
                         {
@@ -103,7 +92,7 @@ export function IframeManager({ activeHandler, files }: IframeManagerProps) {
                             originalType: file.type,
                             additionalFiles: additionalFiles
                         },
-                        "/", transferables);
+                        "/");
                 } else if (e.data.action === 'openFile') {
                     console.log('onmessage', e.data);
                     window.dispatchEvent(new CustomEvent<{ file: File, additionalFiles?: File[], handler?: string } | File[]>("openFiles", {

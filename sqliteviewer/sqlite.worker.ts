@@ -36,7 +36,10 @@ self.onmessage = async (e: MessageEvent<SqliteWorkerMessage>) => {
                 return;
             }
             try {
-                const buffer = await e.data.file.arrayBuffer();
+                const file = e.data.file;
+                const MAX_SQLITE_SIZE = 100 * 1024 * 1024;
+                const slice = file.size > MAX_SQLITE_SIZE ? file.slice(0, MAX_SQLITE_SIZE) : file;
+                const buffer = await slice.arrayBuffer();
                 const u8 = new Uint8Array(buffer);
 
                 // Prefer the new posix-style helper per sqlite-wasm release notes

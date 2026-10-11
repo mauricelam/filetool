@@ -21,7 +21,9 @@ export function DerAsciiViewer() {
   const processFile = useCallback(async (file: File) => {
     try {
       // Read file as ArrayBuffer and convert to Uint8Array
-      const arrayBuffer = await file.arrayBuffer();
+      const MAX_DER_SIZE = 50 * 1024 * 1024;
+      const slice = file.size > MAX_DER_SIZE ? file.slice(0, MAX_DER_SIZE) : file;
+      const arrayBuffer = await slice.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
       
       // Check if derToAscii exists

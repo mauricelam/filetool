@@ -93,7 +93,9 @@ function App({ file }: { file: File }) {
         currentWorker?.terminate();
         setOutput(`Running ${tool} ${flags}...`);
         currentWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
-        const buffer = await file.arrayBuffer();
+        const MAX_BINUTILS_SIZE = 100 * 1024 * 1024;
+        const slice = file.size > MAX_BINUTILS_SIZE ? file.slice(0, MAX_BINUTILS_SIZE) : file;
+        const buffer = await slice.arrayBuffer();
         let currentOutput = ''
         currentWorker.onmessage = (e) => {
             if (typeof e.data !== 'string') return;
