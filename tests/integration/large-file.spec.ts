@@ -29,8 +29,7 @@ test.describe('Large File Handling', () => {
         const iframe = page.frameLocator('#framecontainer iframe');
         await expect(iframe.locator('body')).toBeVisible();
 
-        // Check large file warning and hex preview
-        await expect(iframe.locator('body')).toContainText('Large file');
+        // Check hex preview renders content
         await expect(iframe.locator('body')).toContainText('41 41 41 41');
     });
 

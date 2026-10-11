@@ -54,7 +54,7 @@ describe('SearchTab', () => {
     jest.clearAllMocks();
   });
 
-  it('performs a hex search correctly', () => {
+  it('performs a hex search correctly', async () => {
     render(
       <SearchTab
         buffer={buffer}
@@ -70,11 +70,13 @@ describe('SearchTab', () => {
     fireEvent.change(input, { target: { value: '48 65' } });
     fireEvent.click(screen.getByText('Find'));
 
-    expect(mockOnSearch).toHaveBeenCalledWith([0], 0, 2);
+    await waitFor(() => {
+      expect(mockOnSearch).toHaveBeenCalledWith([0], 0, 2);
+    });
     expect(mockOnJumpToOffset).toHaveBeenCalledWith(0);
   });
 
-  it('performs a UTF-8 search correctly', () => {
+  it('performs a UTF-8 search correctly', async () => {
     render(
       <SearchTab
         buffer={buffer}
@@ -90,7 +92,9 @@ describe('SearchTab', () => {
     fireEvent.change(screen.getByPlaceholderText('Search query...'), { target: { value: 'World' } });
     fireEvent.click(screen.getByText('Find'));
 
-    expect(mockOnSearch).toHaveBeenCalledWith([6], 0, 5);
+    await waitFor(() => {
+      expect(mockOnSearch).toHaveBeenCalledWith([6], 0, 5);
+    });
     expect(mockOnJumpToOffset).toHaveBeenCalledWith(6);
   });
 
@@ -124,12 +128,16 @@ describe('InspectorTab hashing', () => {
   const mockOnRemoveMarker = jest.fn();
   const mockSetPreviewMarker = jest.fn();
 
-  it('renders target information correctly', () => {
+  it('renders target information correctly', async () => {
     render(<InspectorTab buffer={buffer} index={0} selection={null} markers={mockMarkers} onAddMarker={mockOnAddMarker} onRemoveMarker={mockOnRemoveMarker} setPreviewMarker={mockSetPreviewMarker} />);
-    expect(screen.getByText('Hashes (Full File)')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Hashes (Full File)')).toBeInTheDocument();
+    });
 
     render(<InspectorTab buffer={buffer} index={0} selection={[0, 1]} markers={mockMarkers} onAddMarker={mockOnAddMarker} onRemoveMarker={mockOnRemoveMarker} setPreviewMarker={mockSetPreviewMarker} />);
-    expect(screen.getByText('Hashes (Selection)')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Hashes (Selection)')).toBeInTheDocument();
+    });
   });
 
   it('renders mock hashes from worker', async () => {
