@@ -1,5 +1,6 @@
 // @ts-ignore
 import createErofsModule from './erofs-wasm/dist/erofs.js';
+import { SparseImage } from './sparse';
 
 let erofsModulePromise: Promise<any> | null = null;
 
@@ -19,7 +20,7 @@ export async function ensureErofsInitialized(): Promise<any> {
     return erofsModulePromise;
 }
 
-function registerFileNode(Module: any, file: File): string {
+function registerFileNode(Module: any, data: File | SparseImage): string {
     const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
     const filepath = `/${filename}`;
 
@@ -27,15 +28,17 @@ function registerFileNode(Module: any, file: File): string {
     const lookup = Module.FS.lookupPath(filepath);
     const node = lookup.node;
 
-    node.fileRef = file;
-    node.usedBytes = file.size;
+    const isSparse = data instanceof SparseImage;
+    const size = isSparse ? data.unsparsedSize : data.size;
+
+    node.usedBytes = size;
 
     node.node_ops = {
         ...node.node_ops,
         getattr: (n: any) => ({
             dev: 1, ino: n.id, mode: n.mode, nlink: 1, uid: 0, gid: 0, rdev: 0,
-            size: file.size, atime: new Date(n.atime), mtime: new Date(n.mtime), ctime: new Date(n.ctime),
-            blksize: 4096, blocks: Math.ceil(file.size / 4096)
+            size: size, atime: new Date(n.atime), mtime: new Date(n.mtime), ctime: new Date(n.ctime),
+            blksize: 4096, blocks: Math.ceil(size / 4096)
         })
     };
 
@@ -45,9 +48,16 @@ function registerFileNode(Module: any, file: File): string {
         },
         close: () => {},
         read: (stream: any, buffer: Uint8Array, offset: number, length: number, position: number) => {
-            if (position >= file.size) return 0;
-            const bytesToRead = Math.min(file.size - position, length);
+            if (position >= size) return 0;
+            const bytesToRead = Math.min(size - position, length);
 
+            if (isSparse) {
+                const chunkData = (data as SparseImage).readSync(position, bytesToRead);
+                buffer.set(chunkData, offset);
+                return chunkData.length;
+            }
+
+            const file = data as File;
             if (typeof FileReaderSync !== 'undefined') {
                 try {
                     const reader = new FileReaderSync();
@@ -91,7 +101,7 @@ function registerFileNode(Module: any, file: File): string {
         llseek: (stream: any, offset: number, whence: number) => {
             let position = offset;
             if (whence === 1) position += stream.position;
-            else if (whence === 2) position += file.size;
+            else if (whence === 2) position += size;
             if (position < 0) throw new Module.FS.ErrnoError(28);
             stream.position = position;
             return position;
@@ -102,11 +112,11 @@ function registerFileNode(Module: any, file: File): string {
     return filepath;
 }
 
-export async function parse_erofs(data: Uint8Array | File): Promise<any> {
+export async function parse_erofs(data: Uint8Array | File | SparseImage): Promise<any> {
     const Module = await ensureErofsInitialized();
     let filepath: string;
 
-    if (data instanceof File) {
+    if (data instanceof File || data instanceof SparseImage) {
         filepath = registerFileNode(Module, data);
     } else {
         const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
@@ -130,11 +140,11 @@ export async function parse_erofs(data: Uint8Array | File): Promise<any> {
     }
 }
 
-export async function read_erofs_file(data: Uint8Array | File, path: string): Promise<Uint8Array> {
+export async function read_erofs_file(data: Uint8Array | File | SparseImage, path: string): Promise<Uint8Array> {
     const Module = await ensureErofsInitialized();
     let filepath: string;
 
-    if (data instanceof File) {
+    if (data instanceof File || data instanceof SparseImage) {
         filepath = registerFileNode(Module, data);
     } else {
         const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;

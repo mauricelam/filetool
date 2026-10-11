@@ -119,7 +119,10 @@ const ALL_HANDLERS: HandlerDefinition[] = [
     {
         "name": "img viewer",
         "handler": "img-viewer",
-        "mimetypes": [{ "filename": /\.img$/i }]
+        "mimetypes": [
+            { "filename": /\.img$/i },
+            { "description": /Android sparse image/i }
+        ]
     },
     {
         "name": "SquashFS",
