@@ -473,7 +473,10 @@ function LoadFileItem({ file, openHandler, initialActiveHandler, pinnedHandlers,
         const effect = async () => {
             const magic = await magicPromise;
             const mimeMagic = await mimeMagicPromise;
-            const fileBuf = new Uint8Array(await file.arrayBuffer());
+            // WASMagic (libmagic) identifies file signatures and MIME types solely from magic bytes
+            // located in the header at the start of the file. Slicing the first 1MB avoids loading
+            // multi-gigabyte files into JavaScript heap memory.
+            const fileBuf = new Uint8Array(await file.slice(0, 1024 * 1024).arrayBuffer());
             const mime = mimeMagic.detect(fileBuf);
             const fileDescription = magic.detect(fileBuf);
             const handlers = getHandlersForFileNameAndType(file.name, mime, fileDescription);
@@ -545,7 +548,8 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
         const loadMimes = async () => {
             const mimeMagic = await mimeMagicPromise;
             const mimes = await Promise.all(files.map(async f => {
-                const fileBuf = new Uint8Array(await f.file.arrayBuffer());
+                // Slicing 1MB is sufficient for MIME magic detection without loading whole files into RAM
+                const fileBuf = new Uint8Array(await f.file.slice(0, 1024 * 1024).arrayBuffer());
                 return mimeMagic.detect(fileBuf);
             }));
             setGroupMimetypes(mimes);

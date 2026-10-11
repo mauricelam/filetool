@@ -141,15 +141,19 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.payload.pull_request.head.sha,
-              state: 'success',
-              target_url: "${{ steps.deploy.outputs.deployment-url }}/filetool/",
-              description: 'Cloudflare Pages preview is ready!',
-              context: 'deploy/cloudflare-pages'
-            });
+            try {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.payload.pull_request ? context.payload.pull_request.head.sha : context.sha,
+                state: 'success',
+                target_url: "${{ steps.deploy.outputs.deployment-url }}/filetool/",
+                description: 'Cloudflare Pages preview is ready!',
+                context: 'deploy/cloudflare-pages'
+              });
+            } catch (e) {
+              console.log('Skipping status check creation:', e.message || e);
+            }
 
       - name: Comment on PR if secrets are missing
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' && (env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == '') && github.event.action == 'opened' }}

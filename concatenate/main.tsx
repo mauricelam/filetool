@@ -34,7 +34,7 @@ const ConcatenateView: React.FC<{ files: File[] }> = ({ files }) => {
             window.parent?.postMessage({
                 action: 'openFile',
                 file: combinedFile
-            }, "/", [await combinedFile.arrayBuffer()]);
+            }, "/");
         } catch (error) {
             console.error('Error concatenating files:', error);
             alert('Failed to concatenate files.');

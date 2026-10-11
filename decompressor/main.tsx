@@ -120,11 +120,18 @@ const DecompressorViewer: React.FC = () => {
 
     const handleIframeLoad = async () => {
         if (iframeRef.current && decompressedFile) {
-            const buffer = await decompressedFile.arrayBuffer();
+            const transferables: Transferable[] = [];
+            try {
+                if (decompressedFile.size < 500 * 1024 * 1024) {
+                    transferables.push(await decompressedFile.arrayBuffer());
+                }
+            } catch (err) {
+                console.warn("Skipping transferables for decompressed file:", err);
+            }
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: decompressedFile,
-            }, '/', [buffer]);
+            }, '/', transferables);
         }
     };
 
@@ -135,13 +142,12 @@ const DecompressorViewer: React.FC = () => {
         }
     };
 
-    const handleOpenInParent = async () => {
+    const handleOpenInParent = () => {
         if (!decompressedFile) return;
-        const buffer = await decompressedFile.arrayBuffer();
         window.parent?.postMessage({
             action: 'openFile',
             file: decompressedFile,
-        }, '/', [buffer]);
+        }, '/');
     };
 
     return (

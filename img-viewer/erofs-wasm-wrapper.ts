@@ -19,13 +19,102 @@ export async function ensureErofsInitialized(): Promise<any> {
     return erofsModulePromise;
 }
 
-export async function parse_erofs(data: Uint8Array): Promise<any> {
-    const Module = await ensureErofsInitialized();
+function registerFileNode(Module: any, file: File): string {
     const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
     const filepath = `/${filename}`;
 
-    try {
+    Module.FS.createDataFile('/', filename, new Uint8Array(0), true, true);
+    const lookup = Module.FS.lookupPath(filepath);
+    const node = lookup.node;
+
+    node.fileRef = file;
+    node.usedBytes = file.size;
+
+    node.node_ops = {
+        ...node.node_ops,
+        getattr: (n: any) => ({
+            dev: 1, ino: n.id, mode: n.mode, nlink: 1, uid: 0, gid: 0, rdev: 0,
+            size: file.size, atime: new Date(n.atime), mtime: new Date(n.mtime), ctime: new Date(n.ctime),
+            blksize: 4096, blocks: Math.ceil(file.size / 4096)
+        })
+    };
+
+    const customStreamOps = {
+        open: (stream: any) => {
+            stream.stream_ops = customStreamOps;
+        },
+        close: () => {},
+        read: (stream: any, buffer: Uint8Array, offset: number, length: number, position: number) => {
+            if (position >= file.size) return 0;
+            const bytesToRead = Math.min(file.size - position, length);
+
+            if (typeof FileReaderSync !== 'undefined') {
+                try {
+                    const reader = new FileReaderSync();
+                    const slice = file.slice(position, position + bytesToRead);
+                    const ab = reader.readAsArrayBuffer(slice);
+                    buffer.set(new Uint8Array(ab), offset);
+                    return bytesToRead;
+                } catch (err) {
+                    console.error("FileReaderSync failed:", err);
+                }
+            }
+
+            // Chunked XHR read for main thread context
+            let readSoFar = 0;
+            const CHUNK_SIZE = 64 * 1024; // 64KB chunks to avoid string allocation limits
+            while (readSoFar < bytesToRead) {
+                const chunkBytes = Math.min(bytesToRead - readSoFar, CHUNK_SIZE);
+                const chunkSlice = file.slice(position + readSoFar, position + readSoFar + chunkBytes);
+                const blobUrl = URL.createObjectURL(chunkSlice);
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', blobUrl, false);
+                xhr.overrideMimeType('text/plain; charset=x-user-defined');
+                xhr.send(null);
+                URL.revokeObjectURL(blobUrl);
+
+                if (xhr.status === 200 || xhr.status === 0) {
+                    const text = xhr.responseText;
+                    const len = Math.min(chunkBytes, text.length);
+                    for (let i = 0; i < len; i++) {
+                        buffer[offset + readSoFar + i] = text.charCodeAt(i) & 0xff;
+                    }
+                    readSoFar += len;
+                    if (len === 0) break;
+                } else {
+                    console.error(`[stream_ops.read] XHR failed with status ${xhr.status} for position ${position + readSoFar}`);
+                    break;
+                }
+            }
+            return readSoFar;
+        },
+        llseek: (stream: any, offset: number, whence: number) => {
+            let position = offset;
+            if (whence === 1) position += stream.position;
+            else if (whence === 2) position += file.size;
+            if (position < 0) throw new Module.FS.ErrnoError(28);
+            stream.position = position;
+            return position;
+        }
+    };
+    node.stream_ops = customStreamOps;
+
+    return filepath;
+}
+
+export async function parse_erofs(data: Uint8Array | File): Promise<any> {
+    const Module = await ensureErofsInitialized();
+    let filepath: string;
+
+    if (data instanceof File) {
+        filepath = registerFileNode(Module, data);
+    } else {
+        const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
+        filepath = `/${filename}`;
         Module.FS.createDataFile('/', filename, data, true, true);
+    }
+
+    try {
         const erofsParseTree = Module.cwrap('erofs_parse_tree', 'string', ['string']);
         const treeJson = erofsParseTree(filepath);
         if (!treeJson) {
@@ -41,22 +130,30 @@ export async function parse_erofs(data: Uint8Array): Promise<any> {
     }
 }
 
-export async function read_erofs_file(data: Uint8Array, path: string): Promise<Uint8Array> {
+export async function read_erofs_file(data: Uint8Array | File, path: string): Promise<Uint8Array> {
     const Module = await ensureErofsInitialized();
-    const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
-    const filepath = `/${filename}`;
+    let filepath: string;
+
+    if (data instanceof File) {
+        filepath = registerFileNode(Module, data);
+    } else {
+        const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
+        filepath = `/${filename}`;
+        Module.FS.createDataFile('/', filename, data, true, true);
+    }
 
     try {
-        Module.FS.createDataFile('/', filename, data, true, true);
         const erofsReadFileData = Module.cwrap('erofs_read_file_data', 'number', ['string', 'string', 'number']);
         const erofsFreeBuf = Module.cwrap('erofs_free_buf', null, ['number']);
 
         const outSizePtr = Module._malloc(4);
+        Module.HEAP32[outSizePtr >> 2] = 0;
         const dataPtr = erofsReadFileData(filepath, path, outSizePtr);
         const size = Module.HEAP32[outSizePtr >> 2];
         Module._free(outSizePtr);
 
-        if (!dataPtr && size > 0) {
+        if (!dataPtr) {
+            console.error(`[read_erofs_file] erofs_read_file_data returned NULL for path="${path}", size=${size}`);
             throw new Error(`Failed to read EROFS file at path ${path}`);
         }
 

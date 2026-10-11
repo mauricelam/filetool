@@ -49,10 +49,20 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
 
     const handleIframeLoad = async () => {
         if (iframeRef.current && previewFile) {
+            const transferables: Transferable[] = [];
+            try {
+                // Populate transferables for files under 500MB to enable fast zero-copy postMessage transfers.
+                // Files over 500MB skip buffering to prevent memory allocation failures / NotReadableError.
+                if (previewFile.size < 500 * 1024 * 1024) {
+                    transferables.push(await previewFile.arrayBuffer());
+                }
+            } catch (err) {
+                console.warn("Skipping transferables for preview file:", err);
+            }
             iframeRef.current.contentWindow?.postMessage({
                 action: 'respondFile',
                 file: previewFile,
-            }, '/', [await previewFile.arrayBuffer()]);
+            }, '/', transferables);
         }
     };
 
