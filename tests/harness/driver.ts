@@ -19,16 +19,24 @@ function sendFileIfReady() {
     }
 }
 
+function toBuffer(content: any) {
+    if (!content) return content;
+    if (content instanceof ArrayBuffer || content instanceof Uint8Array) return content;
+    if (Array.isArray(content)) return new Uint8Array(content);
+    if (typeof content === 'object') return new Uint8Array(Object.values(content));
+    return content;
+}
+
 // 2. Listen for file data from the test runner (parent window)
 window.addEventListener('message', (event: MessageEvent) => {
     console.log('Message received from parent', event.data);
     if (event.source === window.parent && event.data.action === 'setFile') {
         const { content, name, type } = event.data.file;
-        fileToProvide = new File([content], name, { type });
+        fileToProvide = new File([toBuffer(content)], name, { type });
 
         if (event.data.additionalFiles) {
             additionalFilesToProvide = event.data.additionalFiles.map((f: any) =>
-                new File([f.content], f.name, { type: f.type })
+                new File([toBuffer(f.content)], f.name, { type: f.type })
             );
         } else {
             additionalFilesToProvide = [];
