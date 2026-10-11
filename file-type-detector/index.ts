@@ -245,6 +245,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "name": "Decompressor",
         "handler": "decompressor",
         "mimetypes": [
+            { "description": /Android sparse image/i },
             { "description": /lzfse (encoded|compressed)/i },
             { "description": /zlib compressed/i },
             "application/gzip", "application/x-gzip", { "filename": /\.gz$/i },

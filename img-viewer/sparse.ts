@@ -1,11 +1,23 @@
+/**
+ * Interface representing a chunk in an Android sparse image file.
+ */
 export interface SparseChunk {
+    /** Chunk type: RAW (data), FILL (pattern repeat), DONT_CARE (unallocated/zeros) */
     type: 'RAW' | 'FILL' | 'DONT_CARE';
+    /** Starting output byte offset in the unsparsed image */
     outByteStart: number;
+    /** Ending output byte offset in the unsparsed image */
     outByteEnd: number;
+    /** Byte offset of payload in sparse file (for RAW chunks) */
     payloadFileOffset?: number;
-    fillPattern?: Uint8Array; // 4 bytes
+    /** 4-byte fill pattern (for FILL chunks) */
+    fillPattern?: Uint8Array;
 }
 
+/**
+ * Handles parsing and on-demand byte reading for Android sparse images (magic 0xED26FF3A).
+ * Unsparses chunk ranges on demand without loading full expanded images into memory.
+ */
 export class SparseImage {
     file: File | Uint8Array;
     totalBlocks: number;
@@ -21,6 +33,9 @@ export class SparseImage {
         this.chunks = chunks;
     }
 
+    /**
+     * Checks if the given buffer starts with a valid Android sparse image header (0xED26FF3A v1.0).
+     */
     static isSparseHeader(data: Uint8Array): boolean {
         if (data.length < 28) return false;
         const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -29,6 +44,9 @@ export class SparseImage {
         return magic === 0xED26FF3A && majorVersion === 1;
     }
 
+    /**
+     * Asynchronously creates a SparseImage instance by parsing header and chunk tables.
+     */
     static async create(file: File | Uint8Array): Promise<SparseImage> {
         let headerData: Uint8Array;
         if (file instanceof File) {
@@ -160,6 +178,10 @@ export class SparseImage {
         return null;
     }
 
+    /**
+     * Synchronously reads a range of bytes from the unsparsed virtual image.
+     * Uses binary search to map unsparsed offsets to sparse chunks on demand.
+     */
     readSync(unsparseOffset: number, length: number, targetBuf?: Uint8Array, targetOffset = 0): Uint8Array {
         const outBuf = targetBuf || new Uint8Array(length);
         if (unsparseOffset >= this.unsparsedSize || length <= 0) {
@@ -206,5 +228,64 @@ export class SparseImage {
         }
 
         return outBuf.subarray(targetOffset, targetOffset + bytesRead);
+    }
+}
+
+/**
+ * Wraps a sub-region (offset and size) of a SparseImage or raw File object.
+ * Used for inspecting logical partitions inside super.img without copying.
+ */
+export class SparseSubImage {
+    parent: SparseImage | File;
+    offset: number;
+    unsparsedSize: number;
+
+    constructor(parent: SparseImage | File, offset: number, sizeBytes: number) {
+        this.parent = parent;
+        this.offset = offset;
+        this.unsparsedSize = sizeBytes;
+    }
+
+    /**
+     * Synchronously reads a range of bytes relative to this sub-image offset.
+     */
+    readSync(unsparseOffset: number, length: number): Uint8Array {
+        const actualPos = this.offset + unsparseOffset;
+        const parentSize = this.parent instanceof SparseImage ? this.parent.unsparsedSize : this.parent.size;
+        if (actualPos >= parentSize) {
+            return new Uint8Array(0);
+        }
+        const bytesToRead = Math.min(length, this.unsparsedSize - unsparseOffset);
+        if (bytesToRead <= 0) {
+            return new Uint8Array(0);
+        }
+
+        if (this.parent instanceof SparseImage) {
+            return this.parent.readSync(actualPos, bytesToRead);
+        } else {
+            const slice = this.parent.slice(actualPos, actualPos + bytesToRead);
+            if (typeof FileReaderSync !== 'undefined') {
+                const reader = new FileReaderSync();
+                const ab = reader.readAsArrayBuffer(slice);
+                return new Uint8Array(ab);
+            } else {
+                const blobUrl = URL.createObjectURL(slice);
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', blobUrl, false);
+                xhr.overrideMimeType('text/plain; charset=x-user-defined');
+                xhr.send(null);
+                URL.revokeObjectURL(blobUrl);
+
+                const out = new Uint8Array(bytesToRead);
+                if (xhr.status === 200 || xhr.status === 0) {
+                    const text = xhr.responseText;
+                    const len = Math.min(out.length, text.length);
+                    for (let i = 0; i < len; i++) {
+                        out[i] = text.charCodeAt(i) & 0xff;
+                    }
+                }
+                return out;
+            }
+        }
     }
 }

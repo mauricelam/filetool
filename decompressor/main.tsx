@@ -19,6 +19,7 @@ const getDecompressedFileName = (originalName: string, format: string): string =
         'ZLIB': ['.zlib', '.zz'],
         'BZIP2': ['.bz2'],
         'LZFSE': ['.lzfse'],
+        'Android Sparse': ['.simg', '.sparse'],
     };
 
     const extensions = formatToExtensions[format];
@@ -28,6 +29,10 @@ const getDecompressedFileName = (originalName: string, format: string): string =
                 return originalName.slice(0, -ext.length);
             }
         }
+    }
+
+    if (format === 'Android Sparse') {
+        return originalName;
     }
 
     return `${originalName}.decoded`;

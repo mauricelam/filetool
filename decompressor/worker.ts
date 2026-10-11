@@ -1,9 +1,9 @@
-
 // This worker handles decompression.
 // It loads the compiled WebAssembly module, receives a file,
 // decompresses it, and sends the result back to the main thread.
 
 import init, { decode } from './decompressor-wasm/pkg/decompressor_wasm.js';
+import { SparseImage } from '../img-viewer/sparse';
 
 const decompressorModulePromise = (async () => {
     try {
@@ -22,7 +22,6 @@ self.onmessage = async (event) => {
 
         const { file } = event.data;
         if (!file) {
-            // Ignore empty messages
             return;
         }
         if (!(file instanceof File)) {
@@ -30,22 +29,35 @@ self.onmessage = async (event) => {
             return;
         }
 
-        const compressedBuffer = await file.arrayBuffer();
+        const compressedBuffer = await file.slice(0, 28).arrayBuffer();
         const compressedArray = new Uint8Array(compressedBuffer);
 
+        // Check for Android Sparse Image magic 0xED26FF3A ([0x3a, 0xff, 0x26, 0xed])
+        if (compressedArray.length >= 28 && compressedArray[0] === 0x3a && compressedArray[1] === 0xff && compressedArray[2] === 0x26 && compressedArray[3] === 0xed) {
+            const sparse = await SparseImage.create(file);
+            const unsparsed = sparse.readSync(0, sparse.unsparsedSize);
+            self.postMessage({
+                type: 'done',
+                data: unsparsed.buffer,
+                format: 'Android Sparse'
+            }, [unsparsed.buffer]);
+            return;
+        }
+
+        const fullBuffer = await file.arrayBuffer();
+        const fullArray = new Uint8Array(fullBuffer);
+
         // Decompress using the generic WASM function
-        const result = decode(compressedArray);
+        const result = decode(fullArray);
         const decompressedArray = new Uint8Array(result.data);
 
-        // Send the decompressed data back to the main thread.
-        // The ArrayBuffer is transferred, not copied, for performance.
         self.postMessage({
             type: 'done',
             data: decompressedArray.buffer,
             format: result.format
         }, [decompressedArray.buffer]);
     } catch (error) {
-        console.error('Error processing input', error)
+        console.error('Error processing input', error);
         const errorMessage = (error instanceof Error) ? error.message : String(error);
         self.postMessage({ type: 'error', message: errorMessage });
     }

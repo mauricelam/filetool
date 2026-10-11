@@ -1,6 +1,6 @@
 // @ts-ignore
 import createErofsModule from './erofs-wasm/dist/erofs.js';
-import { SparseImage } from './sparse';
+import { SparseImage, SparseSubImage } from './sparse';
 
 let erofsModulePromise: Promise<any> | null = null;
 
@@ -20,7 +20,7 @@ export async function ensureErofsInitialized(): Promise<any> {
     return erofsModulePromise;
 }
 
-function registerFileNode(Module: any, data: File | SparseImage): string {
+function registerFileNode(Module: any, data: File | SparseImage | SparseSubImage): string {
     const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
     const filepath = `/${filename}`;
 
@@ -28,8 +28,8 @@ function registerFileNode(Module: any, data: File | SparseImage): string {
     const lookup = Module.FS.lookupPath(filepath);
     const node = lookup.node;
 
-    const isSparse = data instanceof SparseImage;
-    const size = isSparse ? data.unsparsedSize : data.size;
+    const isSparse = data instanceof SparseImage || data instanceof SparseSubImage;
+    const size = isSparse ? data.unsparsedSize : (data as File).size;
 
     node.usedBytes = size;
 
@@ -52,7 +52,7 @@ function registerFileNode(Module: any, data: File | SparseImage): string {
             const bytesToRead = Math.min(size - position, length);
 
             if (isSparse) {
-                const chunkData = (data as SparseImage).readSync(position, bytesToRead);
+                const chunkData = (data as SparseImage | SparseSubImage).readSync(position, bytesToRead);
                 buffer.set(chunkData, offset);
                 return chunkData.length;
             }
@@ -112,11 +112,11 @@ function registerFileNode(Module: any, data: File | SparseImage): string {
     return filepath;
 }
 
-export async function parse_erofs(data: Uint8Array | File | SparseImage): Promise<any> {
+export async function parse_erofs(data: Uint8Array | File | SparseImage | SparseSubImage): Promise<any> {
     const Module = await ensureErofsInitialized();
     let filepath: string;
 
-    if (data instanceof File || data instanceof SparseImage) {
+    if (data instanceof File || data instanceof SparseImage || data instanceof SparseSubImage) {
         filepath = registerFileNode(Module, data);
     } else {
         const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
@@ -140,11 +140,11 @@ export async function parse_erofs(data: Uint8Array | File | SparseImage): Promis
     }
 }
 
-export async function read_erofs_file(data: Uint8Array | File | SparseImage, path: string): Promise<Uint8Array> {
+export async function read_erofs_file(data: Uint8Array | File | SparseImage | SparseSubImage, path: string): Promise<Uint8Array> {
     const Module = await ensureErofsInitialized();
     let filepath: string;
 
-    if (data instanceof File || data instanceof SparseImage) {
+    if (data instanceof File || data instanceof SparseImage || data instanceof SparseSubImage) {
         filepath = registerFileNode(Module, data);
     } else {
         const filename = `image_${Date.now()}_${Math.random().toString(36).substring(2)}.img`;
