@@ -63,8 +63,8 @@ pub fn decode(compressed: &[u8]) -> Result<DecompressionResult, JsValue> {
         }
     }
 
-    // Try ZLIB: 78 01, 78 5E, 78 9C, 78 DA
-    if compressed[0] == 0x78 && (compressed[1] == 0x01 || compressed[1] == 0x5E || compressed[1] == 0x9C || compressed[1] == 0xDA) {
+    // Try ZLIB: CMF byte 0x78, and RFC 1950 checksum (CMF * 256 + FLG) % 31 == 0
+    if compressed[0] == 0x78 && ((compressed[0] as u16 * 256 + compressed[1] as u16) % 31 == 0) {
         let mut d = ZlibDecoder::new(compressed);
         let mut decompressed = Vec::new();
         if let Ok(_) = d.read_to_end(&mut decompressed) {
