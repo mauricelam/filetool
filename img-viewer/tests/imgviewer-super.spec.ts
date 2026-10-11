@@ -35,14 +35,14 @@ function createSuperImage(partitions: { name: string, data: Buffer }[]): Buffer 
     const totalSize = currentSector * 512;
     const imgBuffer = Buffer.alloc(totalSize);
 
-    imgBuffer.writeUInt32LE(0x616C706D, 4096); // LP_METADATA_GEOMETRY_MAGIC
+    imgBuffer.writeUInt32LE(0x616C4467, 4096); // LP_METADATA_GEOMETRY_MAGIC ("gDlA")
     imgBuffer.writeUInt32LE(52, 4096 + 4); // struct_size
-    imgBuffer.writeUInt32LE(65536, 4096 + 40); // metadata_max_size
+    imgBuffer.writeUInt32LE(4096, 4096 + 40); // metadata_max_size
     imgBuffer.writeUInt32LE(2, 4096 + 44); // metadata_slot_count
     imgBuffer.writeUInt32LE(4096, 4096 + 48); // logical_block_size
 
-    const slotOffset = 69632; // 4096 + 65536
-    imgBuffer.writeUInt32LE(0x414C5030, slotOffset); // LP_METADATA_HEADER_MAGIC
+    const slotOffset = 12288; // 4096 + 4096 * 2 (standard base offset)
+    imgBuffer.writeUInt32LE(0x414C5030, slotOffset); // LP_METADATA_HEADER_MAGIC ("0PLA")
     imgBuffer.writeUInt16LE(1, slotOffset + 4);
     imgBuffer.writeUInt16LE(0, slotOffset + 6);
     imgBuffer.writeUInt32LE(104, slotOffset + 8); // header_size
@@ -92,4 +92,24 @@ test('img-viewer should list logical partitions in super.img', async ({ page }) 
 
     await iframe.getByText('system_a').click();
     await expect(iframe.getByText('hello.txt')).toBeVisible();
+});
+
+test('img-viewer should unpack attached super.img', async ({ page }) => {
+    const attachedSuperPath = fs.existsSync('/tmp/file_attachments/super.img')
+        ? '/tmp/file_attachments/super.img'
+        : path.resolve(__dirname, '../example/attached_super.img');
+
+    const attachedBuf = fs.readFileSync(attachedSuperPath);
+
+    const iframe = await runHandlerTest(page, {
+        handler: 'img-viewer',
+        file: {
+            content: attachedBuf,
+            name: 'super.img',
+            type: 'application/octet-stream'
+        }
+    });
+
+    await expect(iframe.getByText('Android super.img Explorer')).toBeVisible();
+    await expect(iframe.getByText('system_a')).toBeVisible();
 });
