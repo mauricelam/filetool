@@ -53,11 +53,8 @@ const guessImageType = (data: Uint8Array): string | null => {
     return null;
 };
 
-const makeReadFn = (file: File, sparseImage: SparseImage | null) => {
+const makeReadFn = (file: File) => {
     return (offset: number, length: number): Uint8Array => {
-        if (sparseImage) {
-            return sparseImage.readSync(offset, length);
-        }
         if (typeof FileReaderSync !== 'undefined') {
             const syncReader = new FileReaderSync();
             const slice = file.slice(offset, offset + length);
@@ -86,7 +83,6 @@ const makeReadFn = (file: File, sparseImage: SparseImage | null) => {
 
 const ImgViewer: React.FC = () => {
     const [sourceFile, setSourceFile] = useState<File | null>(null);
-    const [sparseImg, setSparseImg] = useState<SparseImage | null>(null);
     const [fsType, setFsType] = useState<string | null>(null);
     const [subImageMap, setSubImageMap] = useState<Record<string, { sub: SparseSubImage, isErofs: boolean }>>({});
     const [tree, setTree] = useState<any>(null);
@@ -104,7 +100,7 @@ const ImgViewer: React.FC = () => {
         const handleMessage = async (e: MessageEvent) => {
             if (e.data.action === 'respondFile') {
                 await ensureWasmInitialized();
-                const file = e.data.file as File;
+                let file = e.data.file as File;
 
                 let headerBuf: ArrayBuffer;
                 try {
@@ -116,11 +112,12 @@ const ImgViewer: React.FC = () => {
                 }
                 let headerData = new Uint8Array(headerBuf);
 
-                let parsedSparse: SparseImage | null = null;
                 if (SparseImage.isSparseHeader(headerData)) {
                     try {
-                        parsedSparse = await SparseImage.create(file);
-                        headerData = parsedSparse.readSync(0, 65536);
+                        const parsedSparse = await SparseImage.create(file);
+                        file = parsedSparse.toUnsparsedBlob(file.name);
+                        headerBuf = await file.slice(0, 65536).arrayBuffer();
+                        headerData = new Uint8Array(headerBuf);
                     } catch (err) {
                         console.error("Failed to parse sparse image:", err);
                         setError(`Failed to parse Android sparse image header: ${err}`);
@@ -129,10 +126,8 @@ const ImgViewer: React.FC = () => {
                 }
 
                 setSourceFile(file);
-                setSparseImg(parsedSparse);
 
-                // Read first 128KB of unsparsed/raw image for LP metadata check
-                const readSync = makeReadFn(file, parsedSparse);
+                const readSync = makeReadFn(file);
                 const firstMb = readSync(0, 131072);
 
                 if (LpMetadata.isLpMetadata(firstMb)) {
@@ -144,7 +139,7 @@ const ImgViewer: React.FC = () => {
                         const subMap: Record<string, { sub: SparseSubImage, isErofs: boolean }> = {};
 
                         for (const p of partitions) {
-                            const sub = new SparseSubImage(parsedSparse || file, p.startOffset, p.sizeBytes);
+                            const sub = new SparseSubImage(file, p.startOffset, p.sizeBytes);
                             const pHeader = sub.readSync(0, 65536);
 
                             const isExt4 = pHeader.length > 1081 && pHeader[1080] === 0x53 && pHeader[1081] === 0xEF;
@@ -192,8 +187,8 @@ const ImgViewer: React.FC = () => {
                     try {
                         setLoading(true);
                         await ensureExt4Initialized();
-                        const unsparsedSize = parsedSparse ? BigInt(parsedSparse.unsparsedSize) : BigInt(file.size);
-                        const readFn = makeReadFn(file, parsedSparse);
+                        const unsparsedSize = BigInt(file.size);
+                        const readFn = makeReadFn(file);
                         const parsedTree = parse_ext4_stream(unsparsedSize, readFn);
                         setTree(parsedTree);
                     } catch (err) {
@@ -207,7 +202,7 @@ const ImgViewer: React.FC = () => {
                     try {
                         setLoading(true);
                         await ensureErofsInitialized();
-                        const parsedTree = await parse_erofs(parsedSparse || file);
+                        const parsedTree = await parse_erofs(file);
                         setTree(parsedTree);
                     } catch (err) {
                         setError(`Failed to parse EROFS: ${err}`);
@@ -262,11 +257,11 @@ const ImgViewer: React.FC = () => {
                 }
             } else if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file(sparseImg || sourceFile, file._path);
+                content = await read_erofs_file(sourceFile, file._path);
             } else {
                 await ensureExt4Initialized();
-                const unsparsedSize = sparseImg ? BigInt(sparseImg.unsparsedSize) : BigInt(sourceFile.size);
-                const readFn = makeReadFn(sourceFile, sparseImg);
+                const unsparsedSize = BigInt(sourceFile.size);
+                const readFn = makeReadFn(sourceFile);
                 content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
             }
             const blob = new Blob([content]);
@@ -306,11 +301,11 @@ const ImgViewer: React.FC = () => {
                 }
             } else if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file(sparseImg || sourceFile, file._path);
+                content = await read_erofs_file(sourceFile, file._path);
             } else {
                 await ensureExt4Initialized();
-                const unsparsedSize = sparseImg ? BigInt(sparseImg.unsparsedSize) : BigInt(sourceFile.size);
-                const readFn = makeReadFn(sourceFile, sparseImg);
+                const unsparsedSize = BigInt(sourceFile.size);
+                const readFn = makeReadFn(sourceFile);
                 content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
             }
             const newFile = new File([content], name, { type: 'application/octet-stream' });
@@ -411,7 +406,6 @@ const ImgViewer: React.FC = () => {
                         setError(null);
                         setTree(null);
                         setFsType(null);
-                        setSparseImg(null);
                         setSourceFile(null);
                         setSubImageMap({});
                         ensureWasmInitialized().catch(() => {});
