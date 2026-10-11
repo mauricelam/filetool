@@ -29,9 +29,9 @@ test.describe('Large File Handling', () => {
         const iframe = page.frameLocator('#framecontainer iframe');
         await expect(iframe.locator('body')).toBeVisible();
 
-        // Check large file warning and hex preview
-        await expect(iframe.locator('body')).toContainText('Large file');
+        // Check hex preview and verify no truncation warning
         await expect(iframe.locator('body')).toContainText('41 41 41 41');
+        await expect(iframe.locator('body')).not.toContainText('Showing preview of first 100 MB');
     });
 
     test('should handle a 5GB file gracefully without unhandled crash', async ({ page }) => {

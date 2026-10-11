@@ -2,7 +2,7 @@ let initialized = false;
 let compute_md5: any;
 
 self.onmessage = async (e) => {
-    const { data, algorithms, id } = e.data;
+    const { data, blob, algorithms, id } = e.data;
 
     if (!initialized) {
         // @ts-ignore
@@ -14,14 +14,27 @@ self.onmessage = async (e) => {
 
     const results: { label: string, value: string }[] = [];
 
+    let bytes: Uint8Array;
+    if (blob) {
+        bytes = new Uint8Array(await blob.arrayBuffer());
+    } else if (data instanceof Uint8Array) {
+        bytes = data;
+    } else {
+        bytes = new Uint8Array(data);
+    }
+
     if (algorithms.includes('MD5')) {
-        results.push({ label: 'MD5', value: compute_md5(data) });
+        try {
+            results.push({ label: 'MD5', value: compute_md5(bytes) });
+        } catch (err) {
+            results.push({ label: 'MD5', value: 'Error' });
+        }
     }
 
     for (const algo of algorithms) {
         if (algo === 'MD5') continue;
         try {
-            const hashBuffer = await crypto.subtle.digest(algo, data.buffer);
+            const hashBuffer = await crypto.subtle.digest(algo, bytes.buffer);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             results.push({ label: algo, value: hashHex });

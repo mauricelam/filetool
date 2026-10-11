@@ -14,6 +14,8 @@ export interface RenderState {
     onMouseDown: (index: number) => void;
     onMouseEnter: (index: number) => void;
     onMouseLeave: () => void;
+    bufferOffset?: number;
+    totalSize?: number;
 }
 
 function zero(n: number, max: number) {
@@ -24,14 +26,18 @@ function zero(n: number, max: number) {
     return padded;
 }
 
-export function offset(line: number, buffer: Uint8Array): string {
-    return zero(16 * line, Math.max(buffer.length.toString(16).length, 6))
+export function offset(line: number, sizeOrBuffer: number | Uint8Array): string {
+    const totalSize = typeof sizeOrBuffer === 'number' ? sizeOrBuffer : sizeOrBuffer.length;
+    return zero(16 * line, Math.max(totalSize.toString(16).length, 6));
 }
 
 export function renderAscii(line: number, buffer: Uint8Array, state: RenderState): ReactNode {
+    const bufferOffset = state.bufferOffset || 0;
+    const totalSize = state.totalSize !== undefined ? state.totalSize : (bufferOffset + buffer.length);
     const gen = function* () {
-        for (let i = line * 16; i < Math.min(line * 16 + 16, buffer.length); i++) {
-            const v = buffer[i];
+        for (let i = line * 16; i < Math.min(line * 16 + 16, totalSize); i++) {
+            const localIdx = i - bufferOffset;
+            const v = (localIdx >= 0 && localIdx < buffer.length) ? buffer[localIdx] : 0;
             const isAscii = (v > 31 && v < 127) || v > 159;
             const classList = [];
             if (isAscii) {
@@ -100,9 +106,12 @@ export function renderAscii(line: number, buffer: Uint8Array, state: RenderState
 }
 
 export function renderHex(line: number, buffer: Uint8Array, state: RenderState): ReactNode {
+    const bufferOffset = state.bufferOffset || 0;
+    const totalSize = state.totalSize !== undefined ? state.totalSize : (bufferOffset + buffer.length);
     const gen = function* () {
-        for (let i = line * 16; i < Math.min(line * 16 + 16, buffer.length); i++) {
-            const v = buffer[i];
+        for (let i = line * 16; i < Math.min(line * 16 + 16, totalSize); i++) {
+            const localIdx = i - bufferOffset;
+            const v = (localIdx >= 0 && localIdx < buffer.length) ? buffer[localIdx] : 0;
             const isAscii = (v > 31 && v < 127) || v > 159;
             const classList = [];
             if (isAscii) {

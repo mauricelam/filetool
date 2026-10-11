@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { offset, renderAscii, renderHex } from './hex'
-import React, { ReactNode, useCallback, useEffect, useState } from 'react'
+import React, { ReactNode, useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import * as utils from './data-utils'
 
 export interface Marker {
@@ -30,28 +30,27 @@ const outputElement = document.getElementById('output');
 const OUTPUT = outputElement ? createRoot(outputElement) : null
 
 /**
- * Processes incoming files for the Hex Viewer.
- * Uses the transferred initialBuffer if provided by postMessage, or reads the first 100MB
- * slice of the file to prevent V8 ArrayBuffer memory allocation limits and browser crashes.
+ * Reads a slice of bytes from either a File or Uint8Array.
+ */
+async function readBytes(fileOrBuffer: File | Uint8Array, start: number, length: number): Promise<Uint8Array> {
+    if (fileOrBuffer instanceof Uint8Array) {
+        return fileOrBuffer.subarray(start, Math.min(fileOrBuffer.length, start + length));
+    }
+    const end = Math.min(fileOrBuffer.size, start + length);
+    if (start >= fileOrBuffer.size || start >= end) {
+        return new Uint8Array(0);
+    }
+    const slice = fileOrBuffer.slice(start, end);
+    const ab = await slice.arrayBuffer();
+    return new Uint8Array(ab);
+}
+
+/**
+ * Processes incoming files for the Hex Viewer without memory size limits.
  */
 async function handleFile(file: File, initialBuffer?: ArrayBuffer) {
     try {
-        let isTruncated = file.size > 100 * 1024 * 1024;
-        let buf: Uint8Array;
-        // Use transferred buffer if available from postMessage
-        if (initialBuffer && initialBuffer.byteLength > 0) {
-            buf = new Uint8Array(initialBuffer);
-        } else {
-            // Slice the first 100MB preview to avoid exceeding V8 TypedArray memory limits
-            let fileToRead = file;
-            const MAX_HEX_VIEW_SIZE = 100 * 1024 * 1024;
-            if (file.size > MAX_HEX_VIEW_SIZE) {
-                fileToRead = file.slice(0, MAX_HEX_VIEW_SIZE) as File;
-                isTruncated = true;
-            }
-            buf = new Uint8Array(await fileToRead.arrayBuffer());
-        }
-        OUTPUT?.render(<HexViewer buffer={buf} totalSize={file.size} isTruncated={isTruncated} />);
+        OUTPUT?.render(<HexViewer file={file} />);
     } catch (err) {
         console.error("Error reading file in HexViewer:", err);
         OUTPUT?.render(
@@ -76,13 +75,26 @@ const ICONS = {
     chevronRight: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
 };
 
-
-function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOpen, onAddMarker, setPreviewMarker }: { selection: [number, number] | null, buffer: Uint8Array, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void, onAddMarker: (format: string, length: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+function SelectionInfo({ selection, dataSource, totalSize, onSetSelection, onJumpToOffset, onOpen, onAddMarker, setPreviewMarker }: { selection: [number, number] | null, dataSource: File | Uint8Array, totalSize: number, onSetSelection: (start: number, end: number) => void, onJumpToOffset: (offset: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void, onAddMarker: (format: string, length: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
     const start = selection ? selection[0] : 0;
     const end = selection ? selection[1] : 0;
     const length = selection ? end - start + 1 : 0;
 
     const [isExpanded, setIsExpanded] = useState(false);
+    const [selectedData, setSelectedData] = useState<Uint8Array | null>(null);
+
+    useEffect(() => {
+        if (!selection) {
+            setSelectedData(null);
+            return;
+        }
+        let cancelled = false;
+        const fetchLen = isExpanded ? Math.min(length, 65536) : Math.min(length, 1024);
+        readBytes(dataSource, start, fetchLen).then(data => {
+            if (!cancelled) setSelectedData(data);
+        });
+        return () => { cancelled = true; };
+    }, [selection, dataSource, start, length, isExpanded]);
 
     const onOffsetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const offset = parseInt(e.target.value, 10);
@@ -99,18 +111,17 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOp
     };
 
     const renderSelectedData = () => {
-        if (!selection) return "No selection";
-        const data = buffer.slice(start, end + 1);
+        if (!selection || !selectedData) return "No selection";
 
         if (!isExpanded) {
-            const hex = Array.from(data.slice(0, 1024)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            const hex = Array.from(selectedData.slice(0, 1024)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
             return (
                 <div className="data-preview single-line" onClick={() => setIsExpanded(true)}>
                     {hex}
                 </div>
             );
         } else {
-            const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            const hex = Array.from(selectedData).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
             return (
                 <div className="data-preview expanded" onClick={() => setIsExpanded(false)}>
                     {hex}
@@ -119,17 +130,17 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOp
         }
     };
 
-    const handleCopyRaw = () => {
+    const handleCopyRaw = async () => {
         if (!selection) return;
-        const selectedData = buffer.slice(start, end + 1);
-        const text = new TextDecoder('latin1').decode(selectedData);
+        const data = await readBytes(dataSource, start, Math.min(length, 10 * 1024 * 1024));
+        const text = new TextDecoder('latin1').decode(data);
         navigator.clipboard.writeText(text);
     };
 
-    const handleCopyHex = () => {
+    const handleCopyHex = async () => {
         if (!selection) return;
-        const selectedData = buffer.slice(start, end + 1);
-        const hex = Array.from(selectedData).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        const data = await readBytes(dataSource, start, Math.min(length, 10 * 1024 * 1024));
+        const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
         navigator.clipboard.writeText(hex);
     };
 
@@ -137,11 +148,11 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOp
         <div className="selection-info">
             <div className="selection-info-row">
                 <span className="inspector-label">Offset</span>
-                <input type="number" value={start} onChange={onOffsetChange} min={0} max={buffer.length - 1} />
+                <input type="number" value={start} onChange={onOffsetChange} min={0} max={Math.max(0, totalSize - 1)} />
             </div>
             <div className="selection-info-row">
                 <span className="inspector-label">Length</span>
-                <input type="number" value={length} onChange={onLengthChange} min={0} max={buffer.length} />
+                <input type="number" value={length} onChange={onLengthChange} min={0} max={totalSize} />
             </div>
             <div className="selection-info-row">
                 <span className="inspector-label">Hex Range</span>
@@ -165,7 +176,7 @@ function SelectionInfo({ selection, buffer, onSetSelection, onJumpToOffset, onOp
     );
 }
 
-export function DataInspector({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen, binwalkResults, onSetBinwalkResults }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void, binwalkResults: BinwalkResult[] | null, onSetBinwalkResults: (results: BinwalkResult[] | null) => void }) {
+export function DataInspector({ dataSource, buffer, index, selection, markers, totalSize, onAddMarker, onRemoveMarker, setPreviewMarker, onJumpToOffset, searchResults, currentMatchIndex, matchLength, onSearch, onSetSelection, onOpen, binwalkResults, onSetBinwalkResults }: { dataSource: File | Uint8Array, buffer?: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], totalSize: number, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void, onJumpToOffset: (offset: number) => void, searchResults: number[], currentMatchIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onSetSelection: (start: number, end: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void, binwalkResults: BinwalkResult[] | null, onSetBinwalkResults: (results: BinwalkResult[] | null) => void }) {
     const [activeTab, setActiveTab] = useState<'inspector' | 'search' | 'analysis' | 'markers' | 'binwalk'>('inspector');
 
     const handleJumpAndSelect = (offset: number, length: number = 0) => {
@@ -175,7 +186,7 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
 
     return (
         <div id="inspector" style={{ width: '100%' }}>
-            <SelectionInfo selection={selection} buffer={buffer} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} onOpen={() => onOpen()} onAddMarker={onAddMarker} setPreviewMarker={setPreviewMarker} />
+            <SelectionInfo selection={selection} dataSource={dataSource} totalSize={totalSize} onSetSelection={onSetSelection} onJumpToOffset={onJumpToOffset} onOpen={() => onOpen()} onAddMarker={onAddMarker} setPreviewMarker={setPreviewMarker} />
             <div className="tab-header">
                 <button className={`tab-button ${activeTab === 'inspector' ? 'active' : ''}`} onClick={() => setActiveTab('inspector')} title="Inspector">
                     {ICONS.inspector}
@@ -202,7 +213,9 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
             <div className="tab-content">
                 {activeTab === 'inspector' && (
                     <InspectorTab
+                        dataSource={dataSource}
                         buffer={buffer}
+                        totalSize={totalSize}
                         index={index}
                         selection={selection}
                         markers={markers}
@@ -211,10 +224,10 @@ export function DataInspector({ buffer, index, selection, markers, onAddMarker, 
                         setPreviewMarker={setPreviewMarker}
                     />
                 )}
-                {activeTab === 'search' && <SearchTab buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} matchLength={matchLength} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
+                {activeTab === 'search' && <SearchTab dataSource={dataSource} totalSize={totalSize} buffer={buffer} results={searchResults} currentIndex={currentMatchIndex} matchLength={matchLength} onSearch={onSearch} onJumpToOffset={onJumpToOffset} />}
                 {activeTab === 'markers' && <MarkersTab markers={markers} onRemoveMarker={onRemoveMarker} onJumpToOffset={onJumpToOffset} />}
-                {activeTab === 'analysis' && <AnalysisTab buffer={buffer} onJumpToOffset={handleJumpAndSelect} />}
-                {activeTab === 'binwalk' && <BinwalkTab buffer={buffer} results={binwalkResults} onSetResults={onSetBinwalkResults} onJumpToOffset={handleJumpAndSelect} onAddMarker={onAddMarker} onOpen={(items) => onOpen(items)} />}
+                {activeTab === 'analysis' && <AnalysisTab dataSource={dataSource} totalSize={totalSize} buffer={buffer} onJumpToOffset={handleJumpAndSelect} />}
+                {activeTab === 'binwalk' && <BinwalkTab dataSource={dataSource} totalSize={totalSize} buffer={buffer} results={binwalkResults} onSetResults={onSetBinwalkResults} onJumpToOffset={handleJumpAndSelect} onAddMarker={onAddMarker} onOpen={(items) => onOpen(items)} />}
             </div>
         </div>
     );
@@ -227,7 +240,7 @@ interface BinwalkResult {
     confidence: number;
 }
 
-function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker, onOpen }: { buffer: Uint8Array, results: BinwalkResult[] | null, onSetResults: (results: BinwalkResult[] | null) => void, onJumpToOffset: (offset: number, length?: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void }) {
+function BinwalkTab({ dataSource, totalSize, buffer, results, onSetResults, onJumpToOffset, onAddMarker, onOpen }: { dataSource: File | Uint8Array, totalSize: number, buffer?: Uint8Array, results: BinwalkResult[] | null, onSetResults: (results: BinwalkResult[] | null) => void, onJumpToOffset: (offset: number, length?: number) => void, onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onOpen: (arg?: OpenItem[] | Uint8Array, name?: string) => void }) {
     const [loading, setLoading] = useState(false);
     const [fullSearch, setFullSearch] = useState(false);
     const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -244,14 +257,44 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
             const m = await import('./hex-viewer-wasm.js');
             await m.default();
             const scanner = new m.BinwalkScanner(fullSearch);
-            const scanResults = scanner.scan(buffer) as BinwalkResult[];
-            onSetResults(scanResults);
+
+            const allResults: BinwalkResult[] = [];
+            const seenOffsets = new Set<number>();
+
+            const CHUNK_SIZE = 32 * 1024 * 1024; // 32 MB chunks
+            const OVERLAP = 64 * 1024; // 64 KB overlap
+            let scanOffset = 0;
+
+            while (scanOffset < totalSize) {
+                const chunkLen = Math.min(totalSize - scanOffset, CHUNK_SIZE);
+                const chunkData = await readBytes(dataSource, scanOffset, chunkLen);
+                if (chunkData.length === 0) break;
+
+                const chunkResults = scanner.scan(chunkData) as BinwalkResult[];
+                for (const r of chunkResults) {
+                    const globalOffset = scanOffset + r.offset;
+                    if (!seenOffsets.has(globalOffset)) {
+                        seenOffsets.add(globalOffset);
+                        allResults.push({
+                            ...r,
+                            offset: globalOffset
+                        });
+                    }
+                }
+
+                if (scanOffset + chunkLen >= totalSize) break;
+                scanOffset += (CHUNK_SIZE - OVERLAP);
+                await new Promise(res => setTimeout(res, 0));
+            }
+
+            allResults.sort((a, b) => a.offset - b.offset);
+            onSetResults(allResults);
         } catch (e) {
             console.error("Binwalk scan failed", e);
         } finally {
             setLoading(false);
         }
-    }, [buffer, results, onSetResults, fullSearch]);
+    }, [dataSource, totalSize, results, onSetResults, fullSearch]);
 
     useEffect(() => {
         if (!results && !loading) {
@@ -260,7 +303,6 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
     }, [results, loading, performScan]);
 
     const getConfidenceColor = (confidence: number) => {
-        // Binwalk confidence: 0 (LOW), 128 (MEDIUM), 250 (HIGH)
         if (confidence >= 200) return '#4caf50'; // Green
         if (confidence >= 100) return '#ff9800'; // Orange
         return '#f44336'; // Red
@@ -282,18 +324,18 @@ function BinwalkTab({ buffer, results, onSetResults, onJumpToOffset, onAddMarker
         setSelectedIndices(next);
     };
 
-    const handleOpenSelected = () => {
+    const handleOpenSelected = async () => {
         if (!results) return;
-        const items = Array.from(selectedIndices)
+        const selectedList = Array.from(selectedIndices)
             .map(i => results[i])
-            .sort((a, b) => a.offset - b.offset)
-            .map(r => {
-                const name = `binwalk_0x${r.offset.toString(16)}_${r.description.replace(/[^a-z0-9]/gi, '_').slice(0, 32)}.bin`;
-                return {
-                    buffer: buffer.slice(r.offset, r.offset + r.length),
-                    name
-                };
-            });
+            .sort((a, b) => a.offset - b.offset);
+
+        const items: OpenItem[] = [];
+        for (const r of selectedList) {
+            const name = `binwalk_0x${r.offset.toString(16)}_${r.description.replace(/[^a-z0-9]/gi, '_').slice(0, 32)}.bin`;
+            const data = await readBytes(dataSource, r.offset, r.length);
+            items.push({ buffer: data, name });
+        }
         onOpen(items);
     };
 
@@ -377,11 +419,15 @@ function MarkersTab({ markers, onRemoveMarker, onJumpToOffset }: { markers: Mark
     );
 }
 
-export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch, onJumpToOffset }: { buffer: Uint8Array, results: number[], currentIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onJumpToOffset: (offset: number) => void }) {
+export function SearchTab({ dataSource, totalSize, buffer, results, currentIndex, matchLength, onSearch, onJumpToOffset }: { dataSource?: File | Uint8Array, totalSize?: number, buffer?: Uint8Array, results: number[], currentIndex: number | null, matchLength: number, onSearch: (results: number[], index: number | null, matchLength: number) => void, onJumpToOffset: (offset: number) => void }) {
+    const src = dataSource || buffer || new Uint8Array(0);
+    const size = totalSize !== undefined ? totalSize : (src instanceof Uint8Array ? src.length : src.size);
+
     const [query, setQuery] = useState('');
     const [searchType, setSearchType] = useState<'hex' | 'utf8' | 'utf16' | 'regex'>('hex');
+    const [previewBytes, setPreviewBytes] = useState<Uint8Array | null>(null);
 
-    const performSearch = () => {
+    const performSearch = async () => {
         if (!query) {
             onSearch([], null, 0);
             return;
@@ -398,28 +444,50 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
                     pattern[i / 2] = parseInt(hexQuery.substr(i, 2), 16);
                 }
                 matchLen = pattern.length;
-                for (let i = 0; i <= buffer.length - pattern.length; i++) {
-                    let match = true;
-                    for (let j = 0; j < pattern.length; j++) {
-                        if (buffer[i + j] !== pattern[j]) {
-                            match = false;
-                            break;
+
+                const CHUNK_SIZE = 16 * 1024 * 1024;
+                let scanOffset = 0;
+                while (scanOffset < size) {
+                    const chunkLen = Math.min(size - scanOffset, CHUNK_SIZE);
+                    const chunk = await readBytes(src, scanOffset, chunkLen);
+
+                    for (let i = 0; i <= chunk.length - pattern.length; i++) {
+                        let match = true;
+                        for (let j = 0; j < pattern.length; j++) {
+                            if (chunk[i + j] !== pattern[j]) {
+                                match = false;
+                                break;
+                            }
                         }
+                        if (match) matches.push(scanOffset + i);
                     }
-                    if (match) matches.push(i);
+
+                    if (scanOffset + chunkLen >= size) break;
+                    scanOffset += (CHUNK_SIZE - pattern.length + 1);
                 }
             } else if (searchType === 'utf8') {
                 const pattern = new TextEncoder().encode(query);
                 matchLen = pattern.length;
-                for (let i = 0; i <= buffer.length - pattern.length; i++) {
-                    let match = true;
-                    for (let j = 0; j < pattern.length; j++) {
-                        if (buffer[i + j] !== pattern[j]) {
-                            match = false;
-                            break;
+
+                const CHUNK_SIZE = 16 * 1024 * 1024;
+                let scanOffset = 0;
+                while (scanOffset < size) {
+                    const chunkLen = Math.min(size - scanOffset, CHUNK_SIZE);
+                    const chunk = await readBytes(src, scanOffset, chunkLen);
+
+                    for (let i = 0; i <= chunk.length - pattern.length; i++) {
+                        let match = true;
+                        for (let j = 0; j < pattern.length; j++) {
+                            if (chunk[i + j] !== pattern[j]) {
+                                match = false;
+                                break;
+                            }
                         }
+                        if (match) matches.push(scanOffset + i);
                     }
-                    if (match) matches.push(i);
+
+                    if (scanOffset + chunkLen >= size) break;
+                    scanOffset += (CHUNK_SIZE - pattern.length + 1);
                 }
             } else if (searchType === 'utf16') {
                 const pattern = new Uint8Array(query.length * 2);
@@ -429,23 +497,34 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
                     pattern[i * 2 + 1] = (code >> 8) & 0xFF;
                 }
                 matchLen = pattern.length;
-                for (let i = 0; i <= buffer.length - pattern.length; i++) {
-                    let match = true;
-                    for (let j = 0; j < pattern.length; j++) {
-                        if (buffer[i + j] !== pattern[j]) {
-                            match = false;
-                            break;
+
+                const CHUNK_SIZE = 16 * 1024 * 1024;
+                let scanOffset = 0;
+                while (scanOffset < size) {
+                    const chunkLen = Math.min(size - scanOffset, CHUNK_SIZE);
+                    const chunk = await readBytes(src, scanOffset, chunkLen);
+
+                    for (let i = 0; i <= chunk.length - pattern.length; i++) {
+                        let match = true;
+                        for (let j = 0; j < pattern.length; j++) {
+                            if (chunk[i + j] !== pattern[j]) {
+                                match = false;
+                                break;
+                            }
                         }
+                        if (match) matches.push(scanOffset + i);
                     }
-                    if (match) matches.push(i);
+
+                    if (scanOffset + chunkLen >= size) break;
+                    scanOffset += (CHUNK_SIZE - pattern.length + 1);
                 }
             } else if (searchType === 'regex') {
-                const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+                const fullBuffer = await readBytes(src, 0, Math.min(size, 64 * 1024 * 1024));
+                const text = new TextDecoder('utf-8', { fatal: false }).decode(fullBuffer);
                 const re = new RegExp(query, 'g');
                 let match;
                 while ((match = re.exec(text)) !== null) {
                     matches.push(match.index);
-                    // Simplify: assume 1 char = 1 byte for length in regex for now
                     if (matchLen === 0) matchLen = match[0].length;
                 }
             }
@@ -473,16 +552,35 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
         onJumpToOffset(results[prevIndex]);
     };
 
+    const currentOffset = currentIndex !== null && results.length > 0 ? results[currentIndex] : null;
+
+    useEffect(() => {
+        if (currentOffset === null) {
+            setPreviewBytes(null);
+            return;
+        }
+        let cancelled = false;
+        const startLine = Math.floor(currentOffset / 16);
+        const startOffset = Math.max(0, (startLine - 1) * 16);
+        readBytes(src, startOffset, 64).then(bytes => {
+            if (!cancelled) setPreviewBytes(bytes);
+        });
+        return () => { cancelled = true; };
+    }, [src, currentOffset]);
+
     const renderMatchPreview = () => {
-        if (currentIndex === null || results.length === 0) return null;
-        const offset = results[currentIndex];
-        const startLine = Math.floor(offset / 16);
+        if (currentIndex === null || results.length === 0 || previewBytes === null) return null;
+        const offsetVal = results[currentIndex];
+        const startLine = Math.floor(offsetVal / 16);
         const previewLines = [];
 
         for (let l = startLine - 1; l <= startLine + 1; l++) {
-            if (l < 0 || l * 16 >= buffer.length) continue;
+            if (l < 0 || l * 16 >= size) continue;
             const lineOffset = l * 16;
-            const lineBytes = buffer.slice(lineOffset, lineOffset + 16);
+            const startFetchOffset = Math.max(0, (startLine - 1) * 16);
+            const relativeLineOffset = lineOffset - startFetchOffset;
+            const lineBytes = previewBytes.subarray(relativeLineOffset, relativeLineOffset + 16);
+
             const lineHex = [];
             for (let i = 0; i < 16; i++) {
                 if (i >= lineBytes.length) {
@@ -490,9 +588,9 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
                     continue;
                 }
                 const byteOffset = lineOffset + i;
-                const isMatch = byteOffset >= offset && byteOffset < offset + matchLength;
+                const isMatch = byteOffset >= offsetVal && byteOffset < offsetVal + matchLength;
                 const hex = lineBytes[i].toString(16).padStart(2, '0').toUpperCase();
-                lineHex.push(isMatch ? <span className="match-highlight">{hex}</span> : hex);
+                lineHex.push(isMatch ? <span key={i} className="match-highlight">{hex}</span> : hex);
             }
             previewLines.push(
                 <div key={l} className={l === startLine ? "match-line" : ""}>
@@ -538,58 +636,76 @@ export function SearchTab({ buffer, results, currentIndex, matchLength, onSearch
     );
 }
 
-export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, onJumpToOffset: (offset: number) => void }) {
+export function AnalysisTab({ dataSource, totalSize, buffer, onJumpToOffset }: { dataSource?: File | Uint8Array, totalSize?: number, buffer?: Uint8Array, onJumpToOffset: (offset: number) => void }) {
+    const src = dataSource || buffer || new Uint8Array(0);
+    const size = totalSize !== undefined ? totalSize : (src instanceof Uint8Array ? src.length : src.size);
+
     const byteMapRef = React.useRef<HTMLCanvasElement>(null);
     const entropyRef = React.useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
         const canvas = byteMapRef.current;
-        if (!canvas) return;
+        if (!canvas || size === 0) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        let cancelled = false;
         const width = canvas.width;
         const height = canvas.height;
         const imageData = ctx.createImageData(width, height);
         const totalPixels = width * height;
 
-        for (let i = 0; i < totalPixels; i++) {
-            const offset = Math.floor(i * buffer.length / totalPixels);
-            const byte = buffer[offset];
-            const idx = i * 4;
-            imageData.data[idx] = byte;     // R
-            imageData.data[idx + 1] = byte; // G
-            imageData.data[idx + 2] = byte; // B
-            imageData.data[idx + 3] = 255;  // A
-        }
-        ctx.putImageData(imageData, 0, 0);
-    }, [buffer]);
+        (async () => {
+            const step = Math.max(1, Math.floor(size / totalPixels));
+            const sampleLen = Math.min(size, totalPixels * step);
+            const samples = await readBytes(src, 0, sampleLen);
+            if (cancelled) return;
+
+            for (let i = 0; i < totalPixels; i++) {
+                const offsetVal = Math.floor(i * size / totalPixels);
+                const byte = samples[offsetVal] || 0;
+                const idx = i * 4;
+                imageData.data[idx] = byte;     // R
+                imageData.data[idx + 1] = byte; // G
+                imageData.data[idx + 2] = byte; // B
+                imageData.data[idx + 3] = 255;  // A
+            }
+            ctx.putImageData(imageData, 0, 0);
+        })();
+
+        return () => { cancelled = true; };
+    }, [src, size]);
 
     useEffect(() => {
         const canvas = entropyRef.current;
-        if (!canvas) return;
+        if (!canvas || size === 0) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        let cancelled = false;
         const width = canvas.width;
         const height = canvas.height;
-        ctx.clearRect(0, 0, width, height);
-        ctx.strokeStyle = '#0e639c';
-        ctx.beginPath();
 
-        const windowSize = 256;
-        const step = Math.max(1, Math.floor(buffer.length / width));
+        (async () => {
+            const windowSize = 256;
+            ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = '#0e639c';
+            ctx.beginPath();
 
-        for (let x = 0; x < width; x++) {
-            const offset = Math.floor(x * buffer.length / width);
-            const slice = buffer.slice(offset, offset + windowSize);
-            const entropy = computeEntropy(slice);
-            const y = height - (entropy / 8) * height;
-            if (x === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-    }, [buffer]);
+            for (let x = 0; x < width; x++) {
+                const offsetVal = Math.floor(x * size / width);
+                const slice = await readBytes(src, offsetVal, windowSize);
+                if (cancelled) return;
+                const entropy = computeEntropy(slice);
+                const y = height - (entropy / 8) * height;
+                if (x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        })();
+
+        return () => { cancelled = true; };
+    }, [src, size]);
 
     const computeEntropy = (data: Uint8Array) => {
         if (data.length === 0) return 0;
@@ -610,8 +726,8 @@ export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, on
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const offset = Math.floor((x / rect.width) * buffer.length);
-        onJumpToOffset(offset);
+        const offsetVal = Math.floor((x / rect.width) * size);
+        onJumpToOffset(offsetVal);
     };
 
     return (
@@ -638,7 +754,10 @@ export function AnalysisTab({ buffer, onJumpToOffset }: { buffer: Uint8Array, on
     );
 }
 
-export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selection: [number, number] | null }) {
+export function HashingTab({ dataSource, totalSize, buffer, selection }: { dataSource?: File | Uint8Array, totalSize?: number, buffer?: Uint8Array, selection: [number, number] | null }) {
+    const src = dataSource || buffer || new Uint8Array(0);
+    const size = totalSize !== undefined ? totalSize : (src instanceof Uint8Array ? src.length : src.size);
+
     const [hashes, setHashes] = useState<{ label: string, value: string }[]>([]);
     const [isComputing, setIsComputing] = useState(false);
     const workerRef = React.useRef<Worker | null>(null);
@@ -660,16 +779,17 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
         if (!workerRef.current) return;
 
         setIsComputing(true);
-        const data = selection ? buffer.slice(selection[0], selection[1] + 1) : buffer;
-        const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         const id = ++requestIdRef.current;
+        const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
 
-        // Create a copy via data.slice() to get a new Uint8Array backed by its own ArrayBuffer.
-        // Transferring dataCopy.buffer to the Web Worker detaches only the newly allocated copy,
-        // leaving the primary 'buffer' in HexViewer intact for future renders and calculations.
-        const dataCopy = data.slice();
-        workerRef.current.postMessage({ data: dataCopy, algorithms, id }, [dataCopy.buffer]);
-    }, [buffer, selection]);
+        const start = selection ? selection[0] : 0;
+        const len = selection ? (selection[1] - selection[0] + 1) : Math.min(size, 256 * 1024 * 1024);
+
+        readBytes(src, start, len).then(data => {
+            const dataCopy = data.slice();
+            workerRef.current?.postMessage({ data: dataCopy, algorithms, id }, [dataCopy.buffer]);
+        });
+    }, [src, size, selection]);
 
     return (
         <>
@@ -687,12 +807,30 @@ export function HashingTab({ buffer, selection }: { buffer: Uint8Array, selectio
     );
 }
 
-export function InspectorTab({ buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { buffer: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+export function InspectorTab({ dataSource, totalSize, buffer, index, selection, markers, onAddMarker, onRemoveMarker, setPreviewMarker }: { dataSource?: File | Uint8Array, totalSize?: number, buffer?: Uint8Array, index: number | null, selection: [number, number] | null, markers: Marker[], onAddMarker: (format: string, length: number, type?: 'data' | 'length', headerLength?: number, forcedStart?: number) => void, onRemoveMarker: (index: number) => void, setPreviewMarker: (marker: Marker | null) => void }) {
+    const src = dataSource || buffer || new Uint8Array(0);
+    const size = totalSize !== undefined ? totalSize : (src instanceof Uint8Array ? src.length : src.size);
+
     const [littleEndian, setLittleEndian] = useState(false);
     const [hashes, setHashes] = useState<{ label: string, value: string }[]>([]);
     const [isComputing, setIsComputing] = useState(false);
+    const [targetBytes, setTargetBytes] = useState<Uint8Array | null>(null);
     const workerRef = React.useRef<Worker | null>(null);
     const requestIdRef = React.useRef(0);
+
+    const targetIndex = index !== null ? index : (selection ? selection[0] : null);
+
+    useEffect(() => {
+        if (targetIndex === null) {
+            setTargetBytes(null);
+            return;
+        }
+        let cancelled = false;
+        readBytes(src, targetIndex, 16).then(bytes => {
+            if (!cancelled) setTargetBytes(bytes);
+        });
+        return () => { cancelled = true; };
+    }, [src, targetIndex]);
 
     useEffect(() => {
         const workerUrl = new URL('./hash-worker.js', window.location.href);
@@ -710,29 +848,31 @@ export function InspectorTab({ buffer, index, selection, markers, onAddMarker, o
         if (!workerRef.current) return;
 
         setIsComputing(true);
-        const data = selection ? buffer.slice(selection[0], selection[1] + 1) : buffer;
-        const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
         const id = ++requestIdRef.current;
+        const algorithms = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
 
-        const dataCopy = data.slice();
-        workerRef.current.postMessage({ data: dataCopy, algorithms, id }, [dataCopy.buffer]);
-    }, [buffer, selection]);
+        const start = selection ? selection[0] : 0;
+        const len = selection ? (selection[1] - selection[0] + 1) : Math.min(size, 256 * 1024 * 1024);
 
-    const targetIndex = index !== null ? index : (selection ? selection[0] : null);
+        readBytes(src, start, len).then(data => {
+            const dataCopy = data.slice();
+            workerRef.current?.postMessage({ data: dataCopy, algorithms, id }, [dataCopy.buffer]);
+        });
+    }, [src, size, selection]);
 
-    if (targetIndex === null) {
+    if (targetIndex === null || !targetBytes) {
         return (
             <div className="inspector-row">Select a byte to see details</div>
         )
     }
 
-    const view = utils.getDataView(buffer);
+    const view = utils.getDataView(targetBytes);
     const rows: { label: string, value: string, numericValue?: number | bigint, size: number }[] = [];
 
-    const safeRead = (label: string, size: number, fn: () => number | bigint) => {
+    const safeRead = (label: string, reqSize: number, fn: () => number | bigint) => {
         try {
-            if (targetIndex + size > buffer.length) {
-                rows.push({ label, value: "N/A", size });
+            if (reqSize > targetBytes.length) {
+                rows.push({ label, value: "N/A", size: reqSize });
                 return;
             }
             const val = fn();
@@ -740,35 +880,35 @@ export function InspectorTab({ buffer, index, selection, markers, onAddMarker, o
                 label,
                 value: typeof val === 'bigint' ? val.toString() : val.toLocaleString(),
                 numericValue: val,
-                size
+                size: reqSize
             });
         } catch (e) {
-            rows.push({ label, value: "Error", size });
+            rows.push({ label, value: "Error", size: reqSize });
         }
     };
 
     const selectionLength = selection ? selection[1] - selection[0] + 1 : 1;
 
     if (selectionLength === 1) {
-        safeRead("Int8", 1, () => view.getInt8(targetIndex));
-        safeRead("Uint8", 1, () => view.getUint8(targetIndex));
+        safeRead("Int8", 1, () => view.getInt8(0));
+        safeRead("Uint8", 1, () => view.getUint8(0));
     }
     if (selectionLength === 2) {
-        safeRead("Int16", 2, () => view.getInt16(targetIndex, littleEndian));
-        safeRead("Uint16", 2, () => view.getUint16(targetIndex, littleEndian));
+        safeRead("Int16", 2, () => view.getInt16(0, littleEndian));
+        safeRead("Uint16", 2, () => view.getUint16(0, littleEndian));
     }
     if (selectionLength === 4) {
-        safeRead("Int32", 4, () => view.getInt32(targetIndex, littleEndian));
-        safeRead("Uint32", 4, () => view.getUint32(targetIndex, littleEndian));
-        safeRead("Float32", 4, () => view.getFloat32(targetIndex, littleEndian));
+        safeRead("Int32", 4, () => view.getInt32(0, littleEndian));
+        safeRead("Uint32", 4, () => view.getUint32(0, littleEndian));
+        safeRead("Float32", 4, () => view.getFloat32(0, littleEndian));
     }
     if (selectionLength === 8) {
-        safeRead("Int64", 8, () => view.getBigInt64(targetIndex, littleEndian));
-        safeRead("Uint64", 8, () => view.getBigUint64(targetIndex, littleEndian));
-        safeRead("Float64", 8, () => view.getFloat64(targetIndex, littleEndian));
+        safeRead("Int64", 8, () => view.getBigInt64(0, littleEndian));
+        safeRead("Uint64", 8, () => view.getBigUint64(0, littleEndian));
+        safeRead("Float64", 8, () => view.getFloat64(0, littleEndian));
     }
 
-    const varint = utils.readVarint(buffer, targetIndex);
+    const varint = utils.readVarint(targetBytes, 0);
     rows.push({
         label: "Varint",
         value: varint.value.toString() + ` (${varint.length} bytes)`,
@@ -833,23 +973,67 @@ export function InspectorTab({ buffer, index, selection, markers, onAddMarker, o
     )
 }
 
-// TODO: Implement full virtualized chunk-based / on-demand block fetching for files >100MB instead of a static 100MB head preview.
-function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, totalSize?: number, isTruncated?: boolean }) {
+function HexViewer({ file, buffer, initialBuffer, totalSize: propTotalSize }: { file?: File, buffer?: Uint8Array, initialBuffer?: ArrayBuffer, totalSize?: number }) {
+    const dataSource = file || buffer || new Uint8Array(initialBuffer || new ArrayBuffer(0));
+    const totalSize = propTotalSize !== undefined ? propTotalSize : (file ? file.size : (buffer ? buffer.length : (initialBuffer ? initialBuffer.byteLength : 0)));
+
     const [scrollTop, setScrollTop] = useState(0);
 
-    const onJumpToOffset = useCallback((offset: number) => {
+    const lineCount = Math.ceil(totalSize / 16);
+    const MAX_SCROLL_HEIGHT = 10_000_000;
+    const unscaledTotalHeight = lineCount * 16;
+    const scale = unscaledTotalHeight > MAX_SCROLL_HEIGHT ? unscaledTotalHeight / MAX_SCROLL_HEIGHT : 1;
+
+    const onJumpToOffset = useCallback((offsetVal: number) => {
         const viewer = document.getElementById('hexviewer');
         if (viewer) {
-            const line = Math.floor(offset / 16);
+            const line = Math.floor(offsetVal / 16);
             const LINE_HEIGHT = 16;
-            viewer.scrollTop = line * LINE_HEIGHT;
+            const virtualScroll = line * LINE_HEIGHT;
+            viewer.scrollTop = virtualScroll / scale;
             setScrollTop(viewer.scrollTop);
         }
-    }, []);
+    }, [scale]);
 
     const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         setScrollTop(e.currentTarget.scrollTop);
     }, []);
+
+    // Sliding Window Buffer State
+    const [windowState, setWindowState] = useState<{ buffer: Uint8Array, offset: number }>({
+        buffer: buffer || (initialBuffer ? new Uint8Array(initialBuffer) : new Uint8Array(0)),
+        offset: 0
+    });
+
+    const virtualScrollTop = scrollTop * scale;
+    const visibleStartByte = Math.max(0, Math.floor(virtualScrollTop / 16) * 16 - 50 * 16);
+    const visibleEndByte = Math.min(totalSize, visibleStartByte + 200 * 16);
+
+    useEffect(() => {
+        if (buffer) {
+            setWindowState({ buffer, offset: 0 });
+            return;
+        }
+
+        const currOffset = windowState.offset;
+        const currLen = windowState.buffer.length;
+        if (currLen > 0 && visibleStartByte >= currOffset && visibleEndByte <= currOffset + currLen) {
+            return; // Currently visible range is already loaded in window
+        }
+
+        let cancelled = false;
+        const CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB window
+        const newWindowStart = Math.max(0, visibleStartByte - 512 * 1024);
+        const newWindowLen = Math.min(totalSize - newWindowStart, CHUNK_SIZE);
+
+        readBytes(dataSource, newWindowStart, newWindowLen).then(data => {
+            if (!cancelled) {
+                setWindowState({ buffer: data, offset: newWindowStart });
+            }
+        });
+
+        return () => { cancelled = true; };
+    }, [dataSource, totalSize, visibleStartByte, visibleEndByte, buffer]);
 
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [selectionStart, setSelectionStart] = useState<number | null>(null);
@@ -897,7 +1081,7 @@ function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, tot
         onJumpToOffset(start);
     }, [onJumpToOffset]);
 
-    const handleOpen = useCallback((arg?: OpenItem[] | Uint8Array, customName?: string) => {
+    const handleOpen = useCallback(async (arg?: OpenItem[] | Uint8Array, customName?: string) => {
         if (Array.isArray(arg)) {
             if (arg.length === 0) return;
             const first = arg[0];
@@ -909,13 +1093,15 @@ function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, tot
 
         const start = selection ? selection[0] : 0;
         const end = selection ? selection[1] : 0;
-        const data = (arg instanceof Uint8Array ? arg : null) || (selection ? buffer.slice(start, end + 1) : null);
+        let data = arg instanceof Uint8Array ? arg : null;
+        if (!data && selection) {
+            data = await readBytes(dataSource, start, end - start + 1);
+        }
         if (!data) return;
         const name = customName || `selection_0x${start.toString(16)}_0x${end.toString(16)}.bin`;
-        // Use slice().buffer to ensure the buffer is unshared for Blob/File creation
-        const file = new File([data.slice().buffer], name);
-        window.parent.postMessage({ action: 'openFile', file }, '*');
-    }, [selection, buffer]);
+        const fileObj = new File([data.slice().buffer], name);
+        window.parent.postMessage({ action: 'openFile', file: fileObj }, '*');
+    }, [selection, dataSource]);
 
     const onAddMarker = useCallback((format: string, length: number, type: 'data' | 'length' = 'data', headerLength?: number, forcedStart?: number) => {
         const start = forcedStart !== undefined ? forcedStart : (selection !== null ? selection[0] : hoverIndex);
@@ -933,8 +1119,6 @@ function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, tot
         window.addEventListener('mouseup', onMouseUp);
         return () => window.removeEventListener('mouseup', onMouseUp);
     }, []);
-
-    const lineCount = Math.ceil(buffer.length / 16)
 
     const [sidebarWidth, setSidebarWidth] = useState(300);
     const [isResizing, setIsResizing] = useState(false);
@@ -976,32 +1160,35 @@ function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, tot
         };
     }, [resize, stopResizing]);
 
+    const renderState = {
+        hoverIndex,
+        selectionStart,
+        selectionEnd,
+        markers,
+        previewMarker,
+        searchResultOffsets,
+        currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null,
+        matchLength,
+        onMouseDown,
+        onMouseEnter,
+        onMouseLeave,
+        bufferOffset: windowState.offset,
+        totalSize
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {isTruncated && totalSize && (
-                <div style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#fff3cd',
-                    color: '#856404',
-                    borderBottom: '1px solid #ffeeba',
-                    fontSize: '12px',
-                    fontFamily: 'sans-serif',
-                    flexShrink: 0
-                }}>
-                    ⚠️ Large file ({(totalSize / (1024 * 1024 * 1024)).toFixed(2)} GB). Showing preview of first 100 MB.
-                </div>
-            )}
             <div style={{ display: 'flex', flex: 1, userSelect: isResizing ? 'none' : 'auto', position: 'relative', overflow: 'hidden' }}>
             <div id="hexviewer" style={{ flex: 1, overflowY: 'auto' }} onScroll={onScroll}>
-                <Column id="offset" lineCount={lineCount} scrollTop={scrollTop}
+                <Column id="offset" totalSize={totalSize} lineCount={lineCount} scrollTop={scrollTop} scale={scale}
                     header="Offset"
-                    render={(i) => <div key={i}>{offset(i, buffer)}</div>} />
-                <Column id="hex" lineCount={lineCount} scrollTop={scrollTop}
+                    render={(i) => <div key={i}>{offset(i, totalSize)}</div>} />
+                <Column id="hex" totalSize={totalSize} lineCount={lineCount} scrollTop={scrollTop} scale={scale}
                     header="00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F"
-                    render={(i) => <div key={i}>{renderHex(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, searchResultOffsets, currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null, matchLength, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
-                <Column id="ascii" lineCount={lineCount} scrollTop={scrollTop}
+                    render={(i) => <div key={i}>{renderHex(i, windowState.buffer, renderState)}</div>} />
+                <Column id="ascii" totalSize={totalSize} lineCount={lineCount} scrollTop={scrollTop} scale={scale}
                     header=" "
-                    render={(i) => <div key={i}>{renderAscii(i, buffer, { hoverIndex, selectionStart, selectionEnd, markers, previewMarker, searchResultOffsets, currentMatchOffset: currentMatchIndex !== null ? searchResults[currentMatchIndex] : null, matchLength, onMouseDown, onMouseEnter, onMouseLeave })}</div>} />
+                    render={(i) => <div key={i}>{renderAscii(i, windowState.buffer, renderState)}</div>} />
             </div>
             {!isSidebarCollapsed && <div id="resize-handle" onMouseDown={startResizing} />}
             <button
@@ -1016,7 +1203,9 @@ function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, tot
             </button>
             <div id="inspector-container" style={{ width: sidebarWidth, display: isSidebarCollapsed ? 'none' : 'flex' }}>
                 <DataInspector
-                    buffer={buffer}
+                    dataSource={dataSource}
+                    buffer={windowState.buffer}
+                    totalSize={totalSize}
                     index={hoverIndex}
                     selection={selection}
                     markers={markers}
@@ -1043,7 +1232,7 @@ function HexViewer({ buffer, totalSize, isTruncated }: { buffer: Uint8Array, tot
     )
 }
 
-function Column({ id, render, lineCount, header, scrollTop }: { id: string, render: (i: number) => ReactNode, lineCount: number, header: string, scrollTop: number }) {
+function Column({ id, render, lineCount, header, scrollTop, scale, totalSize }: { id: string, render: (i: number) => ReactNode, lineCount: number, header: string, scrollTop: number, scale: number, totalSize: number }) {
     const [height, setHeight] = useState(window.innerHeight);
 
     useEffect(() => {
@@ -1057,21 +1246,27 @@ function Column({ id, render, lineCount, header, scrollTop }: { id: string, rend
     }, []);
 
     const LINE_HEIGHT = 16;
-    const adjustedOffset = scrollTop - LINE_HEIGHT * 2; // for the header row
+    const virtualScrollTop = scrollTop * scale;
+    const adjustedOffset = virtualScrollTop - LINE_HEIGHT * 2; // for the header row
     let visibleRange = [Math.floor(adjustedOffset / LINE_HEIGHT), Math.ceil((adjustedOffset + height + 16) / LINE_HEIGHT)]
     const OFF_SCREEN_RENDER = 50;
     visibleRange = [Math.max(0, visibleRange[0] - OFF_SCREEN_RENDER), Math.min(lineCount, visibleRange[1] + OFF_SCREEN_RENDER)]
 
+    const topSpacerHeight = (visibleRange[0] * LINE_HEIGHT) / scale;
+    const maxDOMHeight = Math.min(lineCount * LINE_HEIGHT, 10_000_000);
+    const renderedDOMHeight = ((visibleRange[1] - visibleRange[0]) * LINE_HEIGHT) / scale;
+    const bottomSpacerHeight = Math.max(0, maxDOMHeight - topSpacerHeight - renderedDOMHeight);
+
     return (
         <pre id={id}>
             <div style={{ paddingBottom: LINE_HEIGHT, height: LINE_HEIGHT }}>{header}</div>
-            <div style={{ height: visibleRange[0] * LINE_HEIGHT }}></div>
+            <div style={{ height: topSpacerHeight }}></div>
             {Array.from((function* () {
                 for (let i = visibleRange[0]; i < visibleRange[1]; i++) {
                     yield render(i)
                 }
             })())}
-            <div style={{ height: (lineCount - visibleRange[1] + 1) * LINE_HEIGHT }}></div>
+            <div style={{ height: bottomSpacerHeight }}></div>
         </pre>
     )
 }
