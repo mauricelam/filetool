@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import AceEditor from 'react-ace';
+import AceEditorImport from 'react-ace';
+const AceEditor: any = (AceEditorImport as any).default || AceEditorImport;
 import "ace-builds/src-noconflict/mode-c_cpp";
 import "ace-builds/src-noconflict/theme-github";
 import { extractSymbols } from './symbolExtractor';

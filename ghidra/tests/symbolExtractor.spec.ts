@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { extractGnuDebugdata } from '../src/symbolExtractor.js';
+import { extractGnuDebugdata } from '../src/symbolExtractor.ts';
 
 test.describe('Ghidra Symbol Extractor', () => {
     test('extractGnuDebugdata extracts section from libcodec2.so', async () => {

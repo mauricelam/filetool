@@ -49,4 +49,27 @@ test.describe('Ghidra Decompiler', () => {
         const editor = iframe.locator('.ace_content');
         await expect(editor).toContainText('void _init');
     });
+
+    test('should extract symbols from .gnu_debugdata in Ghidra', async ({ page }) => {
+        test.setTimeout(120000);
+
+        const fixturePath = path.resolve('ghidra/example/libcodec2.so');
+        const buffer = fs.readFileSync(fixturePath);
+
+        const iframe = await runHandlerTest(page, {
+            handler: 'ghidra',
+            file: {
+                content: buffer,
+                name: 'libcodec2.so',
+                type: 'application/octet-stream'
+            }
+        });
+
+        // Wait for architecture detection in the UI
+        await expect(iframe.getByText(/Detected: ARM:LE:32/)).toBeVisible({ timeout: 60000 });
+
+        // Verify symbols from .gnu_debugdata are extracted and rendered in the symbol sidebar
+        await expect(iframe.locator('div').filter({ hasText: /^__on_dlclose$/ }).first()).toBeVisible({ timeout: 60000 });
+        await expect(iframe.locator('div').filter({ hasText: /^__emutls_unregister_key$/ }).first()).toBeVisible({ timeout: 60000 });
+    });
 });
