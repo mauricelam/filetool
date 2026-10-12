@@ -338,6 +338,54 @@ export class SparseSubImage {
     }
 
     /**
+     * Converts this sub-image (partition) into an unsparsed standard File object.
+     * Uses zero-copy Blob slicing from parent without loading data into memory.
+     */
+    toBlob(fileName: string): File {
+        const createZeroBlob = (sizeBytes: number): Blob => {
+            const sharedZero = new ArrayBuffer(64 * 1024);
+            const zero64MBParts: ArrayBuffer[] = [];
+            for (let i = 0; i < 1024; i++) zero64MBParts.push(sharedZero);
+            const zero64MB = new Blob(zero64MBParts);
+
+            const num64MB = Math.floor(sizeBytes / (64 * 1024 * 1024));
+            const remainder = sizeBytes % (64 * 1024 * 1024);
+            const parts: BlobPart[] = [];
+            for (let i = 0; i < num64MB; i++) {
+                parts.push(zero64MB);
+            }
+            if (remainder > 0) {
+                const num64k = Math.floor(remainder / (64 * 1024));
+                const remBytes = remainder % (64 * 1024);
+                for (let i = 0; i < num64k; i++) {
+                    parts.push(sharedZero);
+                }
+                if (remBytes > 0) {
+                    parts.push(new ArrayBuffer(remBytes));
+                }
+            }
+            return new Blob(parts);
+        };
+
+        const parentFile = this.parent instanceof SparseImage
+            ? this.parent.toUnsparsedBlob('temp')
+            : this.parent;
+
+        const parts: BlobPart[] = [];
+        for (const ext of this.extents) {
+            if (ext.size <= 0) continue;
+            if (ext.targetType === 1) { // ZERO
+                parts.push(createZeroBlob(ext.size));
+            } else { // LINEAR
+                parts.push(parentFile.slice(ext.offset, ext.offset + ext.size));
+            }
+        }
+
+        const unsparsedBlob = new Blob(parts, { type: 'application/octet-stream' });
+        return new File([unsparsedBlob], fileName, { type: 'application/octet-stream' });
+    }
+
+    /**
      * Synchronously reads a range of bytes relative to this sub-image virtual stream.
      */
     readSync(unsparseOffset: number, length: number): Uint8Array {

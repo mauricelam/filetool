@@ -125,7 +125,7 @@ function Column<T>({
                             ) : null}
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{key}</span>
                         </div>
-                        {!isDirectory && renderFileActions && (
+                        {renderFileActions && (
                             <div style={{ flexShrink: 0, marginLeft: '8px' }}>
                                 {renderFileActions(value, [...selectedPath.slice(0, level), key])}
                             </div>
@@ -467,7 +467,7 @@ export function ColumnView<T>({
                                                     </span>
                                                 </div>
                                             </div>
-                                            {!item.isDirectory && renderFileActions && (
+                                            {renderFileActions && (
                                                 <div style={{ flexShrink: 0, marginLeft: '8px' }}>
                                                     {renderFileActions(item.content, item.path)}
                                                 </div>

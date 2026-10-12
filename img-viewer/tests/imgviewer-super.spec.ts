@@ -113,3 +113,63 @@ test('img-viewer should unpack attached super.img', async ({ page }) => {
     await expect(iframe.getByText('Android super.img Explorer')).toBeVisible();
     await expect(iframe.getByText('system_a')).toBeVisible();
 });
+
+test('img-viewer should allow downloading and opening individual partitions from super.img', async ({ page }) => {
+    const ext4Path = path.resolve(__dirname, '../example/test_ext4.img');
+    const erofsPath = path.resolve(__dirname, '../example/test_erofs.img');
+
+    const ext4Buf = fs.readFileSync(ext4Path);
+    const erofsBuf = fs.readFileSync(erofsPath);
+
+    const superBuffer = createSuperImage([
+        { name: 'system_a', data: ext4Buf },
+        { name: 'vendor_a', data: erofsBuf }
+    ]);
+
+    const iframe = await runHandlerTest(page, {
+        handler: 'img-viewer',
+        file: {
+            content: superBuffer,
+            name: 'super.img',
+            type: 'application/octet-stream'
+        }
+    });
+
+    await expect(iframe.getByText('Android super.img Explorer')).toBeVisible();
+
+    // Verify action buttons exist on partition row (system_a)
+    const systemRow = iframe.locator('.column-item').filter({ hasText: 'system_a' });
+    await expect(systemRow).toBeVisible();
+
+    const openBtn = systemRow.locator('button[title="Open"]');
+    const downloadBtn = systemRow.locator('button[title="Download"]');
+
+    await expect(openBtn).toBeVisible();
+    await expect(downloadBtn).toBeVisible();
+
+    // Test download action for partition
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        downloadBtn.click()
+    ]);
+
+    expect(download.suggestedFilename()).toBe('system_a.img');
+
+    // Test open action for partition
+    const openMessagePromise = page.evaluate(() => {
+        return new Promise<any>((resolve) => {
+            const listener = (e: MessageEvent) => {
+                if (e.data && e.data.action === 'openFile') {
+                    window.removeEventListener('message', listener);
+                    resolve({ name: e.data.file.name, size: e.data.file.size });
+                }
+            };
+            window.addEventListener('message', listener);
+        });
+    });
+
+    await openBtn.click();
+    const openMessage = await openMessagePromise;
+    expect(openMessage.name).toBe('system_a.img');
+    expect(openMessage.size).toBe(ext4Buf.length);
+});

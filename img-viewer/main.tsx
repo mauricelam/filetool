@@ -150,10 +150,20 @@ const ImgViewer: React.FC = () => {
                             if (isExt4) {
                                 await ensureExt4Initialized();
                                 const pTree = parse_ext4_stream(BigInt(p.sizeBytes), (off, len) => sub.readSync(off, len));
+                                pTree._size = p.sizeBytes;
+                                pTree._path = `/${p.name}`;
+                                pTree._mode = 0o644;
+                                pTree._uid = 0;
+                                pTree._gid = 0;
                                 rootTree[p.name] = pTree;
                             } else if (isErofs) {
                                 await ensureErofsInitialized();
                                 const pTree = await parse_erofs(sub);
+                                pTree._size = p.sizeBytes;
+                                pTree._path = `/${p.name}`;
+                                pTree._mode = 0o644;
+                                pTree._uid = 0;
+                                pTree._gid = 0;
                                 rootTree[p.name] = pTree;
                             } else {
                                 rootTree[p.name] = {
@@ -232,7 +242,7 @@ const ImgViewer: React.FC = () => {
             if (subImageMap[partitionName]) {
                 const subObj = subImageMap[partitionName];
                 const relPath = '/' + parts.slice(1).join('/');
-                return { sub: subObj.sub, isErofs: subObj.isErofs, relPath };
+                return { sub: subObj.sub, isErofs: subObj.isErofs, relPath, partitionName };
             }
         }
         return null;
@@ -242,33 +252,45 @@ const ImgViewer: React.FC = () => {
         if (!sourceFile) return;
         setActionError(null);
         try {
-            let content: Uint8Array;
+            let blob: Blob;
             const subInfo = findSubImageForPath(file._path);
 
             if (subInfo) {
-                if (subInfo.isErofs) {
+                if (subInfo.relPath === '/' || subInfo.relPath === '') {
+                    // Extracting/Downloading the partition raw .img file itself
+                    const partitionFileName = name.endsWith('.img') ? name : `${name}.img`;
+                    blob = subInfo.sub.toBlob(partitionFileName);
+                } else if (subInfo.isErofs) {
                     await ensureErofsInitialized();
-                    content = await read_erofs_file(subInfo.sub, subInfo.relPath);
+                    const content = await read_erofs_file(subInfo.sub, subInfo.relPath);
+                    blob = new Blob([content]);
                 } else {
                     await ensureExt4Initialized();
                     const unsparsedSize = BigInt(subInfo.sub.unsparsedSize);
                     const readFn = (off: number, len: number) => subInfo.sub.readSync(off, len);
-                    content = read_ext4_file_stream(unsparsedSize, readFn, subInfo.relPath);
+                    const content = read_ext4_file_stream(unsparsedSize, readFn, subInfo.relPath);
+                    blob = new Blob([content]);
                 }
             } else if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file(sourceFile, file._path);
+                const content = await read_erofs_file(sourceFile, file._path);
+                blob = new Blob([content]);
             } else {
                 await ensureExt4Initialized();
                 const unsparsedSize = BigInt(sourceFile.size);
                 const readFn = makeReadFn(sourceFile);
-                content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
+                const content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
+                blob = new Blob([content]);
             }
-            const blob = new Blob([content]);
+
+            const downloadName = (subInfo && (subInfo.relPath === '/' || subInfo.relPath === '') && !name.endsWith('.img'))
+                ? `${name}.img`
+                : name;
+
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = name;
+            a.download = downloadName;
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {
@@ -286,29 +308,37 @@ const ImgViewer: React.FC = () => {
         if (!sourceFile) return;
         setActionError(null);
         try {
-            let content: Uint8Array;
+            let newFile: File;
             const subInfo = findSubImageForPath(file._path);
 
             if (subInfo) {
-                if (subInfo.isErofs) {
+                if (subInfo.relPath === '/' || subInfo.relPath === '') {
+                    // Opening the partition raw .img file itself in FileTool
+                    const partitionFileName = name.endsWith('.img') ? name : `${name}.img`;
+                    newFile = subInfo.sub.toBlob(partitionFileName);
+                } else if (subInfo.isErofs) {
                     await ensureErofsInitialized();
-                    content = await read_erofs_file(subInfo.sub, subInfo.relPath);
+                    const content = await read_erofs_file(subInfo.sub, subInfo.relPath);
+                    newFile = new File([content], name, { type: 'application/octet-stream' });
                 } else {
                     await ensureExt4Initialized();
                     const unsparsedSize = BigInt(subInfo.sub.unsparsedSize);
                     const readFn = (off: number, len: number) => subInfo.sub.readSync(off, len);
-                    content = read_ext4_file_stream(unsparsedSize, readFn, subInfo.relPath);
+                    const content = read_ext4_file_stream(unsparsedSize, readFn, subInfo.relPath);
+                    newFile = new File([content], name, { type: 'application/octet-stream' });
                 }
             } else if (fsType === 'erofs') {
                 await ensureErofsInitialized();
-                content = await read_erofs_file(sourceFile, file._path);
+                const content = await read_erofs_file(sourceFile, file._path);
+                newFile = new File([content], name, { type: 'application/octet-stream' });
             } else {
                 await ensureExt4Initialized();
                 const unsparsedSize = BigInt(sourceFile.size);
                 const readFn = makeReadFn(sourceFile);
-                content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
+                const content = read_ext4_file_stream(unsparsedSize, readFn, file._path);
+                newFile = new File([content], name, { type: 'application/octet-stream' });
             }
-            const newFile = new File([content], name, { type: 'application/octet-stream' });
+
             window.parent?.postMessage({
                 action: 'openFile',
                 file: newFile
