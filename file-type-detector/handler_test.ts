@@ -279,6 +279,12 @@ describe('Handler Tests', () => {
             expect(apkHandlers.some(h => h.handler === 'apk-viewer')).toBe(true);
             expect(apkHandlers[0].handler).toBe('apk-viewer');
         });
+
+        it('suggests Android APK handler for application/java-archive with .apk extension', () => {
+            const apkHandlers = getHandlersForFileNameAndType('sample.apk', 'application/java-archive', '');
+            expect(apkHandlers.some(h => h.handler === 'apk-viewer')).toBe(true);
+            expect(apkHandlers[0].handler).toBe('apk-viewer');
+        });
     });
 
     describe('Large 5GB File Processing', () => {
