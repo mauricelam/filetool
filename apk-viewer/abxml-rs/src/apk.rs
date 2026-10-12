@@ -338,7 +338,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
         let mut buffer = Vec::new();
         let file = File::open(&path)?;
         let mut zip_handler = ZipArchive::new(file)?;
+        // Try reading resources.arsc if present, but do not fail initialization if missing
         if let Ok(mut arsc_file) = zip_handler.by_name("resources.arsc") {
+            // Read resources.arsc into buffer and propagate any I/O error if reading fails
             arsc_file.read_to_end(&mut buffer).context("could not read resources.arsc")?;
         }
 
@@ -351,7 +353,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
     pub fn from_bytes(bytes: &[u8]) -> Result<Apk<Cursor<&[u8]>>, Error> {
         let mut buffer = Vec::new();
         let mut zip_handler = ZipArchive::new(Cursor::new(bytes))?;
+        // Try reading resources.arsc if present, but do not fail initialization if missing
         if let Ok(mut arsc_file) = zip_handler.by_name("resources.arsc") {
+            // Read resources.arsc into buffer and propagate any I/O error if reading fails
             arsc_file.read_to_end(&mut buffer).context("could not read resources.arsc")?;
         }
 
@@ -552,21 +556,30 @@ impl<Reader: Read + Seek> Apk<Reader> {
     }
 
     pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {
+        // Check if exact file lookup in ZIP archive succeeds
         let is_ok = self.handler.by_name(name).is_ok();
+        // Fetch file handle if exact lookup succeeded, or perform normalized search fallback
         let mut current_file = if is_ok {
+            // Exact file lookup succeeded, open entry
             self.handler.by_name(name).context("could not find file")?
         } else {
+            // Normalize target path by stripping leading slashes and unifying separators
             let clean_name = name.trim_start_matches('/').replace('\\', "/");
+            // Store index of entry if fallback match found
             let mut found_index = None;
+            // Iterate over all ZIP entries to find matching normalized or case-insensitive path
             for i in 0..self.handler.len() {
                 if let Ok(file) = self.handler.by_index(i) {
+                    // Clean ZIP entry path for comparison
                     let file_name = file.name().trim_start_matches('/').replace('\\', "/");
+                    // Compare clean path or case-insensitive clean path
                     if file_name == clean_name || file_name.eq_ignore_ascii_case(&clean_name) {
                         found_index = Some(i);
                         break;
                     }
                 }
             }
+            // If fallback matched an index, open that entry, otherwise attempt by_name to produce error context
             if let Some(idx) = found_index {
                 self.handler.by_index(idx).context("could not find file")?
             } else {
@@ -574,10 +587,14 @@ impl<Reader: Read + Seek> Apk<Reader> {
             }
         };
 
+        // Initialize buffer to receive decompressed entry content
         let mut contents = Vec::new();
+        // Read decompressed file content and propagate error if reading fails
         current_file.read_to_end(&mut contents).context("could not read file")?;
 
+        // If file is an XML resource or AndroidManifest.xml, attempt binary XML decoding
         if (name.starts_with("res/") && name.ends_with(".xml")) || name == "AndroidManifest.xml" {
+            // Safely attempt binary XML decoding using system resources decoder
             let decoded_opt = match self.decoder.get_decoder(buffer_android) {
                 Ok(decoder) => match decoder.xml_visitor(&contents) {
                     Ok(xml_visitor) => xml_visitor.into_string().ok(),
@@ -586,10 +603,12 @@ impl<Reader: Read + Seek> Apk<Reader> {
                 Err(_) => None,
             };
 
+            // Return decoded XML string bytes if decoding succeeded
             if let Some(decoded) = decoded_opt {
                 return Ok(decoded.into_bytes());
             }
         }
+        // Return raw uncompressed file contents if not XML or if binary XML decoding failed
         Ok(contents)
     }
 }
