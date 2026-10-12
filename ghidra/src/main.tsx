@@ -3,50 +3,7 @@ import { createRoot } from 'react-dom/client';
 import AceEditor from 'react-ace';
 import "ace-builds/src-noconflict/mode-c_cpp";
 import "ace-builds/src-noconflict/theme-github";
-import initDecompressor, { decode } from '@filetool/decompressor-wasm';
-
-function extractGnuDebugdata(arrayBuffer: ArrayBuffer): ArrayBuffer | null {
-    const u8 = new Uint8Array(arrayBuffer);
-    if (u8.length < 64) return null;
-    if (u8[0] !== 0x7f || u8[1] !== 0x45 || u8[2] !== 0x4c || u8[3] !== 0x46) return null;
-
-    const is64 = u8[4] === 2;
-    const isLE = u8[5] === 1;
-    const view = new DataView(arrayBuffer);
-
-    const get16 = (off: number) => view.getUint16(off, isLE);
-    const get32 = (off: number) => view.getUint32(off, isLE);
-    const get64 = (off: number) => {
-        const lo = view.getUint32(off + (isLE ? 0 : 4), isLE);
-        const hi = view.getUint32(off + (isLE ? 4 : 0), isLE);
-        return hi * 0x100000000 + lo;
-    };
-
-    const e_shoff = is64 ? get64(0x28) : get32(0x20);
-    const e_shentsize = is64 ? get16(0x3a) : get16(0x2e);
-    const e_shnum = is64 ? get16(0x3c) : get16(0x30);
-    const e_shstrndx = is64 ? get16(0x3e) : get16(0x32);
-
-    if (!e_shoff || !e_shnum || e_shstrndx >= e_shnum) return null;
-
-    const shstr_hdr_off = e_shoff + e_shstrndx * e_shentsize;
-    const shstr_offset = is64 ? get64(shstr_hdr_off + 24) : get32(shstr_hdr_off + 16);
-
-    for (let i = 0; i < e_shnum; i++) {
-        const hdr_off = e_shoff + i * e_shentsize;
-        const sh_name = get32(hdr_off);
-        const nameOff = shstr_offset + sh_name;
-        let nameEnd = nameOff;
-        while (nameEnd < u8.length && u8[nameEnd] !== 0) nameEnd++;
-        const name = new TextDecoder().decode(u8.subarray(nameOff, nameEnd));
-        if (name === '.gnu_debugdata') {
-            const sh_offset = is64 ? get64(hdr_off + 24) : get32(hdr_off + 16);
-            const sh_size = is64 ? get64(hdr_off + 32) : get32(hdr_off + 20);
-            return arrayBuffer.slice(sh_offset, sh_offset + sh_size);
-        }
-    }
-    return null;
-}
+import { extractSymbols } from './symbolExtractor';
 
 const GhidraApp = () => {
     const [file, setFile] = useState<File | null>(null);
@@ -103,73 +60,16 @@ const GhidraApp = () => {
             worker.postMessage({ action: 'detect_architecture', buffer: buffer.slice(0) }, [buffer]);
 
             setStatus('Extracting symbols and segments...');
-            // Extract symbols using binutils (nm)
+            // Extract symbols using binutils (nm) and .gnu_debugdata if present
             try {
                 const binutilsWorkerUrl = new URL('../binutils/worker.js', import.meta.url);
-                const runNmOnBuffer = (buf: ArrayBuffer, name: string): Promise<any[]> => {
-                    return new Promise((resolve) => {
-                        const nmWorker = new Worker(binutilsWorkerUrl, { type: 'module' });
-                        let nmOutput = '';
-                        nmWorker.onmessage = (ev) => {
-                            if (typeof ev.data === 'string') {
-                                nmOutput += ev.data + '\n';
-                            } else if (ev.data.action === 'done') {
-                                const lines = nmOutput.split('\n');
-                                const extracted = lines.map(line => {
-                                    const match = line.trim().match(/^([0-9a-fA-F]*)\s+([tTwW])\s+(.+)$/);
-                                    if (match) {
-                                        return { address: match[1] ? '0x' + match[1] : '?', type: match[2], name: match[3] };
-                                    }
-                                    return null;
-                                }).filter(s => s !== null);
-                                nmWorker.terminate();
-                                resolve(extracted);
-                            }
-                        };
-                        nmWorker.onerror = (err) => {
-                            console.error('[GhidraUI] NM Worker Error:', err);
-                            nmWorker.terminate();
-                            resolve([]);
-                        };
-                        const copy = buf.slice(0);
-                        nmWorker.postMessage({ action: 'nm', buffer: copy, flags: ['-C'], fileName: name }, [copy]);
-                    });
-                };
-
-                const mainBuffer = await file.arrayBuffer();
-                const mainSymbols = await runNmOnBuffer(mainBuffer, file.name);
-
-                let extraSymbols: any[] = [];
-                const gnuDebugdataCompressed = extractGnuDebugdata(mainBuffer);
-                if (gnuDebugdataCompressed) {
-                    console.log('[GhidraUI] Found .gnu_debugdata section, decompressing...');
-                    try {
-                        await initDecompressor('decompressor_wasm_bg.wasm');
-                        const decompressedRes = decode(new Uint8Array(gnuDebugdataCompressed));
-                        const decompressedU8 = decompressedRes.data;
-                        const decompressedCopy = new Uint8Array(decompressedU8.length);
-                        decompressedCopy.set(decompressedU8);
-                        extraSymbols = await runNmOnBuffer(decompressedCopy.buffer, 'debugdata.elf');
-                        console.log('[GhidraUI] Extracted symbols from .gnu_debugdata:', extraSymbols.length);
-                    } catch (decErr) {
-                        console.error('[GhidraUI] Failed to decompress .gnu_debugdata:', decErr);
-                    }
-                }
-
-                const symbolMap = new Map<string, any>();
-                for (const sym of [...mainSymbols, ...extraSymbols]) {
-                    const key = `${sym.name}@${sym.address}`;
-                    if (!symbolMap.has(key)) {
-                        symbolMap.set(key, sym);
-                    }
-                }
-                const combinedSymbols = Array.from(symbolMap.values());
+                const combinedSymbols = await extractSymbols(binutilsWorkerUrl, file);
                 console.log('[GhidraUI] Total extracted symbols:', combinedSymbols.length);
                 setSymbols(combinedSymbols);
                 setStatus(prev => (prev === 'Extracting symbols...' || prev.startsWith('Ready')) ? `Ready (${combinedSymbols.length} symbols)` : prev);
             } catch (err) {
-                console.error('[GhidraUI] Failed to start NM worker:', err);
-                setStatus('Failed to start symbol extraction.');
+                console.error('[GhidraUI] Failed symbol extraction:', err);
+                setStatus('Failed to extract symbols.');
             }
 
             // Extract segments using readelf
