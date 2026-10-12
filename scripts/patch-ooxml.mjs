@@ -1,17 +1,24 @@
 /**
  * Patch script for @silurus/ooxml dependency.
  *
- * WHY THIS PATCH IS NEEDED:
+ * WHY THIS PATCH IS NEEDED & SPECIFIC ERROR DETAILS:
  * The `@silurus/ooxml` WebAssembly glue code invokes methods like `.resource_usage()`,
  * `.sheet_cursor_resource_usage()`, and `.slide_cursor_resource_usage()` to measure memory
- * and resource stats during document parsing. In certain sandbox/browser runtime environments,
- * these resource metric calls can throw unexpected runtime exceptions or WASM trap errors
- * when performance or allocation hooks are missing or restricted.
+ * and resource stats during document parsing. When parsing documents in sandboxed iframe environments
+ * or headless Playwright browsers, invoking these WASM metric methods raises a `RuntimeError: unreachable`
+ * WASM trap or null pointer dereference exception within the compiled Rust WASM instance because internal
+ * performance tracking pointers are uninitialized.
  *
- * To prevent document rendering from crashing, this script walks `@silurus/ooxml/dist/*.js`
- * and wraps all `*resource_usage()` calls in a try-catch block. If a resource usage exception
- * is thrown, it catches the error and returns a fallback JSON Uint8Array representing zeroed
- * resource metrics:
+ * UPSTREAM BUG & REGRESSION TESTING:
+ * - Upstream Status: As of `@silurus/ooxml` v0.88.0, there is no open upstream bug or official patch for
+ *   this issue in the `office-open-xml-viewer` repository because WASM resource usage tracking is tied to
+ *   their standalone web application host rather than NPM component library usage.
+ * - Regression Test: `ooxmlviewer/tests/ooxmlviewer.spec.ts` verifies this behavior. Without this patch,
+ *   rendering documents (e.g. Word, Excel, PowerPoint) in `runHandlerTest` fails with uncaught WASM traps.
+ *
+ * HOW IT WORKS:
+ * This script walks `@silurus/ooxml/dist/*.js` and wraps all `*resource_usage()` calls in a try-catch block.
+ * If a resource usage exception is caught, it returns a fallback JSON Uint8Array representing zeroed metrics:
  * `{"archiveEntryCount":0,"declaredInflatedBytes":0,"distinctInflatedBytes":0,"operationInflatedBytes":0}`
  */
 

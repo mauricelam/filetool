@@ -11,12 +11,28 @@ import { DocxViewer } from '@silurus/ooxml/docx';
 import { XlsxViewer } from '@silurus/ooxml/xlsx';
 import { PptxScrollViewer } from '@silurus/ooxml/pptx';
 
+/**
+ * Root React application component for OOXML Document Viewer.
+ * Listens for file payload messages from the parent frame, determines the document format,
+ * and instantiates the corresponding `@silurus/ooxml` viewer.
+ */
 function OOXMLViewerApp() {
+    /** The active document file received from the parent iframe container. */
     const [file, setFile] = useState<File | null>(null);
+
+    /** Error message state displayed if document loading or WASM parsing fails. */
     const [error, setError] = useState<string | null>(null);
+
+    /** DOM container element ref in which the active OOXML viewer renders canvas or HTML elements. */
     const containerRef = useRef<HTMLDivElement>(null);
+
+    /** Reference holding the active WASM viewer instance (DocxViewer, XlsxViewer, or PptxScrollViewer). */
     const currentViewerRef = useRef<DocxViewer | XlsxViewer | PptxScrollViewer | null>(null);
 
+    /**
+     * Side effect to set up communication with the parent window/frame.
+     * Posts a `requestFile` message to `window.parent` and listens for `respondFile` message payload.
+     */
     useEffect(() => {
         const handleMessage = (e: MessageEvent) => {
             if (e.data && e.data.action === 'respondFile' && e.data.file) {
@@ -35,6 +51,11 @@ function OOXMLViewerApp() {
         };
     }, []);
 
+    /**
+     * Main document loading effect.
+     * Clears container contents, cleans up previous viewer instance, inspects filename extension
+     * and MIME type to resolve format ('docx', 'xlsx', or 'pptx'), and initializes WASM parser.
+     */
     useEffect(() => {
         if (!file || !containerRef.current) return;
 
