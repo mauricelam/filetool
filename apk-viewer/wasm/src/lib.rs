@@ -789,8 +789,6 @@ pub fn decode_xml(bytes: Vec<u8>, system_resources: Vec<u8>) -> Result<String, w
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_extract_arsc() {
         let bytes = include_bytes!("example_resources.arsc").to_vec();

@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use crate::apk::Apk;
-    use std::collections::HashMap;
 
     #[test]
     fn test_find_signing_block_mock() {
@@ -36,16 +35,9 @@ mod tests {
 
     #[test]
     fn test_signature_extraction_real_apk() {
-        let path = if std::path::Path::new("../example/Tasker.6.6.20.apk").exists() {
-            "../example/Tasker.6.6.20.apk"
-        } else if std::path::Path::new("apk-viewer/example/Tasker.6.6.20.apk").exists() {
-            "apk-viewer/example/Tasker.6.6.20.apk"
-        } else if std::path::Path::new("example/Tasker.6.6.20.apk").exists() {
-            "example/Tasker.6.6.20.apk"
-        } else {
-            "../../tests/fixtures/Tasker.6.6.20.apk"
-        };
-        let bytes = std::fs::read(path).expect("Could not read Tasker APK");
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+        let path = std::path::Path::new(&manifest_dir).join("../example/Tasker.6.6.20.apk");
+        let bytes = std::fs::read(&path).expect("Could not read Tasker APK");
         let dummy_arsc = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
         let mut apk = Apk::<std::io::Cursor<&[u8]>>::from_bytes(&bytes).expect("Failed to load APK");

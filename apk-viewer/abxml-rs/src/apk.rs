@@ -338,9 +338,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
         let mut buffer = Vec::new();
         let file = File::open(&path)?;
         let mut zip_handler = ZipArchive::new(file)?;
-        zip_handler
-            .by_name("resources.arsc")?
-            .read_to_end(&mut buffer)?;
+        if let Ok(mut arsc_file) = zip_handler.by_name("resources.arsc") {
+            arsc_file.read_to_end(&mut buffer).context("could not read resources.arsc")?;
+        }
 
         Ok(Apk {
             handler: zip_handler,
@@ -351,9 +351,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
     pub fn from_bytes(bytes: &[u8]) -> Result<Apk<Cursor<&[u8]>>, Error> {
         let mut buffer = Vec::new();
         let mut zip_handler = ZipArchive::new(Cursor::new(bytes))?;
-        zip_handler
-            .by_name("resources.arsc")?
-            .read_to_end(&mut buffer)?;
+        if let Ok(mut arsc_file) = zip_handler.by_name("resources.arsc") {
+            arsc_file.read_to_end(&mut buffer).context("could not read resources.arsc")?;
+        }
 
         Ok(Apk {
             handler: zip_handler,
@@ -379,11 +379,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
                     .by_index(i)
                     .context("could not read ZIP entry")?;
                 let mut contents = Vec::new();
-                if let Err(e) = current_file.read_to_end(&mut contents) {
-                    if contents.is_empty() {
-                        return Err(e).context(format!("could not read: {}", current_file.name()));
-                    }
-                }
+                current_file
+                    .read_to_end(&mut contents)
+                    .context(format!("could not read: {}", current_file.name()))?;
                 let is_xml = current_file.name().to_string();
 
                 (is_xml, contents)
@@ -435,11 +433,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
                     .by_index(i)
                     .context("could not read ZIP entry")?;
                 let mut contents = Vec::new();
-                if let Err(e) = current_file.read_to_end(&mut contents) {
-                    if contents.is_empty() {
-                        return Err(e).context(format!("could not read: {}", current_file.name()));
-                    }
-                }
+                current_file
+                    .read_to_end(&mut contents)
+                    .context(format!("could not read: {}", current_file.name()))?;
                 let is_xml = current_file.name().to_string();
 
                 (is_xml, contents)
@@ -579,11 +575,7 @@ impl<Reader: Read + Seek> Apk<Reader> {
         };
 
         let mut contents = Vec::new();
-        if let Err(e) = current_file.read_to_end(&mut contents) {
-            if contents.is_empty() {
-                return Err(e).context("could not read file");
-            }
-        }
+        current_file.read_to_end(&mut contents).context("could not read file")?;
 
         if (name.starts_with("res/") && name.ends_with(".xml")) || name == "AndroidManifest.xml" {
             let decoded_opt = match self.decoder.get_decoder(buffer_android) {
@@ -627,5 +619,22 @@ mod tests {
         let mut apk = Apk::<Cursor<&[u8]>>::from_bytes(&zip_buf).unwrap();
         let extracted = apk.extract_file("res/layout/main.xml", &sys_res).unwrap();
         assert_eq!(extracted, b"invalid binary xml content");
+    }
+
+    #[test]
+    fn test_extract_file_without_arsc() {
+        let mut zip_buf = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(Cursor::new(&mut zip_buf));
+            let options = zip::write::SimpleFileOptions::default();
+            zip.start_file("assets/test.txt", options).unwrap();
+            zip.write_all(b"hello world").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let sys_res = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut apk = Apk::<Cursor<&[u8]>>::from_bytes(&zip_buf).unwrap();
+        let extracted = apk.extract_file("assets/test.txt", &sys_res).unwrap();
+        assert_eq!(extracted, b"hello world");
     }
 }
