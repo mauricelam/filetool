@@ -1,6 +1,7 @@
 {
   "name": "@filetool/ghidra",
   "version": "1.0.0",
+  "type": "module",
   "author": "Maurice Lam",
   "scripts": {
     "build": "node build.mjs",
