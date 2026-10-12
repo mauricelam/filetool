@@ -30,12 +30,11 @@ const DMGViewer: React.FC = () => {
                 try {
                     const file = e.data.file as File;
                     // DMG headers and XML koly trailer reside in trailer (last 512B) and header
-                    // Slice at most 50MB from start/tail if file is large to prevent OOM
-                    const MAX_DMG_SIZE = 50 * 1024 * 1024;
+                    const SCAN_SIZE = 16 * 1024 * 1024;
                     let fileData: Uint8Array;
-                    if (file.size > MAX_DMG_SIZE) {
-                        const head = new Uint8Array(await file.slice(0, MAX_DMG_SIZE / 2).arrayBuffer());
-                        const tail = new Uint8Array(await file.slice(file.size - MAX_DMG_SIZE / 2).arrayBuffer());
+                    if (file.size > SCAN_SIZE) {
+                        const head = new Uint8Array(await file.slice(0, SCAN_SIZE / 2).arrayBuffer());
+                        const tail = new Uint8Array(await file.slice(file.size - SCAN_SIZE / 2).arrayBuffer());
                         fileData = new Uint8Array(head.length + tail.length);
                         fileData.set(head, 0);
                         fileData.set(tail, head.length);

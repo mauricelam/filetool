@@ -4,9 +4,7 @@ const CheerpJ = window as any;
 
 async function handleFile(file: File) {
     console.log('Adding file', file, 'to Cheerp', `/str/${file.name}`)
-    const MAX_CHEERPJ_SIZE = 100 * 1024 * 1024;
-    const slice = file.size > MAX_CHEERPJ_SIZE ? file.slice(0, MAX_CHEERPJ_SIZE) : file;
-    CheerpJ.cheerpOSAddStringFile(`/str/${file.name}`, new Uint8Array(await slice.arrayBuffer()))
+    CheerpJ.cheerpjOSAddStringFile(`/str/${file.name}`, new Uint8Array(await file.arrayBuffer()))
     // https://cheerpj.com/docs/guides/File-System-support.html
     await CheerpJ.cheerpjRunJar(`/str/${file.name}`);
 }

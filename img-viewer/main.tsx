@@ -106,7 +106,7 @@ const ImgViewer: React.FC = () => {
                             };
                             parsedTree = parse_ext4_stream(BigInt(file.size), readFn);
                         } else {
-                            const data = new Uint8Array(await file.slice(0, Math.min(file.size, 500 * 1024 * 1024)).arrayBuffer());
+                            const data = new Uint8Array(await file.arrayBuffer());
                             parsedTree = parse_ext4(data);
                         }
                         setTree(parsedTree);

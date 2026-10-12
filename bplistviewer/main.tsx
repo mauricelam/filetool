@@ -15,9 +15,7 @@ const App = () => {
                 try {
                     setError(null);
                     const file = e.data.file;
-                    const MAX_BPLIST_SIZE = 50 * 1024 * 1024;
-                    const slice = file.size > MAX_BPLIST_SIZE ? file.slice(0, MAX_BPLIST_SIZE) : file;
-                    const buffer = Buffer.from(await slice.arrayBuffer());
+                    const buffer = Buffer.from(await file.arrayBuffer());
                     const [parsed, warnings] = parseBuffer(buffer);
                     if (parsed && typeof parsed === 'object' && 'error' in parsed) {
                         setError(parsed.error);

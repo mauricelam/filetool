@@ -43,9 +43,7 @@ function RstViewer({ file }: { file: File }) {
 
     // Process file when component mounts
     useEffect(() => {
-        const MAX_RST_SIZE = 50 * 1024 * 1024;
-        const slice = file.size > MAX_RST_SIZE ? file.slice(0, MAX_RST_SIZE) : file;
-        slice.arrayBuffer().then(buffer => {
+        file.arrayBuffer().then(buffer => {
             try {
                 const decoder = new TextDecoder('utf-8');
                 const rstText = decoder.decode(buffer);

@@ -37,9 +37,17 @@ self.onmessage = async (e: MessageEvent<SqliteWorkerMessage>) => {
             }
             try {
                 const file = e.data.file;
-                const slice = file.slice(0, Math.min(file.size, 100 * 1024 * 1024));
-                const buffer = await slice.arrayBuffer();
-                const u8 = new Uint8Array(buffer);
+                // Read in 16MB chunked slices to prevent allocation limits during reading
+                const totalSize = file.size;
+                const u8 = new Uint8Array(totalSize);
+                const CHUNK_SIZE = 16 * 1024 * 1024;
+                let offset = 0;
+                while (offset < totalSize) {
+                    const bytesToRead = Math.min(totalSize - offset, CHUNK_SIZE);
+                    const chunkBuf = await file.slice(offset, offset + bytesToRead).arrayBuffer();
+                    u8.set(new Uint8Array(chunkBuf), offset);
+                    offset += bytesToRead;
+                }
 
                 // Prefer the new posix-style helper per sqlite-wasm release notes
                 // (2023-08-12) which deprecates sqlite3_js_vfs_create_file in favor
