@@ -239,6 +239,30 @@ describe('Handler Tests', () => {
         });
     });
 
+    describe('Office Document Handler Matching', () => {
+        it('matches .docx, .xlsx, .pptx files with ooxmlviewer handler', () => {
+            const docxHandlers = getHandlersForFileNameAndType('test.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '');
+            expect(docxHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+
+            const xlsxHandlers = getHandlersForFileNameAndType('test.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '');
+            expect(xlsxHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+
+            const pptxHandlers = getHandlersForFileNameAndType('test.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '');
+            expect(pptxHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+        });
+
+        it('matches legacy .doc, .xls, .ppt files with ooxmlviewer handler', () => {
+            const docHandlers = getHandlersForFileNameAndType('document.doc', 'application/msword', '');
+            expect(docHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+
+            const xlsHandlers = getHandlersForFileNameAndType('spreadsheet.xls', 'application/vnd.ms-excel', '');
+            expect(xlsHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+
+            const pptHandlers = getHandlersForFileNameAndType('presentation.ppt', 'application/vnd.ms-powerpoint', '');
+            expect(pptHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+        });
+    });
+
     describe('APEX vs APK Handler Matching', () => {
         it('matches .apex and .capex files with Archive handler and not APK handler', () => {
             const apexHandlers = getHandlersForFileNameAndType('com.android.runtime.apex', 'application/vnd.android.package-archive', '');

@@ -19,16 +19,33 @@ function sendFileIfReady() {
     }
 }
 
+/**
+ * Normalizes test payload binary file content into a Uint8Array.
+ *
+ * WHY THIS IS NEEDED:
+ * When tests pass file content across frame or worker boundaries via Playwright `postMessage`,
+ * binary buffers (such as `Buffer` or `Uint8Array`) can be serialized as raw array numbers `[123, ...]`
+ * or JSON objects with key-index properties `{"0": 123, "1": 45, ...}` depending on context.
+ * This helper guarantees the payload is formatted as a valid `Uint8Array` before passing it to `new File()`.
+ */
+function toBuffer(content: any) {
+    if (!content) return content;
+    if (content instanceof ArrayBuffer || content instanceof Uint8Array) return content;
+    if (Array.isArray(content)) return new Uint8Array(content);
+    if (typeof content === 'object') return new Uint8Array(Object.values(content));
+    return content;
+}
+
 // 2. Listen for file data from the test runner (parent window)
 window.addEventListener('message', (event: MessageEvent) => {
     console.log('Message received from parent', event.data);
     if (event.source === window.parent && event.data.action === 'setFile') {
         const { content, name, type } = event.data.file;
-        fileToProvide = new File([content], name, { type });
+        fileToProvide = new File([toBuffer(content)], name, { type });
 
         if (event.data.additionalFiles) {
             additionalFilesToProvide = event.data.additionalFiles.map((f: any) =>
-                new File([f.content], f.name, { type: f.type })
+                new File([toBuffer(f.content)], f.name, { type: f.type })
             );
         } else {
             additionalFilesToProvide = [];
