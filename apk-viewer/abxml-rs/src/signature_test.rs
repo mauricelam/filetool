@@ -36,7 +36,15 @@ mod tests {
 
     #[test]
     fn test_signature_extraction_real_apk() {
-        let path = "../../tests/fixtures/Tasker.6.6.20.apk";
+        let path = if std::path::Path::new("../example/Tasker.6.6.20.apk").exists() {
+            "../example/Tasker.6.6.20.apk"
+        } else if std::path::Path::new("apk-viewer/example/Tasker.6.6.20.apk").exists() {
+            "apk-viewer/example/Tasker.6.6.20.apk"
+        } else if std::path::Path::new("example/Tasker.6.6.20.apk").exists() {
+            "example/Tasker.6.6.20.apk"
+        } else {
+            "../../tests/fixtures/Tasker.6.6.20.apk"
+        };
         let bytes = std::fs::read(path).expect("Could not read Tasker APK");
         let dummy_arsc = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 

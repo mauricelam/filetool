@@ -379,9 +379,11 @@ impl<Reader: Read + Seek> Apk<Reader> {
                     .by_index(i)
                     .context("could not read ZIP entry")?;
                 let mut contents = Vec::new();
-                current_file
-                    .read_to_end(&mut contents)
-                    .context(format!("could not read: {}", current_file.name()))?;
+                if let Err(e) = current_file.read_to_end(&mut contents) {
+                    if contents.is_empty() {
+                        return Err(e).context(format!("could not read: {}", current_file.name()));
+                    }
+                }
                 let is_xml = current_file.name().to_string();
 
                 (is_xml, contents)
@@ -433,9 +435,11 @@ impl<Reader: Read + Seek> Apk<Reader> {
                     .by_index(i)
                     .context("could not read ZIP entry")?;
                 let mut contents = Vec::new();
-                current_file
-                    .read_to_end(&mut contents)
-                    .context(format!("could not read: {}", current_file.name()))?;
+                if let Err(e) = current_file.read_to_end(&mut contents) {
+                    if contents.is_empty() {
+                        return Err(e).context(format!("could not read: {}", current_file.name()));
+                    }
+                }
                 let is_xml = current_file.name().to_string();
 
                 (is_xml, contents)
@@ -552,19 +556,76 @@ impl<Reader: Read + Seek> Apk<Reader> {
     }
 
     pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {
-        let mut current_file = self.handler.by_name(name).context("could not find file")?;
-        let mut contents = Vec::new();
-        current_file.read_to_end(&mut contents).context("could not read file")?;
-
-        if (name.starts_with("res/") && name.ends_with(".xml")) || name == "AndroidManifest.xml" {
-            if let Ok(decoder) = self.decoder.get_decoder(buffer_android) {
-                if let Ok(xml_visitor) = decoder.xml_visitor(&contents) {
-                    if let Ok(decoded) = xml_visitor.into_string() {
-                        return Ok(decoded.into_bytes());
+        let is_ok = self.handler.by_name(name).is_ok();
+        let mut current_file = if is_ok {
+            self.handler.by_name(name).context("could not find file")?
+        } else {
+            let clean_name = name.trim_start_matches('/').replace('\\', "/");
+            let mut found_index = None;
+            for i in 0..self.handler.len() {
+                if let Ok(file) = self.handler.by_index(i) {
+                    let file_name = file.name().trim_start_matches('/').replace('\\', "/");
+                    if file_name == clean_name || file_name.eq_ignore_ascii_case(&clean_name) {
+                        found_index = Some(i);
+                        break;
                     }
                 }
             }
+            if let Some(idx) = found_index {
+                self.handler.by_index(idx).context("could not find file")?
+            } else {
+                self.handler.by_name(name).context("could not find file")?
+            }
+        };
+
+        let mut contents = Vec::new();
+        if let Err(e) = current_file.read_to_end(&mut contents) {
+            if contents.is_empty() {
+                return Err(e).context("could not read file");
+            }
+        }
+
+        if (name.starts_with("res/") && name.ends_with(".xml")) || name == "AndroidManifest.xml" {
+            let decoded_opt = match self.decoder.get_decoder(buffer_android) {
+                Ok(decoder) => match decoder.xml_visitor(&contents) {
+                    Ok(xml_visitor) => xml_visitor.into_string().ok(),
+                    Err(_) => None,
+                },
+                Err(_) => None,
+            };
+
+            if let Some(decoded) = decoded_opt {
+                return Ok(decoded.into_bytes());
+            }
         }
         Ok(contents)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_file_xml_fallback() {
+        let mut zip_buf = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(Cursor::new(&mut zip_buf));
+            let options = zip::write::SimpleFileOptions::default();
+            zip.start_file("resources.arsc", options).unwrap();
+            let arsc_bytes = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            zip.write_all(&arsc_bytes).unwrap();
+
+            zip.start_file("res/layout/main.xml", options).unwrap();
+            let malformed_xml = b"invalid binary xml content";
+            zip.write_all(malformed_xml).unwrap();
+
+            zip.finish().unwrap();
+        }
+
+        let sys_res = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut apk = Apk::<Cursor<&[u8]>>::from_bytes(&zip_buf).unwrap();
+        let extracted = apk.extract_file("res/layout/main.xml", &sys_res).unwrap();
+        assert_eq!(extracted, b"invalid binary xml content");
     }
 }
