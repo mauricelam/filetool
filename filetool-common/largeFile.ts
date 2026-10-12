@@ -2,59 +2,93 @@ export interface FileSliceOptions {
     chunkSize?: number;
 }
 
+/**
+ * Metadata and data payload for an individual file chunk slice.
+ */
 export interface ChunkInfo {
+    /** 0-based index of the chunk slice */
     index: number;
+    /** Byte offset from the start of the file */
     offset: number;
+    /** Byte size of this chunk slice */
     size: number;
+    /** Total byte size of the underlying file */
     totalSize: number;
+    /** Whether this chunk slice is the last one in the file */
     isLast: boolean;
+    /** Blob representation of the chunk slice */
     data: Blob;
 }
 
+/** Default chunk slice size (16 MB) */
 export const DEFAULT_CHUNK_SIZE = 16 * 1024 * 1024; // 16 MB per slice chunk
 
 /**
- * FileChunkReader provides a unified mechanism across all viewers to process arbitrarily
+ * `FileChunkReader` provides a unified mechanism across all viewers to process arbitrarily
  * large files (>4GB) by breaking them down into manageable sequential or random-access slices.
+ *
+ * It operates directly on HTML5 `File` or `Blob` reference handles without loading the entire
+ * file into JavaScript heap memory at once.
+ *
+ * @example
+ * ```ts
+ * const reader = new FileChunkReader(largeFile, 16 * 1024 * 1024);
+ * for await (const chunk of reader.chunkStream()) {
+ *     console.log(`Processing chunk ${chunk.index + 1}/${reader.totalChunks}`);
+ * }
+ * ```
  */
 export class FileChunkReader {
     private file: File;
     private chunkSize: number;
 
+    /**
+     * Creates a new `FileChunkReader` instance.
+     * @param file The HTML5 `File` handle to read from.
+     * @param chunkSize The size of each chunk slice in bytes (defaults to 16 MB).
+     */
     constructor(file: File, chunkSize: number = DEFAULT_CHUNK_SIZE) {
         this.file = file;
-        this.chunkSize = chunkSize;
+        this.chunkSize = Math.max(1, chunkSize);
     }
 
+    /** Total byte size of the underlying file */
     get totalSize(): number {
         return this.file.size;
     }
 
+    /** Total number of chunk slices in the file */
     get totalChunks(): number {
         return Math.ceil(this.file.size / this.chunkSize) || 1;
     }
 
     /**
      * Reads a specific byte range slice safely from the file without buffering the whole file in memory.
+     * @param offset Byte offset from start of file.
+     * @param length Number of bytes to read.
+     * @returns Promise resolving to a Uint8Array containing the byte range.
      */
     async readRange(offset: number, length: number): Promise<Uint8Array> {
         const start = Math.max(0, Math.min(offset, this.file.size));
-        const end = Math.min(start + length, this.file.size);
+        const end = Math.min(start + Math.max(0, length), this.file.size);
         const slice = this.file.slice(start, end);
         const buffer = await slice.arrayBuffer();
         return new Uint8Array(buffer);
     }
 
     /**
-     * Reads a specific slice chunk by 0-based chunk index.
+     * Reads a specific slice chunk by its 0-based chunk index.
+     * @param index 0-based index of the chunk slice.
+     * @returns Promise resolving to `ChunkInfo` for the specified chunk index.
      */
     async getChunk(index: number): Promise<ChunkInfo> {
-        const offset = index * this.chunkSize;
+        const safeIndex = Math.max(0, Math.min(index, this.totalChunks - 1));
+        const offset = safeIndex * this.chunkSize;
         const size = Math.min(this.chunkSize, Math.max(0, this.file.size - offset));
         const data = this.file.slice(offset, offset + size);
         const isLast = offset + size >= this.file.size;
         return {
-            index,
+            index: safeIndex,
             offset,
             size,
             totalSize: this.file.size,
@@ -65,6 +99,7 @@ export class FileChunkReader {
 
     /**
      * Async generator iterating over sequential chunk slices across multi-GB files.
+     * Yields `ChunkInfo` objects sequentially from chunk 0 to `totalChunks - 1`.
      */
     async *chunkStream(): AsyncIterableIterator<ChunkInfo> {
         const count = this.totalChunks;
@@ -75,6 +110,8 @@ export class FileChunkReader {
 
     /**
      * Iteratively processes all chunk slices of a file with a callback function.
+     * Returning `false` from the callback will stop chunk processing early.
+     * @param callback Async or sync function called for each chunk slice.
      */
     async processInChunks(
         callback: (chunk: ChunkInfo) => Promise<boolean | void> | boolean | void
@@ -89,7 +126,10 @@ export class FileChunkReader {
 }
 
 /**
- * Convenience helper to iteratively process a large File in small slices.
+ * Convenience helper to iteratively process a large `File` in small slices.
+ * @param file The HTML5 `File` object.
+ * @param callback Callback invoked for each `ChunkInfo`. Return `false` to abort.
+ * @param chunkSize Size per chunk slice in bytes (default 16 MB).
  */
 export async function readInChunks(
     file: File,
@@ -102,6 +142,9 @@ export async function readInChunks(
 
 /**
  * Reads a range slice from a file.
+ * @param file The HTML5 `File` object.
+ * @param offset Byte start offset.
+ * @param length Byte length to read.
  */
 export async function readByteRange(
     file: File,
@@ -113,7 +156,9 @@ export async function readByteRange(
 }
 
 /**
- * Formats byte sizes into human-readable strings (e.g. "4.20 GB").
+ * Formats byte sizes into human-readable strings (e.g. "4.20 GB", "500 KB").
+ * @param bytes Number of bytes.
+ * @param decimals Number of decimal places to include (default 2).
  */
 export function formatBytes(bytes: number, decimals: number = 2): string {
     if (bytes === 0) return '0 Bytes';

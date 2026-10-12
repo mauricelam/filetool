@@ -10,7 +10,7 @@ import "ace-builds/src-noconflict/ext-searchbox"
 import './styles.css';
 import { Sidebar } from './Sidebar';
 import { Controls } from './Controls';
-import { FileChunkReader } from 'filetool-common/largeFile';
+import { FileChunkReader, formatBytes } from 'filetool-common/largeFile';
 
 window.onmessage = (e) => {
     if (e.data.action === 'respondFile') {
@@ -89,13 +89,16 @@ function App({ file }: { file: File }) {
     const [toolFlags, setToolFlags] = useState<{ [key: string]: string[] }>(
         Object.fromEntries(TOOLS.map((t) => [t.name, t.defaultFlags]))
     );
+    const [chunkIndex, setChunkIndex] = useState<number>(0);
+    const [reader] = useState(() => new FileChunkReader(file, 64 * 1024 * 1024));
 
-    const binutil = async (tool: string, file: File, flags: string[] = []) => {
+    const totalChunks = reader.totalChunks;
+
+    const binutil = async (tool: string, file: File, flags: string[] = [], currentChunk: number = 0) => {
         currentWorker?.terminate();
-        setOutput(`Running ${tool} ${flags}...`);
+        const chunk = await reader.getChunk(currentChunk);
+        setOutput(`Running ${tool} ${flags.join(' ')} on slice chunk ${currentChunk + 1}/${totalChunks} (${formatBytes(chunk.size)})...`);
         currentWorker = new Worker(new URL("worker.js", import.meta.url), { type: 'module' });
-        const reader = new FileChunkReader(file, 16 * 1024 * 1024);
-        const chunk = await reader.getChunk(0);
         const buffer = await chunk.data.arrayBuffer();
         let currentOutput = ''
         currentWorker.onmessage = (e) => {
@@ -111,9 +114,9 @@ function App({ file }: { file: File }) {
 
     useEffect(() => {
         if (file) {
-            binutil(selectedTool, file, toolFlags[selectedTool] || []);
+            binutil(selectedTool, file, toolFlags[selectedTool] || [], chunkIndex);
         }
-    }, [selectedTool, toolFlags, file]);
+    }, [selectedTool, toolFlags, file, chunkIndex]);
 
 
     const handleFlagChange = (toolName: string, flag: string, checked: boolean) => {
@@ -136,6 +139,30 @@ function App({ file }: { file: File }) {
                 onSelect={setSelectedTool}
             />
             <main className="binutils-main">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#1e1e1e', color: '#ccc', fontSize: '13px', borderBottom: '1px solid #333' }}>
+                    <div>
+                        <span>File Size: {formatBytes(file.size)}</span>
+                        {totalChunks > 1 && <span> | Chunk Slice: {chunkIndex + 1} of {totalChunks}</span>}
+                    </div>
+                    {totalChunks > 1 && (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                disabled={chunkIndex === 0}
+                                onClick={() => setChunkIndex(i => Math.max(0, i - 1))}
+                                style={{ background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '3px', cursor: 'pointer', padding: '2px 8px' }}
+                            >
+                                Prev Chunk
+                            </button>
+                            <button
+                                disabled={chunkIndex >= totalChunks - 1}
+                                onClick={() => setChunkIndex(i => Math.min(totalChunks - 1, i + 1))}
+                                style={{ background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '3px', cursor: 'pointer', padding: '2px 8px' }}
+                            >
+                                Next Chunk
+                            </button>
+                        </div>
+                    )}
+                </div>
                 {currentToolInfo && (
                     <Controls
                         toolName={selectedTool}
