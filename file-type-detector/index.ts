@@ -186,7 +186,8 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "handler": "apk-viewer",
         "mimetypes": [
             { "mime": "application/vnd.android.package-archive", "filename": /^(?!.*\.(apex|capex)$).*/i },
-            { "mime": "application/zip", "filename": /.*\.apk$/i }
+            { "mime": "application/zip", "filename": /.*\.apk$/i },
+            { "mime": "application/java-archive", "filename": /.*\.apk$/i }
         ]
     },
     {
