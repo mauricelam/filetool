@@ -240,7 +240,7 @@ describe('Handler Tests', () => {
     });
 
     describe('Office Document Handler Matching', () => {
-        it('matches .docx, .xlsx, .pptx files with ooxmlviewer handler', () => {
+        it('matches XML-based .docx, .xlsx, .pptx files with ooxmlviewer handler', () => {
             const docxHandlers = getHandlersForFileNameAndType('test.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '');
             expect(docxHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
 
@@ -251,15 +251,15 @@ describe('Handler Tests', () => {
             expect(pptxHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
         });
 
-        it('matches legacy .doc, .xls, .ppt files with ooxmlviewer handler', () => {
+        it('does not match legacy .doc, .xls, .ppt files with ooxmlviewer handler', () => {
             const docHandlers = getHandlersForFileNameAndType('document.doc', 'application/msword', '');
-            expect(docHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+            expect(docHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(false);
 
             const xlsHandlers = getHandlersForFileNameAndType('spreadsheet.xls', 'application/vnd.ms-excel', '');
-            expect(xlsHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+            expect(xlsHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(false);
 
             const pptHandlers = getHandlersForFileNameAndType('presentation.ppt', 'application/vnd.ms-powerpoint', '');
-            expect(pptHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(true);
+            expect(pptHandlers.some(h => h.handler === 'ooxmlviewer')).toBe(false);
         });
     });
 

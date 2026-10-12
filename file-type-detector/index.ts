@@ -297,12 +297,9 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "application/msword",
-            "application/vnd.ms-excel",
-            "application/vnd.ms-powerpoint",
-            { "filename": /\.(docx|docm|dotx|dotm|doc)$/i },
-            { "filename": /\.(xlsx|xlsm|xlsb|xltx|xltm|xls)$/i },
-            { "filename": /\.(pptx|pptm|potx|potm|ppsx|ppt)$/i }
+            { "filename": /\.(docx|docm|dotx|dotm)$/i },
+            { "filename": /\.(xlsx|xlsm|xlsb|xltx|xltm)$/i },
+            { "filename": /\.(pptx|pptm|potx|potm|ppsx)$/i }
         ]
     },
     {
