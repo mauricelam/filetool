@@ -3,12 +3,12 @@ import { Page } from '@playwright/test';
 export interface HandlerTestOptions {
     handler: string;
     file: {
-        content: string | Buffer | Uint8Array;
+        content: string | Buffer | Uint8Array | Array<string | Buffer | Uint8Array>;
         name: string;
         type: string;
     };
     additionalFiles?: Array<{
-        content: string | Buffer | Uint8Array;
+        content: string | Buffer | Uint8Array | Array<string | Buffer | Uint8Array>;
         name: string;
         type: string;
     }>;

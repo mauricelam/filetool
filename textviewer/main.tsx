@@ -65,9 +65,21 @@ window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
 }
 
 const OUTPUT = createRoot(document.getElementById('output')!)
+const MAX_TEXT_SIZE = 50 * 1024 * 1024; // 50MB limit for text preview
 
 async function handleFile(file: File, originalType?: string) {
-    OUTPUT.render(<TextViewer content={await file.text()} filename={file.name} mimeType={originalType || file.type} />)
+    const isTruncated = file.size > MAX_TEXT_SIZE;
+    const fileSlice = isTruncated ? file.slice(0, MAX_TEXT_SIZE) : file;
+    const content = await fileSlice.text();
+    OUTPUT.render(
+        <TextViewer
+            content={content}
+            filename={file.name}
+            mimeType={originalType || file.type}
+            isTruncated={isTruncated}
+            totalSize={file.size}
+        />
+    )
 }
 
 function getAceMode(filename: string, mimeType: string): string {
@@ -98,7 +110,7 @@ function getAceMode(filename: string, mimeType: string): string {
     return 'text';
 }
 
-function TextViewer({ content, filename, mimeType }: { content: string, filename: string, mimeType: string }) {
+function TextViewer({ content, filename, mimeType, isTruncated, totalSize }: { content: string, filename: string, mimeType: string, isTruncated?: boolean, totalSize?: number }) {
     const [mode, setMode] = useState(() => getAceMode(filename, mimeType));
 
     // Update mode when file changes
@@ -106,8 +118,31 @@ function TextViewer({ content, filename, mimeType }: { content: string, filename
         setMode(getAceMode(filename, mimeType));
     }, [filename, mimeType]);
 
+    function formatSize(bytes: number): string {
+        if (bytes >= 1024 * 1024 * 1024) {
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+        if (bytes >= 1024 * 1024) {
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+        return (bytes / 1024).toFixed(2) + ' KB';
+    }
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+            {isTruncated && (
+                <div id="truncation-warning" style={{
+                    padding: '6px 12px',
+                    background: '#523000',
+                    color: '#ffcc00',
+                    borderBottom: '1px solid #774400',
+                    fontSize: '12px',
+                    fontFamily: 'sans-serif',
+                    textAlign: 'center'
+                }}>
+                    File is too large ({totalSize ? formatSize(totalSize) : 'large'}). Showing only the first 50 MB.
+                </div>
+            )}
             <div style={{
                 padding: '4px 8px',
                 background: '#272822',

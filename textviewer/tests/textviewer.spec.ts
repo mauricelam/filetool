@@ -79,3 +79,39 @@ test('textviewer should display folding widgets for XML file', async ({ page }) 
     const modeSelect = iframe.locator('#mode-select');
     await expect(modeSelect).toHaveValue('xml');
 });
+
+test('textviewer should support files larger than 4GB with a truncation warning', async ({ page }) => {
+    await page.goto('/filetool/tests/integration/driver.html?handler=textviewer');
+    await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
+
+    // Construct ~4.39 GB (> 4GB) file using Blobs in browser memory to avoid RAM duplication and Node.js OOM
+    await page.evaluate(() => {
+        const chunk = new Uint8Array(1024 * 1024);
+        chunk.fill(65); // 'A'
+        const blob = new Blob([chunk], { type: 'text/plain' });
+        const chunks = new Array(4500).fill(blob);
+        const file = new File(chunks, 'huge_file_4.5gb.txt', { type: 'text/plain' });
+        window.postMessage({
+            action: 'setFile',
+            file: {
+                content: file,
+                name: file.name,
+                type: file.type
+            }
+        }, '*');
+    });
+
+    const iframeEl = await page.$('#file-handler-iframe');
+    const iframe = iframeEl ? await iframeEl.contentFrame() : null;
+    expect(iframe).not.toBeNull();
+
+    // Check that truncation warning banner is visible
+    const warning = iframe!.locator('#truncation-warning');
+    await expect(warning).toBeVisible({ timeout: 15000 });
+    await expect(warning).toContainText('File is too large');
+    await expect(warning).toContainText('4.39 GB');
+    await expect(warning).toContainText('Showing only the first 50 MB');
+
+    // Verify Ace Editor renders text content without crashing
+    await expect(iframe!.locator('.ace_content')).toContainText('AAAAA');
+});

@@ -24,11 +24,11 @@ window.addEventListener('message', (event: MessageEvent) => {
     console.log('Message received from parent', event.data);
     if (event.source === window.parent && event.data.action === 'setFile') {
         const { content, name, type } = event.data.file;
-        fileToProvide = new File([content], name, { type });
+        fileToProvide = (content instanceof File) ? content : (content instanceof Blob) ? new File([content], name, { type }) : new File(Array.isArray(content) ? content : [content], name, { type });
 
         if (event.data.additionalFiles) {
             additionalFilesToProvide = event.data.additionalFiles.map((f: any) =>
-                new File([f.content], f.name, { type: f.type })
+                (f.content instanceof File) ? f.content : (f.content instanceof Blob) ? new File([f.content], f.name, { type: f.type }) : new File(Array.isArray(f.content) ? f.content : [f.content], f.name, { type })
             );
         } else {
             additionalFilesToProvide = [];
