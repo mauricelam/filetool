@@ -21,7 +21,7 @@ test('should correctly process and display a standalone binary XML file in andro
     await expect(textviewer).toContainText('<start_tag key="value" />');
 });
 
-test('should correctly process and display a standalone ARSC file in android-xml', async ({ page }) => {
+test('should correctly process and display a standalone ARSC file in android-xml and support search', async ({ page }) => {
     const arscContent = new Uint8Array([2, 0, 12, 0, 12, 0, 0, 0, 1, 0, 0, 0]);
 
     const iframe = await runHandlerTest(page, {
@@ -34,6 +34,8 @@ test('should correctly process and display a standalone ARSC file in android-xml
     });
 
     await expect(iframe.locator('h3')).toContainText('Resource Table');
+    const searchInput = iframe.locator('input[placeholder="Search by name, ID, or value..."]');
+    await expect(searchInput).toBeVisible();
 });
 
 test('should correctly detect standalone binary XML file and offer Android Binary XML', async ({ page }) => {

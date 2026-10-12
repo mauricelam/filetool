@@ -75,7 +75,7 @@ function App() {
 
     // State for ResourceTableViewer to persist across view changes
     const [resTableState, setResTableState] = useState<ResourceTableState>({
-        selectedType: 'style',
+        selectedType: '',
         filter: '',
         sortConfig: { key: 'entry_id', direction: 'asc' }
     });
@@ -578,6 +578,7 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
     const viewportRef = useRef<HTMLDivElement>(null);
     const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
         entry_id: 120,
+        type: 100,
         name: 300,
         values: 500,
     });
@@ -600,6 +601,55 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
         document.addEventListener('mouseup', onMouseUp);
     }, [columnWidths]);
 
+    const matchesFilter = useCallback((r: ArscResource, filterText: string) => {
+        if (!filterText) return true;
+        const low = filterText.trim().toLowerCase();
+        if (!low) return true;
+
+        const hexId = r.entry_id.toString(16).toLowerCase();
+        const hexIdWith0x = '0x' + hexId;
+        const decId = r.entry_id.toString();
+        if (hexId.includes(low) || hexIdWith0x.includes(low) || decId.includes(low)) {
+            return true;
+        }
+
+        if (r.name.toLowerCase().includes(low)) return true;
+        if (r.type_name.toLowerCase().includes(low)) return true;
+
+        if (r.parent_name && r.parent_name.toLowerCase().includes(low)) return true;
+        if (r.parent_id !== undefined && r.parent_id !== null) {
+            const parentHex = r.parent_id.toString(16).toLowerCase();
+            if (parentHex.includes(low) || ('0x' + parentHex).includes(low) || r.parent_id.toString().includes(low)) {
+                return true;
+            }
+        }
+
+        for (const v of r.values) {
+            if (v.config.toLowerCase().includes(low)) return true;
+            if (v.value.value.toLowerCase().includes(low)) return true;
+            if (v.value.ref_id) {
+                const refHex = v.value.ref_id.toString(16).toLowerCase();
+                if (refHex.includes(low) || ('0x' + refHex).includes(low) || v.value.ref_id.toString().includes(low)) {
+                    return true;
+                }
+            }
+            if (v.entries) {
+                for (const [key, val] of v.entries) {
+                    if (key.toLowerCase().includes(low)) return true;
+                    if (val.value.toLowerCase().includes(low)) return true;
+                    if (val.ref_id) {
+                        const refHex = val.ref_id.toString(16).toLowerCase();
+                        if (refHex.includes(low) || ('0x' + refHex).includes(low) || val.ref_id.toString().includes(low)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }, []);
+
     const resourcesByType = useMemo(() => resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
         if (!acc[typeName]) {
@@ -609,11 +659,26 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
         return acc;
     }, {} as Record<string, ArscResource[]>), [resources]);
 
-    const resourceTypes = useMemo(() => Object.keys(resourcesByType), [resourcesByType]);
+    const resourceTypes = useMemo(() => {
+        const types = Object.keys(resourcesByType);
+        return ['All', ...types];
+    }, [resourcesByType]);
 
-    const selectedType = state.selectedType || resourceTypes[0] || '';
+    const selectedType = state.selectedType || resourceTypes[0] || 'All';
     const filter = state.filter;
     const sortConfig = state.sortConfig;
+
+    const filteredCountsByType = useMemo(() => {
+        const counts: Record<string, number> = { All: 0 };
+        for (const r of resources) {
+            const matched = matchesFilter(r, filter);
+            if (matched) {
+                counts.All = (counts.All || 0) + 1;
+                counts[r.type_name] = (counts[r.type_name] || 0) + 1;
+            }
+        }
+        return counts;
+    }, [resources, filter, matchesFilter]);
 
     const setSelectedType = useCallback((newType: string | null) => {
         if (newType) {
@@ -672,16 +737,11 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
     }, [onNavigateToFile]);
 
     const filteredResources = useMemo(() => {
-        let items = resourcesByType[selectedType] || [];
+        let items = selectedType === 'All' ? resources : (resourcesByType[selectedType] || []);
         if (filter) {
-            const lowFilter = filter.toLowerCase();
-            items = items.filter(r =>
-                r.name.toLowerCase().includes(lowFilter) ||
-                r.entry_id.toString(16).toLowerCase().includes(lowFilter) ||
-                r.values.some(v => v.value.value.toLowerCase().includes(lowFilter))
-            );
+            items = items.filter(r => matchesFilter(r, filter));
         }
-        return items.sort((a, b) => {
+        return [...items].sort((a, b) => {
             let comparison = 0;
             if (sortConfig.key === 'entry_id') {
                 comparison = a.entry_id - b.entry_id;
@@ -690,7 +750,7 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
             }
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         });
-    }, [resourcesByType, selectedType, sortConfig, filter]);
+    }, [resources, resourcesByType, selectedType, sortConfig, filter, matchesFilter]);
 
     const SortIndicator = ({ column }: { column: 'entry_id' | 'name' }) => (
         <span style={{ marginLeft: '4px' }}>
@@ -734,18 +794,30 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
                     <h3 style={{ margin: 0 }}>Resource Table</h3>
                 </Group>
                 <TextInput
-                    placeholder="Filter resources..."
+                    placeholder="Search by name, ID, or value..."
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
-                    style={{ width: '300px' }}
+                    rightSection={
+                        filter ? (
+                            <ActionIcon variant="subtle" size="sm" onClick={() => setFilter('')}>
+                                ✕
+                            </ActionIcon>
+                        ) : null
+                    }
+                    style={{ width: '350px' }}
                 />
             </div>
 
             <Tabs value={selectedType} onChange={setSelectedType} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <Tabs.List>
-                    {resourceTypes.map(typeName => (
-                        <Tabs.Tab key={typeName} value={typeName}>{typeName}</Tabs.Tab>
-                    ))}
+                <Tabs.List style={{ flexWrap: 'nowrap', overflowX: 'auto' }}>
+                    {resourceTypes.map(typeName => {
+                        const count = filteredCountsByType[typeName] || 0;
+                        return (
+                            <Tabs.Tab key={typeName} value={typeName}>
+                                {typeName} ({count})
+                            </Tabs.Tab>
+                        );
+                    })}
                 </Tabs.List>
 
                 <div style={{ flex: 1, overflow: 'hidden', marginTop: '16px' }}>
@@ -757,6 +829,12 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
                                         Entry ID <SortIndicator column="entry_id" />
                                         <ResizeHandle onMouseDown={handleResize('entry_id')} />
                                     </Table.Th>
+                                    {selectedType === 'All' && (
+                                        <Table.Th style={{ width: columnWidths.type, position: 'relative' }}>
+                                            Type
+                                            <ResizeHandle onMouseDown={handleResize('type')} />
+                                        </Table.Th>
+                                    )}
                                     <Table.Th style={{ cursor: 'pointer', width: columnWidths.name, position: 'relative' }} onClick={() => handleSort('name')}>
                                         Name <SortIndicator column="name" />
                                         <ResizeHandle onMouseDown={handleResize('name')} />
@@ -770,11 +848,16 @@ function ResourceTableViewer({ resources, onBack, onNavigateToFile, state, onSta
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
-                                {filteredResources.map((resource, index) => (
+                                {filteredResources.slice(0, 500).map((resource, index) => (
                                     <Table.Tr key={index} id={`res-0x${resource.entry_id.toString(16).toUpperCase()}`}>
                                         <Table.Td style={{ fontFamily: 'monospace', width: columnWidths.entry_id, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             0x{resource.entry_id.toString(16).toUpperCase()}
                                         </Table.Td>
+                                        {selectedType === 'All' && (
+                                            <Table.Td style={{ fontFamily: 'monospace', width: columnWidths.type, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {resource.type_name}
+                                            </Table.Td>
+                                        )}
                                         <Table.Td style={{ fontFamily: 'monospace', width: columnWidths.name, overflow: 'hidden' }}>
                                             <Stack gap={4}>
                                                 <Text size="sm" ff="monospace">{resource.name}</Text>
