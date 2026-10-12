@@ -1,12 +1,14 @@
 {
   "name": "@filetool/ghidra",
   "version": "1.0.0",
+  "type": "module",
   "author": "Maurice Lam",
   "scripts": {
     "build": "node build.mjs",
     "watch": "BUILD_MODE=dev node build.mjs"
   },
   "dependencies": {
+    "@filetool/decompressor-wasm": "file:../decompressor/decompressor-wasm",
     "@mauricelam/ghidra-decompiler-wasm": "^0.0.4",
     "ace-builds": "^1.36.2",
     "react": "^18.3.1",

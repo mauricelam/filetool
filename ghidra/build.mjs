@@ -27,6 +27,10 @@ const SETTINGS = {
         {
           from: ["../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/ghidra_decompiler.wasm"],
           to: ["ghidra_decompiler.wasm"],
+        },
+        {
+          from: ["../decompressor/decompressor-wasm/pkg/decompressor_wasm_bg.wasm"],
+          to: ["decompressor_wasm_bg.wasm"],
         }
       ]
     }),

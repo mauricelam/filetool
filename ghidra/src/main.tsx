@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import AceEditor from 'react-ace';
+import AceEditorImport from 'react-ace';
+const AceEditor: any = (AceEditorImport as any).default || AceEditorImport;
 import "ace-builds/src-noconflict/mode-c_cpp";
 import "ace-builds/src-noconflict/theme-github";
+import { extractSymbols } from './symbolExtractor';
 
 const GhidraApp = () => {
     const [file, setFile] = useState<File | null>(null);
@@ -59,40 +61,16 @@ const GhidraApp = () => {
             worker.postMessage({ action: 'detect_architecture', buffer: buffer.slice(0) }, [buffer]);
 
             setStatus('Extracting symbols and segments...');
-            // Extract symbols using binutils (nm)
+            // Extract symbols using binutils (nm) and .gnu_debugdata if present
             try {
-                // In production and in Playwright, we are served under /filetool/
-                // Construct path for the binutils worker relative to this handler's location
                 const binutilsWorkerUrl = new URL('../binutils/worker.js', import.meta.url);
-                const nmWorker = new Worker(binutilsWorkerUrl, { type: 'module' });
-                const nmBuffer = await file.arrayBuffer();
-                let nmOutput = '';
-                nmWorker.onmessage = (ev) => {
-                    if (typeof ev.data === 'string') {
-                        nmOutput += ev.data + '\n';
-                    } else if (ev.data.action === 'done') {
-                        const lines = nmOutput.split('\n');
-                        const extractedSymbols = lines.map(line => {
-                            const match = line.trim().match(/^([0-9a-fA-F]*)\s+([tTwW])\s+(.+)$/);
-                            if (match) {
-                                return { address: match[1] ? '0x' + match[1] : '?', type: match[2], name: match[3] };
-                            }
-                            return null;
-                        }).filter(s => s !== null);
-                        console.log('[GhidraUI] Extracted symbols:', extractedSymbols.length);
-                        setSymbols(extractedSymbols);
-                        nmWorker.terminate();
-                        setStatus(prev => (prev === 'Extracting symbols...' || prev.startsWith('Ready')) ? `Ready (${extractedSymbols.length} symbols)` : prev);
-                    }
-                };
-                nmWorker.onerror = (err) => {
-                    console.error('[GhidraUI] NM Worker Error:', err);
-                    setStatus('Failed to extract symbols.');
-                };
-                nmWorker.postMessage({ action: 'nm', buffer: nmBuffer, flags: ['-C'], fileName: file.name }, [nmBuffer]);
+                const combinedSymbols = await extractSymbols(binutilsWorkerUrl, file);
+                console.log('[GhidraUI] Total extracted symbols:', combinedSymbols.length);
+                setSymbols(combinedSymbols);
+                setStatus(prev => (prev === 'Extracting symbols...' || prev.startsWith('Ready')) ? `Ready (${combinedSymbols.length} symbols)` : prev);
             } catch (err) {
-                console.error('[GhidraUI] Failed to start NM worker:', err);
-                setStatus('Failed to start symbol extraction.');
+                console.error('[GhidraUI] Failed symbol extraction:', err);
+                setStatus('Failed to extract symbols.');
             }
 
             // Extract segments using readelf
