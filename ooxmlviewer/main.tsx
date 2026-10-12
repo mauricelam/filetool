@@ -1,3 +1,10 @@
+/**
+ * Office Open XML (OOXML) Document Viewer
+ *
+ * Renders Microsoft Office documents (.docx, .xlsx, .pptx and legacy extensions .doc, .xls, .ppt)
+ * using WebAssembly-powered parsers from `@silurus/ooxml`.
+ */
+
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DocxViewer } from '@silurus/ooxml/docx';
@@ -47,11 +54,11 @@ function OOXMLViewerApp() {
         const fileName = file.name.toLowerCase();
         let format: 'docx' | 'xlsx' | 'pptx' = 'docx';
 
-        if (fileName.endsWith('.xlsx') || fileName.endsWith('.xlsm') || fileName.endsWith('.xlsb') || fileName.endsWith('.xltx') || fileName.endsWith('.xltm')) {
+        if (fileName.endsWith('.xlsx') || fileName.endsWith('.xlsm') || fileName.endsWith('.xlsb') || fileName.endsWith('.xltx') || fileName.endsWith('.xltm') || fileName.endsWith('.xls')) {
             format = 'xlsx';
-        } else if (fileName.endsWith('.pptx') || fileName.endsWith('.pptm') || fileName.endsWith('.potx') || fileName.endsWith('.potm') || fileName.endsWith('.ppsx')) {
+        } else if (fileName.endsWith('.pptx') || fileName.endsWith('.pptm') || fileName.endsWith('.potx') || fileName.endsWith('.potm') || fileName.endsWith('.ppsx') || fileName.endsWith('.ppt')) {
             format = 'pptx';
-        } else if (fileName.endsWith('.docx') || fileName.endsWith('.docm') || fileName.endsWith('.dotx') || fileName.endsWith('.dotm')) {
+        } else if (fileName.endsWith('.docx') || fileName.endsWith('.docm') || fileName.endsWith('.dotx') || fileName.endsWith('.dotm') || fileName.endsWith('.doc')) {
             format = 'docx';
         } else {
             if (file.type.includes('spreadsheet') || file.type.includes('excel')) {

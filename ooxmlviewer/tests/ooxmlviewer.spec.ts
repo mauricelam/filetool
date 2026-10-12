@@ -1,3 +1,10 @@
+/**
+ * Playwright integration tests for @filetool/ooxmlviewer.
+ *
+ * Tests document rendering for Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) formats,
+ * including validation against a real sample Excel spreadsheet file.
+ */
+
 import { test, expect } from '@playwright/test';
 import { runHandlerTest } from '../../tests/harness/test-utils.js';
 import AdmZip from 'adm-zip';

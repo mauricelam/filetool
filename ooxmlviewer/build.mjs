@@ -1,3 +1,11 @@
+/**
+ * Build script for @filetool/ooxmlviewer.
+ *
+ * Runs `scripts/patch-ooxml.mjs` prior to bundling to ensure WASM resource usage calls
+ * are safely wrapped in try-catch blocks. Bundles main.tsx with esbuild and copies required
+ * WASM binaries (*_parser_bg.wasm) and render assets from @silurus/ooxml/dist into dist/ooxmlviewer/.
+ */
+
 import * as esbuild from 'esbuild';
 import { copy } from 'esbuild-plugin-copy';
 import process from 'process';
