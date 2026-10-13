@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use crate::apk::Apk;
-    use std::collections::HashMap;
 
     #[test]
     fn test_find_signing_block_mock() {
@@ -36,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_signature_extraction_real_apk() {
-        let path = "../../tests/fixtures/Tasker.6.6.20.apk";
+        let path = "../example/Tasker.6.6.20.apk";
         let bytes = std::fs::read(path).expect("Could not read Tasker APK");
         let dummy_arsc = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -61,5 +60,30 @@ mod tests {
         assert_eq!(signer.sha1_digest, "feadd18b23781cfd4eac71118c76fb35c1ab39c7");
         assert_eq!(signer.md5_digest, "39a8d78a20654f15b953c1783ebb0c63");
         assert!(signer.subject.contains("CN=Lee Wilmot"), "Subject should contain Lee Wilmot");
+    }
+
+    #[test]
+    fn test_extract_file_normalization_and_fallback() {
+        let path = "../example/Tasker.6.6.20.apk";
+        let bytes = std::fs::read(path).expect("Could not read Tasker APK");
+        let dummy_arsc = vec![2, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+        let mut apk = Apk::<std::io::Cursor<&[u8]>>::from_bytes(&bytes).expect("Failed to load APK");
+
+        // Test normal extraction
+        let res1 = apk.extract_file("classes.dex", &dummy_arsc);
+        assert!(res1.is_ok(), "classes.dex extraction should succeed");
+
+        // Test leading slash
+        let res2 = apk.extract_file("/classes.dex", &dummy_arsc);
+        assert!(res2.is_ok(), "/classes.dex extraction with leading slash should succeed");
+
+        // Test leading ./
+        let res3 = apk.extract_file("./classes.dex", &dummy_arsc);
+        assert!(res3.is_ok(), "./classes.dex extraction should succeed");
+
+        // Test case insensitive match
+        let res4 = apk.extract_file("CLASSES.DEX", &dummy_arsc);
+        assert!(res4.is_ok(), "CLASSES.DEX case-insensitive extraction should succeed");
     }
 }

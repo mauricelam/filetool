@@ -334,13 +334,34 @@ impl<Reader: Read + Seek> Apk<Reader> {
         }
     }
 
+    fn read_arsc<R: Read + Seek>(zip_handler: &mut ZipArchive<R>, buffer: &mut Vec<u8>) {
+        if let Ok(mut arsc_file) = zip_handler.by_name("resources.arsc") {
+            let _ = arsc_file.read_to_end(buffer);
+            return;
+        }
+
+        for i in 0..zip_handler.len() {
+            let matches = if let Ok(f) = zip_handler.by_index(i) {
+                let name = f.name().trim_start_matches('/').trim_start_matches("./");
+                name.eq_ignore_ascii_case("resources.arsc")
+            } else {
+                false
+            };
+
+            if matches {
+                if let Ok(mut arsc_file) = zip_handler.by_index(i) {
+                    let _ = arsc_file.read_to_end(buffer);
+                }
+                break;
+            }
+        }
+    }
+
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Apk<File>, Error> {
-        let mut buffer = Vec::new();
         let file = File::open(&path)?;
         let mut zip_handler = ZipArchive::new(file)?;
-        zip_handler
-            .by_name("resources.arsc")?
-            .read_to_end(&mut buffer)?;
+        let mut buffer = Vec::new();
+        Self::read_arsc(&mut zip_handler, &mut buffer);
 
         Ok(Apk {
             handler: zip_handler,
@@ -349,11 +370,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Apk<Cursor<&[u8]>>, Error> {
-        let mut buffer = Vec::new();
         let mut zip_handler = ZipArchive::new(Cursor::new(bytes))?;
-        zip_handler
-            .by_name("resources.arsc")?
-            .read_to_end(&mut buffer)?;
+        let mut buffer = Vec::new();
+        Self::read_arsc(&mut zip_handler, &mut buffer);
 
         Ok(Apk {
             handler: zip_handler,
@@ -551,12 +570,51 @@ impl<Reader: Read + Seek> Apk<Reader> {
         result
     }
 
-    pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {
-        let mut current_file = self.handler.by_name(name).context("could not find file")?;
-        let mut contents = Vec::new();
-        current_file.read_to_end(&mut contents).context("could not read file")?;
+    fn read_zip_file_contents(&mut self, name: &str, normalized: &str, contents: &mut Vec<u8>) -> Result<(), Error> {
+        if let Ok(mut current_file) = self.handler.by_name(name) {
+            current_file.read_to_end(contents)?;
+            return Ok(());
+        }
 
-        if (name.starts_with("res/") && name.ends_with(".xml")) || name == "AndroidManifest.xml" {
+        if let Ok(mut current_file) = self.handler.by_name(normalized) {
+            current_file.read_to_end(contents)?;
+            return Ok(());
+        }
+
+        let mut found_index = None;
+        for i in 0..self.handler.len() {
+            if let Ok(file) = self.handler.by_index(i) {
+                let entry_name = file.name();
+                let entry_norm = entry_name.trim_start_matches('/').trim_start_matches("./");
+                if entry_name == name || entry_norm == normalized || entry_norm.eq_ignore_ascii_case(normalized) {
+                    found_index = Some(i);
+                    break;
+                }
+            }
+        }
+
+        if let Some(i) = found_index {
+            let mut current_file = self.handler.by_index(i)?;
+            current_file.read_to_end(contents)?;
+            Ok(())
+        } else {
+            Err(anyhow!("could not find file: {}", name))
+        }
+    }
+
+    pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {
+        let normalized = name.trim_start_matches('/').trim_start_matches("./");
+        let mut contents = Vec::new();
+
+        let read_result = self.read_zip_file_contents(name, normalized, &mut contents);
+
+        if let Err(e) = read_result {
+            if contents.is_empty() {
+                return Err(anyhow!("could not read file {}: {}", name, e));
+            }
+        }
+
+        if (normalized.starts_with("res/") && normalized.ends_with(".xml")) || normalized == "AndroidManifest.xml" {
             if let Ok(decoder) = self.decoder.get_decoder(buffer_android) {
                 if let Ok(xml_visitor) = decoder.xml_visitor(&contents) {
                     if let Ok(decoded) = xml_visitor.into_string() {
