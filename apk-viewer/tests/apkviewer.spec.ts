@@ -49,4 +49,16 @@ test('APK Viewer should display APK contents, metadata and resources', async ({ 
 
     // Increased timeout for resource table extraction as it can be slow in CI
     await expect(iframe.locator('h3:has-text("Resource Table")')).toBeVisible({ timeout: 60000 });
+
+    // 6. Test search functionality in Resource Table
+    const searchInput = iframe.locator('input[placeholder="Search by name, ID, or value..."]');
+    await expect(searchInput).toBeVisible();
+
+    // Search by name
+    await searchInput.fill('app_name');
+    await expect(iframe.locator('td', { hasText: 'app_name' }).first()).toBeVisible();
+
+    // Clear search and verify original view restores
+    await searchInput.fill('');
+    await expect(searchInput).toHaveValue('');
 });

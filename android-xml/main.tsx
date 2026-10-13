@@ -144,6 +144,33 @@ function XmlViewer({ content, filename }: { content: string, filename: string })
     );
 }
 
+function matchesFilter(r: ArscResource, filterText: string): boolean {
+    if (!filterText) return true;
+    const low = filterText.trim().toLowerCase();
+    if (!low) return true;
+
+    const hexId = r.entry_id.toString(16).toLowerCase();
+    const hexIdWith0x = '0x' + hexId;
+    const decId = r.entry_id.toString();
+    if (hexId.includes(low) || hexIdWith0x.includes(low) || decId.includes(low)) {
+        return true;
+    }
+
+    if (r.name.toLowerCase().includes(low)) return true;
+    if (r.type_name.toLowerCase().includes(low)) return true;
+
+    if (r.value && typeof r.value === 'string' && r.value.toLowerCase().includes(low)) return true;
+
+    if (r.entries) {
+        for (const [key, val] of Object.entries(r.entries)) {
+            if (key.toLowerCase().includes(low)) return true;
+            if (typeof val === 'string' && val.toLowerCase().includes(low)) return true;
+        }
+    }
+
+    return false;
+}
+
 function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
     // Group resources by type name
     const resourcesByType = resources.reduce((acc, resource) => {
@@ -153,17 +180,18 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
         }
         acc[typeName].push(resource);
         return acc;
-    }, {} as Record<string, any[]>);
+    }, {} as Record<string, ArscResource[]>);
 
-    const types = Object.keys(resourcesByType);
-    const [selectedType, setSelectedType] = useState<string>(types[0] || '');
+    const types = ['All', ...Object.keys(resourcesByType)];
+    const [selectedType, setSelectedType] = useState<string>('All');
+    const [filter, setFilter] = useState<string>('');
     const [sortConfig, setSortConfig] = useState<{ key: 'entry_id' | 'name' | 'value', direction: 'asc' | 'desc' }>({
         key: 'entry_id',
         direction: 'asc'
     });
 
     useEffect(() => {
-        if (!selectedType && types.length > 0) {
+        if (!types.includes(selectedType) && types.length > 0) {
             setSelectedType(types[0]);
         }
     }, [types, selectedType]);
@@ -175,9 +203,23 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
         }));
     };
 
+    const filteredCountsByType = React.useMemo(() => {
+        const counts: Record<string, number> = { All: 0 };
+        for (const r of resources) {
+            if (matchesFilter(r, filter)) {
+                counts.All = (counts.All || 0) + 1;
+                counts[r.type_name] = (counts[r.type_name] || 0) + 1;
+            }
+        }
+        return counts;
+    }, [resources, filter]);
+
     function getSortedResources(): ArscResource[] {
-        const resources = resourcesByType[selectedType] || [];
-        return [...resources].sort((a, b) => {
+        let items = selectedType === 'All' ? resources : (resourcesByType[selectedType] || []);
+        if (filter) {
+            items = items.filter(r => matchesFilter(r, filter));
+        }
+        return [...items].sort((a, b) => {
             let comparison = 0;
             if (sortConfig.key === 'entry_id') {
                 comparison = a.entry_id - b.entry_id;
@@ -209,38 +251,72 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 gap: '16px',
                 marginBottom: '16px'
             }}>
                 <h3 style={{ margin: 0 }}>Resource Table</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                        type="text"
+                        placeholder="Search by name, ID, or value..."
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        style={{
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            width: '280px',
+                            fontSize: '14px'
+                        }}
+                    />
+                    {filter && (
+                        <button
+                            onClick={() => setFilter('')}
+                            style={{
+                                padding: '6px 10px',
+                                borderRadius: '4px',
+                                border: '1px solid #ccc',
+                                background: '#f0f0f0',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                            }}
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
             </div>
 
             {types.length === 0 && <div style={{ padding: '20px' }}>No resources found in ARSC file.</div>}
 
             {/* Type selector tabs */}
-            <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: '16px', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <Tabs
-                    selectedIndex={types.indexOf(selectedType)}
+                    selectedIndex={Math.max(0, types.indexOf(selectedType))}
                     onSelect={(index) => setSelectedType(types[index])}
+                    style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}
                 >
                     <TabList>
                         {types.map(typeName => (
-                            <Tab key={typeName}>{typeName}</Tab>
+                            <Tab key={typeName}>
+                                {typeName} ({filteredCountsByType[typeName] || 0})
+                            </Tab>
                         ))}
                     </TabList>
 
                     {types.map(typeName => (
-                        <TabPanel key={typeName}>
+                        <TabPanel key={typeName} style={{ flex: 1, overflow: 'auto', marginTop: '8px' }}>
                             {/* Resource table */}
                             <div style={{
                                 overflow: 'auto',
-                                flex: 1,
+                                height: '100%',
                                 border: '1px solid #ccc',
                                 borderRadius: '4px'
                             }}>
                                 <div style={{
                                     display: 'grid',
-                                    gridTemplateColumns: selectedType !== 'id' ? 'auto auto auto' : 'auto auto',
+                                    gridTemplateColumns: selectedType === 'All' ? 'auto auto auto auto' : (selectedType !== 'id' ? 'auto auto auto' : 'auto auto'),
                                     gap: '8px',
                                     padding: '8px',
                                     minWidth: 'min-content'
@@ -259,6 +335,20 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
                                     >
                                         Entry ID <SortIndicator column="entry_id" />
                                     </div>
+                                    {selectedType === 'All' && (
+                                        <div
+                                            style={{
+                                                fontWeight: 'bold',
+                                                padding: '8px',
+                                                borderBottom: '1px solid #ccc',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            Type
+                                        </div>
+                                    )}
                                     <div
                                         style={{
                                             fontWeight: 'bold',
@@ -293,6 +383,9 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
                                     {getSortedResources().map((resource, index) => (
                                         <React.Fragment key={index}>
                                             <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>0x{resource.entry_id.toString(16).toUpperCase()}</div>
+                                            {selectedType === 'All' && (
+                                                <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{resource.type_name}</div>
+                                            )}
                                             <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{resource.name}</div>
                                             {selectedType !== 'id' && (
                                                 <div style={{ padding: '8px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>
