@@ -158,6 +158,7 @@ export async function read_erofs_file(data: Uint8Array | File | SparseImage | Sp
 
         const outSizePtr = Module._malloc(4);
         Module.HEAP32[outSizePtr >> 2] = 0;
+        console.info(`[read_erofs_file] Requesting file read for path="${path}" from image file="${filepath}"`);
         const dataPtr = erofsReadFileData(filepath, path, outSizePtr);
         const size = Module.HEAP32[outSizePtr >> 2];
         Module._free(outSizePtr);

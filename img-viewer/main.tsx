@@ -293,8 +293,9 @@ const ImgViewer: React.FC = () => {
             a.download = downloadName;
             a.click();
             URL.revokeObjectURL(url);
-        } catch (err) {
-            const errMsg = `Failed to extract file: ${err}`;
+        } catch (err: any) {
+            console.error(`[ImgViewer.handleDownload] Failed to download ${name} at path ${file?._path}:`, err);
+            const errMsg = `Failed to extract file: ${err?.message || err}`;
             setActionError(errMsg);
             try {
                 alert(errMsg);
@@ -343,8 +344,9 @@ const ImgViewer: React.FC = () => {
                 action: 'openFile',
                 file: newFile
             }, "*");
-        } catch (err) {
-            const errMsg = `Failed to open file: ${err}`;
+        } catch (err: any) {
+            console.error(`[ImgViewer.handleOpen] Failed to open ${name} at path ${file?._path}:`, err);
+            const errMsg = `Failed to open file: ${err?.message || err}`;
             setActionError(errMsg);
             try {
                 alert(errMsg);
