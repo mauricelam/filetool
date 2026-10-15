@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RstToHtmlCompiler, RstCompilerPlugin } from 'rst-compiler';
+import { safeReadText, formatBytes } from '@filetool/common';
 
-// Custom plugin to handle contents directive
 const contentsPlugin: RstCompilerPlugin = {
     onInstall: (compiler) => {
         compiler.useDirectiveGenerator({
             directives: ['contents'],
             generate: (generatorState, node) => {
-                // Generate a simple table of contents based on headers
                 const toc = generatorState.visitNodes(node.children);
                 return `<div class="contents">${toc}</div>`;
             },
@@ -16,18 +15,15 @@ const contentsPlugin: RstCompilerPlugin = {
     },
 };
 
-// Initialize immediately when module loads
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' }, '*');
     console.log('requested file');
 }
 
-// Register message handler at module level
 window.addEventListener('message', (e: MessageEvent) => {
-    if (e.data.action === 'respondFile') {
+    if (e.data && e.data.action === 'respondFile') {
         const file = e.data.file;
         if (file) {
-            // Render the component when file is received
             const root = document.getElementById('root');
             if (root) {
                 const reactRoot = createRoot(root);
@@ -40,25 +36,27 @@ window.addEventListener('message', (e: MessageEvent) => {
 function RstViewer({ file }: { file: File }) {
     const [htmlContent, setHtmlContent] = useState<{ header: string, body: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+    const [totalSize, setTotalSize] = useState<number>(0);
 
-    // Process file when component mounts
     useEffect(() => {
-        file.arrayBuffer().then(buffer => {
+        safeReadText(file).then(({ text: rstText, isTruncated, totalSize }) => {
             try {
-                const decoder = new TextDecoder('utf-8');
-                const rstText = decoder.decode(buffer);
-
                 const compiler = new RstToHtmlCompiler();
                 compiler.usePlugin(contentsPlugin);
                 const compiledHtml = compiler.compile(rstText);
 
+                setIsTruncated(isTruncated);
+                setTotalSize(totalSize);
                 setHtmlContent(compiledHtml);
                 setError(null);
             } catch (e: any) {
                 console.error('Error processing .rst file:', e);
-                setError(`Error processing ${file.name}: ${e.message}`);
+                setError(`Error processing ${file.name}: ${e?.message || e}`);
                 setHtmlContent(null);
             }
+        }).catch(err => {
+            setError(`Error reading file: ${err?.message || err}`);
         });
     }, [file]);
 
@@ -72,6 +70,20 @@ function RstViewer({ file }: { file: File }) {
 
     return (
         <div style={{ padding: '1em' }}>
+            {isTruncated && (
+                <div id="truncation-warning" style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#fff3cd',
+                    color: '#856404',
+                    border: '1px solid #ffeeba',
+                    borderRadius: '4px',
+                    marginBottom: '16px',
+                    fontSize: '13px',
+                    fontFamily: 'sans-serif'
+                }}>
+                    ⚠️ File is too large ({formatBytes(totalSize)}). Showing preview of loaded portion.
+                </div>
+            )}
             {htmlContent.header && (
                 <div dangerouslySetInnerHTML={{ __html: htmlContent.header }} />
             )}

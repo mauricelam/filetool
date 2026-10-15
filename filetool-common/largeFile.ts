@@ -4,9 +4,14 @@
 export const FOUR_GB = 4 * 1024 * 1024 * 1024;
 
 /**
- * Default safe threshold for loading entire file into memory (50MB).
+ * Maximum safe string size in V8 engines (~100MB) to prevent "Invalid string length" RangeError.
  */
-export const DEFAULT_MAX_SAFE_BYTES = 50 * 1024 * 1024;
+export const MAX_TEXT_DECODE_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Default safe threshold for loading entire file buffer into memory (4GB).
+ */
+export const DEFAULT_MAX_SAFE_BYTES = FOUR_GB;
 
 /**
  * Formats byte counts into human-readable string representation.
@@ -29,7 +34,6 @@ export function isExceeding4GB(file: Blob | File): boolean {
 
 /**
  * Safely slices a File or Blob without 32-bit integer arithmetic truncation.
- * In JS, file.size is a double float safe up to 2^53-1 (~9PB).
  */
 export function safeSliceFile(file: Blob | File, start: number = 0, end?: number): Blob {
     const totalSize = file.size;
@@ -61,7 +65,7 @@ export interface ReadInChunksOptions {
  * Reads a large File sequentially in chunks to avoid allocating huge memory buffers.
  */
 export async function readInChunks(file: Blob | File, options: ReadInChunksOptions): Promise<void> {
-    const chunkSize = options.chunkSize || 8 * 1024 * 1024; // 8MB default chunk size
+    const chunkSize = options.chunkSize || 16 * 1024 * 1024; // 16MB default chunk size
     const totalSize = file.size;
     const startOffset = Math.max(0, options.startOffset || 0);
     const endOffset = options.endOffset !== undefined ? Math.min(totalSize, options.endOffset) : totalSize;
@@ -103,27 +107,20 @@ export class FileChunkReader {
     }
 }
 
-/**
- * Result returned by safeReadFile.
- */
 export interface SafeReadFileResult {
     buffer: Uint8Array;
     isTruncated: boolean;
     totalSize: number;
 }
 
-/**
- * Options for safeReadFile.
- */
 export interface SafeReadFileOptions {
     maxBytes?: number;
 }
 
 /**
  * Safely reads a File into a Uint8Array buffer.
- * If file.size exceeds maxBytes or if file.arrayBuffer() fails due to V8/browser
- * allocation limits (e.g., on 4GB+ files), it automatically falls back to slicing
- * the initial maxBytes bytes.
+ * Supports files up to 4GB. If file.size exceeds maxBytes or if file.arrayBuffer()
+ * fails due to V8/browser heap allocation limits, it automatically falls back to slicing.
  */
 export async function safeReadFile(
     file: File | Blob,
@@ -142,7 +139,7 @@ export async function safeReadFile(
                 totalSize
             };
         } catch (err) {
-            const fallbackSlice = safeSliceFile(file, 0, 10 * 1024 * 1024);
+            const fallbackSlice = safeSliceFile(file, 0, 50 * 1024 * 1024);
             const ab = await fallbackSlice.arrayBuffer();
             return {
                 buffer: new Uint8Array(ab),
@@ -160,12 +157,40 @@ export async function safeReadFile(
             totalSize
         };
     } catch (err) {
-        const slice = safeSliceFile(file, 0, Math.min(maxBytes, 10 * 1024 * 1024));
+        const slice = safeSliceFile(file, 0, Math.min(maxBytes, 50 * 1024 * 1024));
         const ab = await slice.arrayBuffer();
         return {
             buffer: new Uint8Array(ab),
             isTruncated: true,
             totalSize
         };
+    }
+}
+
+export interface SafeReadTextResult {
+    text: string;
+    isTruncated: boolean;
+    totalSize: number;
+}
+
+/**
+ * Safely reads a File as a string, respecting V8 string length limits (~100MB max text preview).
+ */
+export async function safeReadText(
+    file: File | Blob,
+    options: SafeReadFileOptions = {}
+): Promise<SafeReadTextResult> {
+    const maxBytes = options.maxBytes || MAX_TEXT_DECODE_BYTES;
+    const { buffer, isTruncated, totalSize } = await safeReadFile(file, { maxBytes });
+    try {
+        const textDecoder = new TextDecoder('utf-8', { fatal: false });
+        const text = textDecoder.decode(buffer);
+        return { text, isTruncated, totalSize };
+    } catch (err) {
+        // Fall back to smaller buffer if text decoding fails
+        const slice = safeSliceFile(file, 0, 10 * 1024 * 1024);
+        const ab = await slice.arrayBuffer();
+        const text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(ab));
+        return { text, isTruncated: true, totalSize };
     }
 }

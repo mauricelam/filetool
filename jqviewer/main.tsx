@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import ReactJson from '@microlink/react-json-view';
 import JQCheatsheet from './cheatsheet';
-import { safeReadFile, formatBytes } from '@filetool/common';
+import { safeReadText, formatBytes } from '@filetool/common';
 
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' });
@@ -73,12 +73,10 @@ const JQViewer: React.FC = () => {
             if (e.data && e.data.action === 'respondFile') {
                 try {
                     const file = e.data.file as File;
-                    const { buffer, isTruncated, totalSize } = await safeReadFile(file, { maxBytes: 50 * 1024 * 1024 });
-                    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-                    const textContent = textDecoder.decode(buffer);
+                    const { text, isTruncated, totalSize } = await safeReadText(file);
                     setIsTruncated(isTruncated);
                     setTotalSize(totalSize);
-                    setJsonInput(textContent);
+                    setJsonInput(text);
                     setOutput(null);
                     setError(null);
                 } catch (err: any) {
@@ -127,7 +125,7 @@ const JQViewer: React.FC = () => {
                     fontSize: '13px',
                     fontFamily: 'sans-serif'
                 }}>
-                    ⚠️ File is too large ({formatBytes(totalSize)}). Showing preview of first 50 MB.
+                    ⚠️ File is too large ({formatBytes(totalSize)}). Showing preview of loaded portion.
                 </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'row', flex: 0 }}>

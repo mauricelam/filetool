@@ -1,10 +1,11 @@
 import { createRoot } from 'react-dom/client'
 import React, { useState } from 'react';
+import { formatBytes } from '@filetool/common';
 
 const ROOT = createRoot(document.getElementById('root')!)
 
 window.onmessage = (e) => {
-    if (e.data.action === 'respondFile') {
+    if (e.data && e.data.action === 'respondFile') {
         handleFile(e.data.file, e.data.additionalFiles || [])
     }
 }
@@ -61,7 +62,7 @@ const ConcatenateView: React.FC<{ files: File[] }> = ({ files }) => {
                     <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px', padding: '8px' }}>
                         {files.map((f, i) => (
                             <div key={i} style={{ fontSize: '14px', padding: '4px 0', borderBottom: i < files.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
-                                {f.name} <span style={{ color: '#888', fontSize: '12px' }}>({(f.size / 1024).toFixed(2)} KB)</span>
+                                {f.name} <span style={{ color: '#888', fontSize: '12px' }}>({formatBytes(f.size)})</span>
                             </div>
                         ))}
                     </div>

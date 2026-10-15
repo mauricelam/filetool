@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import ReactJson from '@microlink/react-json-view';
 import { Buffer } from 'buffer';
 import { parseBuffer } from './parser';
+import { safeReadFile } from '@filetool/common';
 
 const App = () => {
     const [data, setData] = useState<Record<string, unknown> | null>(null);
@@ -11,11 +12,12 @@ const App = () => {
 
     useEffect(() => {
         window.onmessage = async (e) => {
-            if (e.data.action === 'respondFile') {
+            if (e.data && e.data.action === 'respondFile') {
                 try {
                     setError(null);
                     const file = e.data.file;
-                    const buffer = Buffer.from(await file.arrayBuffer());
+                    const { buffer: uint8Array } = await safeReadFile(file);
+                    const buffer = Buffer.from(uint8Array);
                     const [parsed, warnings] = parseBuffer(buffer);
                     if (parsed && typeof parsed === 'object' && 'error' in parsed) {
                         setError(parsed.error);

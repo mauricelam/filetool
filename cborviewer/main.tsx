@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { processData } from './cbor';
-import { RequestFileMessage, RespondFileMessage } from 'common/messages';
+import { RespondFileMessage, safeReadFile } from '@filetool/common';
 
-// Request file from parent window
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' });
 }
@@ -17,15 +16,15 @@ const CBORViewer: React.FC = () => {
 
     useEffect(() => {
         const handleMessage = async (e: MessageEvent<RespondFileMessage>) => {
-            if (e.data.action === 'respondFile') {
+            if (e.data && e.data.action === 'respondFile') {
                 try {
                     const file = e.data.file as File;
-                    const arrayBuffer = await file.arrayBuffer();
-                    setCborInput(new Uint8Array(arrayBuffer));
-                    setOutput(null); // Clear previous output
-                    setError(''); // Clear previous error
-                } catch (err) {
-                    setError(`Error reading file: ${err.message}`);
+                    const { buffer } = await safeReadFile(file);
+                    setCborInput(buffer);
+                    setOutput(null);
+                    setError('');
+                } catch (err: any) {
+                    setError(`Error reading file: ${err?.message || err}`);
                     setCborInput(null);
                 }
             }

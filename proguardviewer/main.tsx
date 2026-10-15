@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { deobfuscateStackTrace, getRules, deobfuscateClass } from './proguard';
 import { MantineProvider, Button, Grid, Group, Paper, Stack, Textarea, Title } from '@mantine/core';
+import { safeReadText, formatBytes } from '@filetool/common';
 import '@mantine/core/styles.css';
 
 export const ProguardViewer: React.FC = () => {
@@ -11,23 +12,26 @@ export const ProguardViewer: React.FC = () => {
     const [rules, setRules] = useState('');
     const [error, setError] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isTruncated, setIsTruncated] = useState(false);
+    const [totalSize, setTotalSize] = useState<number>(0);
 
     useEffect(() => {
-        // Request file from parent window
         if (window.parent) {
             window.parent.postMessage({ action: 'requestFile' }, '*');
         }
 
         const handleMessage = async (e: MessageEvent) => {
-            if (e.data.action === 'respondFile') {
+            if (e.data && e.data.action === 'respondFile') {
                 try {
                     const file = e.data.file as File;
-                    const text = await file.text();
+                    const { text, isTruncated, totalSize } = await safeReadText(file);
+                    setIsTruncated(isTruncated);
+                    setTotalSize(totalSize);
                     setMappingFile(text);
                     const rules = await getRules(text);
                     setRules(rules);
-                } catch (err) {
-                    setError(`Error reading file: ${err.message}`);
+                } catch (err: any) {
+                    setError(`Error reading file: ${err?.message || err}`);
                 }
             }
         };
@@ -76,6 +80,19 @@ export const ProguardViewer: React.FC = () => {
 
     return (
         <Stack p="md">
+            {isTruncated && (
+                <div id="truncation-warning" style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#fff3cd',
+                    color: '#856404',
+                    border: '1px solid #ffeeba',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontFamily: 'sans-serif'
+                }}>
+                    ⚠️ Mapping file is too large ({formatBytes(totalSize)}). Showing preview of loaded portion.
+                </div>
+            )}
             <Title order={3} align="center">Proguard Deobfuscator</Title>
             <Grid>
                 <Grid.Col span={6}>

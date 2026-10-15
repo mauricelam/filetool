@@ -1,6 +1,6 @@
 import { readEml } from 'eml-parse-js';
 import { ParsedEmlJson, ReadedEmlJson } from 'eml-parse-js/dist/interface';
-import { safeReadFile } from '@filetool/common';
+import { safeReadText } from '@filetool/common';
 
 if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' });
@@ -21,9 +21,7 @@ async function handleFile(file: File) {
     }
 
     try {
-        const { buffer } = await safeReadFile(file, { maxBytes: 50 * 1024 * 1024 });
-        const textDecoder = new TextDecoder('utf-8', { fatal: false });
-        const htmlContents = textDecoder.decode(buffer);
+        const { text: htmlContents } = await safeReadText(file);
         const contents = await asyncReadEml(htmlContents);
         IFRAME.srcdoc = contents.html || htmlContents;
     } catch (err) {

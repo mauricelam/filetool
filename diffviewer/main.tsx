@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import React, { useEffect, useState } from 'react'
-import { RespondFileMessage } from 'common/messages';
+import { RespondFileMessage, safeReadFile } from '@filetool/common';
 import * as jsdiff from 'diff';
 
 if (window.parent) {
@@ -8,7 +8,7 @@ if (window.parent) {
 }
 
 window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
-    if (e.data.action === 'respondFile') {
+    if (e.data && e.data.action === 'respondFile') {
         handleFiles(e.data.file, e.data.additionalFiles || [])
     }
 }
@@ -29,12 +29,12 @@ async function handleFiles(file: File, additionalFiles: File[]) {
     const file2 = additionalFiles[0];
 
     try {
-        const [buf1, buf2] = await Promise.all([
-            file1.arrayBuffer(),
-            file2.arrayBuffer()
+        const [res1, res2] = await Promise.all([
+            safeReadFile(file1),
+            safeReadFile(file2)
         ]);
-        const uint8_1 = new Uint8Array(buf1);
-        const uint8_2 = new Uint8Array(buf2);
+        const uint8_1 = res1.buffer;
+        const uint8_2 = res2.buffer;
 
         const isBinary = (buf: Uint8Array) => {
             for (let i = 0; i < Math.min(buf.length, 8192); i++) {
@@ -68,10 +68,9 @@ function DiffViewer({ file1, file2, buf1, buf2, initialMode }: { file1: File, fi
     useEffect(() => {
         if (diffMode === 'binary') {
             if (isTooLargeForBinary) {
-                // Too large for jsdiff.diffArrays (very slow/hangs)
                 return;
             }
-            if (byteDiffs.length > 0) return; // Already computed
+            if (byteDiffs.length > 0) return;
 
             setIsDiffing(true);
             const worker = new Worker(new URL('./diff-worker.js', import.meta.url), { type: 'module' });
@@ -132,7 +131,6 @@ function DiffViewer({ file1, file2, buf1, buf2, initialMode }: { file1: File, fi
                     leftLines.push({ text: line, type: 'removed' });
                 });
             } else {
-                // Align them
                 while (leftLines.length < rightLines.length) leftLines.push({ text: '', type: 'empty' });
                 while (rightLines.length < leftLines.length) rightLines.push({ text: '', type: 'empty' });
                 lines.forEach(line => {
@@ -299,7 +297,6 @@ function BinaryDiffViewer({ file1, file2, diffs }: { file1: File, file2: File, d
             if (!isSyncingLeft) {
                 isSyncingRight = true;
                 right.scrollTop = left.scrollTop;
-                // Dispatch event to trigger re-render of right pane for virtualization
                 right.dispatchEvent(new Event('scroll'));
                 setTimeout(() => { isSyncingRight = false; }, 0);
             }
@@ -309,7 +306,6 @@ function BinaryDiffViewer({ file1, file2, diffs }: { file1: File, file2: File, d
             if (!isSyncingRight) {
                 isSyncingLeft = true;
                 left.scrollTop = right.scrollTop;
-                // Dispatch event to trigger re-render of left pane for virtualization
                 left.dispatchEvent(new Event('scroll'));
                 setTimeout(() => { isSyncingLeft = false; }, 0);
             }
@@ -337,7 +333,7 @@ function HexDiffPane({ fileName, bytes, scrollRef }: { fileName: string, bytes: 
     const [paneHeight, setPaneHeight] = useState(0);
 
     const lineCount = Math.ceil(bytes.length / 16);
-    const LINE_HEIGHT = 15.6; // Approximate line height for 13px monospace
+    const LINE_HEIGHT = 15.6;
 
     useEffect(() => {
         const pane = scrollRef.current;

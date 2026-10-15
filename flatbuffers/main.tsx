@@ -4,7 +4,7 @@ import * as flatbuffers from 'flatbuffers';
 import ReactJson from '@microlink/react-json-view';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import { RequestFileMessage, RespondFileMessage } from 'common/messages';
+import { RequestFileMessage, RespondFileMessage, safeReadFile } from '@filetool/common';
 import { StructuralDecoder, FBNode } from './decoder';
 import { AnnotatedDecoder } from './annotated';
 import { decodeReflectionSchema, decodeWithSchema } from './reflection';
@@ -91,22 +91,25 @@ const FlatBuffersViewer: React.FC = () => {
         }
 
         const handleMessage = async (e: MessageEvent<RespondFileMessage>) => {
-            if (e.data.action === 'respondFile' && e.data.file) {
+            if (e.data && e.data.action === 'respondFile' && e.data.file) {
                 const file = e.data.file as File;
                 setMainFile(file);
-                const buffer = await file.arrayBuffer();
-                const uint8Array = new Uint8Array(buffer);
-                setMainFileData(uint8Array);
+                try {
+                    const { buffer } = await safeReadFile(file);
+                    setMainFileData(buffer);
 
-                if (file.name.endsWith('.fbs')) {
-                    setFileType('schema_text');
-                    setViewMode('source');
-                } else if (file.name.endsWith('.bfbs')) {
-                    setFileType('schema_binary');
-                    setViewMode('decoded');
-                } else {
-                    setFileType('data');
-                    setViewMode('structural');
+                    if (file.name.endsWith('.fbs')) {
+                        setFileType('schema_text');
+                        setViewMode('source');
+                    } else if (file.name.endsWith('.bfbs')) {
+                        setFileType('schema_binary');
+                        setViewMode('decoded');
+                    } else {
+                        setFileType('data');
+                        setViewMode('structural');
+                    }
+                } catch (err: any) {
+                    setError(`Error reading file: ${err?.message || err}`);
                 }
             }
         };
@@ -117,22 +120,24 @@ const FlatBuffersViewer: React.FC = () => {
 
     const handleSchemaUpload = async (file: File) => {
         setSchemaFile(file);
-        const buffer = await file.arrayBuffer();
-        setSchemaData(new Uint8Array(buffer));
-        setViewMode('decoded');
-        setError(null);
+        try {
+            const { buffer } = await safeReadFile(file);
+            setSchemaData(buffer);
+            setViewMode('decoded');
+            setError(null);
+        } catch (err: any) {
+            setError(`Error reading schema file: ${err?.message || err}`);
+        }
     };
 
     const decodeFlatBuffer = useCallback(() => {
         if (!mainFileData) return;
 
         try {
-            // Heuristic structural decoding
             const decoder = new StructuralDecoder(mainFileData);
             const structure = decoder.decode();
             setStructuralData(structure);
 
-            // Annotated decoding for extended view
             const annotatedDecoder = new AnnotatedDecoder(mainFileData);
             const annotated = annotatedDecoder.decode();
             setAnnotatedText(annotated);
@@ -141,7 +146,7 @@ const FlatBuffersViewer: React.FC = () => {
                 try {
                     const schemaData = decodeReflectionSchema(mainFileData);
                     setDecodedData(schemaData);
-                    setSchemaData(mainFileData); // Treat as own schema
+                    setSchemaData(mainFileData);
                 } catch (e) {
                     setDecodedData({ info: "This is a binary FlatBuffers schema (.bfbs). Failed to decode using reflection: " + e });
                 }
@@ -156,7 +161,6 @@ const FlatBuffersViewer: React.FC = () => {
                     setDecodedData({ info: "A binary schema was provided, but decoding failed: " + e });
                 }
             } else {
-                // Basic heuristic: try to read the 4-byte identifier at offset 4.
                 const bb = new flatbuffers.ByteBuffer(mainFileData);
                 const fileIdentifier = mainFileData.length >= 8 ?
                     String.fromCharCode(mainFileData[4], mainFileData[5], mainFileData[6], mainFileData[7]) :

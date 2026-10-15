@@ -3,9 +3,10 @@ import init, { parse_classfile, ParsedClass } from './classfile-wasm/pkg'
 import React, { ReactElement, useState } from 'react'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs'
+import { safeReadFile } from '@filetool/common'
 
 window.onmessage = (e) => {
-    if (e.data.action === 'respondFile') {
+    if (e.data && e.data.action === 'respondFile') {
         handleFile(e.data.file)
     }
 }
@@ -14,13 +15,17 @@ if (window.parent) {
     window.parent.postMessage({ 'action': 'requestFile' })
 }
 
-const OUTPUT = createRoot(document.getElementById('output'))
+const OUTPUT = createRoot(document.getElementById('output')!)
 
 async function handleFile(file: File) {
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
-    await init()
-    const parsed = parse_classfile(fileBytes)
-    OUTPUT.render(<JvmClass classContent={parsed} />);
+    try {
+        const { buffer: fileBytes } = await safeReadFile(file);
+        await init();
+        const parsed = parse_classfile(fileBytes);
+        OUTPUT.render(<JvmClass classContent={parsed} />);
+    } catch (err: any) {
+        OUTPUT.render(<div style={{ color: 'red', padding: '20px' }}>Error parsing classfile: {err?.message || err}</div>);
+    }
 }
 
 type Tab = 'code' | 'cpool';
@@ -53,13 +58,13 @@ function JvmClass({ classContent }: { classContent: ParsedClass }): ReactElement
         )
     }
     return (<div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div style={{ 
-            display: 'flex', 
-            gap: '4px', 
+        <div style={{
+            display: 'flex',
+            gap: '4px',
             borderBottom: '1px solid #ccc',
             padding: '0 8px'
         }}>
-            <button 
+            <button
                 onClick={() => setTab(_ => 'code')}
                 style={{
                     padding: '8px 16px',
@@ -75,7 +80,7 @@ function JvmClass({ classContent }: { classContent: ParsedClass }): ReactElement
             >
                 Code
             </button>
-            <button 
+            <button
                 onClick={() => setTab(_ => 'cpool')}
                 style={{
                     padding: '8px 16px',

@@ -27,7 +27,7 @@ import "ace-builds/src-noconflict/mode-ini";
 import "ace-builds/src-noconflict/mode-diff";
 import "ace-builds/src-noconflict/mode-text";
 
-import { RespondFileMessage, safeReadFile, formatBytes } from '@filetool/common';
+import { RespondFileMessage, safeReadText, formatBytes } from '@filetool/common';
 
 const SUPPORTED_MODES = [
     'text',
@@ -67,17 +67,15 @@ window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
 const OUTPUT = createRoot(document.getElementById('output')!)
 
 async function handleFile(file: File, originalType?: string) {
-    const { buffer, isTruncated, totalSize } = await safeReadFile(file, { maxBytes: 50 * 1024 * 1024 });
-    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-    const content = textDecoder.decode(buffer);
+    const { text, isTruncated, totalSize } = await safeReadText(file);
     OUTPUT.render(
         <TextViewer
-            content={content}
+            content={text}
             filename={file.name}
             mimeType={originalType || file.type}
             isTruncated={isTruncated}
             totalSize={totalSize}
-            loadedSize={buffer.length}
+            loadedSize={text.length}
         />
     );
 }

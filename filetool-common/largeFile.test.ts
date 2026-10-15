@@ -81,12 +81,12 @@ describe('largeFile utilities', () => {
     });
 
     describe('safeReadFile', () => {
-        it('reads full buffer for small files and truncates for large files', async () => {
+        it('reads full buffer for files up to 4GB and truncates when exceeding maxBytes', async () => {
             const data = new Uint8Array(1000);
             data.fill(42);
             const file = new File([data], 'test.bin');
 
-            const resultFull = await safeReadFile(file, { maxBytes: 2000 });
+            const resultFull = await safeReadFile(file);
             expect(resultFull.isTruncated).toBe(false);
             expect(resultFull.buffer.length).toBe(1000);
             expect(resultFull.totalSize).toBe(1000);

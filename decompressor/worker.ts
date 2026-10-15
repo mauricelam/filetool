@@ -1,9 +1,6 @@
-// This worker handles decompression.
-// It loads the compiled WebAssembly module, receives a file,
-// decompresses it, and sends the result back to the main thread.
-
 import init, { decode } from './decompressor-wasm/pkg/decompressor_wasm.js';
 import { SparseImage } from '../img-viewer/sparse';
+import { safeReadFile } from '@filetool/common';
 
 const decompressorModulePromise = (async () => {
     try {
@@ -15,7 +12,6 @@ const decompressorModulePromise = (async () => {
     }
 })();
 
-// Listen for messages from the main thread.
 self.onmessage = async (event) => {
     try {
         await decompressorModulePromise;
@@ -32,7 +28,6 @@ self.onmessage = async (event) => {
         const compressedBuffer = await file.slice(0, 28).arrayBuffer();
         const compressedArray = new Uint8Array(compressedBuffer);
 
-        // Check for Android Sparse Image magic 0xED26FF3A ([0x3a, 0xff, 0x26, 0xed])
         if (compressedArray.length >= 28 && compressedArray[0] === 0x3a && compressedArray[1] === 0xff && compressedArray[2] === 0x26 && compressedArray[3] === 0xed) {
             const sparse = await SparseImage.create(file);
             const unsparsedFile = sparse.toUnsparsedBlob(file.name);
@@ -44,10 +39,8 @@ self.onmessage = async (event) => {
             return;
         }
 
-        const fullBuffer = await file.arrayBuffer();
-        const fullArray = new Uint8Array(fullBuffer);
+        const { buffer: fullArray } = await safeReadFile(file);
 
-        // Decompress using the generic WASM function
         const result = decode(fullArray);
         const decompressedArray = new Uint8Array(result.data);
 

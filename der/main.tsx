@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { createRoot } from 'react-dom/client';
-import { RequestFileMessage, RespondFileMessage } from 'common/messages';
+import { RespondFileMessage, safeReadFile } from '@filetool/common';
 
 declare global {
   interface Window {
@@ -20,16 +20,12 @@ export function DerAsciiViewer() {
 
   const processFile = useCallback(async (file: File) => {
     try {
-      // Read file as ArrayBuffer and convert to Uint8Array
-      const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      
-      // Check if derToAscii exists
+      const { buffer: uint8Array } = await safeReadFile(file);
+
       if (typeof window.derToAscii !== 'function') {
         throw new Error('WebAssembly function derToAscii is not available');
       }
 
-      // Call the Go function with the ArrayBuffer
       const result = window.derToAscii(uint8Array);
       setOutput(result);
       setError('');
@@ -54,7 +50,6 @@ export function DerAsciiViewer() {
         wasmLoadedRef.current = true;
         setLoading(false);
 
-        // If a file was received before WASM loaded, process it now
         if (pendingFileRef.current) {
           processFile(pendingFileRef.current);
           pendingFileRef.current = null;
@@ -70,14 +65,12 @@ export function DerAsciiViewer() {
   }, [processFile]);
 
   useEffect(() => {
-    // Request file when component mounts if in iframe
     if (window.parent !== window) {
       window.parent.postMessage({ action: 'requestFile' }, '*');
     }
 
-    // Listen for file response
     const messageHandler = (e: MessageEvent<RespondFileMessage>) => {
-      if (e.data.action === 'respondFile') {
+      if (e.data && e.data.action === 'respondFile') {
         if (wasmLoadedRef.current) {
           processFile(e.data.file);
         } else {

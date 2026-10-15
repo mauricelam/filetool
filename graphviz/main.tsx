@@ -1,23 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Graphviz } from 'graphviz-react';
-import { RequestFileMessage, RespondFileMessage } from 'common/messages';
+import { RespondFileMessage, safeReadText, formatBytes } from '@filetool/common';
 
 const App = () => {
   const [dot, setDot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const [totalSize, setTotalSize] = useState<number>(0);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent<RespondFileMessage>) => {
-      if (event.data.action === 'respondFile') {
+    const handleMessage = async (event: MessageEvent<RespondFileMessage>) => {
+      if (event.data && event.data.action === 'respondFile') {
         const file = event.data.file;
         if (file instanceof File) {
-          file.text().then(content => {
+          try {
+            const { text: content, isTruncated, totalSize } = await safeReadText(file);
+            setIsTruncated(isTruncated);
+            setTotalSize(totalSize);
             setDot(content);
             setError(null);
-          }).catch(err => {
-            setError(`Error reading file: ${err.message}`);
-          });
+          } catch (err: any) {
+            setError(`Error reading file: ${err?.message || err}`);
+          }
         } else {
           setError('Error: Received invalid file object.');
         }
@@ -25,7 +30,6 @@ const App = () => {
     };
 
     window.addEventListener('message', handleMessage);
-    // Inform the parent window that we're ready to receive a file
     if (window.parent) {
       window.parent.postMessage({ action: 'requestFile' }, '*');
     }
@@ -44,11 +48,25 @@ const App = () => {
   }
 
   return (
-    <div style={{ 
-      width: '100%', 
-      height: '100%', 
+    <div style={{
+      width: '100%',
+      height: '100%',
       position: 'relative'
     }}>
+      {isTruncated && (
+        <div id="truncation-warning" style={{
+          padding: '8px 12px',
+          backgroundColor: '#fff3cd',
+          color: '#856404',
+          border: '1px solid #ffeeba',
+          borderRadius: '4px',
+          margin: '10px',
+          fontSize: '13px',
+          fontFamily: 'sans-serif'
+        }}>
+          ⚠️ File is too large ({formatBytes(totalSize)}). Showing preview of loaded portion.
+        </div>
+      )}
       <Graphviz
         dot={dot}
         options={{

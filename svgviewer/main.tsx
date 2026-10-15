@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReactSVGPanZoom, Tool, Value } from 'react-svg-pan-zoom';
-import { RespondFileMessage } from 'common/messages';
+import { RespondFileMessage, safeReadText, formatBytes } from '@filetool/common';
 
 interface SvgInfo {
     content: string;
@@ -11,9 +11,6 @@ interface SvgInfo {
     height?: string;
 }
 
-/**
- * Parses SVG content and extracts necessary attributes and inner elements.
- */
 export function parseSvg(content: string): SvgInfo | null {
     try {
         const parser = new DOMParser();
@@ -35,9 +32,6 @@ export function parseSvg(content: string): SvgInfo | null {
     }
 }
 
-/**
- * Renders an SVG string to a PNG file and triggers a download.
- */
 export function downloadSvgAsPng(svgContent: string, svgProps: Partial<SvgInfo>, backgroundColor: string): void {
     const img = new Image();
     const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
@@ -49,7 +43,6 @@ export function downloadSvgAsPng(svgContent: string, svgProps: Partial<SvgInfo>,
         let width = img.naturalWidth || (svgProps.width ? parseFloat(svgProps.width) : 0);
         let height = img.naturalHeight || (svgProps.height ? parseFloat(svgProps.height) : 0);
 
-        // Fallback to viewBox if width/height are still zero
         if ((width === 0 || height === 0) && svgProps.viewBox) {
             const vb = svgProps.viewBox.split(/[\s,]+/).map(parseFloat);
             if (vb.length === 4) {
@@ -58,11 +51,10 @@ export function downloadSvgAsPng(svgContent: string, svgProps: Partial<SvgInfo>,
             }
         }
 
-        // Final fallbacks
         if (width === 0) width = 800;
         if (height === 0) height = 600;
 
-        canvas.width = width * 2; // High DPI
+        canvas.width = width * 2;
         canvas.height = height * 2;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
@@ -99,6 +91,8 @@ const SVGViewer: React.FC = () => {
     const [bgColor, setBgColor] = useState('white');
     const [tool, setTool] = useState<Tool>('pan');
     const [value, setValue] = useState<Value | null>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+    const [totalSize, setTotalSize] = useState<number>(0);
     const viewerRef = useRef<ReactSVGPanZoom | null>(null);
 
     useEffect(() => {
@@ -108,9 +102,11 @@ const SVGViewer: React.FC = () => {
         window.addEventListener('resize', handleResize);
 
         const handleMessage = async (e: MessageEvent<RespondFileMessage>) => {
-            if (e.data.action === 'respondFile') {
+            if (e.data && e.data.action === 'respondFile') {
                 try {
-                    const content = await e.data.file.text();
+                    const { text: content, isTruncated, totalSize } = await safeReadText(e.data.file);
+                    setIsTruncated(isTruncated);
+                    setTotalSize(totalSize);
                     const info = parseSvg(content);
                     if (info) {
                         setSvgInfo(info);
@@ -179,10 +175,27 @@ const SVGViewer: React.FC = () => {
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+            {isTruncated && (
+                <div id="truncation-warning" style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    zIndex: 1001,
+                    padding: '8px 12px',
+                    backgroundColor: '#fff3cd',
+                    color: '#856404',
+                    border: '1px solid #ffeeba',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontFamily: 'sans-serif'
+                }}>
+                    ⚠️ SVG is too large ({formatBytes(totalSize)}). Showing preview of loaded portion.
+                </div>
+            )}
             <div style={{
                 position: 'absolute',
                 top: '10px',
-                left: '10px', // Moved to left to avoid overlap with right-side toolbar
+                left: '10px',
                 zIndex: 1000,
                 display: 'flex',
                 gap: '12px',

@@ -2,19 +2,17 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-
-// Declare the Go global object
-declare const Go: any;
-import * as protobuf from 'protobufjs'; // Using full version
-import 'protobufjs/ext/descriptor'; // Import the descriptor extension
+import * as protobuf from 'protobufjs';
+import 'protobufjs/ext/descriptor';
 import { FileDescriptorSet } from 'protobufjs/ext/descriptor';
 import { normalizeMapEntryNames } from './normalizeMapEntryNames';
+import { safeReadFile, safeReadText } from '@filetool/common';
 
-// Declare protoscope on window
+declare const Go: any;
+
 declare global {
     interface Window {
         protoscope?: {
-            // Updated signature to accept main bytes, optional FDS bytes, and optional message name string
             protoscopeFile?: (mainFileBytes: Uint8Array, fdsBytes?: Uint8Array | null, messageName?: string | null) => string;
             exportTextProto?: (pbBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
             exportJSON?: (pbBytes: Uint8Array, fdsBytes: Uint8Array, messageName: string) => string;
@@ -34,20 +32,18 @@ export const App: React.FC = () => {
     const [loading, setLoading] = useState<string | null>("Initializing...");
     const [wasmLoaded, setWasmLoaded] = useState<boolean>(false);
 
-    // Effect for requesting the main file from parent
     useEffect(() => {
         if (window.parent) {
             window.parent.postMessage({ 'action': 'requestFile' });
         }
     }, []);
 
-    // Effect for handling messages from parent (receiving main file)
     useEffect(() => {
         const messageHandler = (e: MessageEvent) => {
-            if (e.data.action === 'respondFile' && e.data.file instanceof File) {
+            if (e.data && e.data.action === 'respondFile' && e.data.file instanceof File) {
                 setMainFile(e.data.file);
                 setLoading("Main file received. Ready to process.");
-            } else if (e.data.action === 'respondFile') {
+            } else if (e.data && e.data.action === 'respondFile') {
                 setError("Received 'respondFile' but data.file was not a File object.");
                 setLoading(null);
             }
@@ -62,19 +58,15 @@ export const App: React.FC = () => {
             setSchemaFile(file);
             setOutput(null);
             setError(null);
-            setMessageTypes([]); // Reset message types
-            setMessageName(''); // Reset selected message
+            setMessageTypes([]);
+            setMessageName('');
 
             try {
-                const protoContents = await file.text();
+                const { text: protoContents } = await safeReadText(file);
                 const parsed = protobuf.parse(protoContents, { keepCase: false });
                 const root = parsed.root;
-                // Ensure all type references are resolved before descriptor generation
-                // This avoids "illegal type" errors from protobuf.js when forward references
-                // or recursive type graphs are present in the schema.
                 root.resolveAll();
 
-                // Extract all message types from the root
                 const types: string[] = [];
                 const processNested = (nested: any) => {
                     if (nested instanceof protobuf.Type) {
@@ -86,16 +78,13 @@ export const App: React.FC = () => {
                 };
 
                 root.nestedArray.forEach(processNested);
-                console.log('Found message types:', types); // Debug log
-
                 setMessageTypes(types);
-                // Automatically select the first message type if available
                 if (types.length > 0) {
                     setMessageName(types[0]);
                 }
                 if (mainFile) setLoading("Schema file selected. Ready to process or select message type.");
             } catch (err) {
-                console.error('Error parsing schema:', err); // Debug log
+                console.error('Error parsing schema:', err);
                 setError(`Error parsing schema file: ${err instanceof Error ? err.message : String(err)}`);
                 setLoading(null);
             }
@@ -143,7 +132,7 @@ export const App: React.FC = () => {
             go.run(inst);
 
             if (typeof window.protoscope?.protoscopeFile !== 'function') {
-                throw new Error('protoscopeFile function not found on window.protoscope. Ensure Wasm is loaded and initialized correctly.');
+                throw new Error('protoscopeFile function not found on window.protoscope.');
             }
             setWasmLoaded(true);
             setLoading(null);
@@ -156,7 +145,6 @@ export const App: React.FC = () => {
             return false;
         }
     }, [wasmLoaded]);
-
 
     const processFile = useCallback(async () => {
         if (!mainFile) {
@@ -172,31 +160,27 @@ export const App: React.FC = () => {
         if (!wasmReady) return;
 
         try {
-            const mainFileArrayBuffer = await mainFile.arrayBuffer();
-            const mainFileUint8Array = new Uint8Array(mainFileArrayBuffer);
+            const { buffer: mainFileUint8Array } = await safeReadFile(mainFile);
 
             if (typeof window.protoscope?.protoscopeFile !== 'function') {
-                throw new Error('protoscopeFile function not available. WASM module may not have initialized correctly.');
+                throw new Error('protoscopeFile function not available.');
             }
 
             let result: string;
 
             if (schemaFile && messageName) {
                 setLoading("Parsing .proto schema and processing...");
-                const protoContents = await schemaFile.text();
+                const { text: protoContents } = await safeReadText(schemaFile);
                 try {
                     const parsed = protobuf.parse(protoContents, { keepCase: false });
                     const root = parsed.root;
-                    // Ensure all references are resolved prior to descriptor conversion
                     root.resolveAll();
                     const fds = (root as any).toDescriptor();
-                    // Normalize map entry naming to match Go's protodesc implicit map rules
                     try {
                         normalizeMapEntryNames(fds);
                     } catch (normErr) {
                         console.warn('Map entry normalization failed, proceeding without it:', normErr);
                     }
-                    console.log('parsed', fds)
 
                     const fdsBytes = FileDescriptorSet.encode(fds).finish();
                     result = window.protoscope.protoscopeFile(mainFileUint8Array, fdsBytes, messageName);
@@ -215,14 +199,13 @@ export const App: React.FC = () => {
             if (typeof result === 'string') {
                 setOutput(result);
             } else {
-                throw new Error(`Unexpected result type: ${typeof result}\n${JSON.stringify(result, null, 2)}`);
+                throw new Error(`Unexpected result type: ${typeof result}`);
             }
         } catch (err) {
             console.error('Error processing file:', err);
             let errorMessageText = 'Error processing file(s).';
             if (err instanceof Error) {
                 errorMessageText += `\n${err.name}: ${err.message}`;
-                if (err.stack) errorMessageText += `\nStack: ${err.stack}`;
             } else {
                 errorMessageText += `\n${String(err)}`;
             }
@@ -232,8 +215,6 @@ export const App: React.FC = () => {
         }
     }, [mainFile, schemaFile, messageName, loadWasm]);
 
-    // Automatically attempt to load WASM on component mount if not already loaded.
-    // This makes the UX smoother as WASM is likely ready when user interacts.
     useEffect(() => {
         loadWasm();
     }, [loadWasm]);
@@ -251,10 +232,8 @@ export const App: React.FC = () => {
         if (!wasmReady) return;
 
         try {
-            const mainFileArrayBuffer = await mainFile.arrayBuffer();
-            const mainFileUint8Array = new Uint8Array(mainFileArrayBuffer);
-
-            const protoContents = await schemaFile.text();
+            const { buffer: mainFileUint8Array } = await safeReadFile(mainFile);
+            const { text: protoContents } = await safeReadText(schemaFile);
             const parsed = protobuf.parse(protoContents, { keepCase: false });
             const root = parsed.root;
             root.resolveAll();
@@ -300,13 +279,11 @@ export const App: React.FC = () => {
         }
     }, [mainFile, schemaFile, messageName, loadWasm]);
 
-    // Automatically process when mainFile is set and WASM is loaded
     useEffect(() => {
         if (mainFile && wasmLoaded) {
             processFile();
         }
     }, [mainFile, wasmLoaded, processFile]);
-
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '20px', fontFamily: 'Roboto, Helvetica, Arial, sans-serif' }}>

@@ -3,6 +3,7 @@ import type { ArscResource, ApkMetadata, SizeBreakdown } from './wasm/pkg'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ColumnView } from '../components/ColumnView'
 import { PreviewComponent } from '../components/PreviewComponent';
+import { safeReadFile } from '@filetool/common';
 import { MantineProvider, Table, Tabs, Button, Group, Text, Anchor, ActionIcon, Stack, Box, ScrollArea, TextInput, Collapse, Loader, Center, SegmentedControl, Breadcrumbs } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import * as d3 from 'd3';
@@ -73,7 +74,6 @@ function App() {
     const workerRef = useRef<Worker | null>(null);
     const pendingExtractsRef = useRef<Map<string, (content: Uint8Array) => void>>(new Map());
 
-    // State for ResourceTableViewer to persist across view changes
     const [resTableState, setResTableState] = useState<ResourceTableState>({
         selectedType: 'style',
         filter: '',
@@ -81,7 +81,6 @@ function App() {
     });
 
     useEffect(() => {
-        console.log('App: Initializing worker from URL:', new URL('worker.js', window.location.href).href);
         const worker = new Worker(new URL('worker.js', window.location.href), { type: 'module' });
         workerRef.current = worker;
 
@@ -92,7 +91,6 @@ function App() {
         };
 
         worker.onmessage = (e) => {
-            console.log('App: Worker message:', e.data.action);
             const { action, payload } = e.data;
             switch (action) {
                 case 'init-complete':
@@ -111,7 +109,6 @@ function App() {
                         callback(payload.content);
                         pendingExtractsRef.current.delete(payload.name);
                     }
-                    // Update file tree with content
                     const pathArr = payload.name.split('/');
                     setFileTree(prev => {
                         const next = { ...prev };
@@ -131,7 +128,6 @@ function App() {
                     setLoading(false);
                     break;
                 case 'analyze-size-complete':
-                    console.log('App: Size analysis complete', payload.sizeBreakdown);
                     setSizeBreakdown(payload.sizeBreakdown);
                     setView('size-analysis');
                     setLoading(false);
@@ -145,16 +141,13 @@ function App() {
 
         const initialize = async () => {
             try {
-                console.log('App: Fetching android.arsc.gz...');
                 const response = await fetch('android.arsc.gz');
                 if (!response.ok) throw new Error(`Failed to fetch android.arsc.gz: ${response.statusText}`);
 
-                console.log('App: Decompressing system resources...');
                 const ds = new DecompressionStream('gzip');
                 const decompressedStream = response.body!.pipeThrough(ds);
                 const systemResources = new Uint8Array(await new Response(decompressedStream).arrayBuffer());
 
-                console.log('App: Sending init to worker...');
                 worker.postMessage({ action: 'init', payload: { systemResources } }, [systemResources.buffer]);
             } catch (err) {
                 console.error('App: Initialization error:', err);
@@ -165,15 +158,19 @@ function App() {
 
         initialize();
 
-        const handleMessage = (e: MessageEvent) => {
-            if (e.data.action === 'respondFile') {
+        const handleMessage = async (e: MessageEvent) => {
+            if (e.data && e.data.action === 'respondFile') {
                 const file = e.data.file;
-                file.arrayBuffer().then(buffer => {
+                try {
+                    const { buffer } = await safeReadFile(file);
                     worker.postMessage({
                         action: 'decode-minimal',
-                        payload: { apkBytes: new Uint8Array(buffer) }
+                        payload: { apkBytes: buffer }
                     });
-                });
+                } catch (err: any) {
+                    setError(`Error reading APK file: ${err?.message || err}`);
+                    setLoading(false);
+                }
             }
         };
 
@@ -191,14 +188,11 @@ function App() {
         }
         setLoading(true);
         workerRef.current?.postMessage({ action: 'analyze-size' });
-        // Give the worker some breathing room if the APK is large
-        // By not immediately closing any loading state elsewhere
     }, [sizeBreakdown]);
 
     const extractFile = useCallback((name: string): Promise<Uint8Array> => {
         return new Promise((resolve) => {
             if (pendingExtractsRef.current.has(name)) {
-                // Already extracting, should probably handle this better but for now just wait
                 return;
             }
             pendingExtractsRef.current.set(name, resolve);
@@ -227,7 +221,6 @@ function App() {
 
     const handleNavigateToFile = useCallback((path: string, currentScrollTop?: number) => {
         const pathArr = path.split('/');
-        // Try to find the file in fileTree to preview it
         let current = fileTree;
         for (const segment of pathArr) {
             if (current && typeof current === 'object' && segment in current) {
@@ -464,7 +457,6 @@ function FileViewer({ files, onItemClick, selectedPath, extractFile }: {
         if (dexFiles.length === 0) return;
 
         try {
-            // Sort to have classes.dex first if possible
             dexFiles.sort((a, b) => a.name.localeCompare(b.name));
 
             const resolvedFiles = await Promise.all(dexFiles.map(async f => {
@@ -1053,7 +1045,7 @@ function SizeAnalysisView({ breakdown, onBack }: { breakdown: SizeBreakdown, onB
 
     const handleNodeClick = (node: SizeBreakdown) => {
         if (node.name === 'Code') {
-            const newNode = { ...node, name: 'Code' }; // Ensure the name remains 'Code' for UI purposes
+            const newNode = { ...node, name: 'Code' };
             setHistory(prev => [...prev, currentRoot]);
             const childNode = codeGrouping === 'dex' ? groupByDexNode! : allPackagesNode!;
             setCurrentRoot({ ...childNode, name: 'Code' });
@@ -1096,13 +1088,10 @@ function SizeAnalysisView({ breakdown, onBack }: { breakdown: SizeBreakdown, onB
 
     useEffect(() => {
         if (currentRoot.name === 'Code' || history.some(h => h.name === 'Code')) {
-            // If we are currently viewing or drilled into the Code node
             const isAtCodeLevel = currentRoot.name === 'Code';
             if (isAtCodeLevel) {
                 setCurrentRoot(codeGrouping === 'dex' ? groupByDexNode! : allPackagesNode!);
             } else {
-                // If we are deeper than the Code level, we might need to reset or handle switching
-                // For simplicity, if they toggle, we just go back to the top level of Code
                 setCurrentRoot(codeGrouping === 'dex' ? groupByDexNode! : allPackagesNode!);
                 setHistory(prev => {
                     const codeIndex = prev.findIndex(h => h.name === 'Code');
@@ -1267,7 +1256,6 @@ function Treemap({ data, mode, onNodeClick, formatSize }: {
     );
 }
 
-// Initial render
 OUTPUT.render(
     <MantineProvider>
         <App />

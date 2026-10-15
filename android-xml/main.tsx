@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import init, { ArscResource, extract_arsc, decode_xml } from './wasm/pkg'
 import React, { useState, useEffect, useRef } from 'react'
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs'
+import { safeReadFile } from '@filetool/common'
 import 'react-tabs/style/react-tabs.css'
 
 const OUTPUT = createRoot(document.getElementById('output')!);
@@ -13,11 +14,9 @@ const initializeWasm = async () => {
         try {
             await init();
 
-            // Load system resources
             const response = await fetch('android.arsc.gz');
             if (!response.ok) throw new Error('Failed to fetch android.arsc.gz');
 
-            // Decompress using DecompressionStream
             const ds = new DecompressionStream('gzip');
             const decompressedStream = response.body!.pipeThrough(ds);
             systemResources = new Uint8Array(await new Response(decompressedStream).arrayBuffer());
@@ -38,19 +37,17 @@ function App() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        // Request file from parent window
         if (window.parent) {
             window.parent.postMessage({ 'action': 'requestFile' });
         }
 
-        // Set up message handler
         const handleMessage = async (e: MessageEvent) => {
-            if (e.data.action === 'respondFile') {
+            if (e.data && e.data.action === 'respondFile') {
                 try {
                     await handleFile(e.data.file);
                 } catch (error) {
                     console.error('Error handling file:', error);
-                    setError((error as Error).message);
+                    setError((error as Error).message || String(error));
                 }
             }
         };
@@ -63,12 +60,11 @@ function App() {
         if (!wasmInitialized) {
             await initializeWasm();
         }
-        const fileBytes = new Uint8Array(await file.arrayBuffer());
+        const { buffer: fileBytes } = await safeReadFile(file);
         setFilename(file.name);
 
         if (!systemResources) throw new Error("System resources not loaded");
 
-        // Try standalone ARSC
         if (file.name.endsWith('.arsc')) {
             try {
                 const resources = extract_arsc(fileBytes, systemResources);
@@ -80,14 +76,12 @@ function App() {
             }
         }
 
-        // Try standalone XML
         try {
             const xml = decode_xml(fileBytes, systemResources);
             setXmlContent(xml);
             setView('xml');
         } catch (e) {
             console.log("Failed to decode as standalone XML", e);
-            // If it failed and we haven't tried ARSC yet
             if (!file.name.endsWith('.arsc')) {
                 try {
                     const resources = extract_arsc(fileBytes, systemResources);
@@ -145,7 +139,6 @@ function XmlViewer({ content, filename }: { content: string, filename: string })
 }
 
 function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
-    // Group resources by type name
     const resourcesByType = resources.reduce((acc, resource) => {
         const typeName = resource.type_name;
         if (!acc[typeName]) {
@@ -196,8 +189,6 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
         </span>
     );
 
-    console.log("resourcesByType", resourcesByType)
-
     return (
         <div style={{
             padding: '20px',
@@ -217,7 +208,6 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
 
             {types.length === 0 && <div style={{ padding: '20px' }}>No resources found in ARSC file.</div>}
 
-            {/* Type selector tabs */}
             <div style={{ marginBottom: '16px' }}>
                 <Tabs
                     selectedIndex={types.indexOf(selectedType)}
@@ -231,7 +221,6 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
 
                     {types.map(typeName => (
                         <TabPanel key={typeName}>
-                            {/* Resource table */}
                             <div style={{
                                 overflow: 'auto',
                                 flex: 1,
@@ -324,11 +313,9 @@ function ResourceTableViewer({ resources }: { resources: ArscResource[] }) {
     );
 }
 
-// Initialize WebAssembly when the component mounts
 initializeWasm().catch(error => {
     console.error('Failed to initialize WebAssembly:', error);
     OUTPUT.render(<div style={{ color: 'red', padding: '10px' }}>Error: Failed to initialize WebAssembly module</div>);
 });
 
-// Initial render
 OUTPUT.render(<App />);
