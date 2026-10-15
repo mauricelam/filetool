@@ -27,7 +27,7 @@ import "ace-builds/src-noconflict/mode-ini";
 import "ace-builds/src-noconflict/mode-diff";
 import "ace-builds/src-noconflict/mode-text";
 
-import { RespondFileMessage } from 'common/messages';
+import { RespondFileMessage, safeReadFile, formatBytes } from '@filetool/common';
 
 const SUPPORTED_MODES = [
     'text',
@@ -59,7 +59,7 @@ if (window.parent) {
 }
 
 window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
-    if (e.data.action === 'respondFile') {
+    if (e.data && e.data.action === 'respondFile') {
         handleFile(e.data.file, e.data.originalType)
     }
 }
@@ -67,7 +67,19 @@ window.onmessage = (e: MessageEvent<RespondFileMessage>) => {
 const OUTPUT = createRoot(document.getElementById('output')!)
 
 async function handleFile(file: File, originalType?: string) {
-    OUTPUT.render(<TextViewer content={await file.text()} filename={file.name} mimeType={originalType || file.type} />)
+    const { buffer, isTruncated, totalSize } = await safeReadFile(file, { maxBytes: 50 * 1024 * 1024 });
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    const content = textDecoder.decode(buffer);
+    OUTPUT.render(
+        <TextViewer
+            content={content}
+            filename={file.name}
+            mimeType={originalType || file.type}
+            isTruncated={isTruncated}
+            totalSize={totalSize}
+            loadedSize={buffer.length}
+        />
+    );
 }
 
 function getAceMode(filename: string, mimeType: string): string {
@@ -98,16 +110,44 @@ function getAceMode(filename: string, mimeType: string): string {
     return 'text';
 }
 
-function TextViewer({ content, filename, mimeType }: { content: string, filename: string, mimeType: string }) {
+function TextViewer({
+    content,
+    filename,
+    mimeType,
+    isTruncated,
+    totalSize,
+    loadedSize
+}: {
+    content: string;
+    filename: string;
+    mimeType: string;
+    isTruncated?: boolean;
+    totalSize?: number;
+    loadedSize?: number;
+}) {
     const [mode, setMode] = useState(() => getAceMode(filename, mimeType));
 
-    // Update mode when file changes
     useEffect(() => {
         setMode(getAceMode(filename, mimeType));
     }, [filename, mimeType]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+            {isTruncated && totalSize !== undefined && (
+                <div id="truncation-warning" style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#fff3cd',
+                    color: '#856404',
+                    borderBottom: '1px solid #ffeeba',
+                    fontSize: '13px',
+                    fontFamily: 'sans-serif',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }}>
+                    <span>⚠️ File is too large ({formatBytes(totalSize)}). Showing preview of first {formatBytes(loadedSize || 0)}.</span>
+                </div>
+            )}
             <div style={{
                 padding: '4px 8px',
                 background: '#272822',
@@ -146,7 +186,6 @@ function TextViewer({ content, filename, mimeType }: { content: string, filename
                     height="100%"
                     name="textviewer-editor"
                     onLoad={(editor) => {
-                        // Ensure the editor's main element has the id="textviewer" for backward compatibility with tests
                         editor.container.id = 'textviewer';
                     }}
                     setOptions={{
