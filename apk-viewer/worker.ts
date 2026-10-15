@@ -84,7 +84,11 @@ self.onmessage = async (e) => {
         console.error(`Worker: Error during action "${action}":`, error);
         self.postMessage({
             action: 'error',
-            payload: { message: (error as Error).message }
+            payload: {
+                message: (error as Error).message,
+                action,
+                name: payload?.name
+            }
         });
     }
 };

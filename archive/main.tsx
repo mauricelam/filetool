@@ -462,6 +462,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             }, "/");
         } catch (e) {
             console.error('Error opening file:', e);
+            alert(`Failed to open file: ${(e as Error)?.message || e}`);
         }
     };
 
@@ -476,6 +477,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             URL.revokeObjectURL(url);
         } catch (e) {
             console.error('Error downloading file:', e);
+            alert(`Failed to download file: ${(e as Error)?.message || e}`);
         }
     };
 
@@ -524,6 +526,7 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
             }, "/");
         } catch (e) {
             console.error('Error opening multiple DEX files:', e);
+            alert(`Failed to open DEX files: ${(e as Error)?.message || e}`);
         }
     };
 
@@ -551,7 +554,12 @@ const ArchiveViewer: React.FC<{ initialFile: File }> = ({ initialFile }) => {
 
             const collectFiles = async (entry: ArchiveEntry) => {
                 if (typeof (entry as ArchiveFile).extract === 'function') {
-                    selectedFiles.push(await (entry as ArchiveFile).extract());
+                    try {
+                        selectedFiles.push(await (entry as ArchiveFile).extract());
+                    } catch (e) {
+                        console.error('Error extracting file:', e);
+                        alert(`Failed to extract ${(entry as ArchiveFile)._path}: ${(e as Error)?.message || e}`);
+                    }
                 } else {
                     const dir = entry as { [filename: string]: ArchiveEntry };
                     for (const nestedEntry of Object.values(dir)) {
