@@ -226,13 +226,13 @@ pub fn extract_file(
     system_resources: Vec<u8>,
 ) -> Result<Vec<u8>, wasm_bindgen::JsError> {
     let mut apk = Apk::<File>::from_bytes(&bytes).map_err(|e| {
-        error!("Failed to decode APK: {}", e);
-        JsError::new(&format!("{e}"))
+        error!("Failed to decode APK: {e:#}");
+        JsError::new(&format!("{e:#}"))
     })?;
 
     let contents = apk.extract_file(&name, &system_resources).map_err(|e| {
-        error!("Failed to extract file: {}", e);
-        JsError::new(&format!("{e}"))
+        error!("Failed to extract file '{name}': {e:#}");
+        JsError::new(&format!("{e:#}"))
     })?;
 
     Ok(contents)
