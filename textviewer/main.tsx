@@ -125,6 +125,7 @@ function TextViewer({
 }) {
     const [mode, setMode] = useState(() => getAceMode(filename, mimeType));
 
+    // Update mode when file changes
     useEffect(() => {
         setMode(getAceMode(filename, mimeType));
     }, [filename, mimeType]);
@@ -184,6 +185,7 @@ function TextViewer({
                     height="100%"
                     name="textviewer-editor"
                     onLoad={(editor) => {
+                        // Ensure the editor's main element has the id="textviewer" for backward compatibility with tests
                         editor.container.id = 'textviewer';
                     }}
                     setOptions={{

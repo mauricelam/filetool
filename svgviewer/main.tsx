@@ -11,6 +11,9 @@ interface SvgInfo {
     height?: string;
 }
 
+/**
+ * Parses SVG content and extracts necessary attributes and inner elements.
+ */
 export function parseSvg(content: string): SvgInfo | null {
     try {
         const parser = new DOMParser();
@@ -32,6 +35,9 @@ export function parseSvg(content: string): SvgInfo | null {
     }
 }
 
+/**
+ * Renders an SVG string to a PNG file and triggers a download.
+ */
 export function downloadSvgAsPng(svgContent: string, svgProps: Partial<SvgInfo>, backgroundColor: string): void {
     const img = new Image();
     const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
@@ -43,6 +49,7 @@ export function downloadSvgAsPng(svgContent: string, svgProps: Partial<SvgInfo>,
         let width = img.naturalWidth || (svgProps.width ? parseFloat(svgProps.width) : 0);
         let height = img.naturalHeight || (svgProps.height ? parseFloat(svgProps.height) : 0);
 
+        // Fallback to viewBox if width/height are still zero
         if ((width === 0 || height === 0) && svgProps.viewBox) {
             const vb = svgProps.viewBox.split(/[\s,]+/).map(parseFloat);
             if (vb.length === 4) {
@@ -51,10 +58,11 @@ export function downloadSvgAsPng(svgContent: string, svgProps: Partial<SvgInfo>,
             }
         }
 
+        // Final fallbacks
         if (width === 0) width = 800;
         if (height === 0) height = 600;
 
-        canvas.width = width * 2;
+        canvas.width = width * 2; // High DPI
         canvas.height = height * 2;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
@@ -195,7 +203,7 @@ const SVGViewer: React.FC = () => {
             <div style={{
                 position: 'absolute',
                 top: '10px',
-                left: '10px',
+                left: '10px', // Moved to left to avoid overlap with right-side toolbar
                 zIndex: 1000,
                 display: 'flex',
                 gap: '12px',
