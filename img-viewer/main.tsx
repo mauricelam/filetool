@@ -53,6 +53,26 @@ const guessImageType = (data: Uint8Array): string | null => {
     return null;
 };
 
+function fixPartitionPaths(node: any, prefix: string) {
+    if (!node || typeof node !== 'object' || node instanceof Uint8Array) return;
+
+    if (typeof node._path === 'string') {
+        if (node._path === '/' || node._path === '') {
+            node._path = prefix;
+        } else if (node._path.startsWith('/')) {
+            node._path = `${prefix}${node._path}`;
+        } else {
+            node._path = `${prefix}/${node._path}`;
+        }
+    }
+
+    for (const key of Object.keys(node)) {
+        if (!key.startsWith('_')) {
+            fixPartitionPaths(node[key], prefix);
+        }
+    }
+}
+
 const makeReadFn = (file: File) => {
     return (offset: number, length: number): Uint8Array => {
         if (typeof FileReaderSync !== 'undefined') {
@@ -150,6 +170,7 @@ const ImgViewer: React.FC = () => {
                             if (isExt4) {
                                 await ensureExt4Initialized();
                                 const pTree = parse_ext4_stream(BigInt(p.sizeBytes), (off, len) => sub.readSync(off, len));
+                                fixPartitionPaths(pTree, `/${p.name}`);
                                 pTree._size = p.sizeBytes;
                                 pTree._path = `/${p.name}`;
                                 pTree._mode = 0o644;
@@ -159,6 +180,7 @@ const ImgViewer: React.FC = () => {
                             } else if (isErofs) {
                                 await ensureErofsInitialized();
                                 const pTree = await parse_erofs(sub);
+                                fixPartitionPaths(pTree, `/${p.name}`);
                                 pTree._size = p.sizeBytes;
                                 pTree._path = `/${p.name}`;
                                 pTree._mode = 0o644;
