@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import init, { parse_dmg, parse_koly_header, DmgInfo } from './dmg-wasm/pkg';
+import init, { parse_dmg, DmgInfo } from './dmg-wasm/pkg';
 const DMGViewer: React.FC = () => {
     const [dmgInfo, setDmgInfo] = useState<DmgInfo | null>(null);
     const [error, setError] = useState<string>('');
@@ -29,20 +29,26 @@ const DMGViewer: React.FC = () => {
 
                     await wasmPromise;
 
-                    // Slice trailer (last 512 bytes) to read koly block
+                    // Slice trailer (last 512 bytes) to read koly block offsets
                     const trailerSlice = file.slice(file.size - 512, file.size);
-                    const trailerBuf = new Uint8Array(await trailerSlice.arrayBuffer());
+                    const trailerBuf = await trailerSlice.arrayBuffer();
+                    const view = new DataView(trailerBuf);
 
-                    try {
-                        const koly = parse_koly_header(trailerBuf);
-                        console.log(`Parsed DMG trailer: xml_offset=${koly.xml_offset}, xml_length=${koly.xml_length}`);
-                        const xmlSlice = file.slice(Number(koly.xml_offset), Number(koly.xml_offset) + Number(koly.xml_length));
+                    // Check for "koly" magic at start of 512-byte trailer
+                    const magic = String.fromCharCode(...new Uint8Array(trailerBuf, 0, 4));
+
+                    if (magic === 'koly') {
+                        const xmlOffset = view.getBigUint64(216, false); // Big-endian
+                        const xmlLength = view.getBigUint64(224, false); // Big-endian
+                        console.log(`Parsed DMG trailer offsets: xml_offset=${xmlOffset}, xml_length=${xmlLength}`);
+
+                        const xmlSlice = file.slice(Number(xmlOffset), Number(xmlOffset) + Number(xmlLength));
                         const xmlBuf = new Uint8Array(await xmlSlice.arrayBuffer());
-                        // parse_dmg handles both XML property list slices and full DMG files
+                        // parse_dmg handles both XML property list slices and full DMG files in Rust
                         const info = parse_dmg(xmlBuf);
                         setDmgInfo(info);
-                    } catch (headerErr) {
-                        console.warn('Range slicing koly header failed, falling back to full file parse:', headerErr);
+                    } else {
+                        console.warn('Trailer does not start with koly magic, falling back to full file parse');
                         const arrayBuffer = await file.arrayBuffer();
                         const fileData = new Uint8Array(arrayBuffer);
                         const info = parse_dmg(fileData);

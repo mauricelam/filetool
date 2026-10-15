@@ -19,28 +19,6 @@ pub struct DmgInfo {
     pub partitions: Vec<Partition>,
 }
 
-#[derive(Debug, Serialize, Tsify)]
-#[tsify(into_wasm_abi)]
-pub struct KolyInfo {
-    pub xml_offset: u64,
-    pub xml_length: u64,
-}
-
-#[wasm_bindgen]
-pub fn parse_koly_header(trailer: &[u8]) -> Result<KolyInfo, JsError> {
-    if trailer.len() < 512 {
-        return Err(JsError::new("Trailer buffer must be at least 512 bytes"));
-    }
-    let mut cursor = Cursor::new(trailer);
-    let koly = apple_dmg::KolyTrailer::read_from(&mut cursor)
-        .map_err(|e| JsError::new(&format!("Failed to parse DMG header: {}", e)))?;
-
-    Ok(KolyInfo {
-        xml_offset: koly.plist_offset,
-        xml_length: koly.plist_length,
-    })
-}
-
 #[wasm_bindgen]
 pub fn parse_dmg(dmg_data: &[u8]) -> Result<DmgInfo, JsError> {
     // 1. Try parsing as a full DMG file (with koly trailer)
@@ -127,16 +105,12 @@ mod tests {
         data[koly_offset + 216..koly_offset + 224].copy_from_slice(&xml_offset.to_be_bytes());
         data[koly_offset + 224..koly_offset + 232].copy_from_slice(&xml_length.to_be_bytes());
 
-        let koly = parse_koly_header(&data).expect("Failed to parse minimal koly header");
-        assert_eq!(koly.xml_offset, 1000);
-        assert_eq!(koly.xml_length, xml_length);
-
-        let xml_slice = &data[koly.xml_offset as usize..(koly.xml_offset + koly.xml_length) as usize];
+        let xml_slice = &data[xml_offset as usize..(xml_offset + xml_length) as usize];
         let info = parse_dmg(xml_slice).expect("Failed to parse minimal xml plist via parse_dmg");
         assert_eq!(info.partitions.len(), 1);
         assert_eq!(info.partitions[0].name, "Minimal Test Partition");
 
-        // Also test parse_dmg on full image data directly
+        // Test parse_dmg on full image data (which parses koly header internally)
         let full_info = parse_dmg(&data).expect("Failed to parse full minimal DMG image via parse_dmg");
         assert_eq!(full_info.partitions.len(), 1);
         assert_eq!(full_info.partitions[0].name, "Minimal Test Partition");
