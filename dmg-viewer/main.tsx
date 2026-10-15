@@ -1,28 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import init, { parse_dmg, parse_koly_header, DmgInfo } from './dmg-wasm/pkg';
-// Request file from parent window
-if (window.parent) {
-    window.parent.postMessage({ action: 'requestFile' });
-}
-
 const DMGViewer: React.FC = () => {
     const [dmgInfo, setDmgInfo] = useState<DmgInfo | null>(null);
     const [error, setError] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(true);
-    const [wasmInitialized, setWasmInitialized] = useState(false);
 
     useEffect(() => {
-        init()
-            .then(() => setWasmInitialized(true))
-            .catch(err => {
-                console.error("Failed to initialize WASM module:", err);
-                setError(`Failed to initialize WASM module: ${err}`);
-            });
-    }, []);
-
-    useEffect(() => {
-        if (!wasmInitialized) return;
+        const wasmPromise = init().catch(err => {
+            console.error("Failed to initialize WASM module:", err);
+            setError(`Failed to initialize WASM module: ${err}`);
+            throw err;
+        });
 
         const handleMessage = async (e: MessageEvent) => {
             if (e.data.action === 'respondFile') {
@@ -37,6 +26,8 @@ const DMGViewer: React.FC = () => {
                     if (file.size < 512) {
                         throw new Error('File is too small to be a valid DMG image');
                     }
+
+                    await wasmPromise;
 
                     // Slice trailer (last 512 bytes) to read koly block
                     const trailerSlice = file.slice(file.size - 512, file.size);
@@ -67,14 +58,17 @@ const DMGViewer: React.FC = () => {
                 }
             }
         };
+
         window.addEventListener('message', handleMessage);
 
-        setIsProcessing(false);
+        if (window.parent) {
+            window.parent.postMessage({ action: 'requestFile' }, '*');
+        }
 
         return () => {
             window.removeEventListener('message', handleMessage);
         };
-    }, [wasmInitialized]);
+    }, []);
 
     const renderContent = () => {
         if (isProcessing) {
