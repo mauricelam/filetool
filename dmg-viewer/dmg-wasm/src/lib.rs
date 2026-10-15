@@ -11,17 +11,50 @@ pub struct Partition {
     pub cf_name: String,
     pub attributes: String,
     pub id: String,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Tsify)]
 #[tsify(into_wasm_abi)]
 pub struct DmgInfo {
     pub partitions: Vec<Partition>,
+    pub plist_xml: String,
 }
 
 #[wasm_bindgen]
 pub fn parse_dmg(dmg_data: &[u8]) -> Result<DmgInfo, JsError> {
-    // 1. Try parsing as a full DMG file (with koly trailer)
+    // 1. Try parsing koly trailer at the end of dmg_data if present
+    if dmg_data.len() >= 512 {
+        let mut koly_cursor = Cursor::new(dmg_data);
+        if let Ok(koly) = apple_dmg::KolyTrailer::read_from(&mut koly_cursor) {
+            let offset = koly.plist_offset as usize;
+            let len = koly.plist_length as usize;
+            if offset + len <= dmg_data.len() {
+                let xml_bytes = &dmg_data[offset..offset + len];
+                if let Ok(plist) = plist::from_reader::<_, apple_dmg::Plist>(Cursor::new(xml_bytes)) {
+                    let partitions = plist
+                        .partitions()
+                        .iter()
+                        .map(|p| Partition {
+                            name: p.name.clone(),
+                            cf_name: p.cfname.clone(),
+                            attributes: p.attributes.clone(),
+                            id: p.id.clone(),
+                            data: p.data.clone(),
+                        })
+                        .collect();
+
+                    let plist_xml = String::from_utf8_lossy(xml_bytes).to_string();
+                    return Ok(DmgInfo {
+                        partitions,
+                        plist_xml,
+                    });
+                }
+            }
+        }
+    }
+
+    // 2. Try parsing as a full DMG file using DmgReader directly
     let cursor = Cursor::new(dmg_data);
     if let Ok(dmg_reader) = DmgReader::new(cursor) {
         let partitions = dmg_reader
@@ -33,13 +66,18 @@ pub fn parse_dmg(dmg_data: &[u8]) -> Result<DmgInfo, JsError> {
                 cf_name: p.cfname.clone(),
                 attributes: p.attributes.clone(),
                 id: p.id.clone(),
+                data: p.data.clone(),
             })
             .collect();
 
-        return Ok(DmgInfo { partitions });
+        let plist_xml = format!("{:?}", dmg_reader.plist());
+        return Ok(DmgInfo {
+            partitions,
+            plist_xml,
+        });
     }
 
-    // 2. Fallback: Try parsing directly as an XML property list (e.g. extracted XML slice)
+    // 3. Fallback: Try parsing directly as an XML property list (e.g. extracted XML slice)
     let cursor = Cursor::new(dmg_data);
     if let Ok(plist) = plist::from_reader::<_, apple_dmg::Plist>(cursor) {
         let partitions = plist
@@ -50,13 +88,18 @@ pub fn parse_dmg(dmg_data: &[u8]) -> Result<DmgInfo, JsError> {
                 cf_name: p.cfname.clone(),
                 attributes: p.attributes.clone(),
                 id: p.id.clone(),
+                data: p.data.clone(),
             })
             .collect();
 
-        return Ok(DmgInfo { partitions });
+        let plist_xml = String::from_utf8_lossy(dmg_data).to_string();
+        return Ok(DmgInfo {
+            partitions,
+            plist_xml,
+        });
     }
 
-    Err(JsError::new("Failed to parse DMG: data is neither a valid full DMG image nor a valid DMG property list"))
+    Err(JsError::new("Failed to parse DMG: data is neither a valid DMG image nor a valid DMG property list"))
 }
 
 #[cfg(test)]

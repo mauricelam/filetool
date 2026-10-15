@@ -64,6 +64,10 @@ test('DMGViewer should open DMG file using range slicing', async ({ page }) => {
 
     await expect(iframe.locator('table')).toBeVisible({ timeout: 15000 });
     await expect(iframe.locator('td', { hasText: 'Google Drive Partition' }).first()).toBeVisible();
+
+    // Verify Open XML Plist button exists
+    const plistBtn = iframe.locator('button', { hasText: 'Open XML Plist in Parent' });
+    await expect(plistBtn).toBeVisible();
 });
 
 test('DMGViewer should open large 200MB DMG file without memory error', async ({ page }) => {
