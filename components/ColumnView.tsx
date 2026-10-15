@@ -512,7 +512,7 @@ export function ColumnView<T>({
                         ))}
                         {selectedFile && renderFilePreview && (
                             <div className="preview-pane" style={{
-                                width: '700px',
+                                flex: 1,
                                 minWidth: '700px',
                                 height: '100%',
                                 overflow: 'auto'
