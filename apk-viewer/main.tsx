@@ -71,7 +71,7 @@ function App() {
     const [extractingFile, setExtractingFile] = useState<string | null>(null);
 
     const workerRef = useRef<Worker | null>(null);
-    const pendingExtractsRef = useRef<Map<string, (content: Uint8Array) => void>>(new Map());
+    const pendingExtractsRef = useRef<Map<string, Array<{ resolve: (content: Uint8Array) => void; reject: (err: Error) => void }>>>(new Map());
 
     // State for ResourceTableViewer to persist across view changes
     const [resTableState, setResTableState] = useState<ResourceTableState>({
@@ -106,9 +106,9 @@ function App() {
                     setLoading(false);
                     break;
                 case 'extract-file-complete':
-                    const callback = pendingExtractsRef.current.get(payload.name);
-                    if (callback) {
-                        callback(payload.content);
+                    const callbacks = pendingExtractsRef.current.get(payload.name);
+                    if (callbacks) {
+                        callbacks.forEach(cb => cb.resolve(payload.content));
                         pendingExtractsRef.current.delete(payload.name);
                     }
                     // Update file tree with content
@@ -137,8 +137,21 @@ function App() {
                     setLoading(false);
                     break;
                 case 'error':
-                    setError(payload.message);
+                    if (payload.name) {
+                        const errCallbacks = pendingExtractsRef.current.get(payload.name);
+                        if (errCallbacks) {
+                            errCallbacks.forEach(cb => cb.reject(new Error(payload.message)));
+                            pendingExtractsRef.current.delete(payload.name);
+                        }
+                    } else {
+                        for (const [, errCallbacks] of pendingExtractsRef.current.entries()) {
+                            errCallbacks.forEach(cb => cb.reject(new Error(payload.message)));
+                        }
+                        pendingExtractsRef.current.clear();
+                        setError(payload.message);
+                    }
                     setLoading(false);
+                    setExtractingFile(null);
                     break;
             }
         };
@@ -196,12 +209,13 @@ function App() {
     }, [sizeBreakdown]);
 
     const extractFile = useCallback((name: string): Promise<Uint8Array> => {
-        return new Promise((resolve) => {
-            if (pendingExtractsRef.current.has(name)) {
-                // Already extracting, should probably handle this better but for now just wait
+        return new Promise((resolve, reject) => {
+            const existing = pendingExtractsRef.current.get(name);
+            if (existing) {
+                existing.push({ resolve, reject });
                 return;
             }
-            pendingExtractsRef.current.set(name, resolve);
+            pendingExtractsRef.current.set(name, [{ resolve, reject }]);
             setExtractingFile(name);
             workerRef.current?.postMessage({ action: 'extract-file', payload: { name } });
         });
@@ -220,6 +234,9 @@ function App() {
                 setLoading(true);
                 extractFile(fullPath).then(bytes => {
                     workerRef.current?.postMessage({ action: 'extract-arsc', payload: { arscBytes: bytes } });
+                }).catch(err => {
+                    setLoading(false);
+                    alert(`Failed to extract ARSC file: ${err.message}`);
                 });
             }
         }
@@ -253,6 +270,9 @@ function App() {
                 setPreviewContent(bytes);
                 setView('file-preview');
                 setLoading(false);
+            }).catch(err => {
+                setLoading(false);
+                alert(`Failed to extract file: ${err.message}`);
             });
         } else {
             setSelectedFilePath(pathArr);
@@ -391,33 +411,43 @@ function FileViewer({ files, onItemClick, selectedPath, extractFile }: {
     const handleOpenFile = async (file: any, path: string[]) => {
         const filename = path[path.length - 1];
         let bytes: Uint8Array;
-        if (file instanceof Uint8Array) {
-            bytes = file;
-        } else {
-            bytes = await extractFile(path.join('/'));
+        try {
+            if (file instanceof Uint8Array) {
+                bytes = file;
+            } else {
+                bytes = await extractFile(path.join('/'));
+            }
+            const extractedFile = new File([bytes.buffer as ArrayBuffer], filename);
+            window.parent?.postMessage({
+                action: 'openFile',
+                file: extractedFile
+            }, "/");
+        } catch (e) {
+            console.error('Error opening file:', e);
+            alert(`Failed to open file: ${(e as Error)?.message || e}`);
         }
-        const extractedFile = new File([bytes.buffer as ArrayBuffer], filename);
-        window.parent?.postMessage({
-            action: 'openFile',
-            file: extractedFile
-        }, "/");
     };
 
     const handleDownloadFile = async (file: any, path: string[]) => {
         const filename = path[path.length - 1];
         let bytes: Uint8Array;
-        if (file instanceof Uint8Array) {
-            bytes = file;
-        } else {
-            bytes = await extractFile(path.join('/'));
+        try {
+            if (file instanceof Uint8Array) {
+                bytes = file;
+            } else {
+                bytes = await extractFile(path.join('/'));
+            }
+            const extractedFile = new File([bytes.buffer as ArrayBuffer], filename);
+            const url = URL.createObjectURL(extractedFile);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = extractedFile.name;
+            anchor.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Error downloading file:', e);
+            alert(`Failed to download file: ${(e as Error)?.message || e}`);
         }
-        const extractedFile = new File([bytes.buffer as ArrayBuffer], filename);
-        const url = URL.createObjectURL(extractedFile);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = extractedFile.name;
-        anchor.click();
-        URL.revokeObjectURL(url);
     };
 
     const renderFileActions = (file: any, path: string[]) => {
@@ -483,6 +513,7 @@ function FileViewer({ files, onItemClick, selectedPath, extractFile }: {
             }, "/");
         } catch (e) {
             console.error('Error opening multiple DEX files:', e);
+            alert(`Failed to open DEX files: ${(e as Error)?.message || e}`);
         }
     };
 

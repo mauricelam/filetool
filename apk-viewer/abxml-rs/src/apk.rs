@@ -552,9 +552,9 @@ impl<Reader: Read + Seek> Apk<Reader> {
     }
 
     pub fn extract_file(&mut self, name: &str, buffer_android: &[u8]) -> Result<Vec<u8>, Error> {
-        let mut current_file = self.handler.by_name(name).context("could not find file")?;
+        let mut current_file = self.handler.by_name(name).with_context(|| format!("could not find file '{name}'"))?;
         let mut contents = Vec::new();
-        current_file.read_to_end(&mut contents).context("could not read file")?;
+        current_file.read_to_end(&mut contents).with_context(|| format!("could not read file '{name}'"))?;
 
         if (name.starts_with("res/") && name.ends_with(".xml")) || name == "AndroidManifest.xml" {
             if let Ok(decoder) = self.decoder.get_decoder(buffer_android) {

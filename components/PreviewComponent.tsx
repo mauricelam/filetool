@@ -13,6 +13,8 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
     const [handlers, setHandlers] = useState<HandlerDefinition[]>([]);
     const [activeHandler, setActiveHandler] = useState<HandlerDefinition | null>(null);
 
+    const pathKey = path.join('/');
+
     useEffect(() => {
         const getPreview = async () => {
             setError(null);
@@ -41,11 +43,11 @@ export function PreviewComponent({ path, filePromise }: PreviewComponentProps) {
 
             } catch (e) {
                 console.error('Error rendering file preview:', e);
-                setError('Could not extract file for preview');
+                setError(`Could not extract file for preview: ${(e as Error)?.message || e}`);
             }
         };
         getPreview();
-    }, [path, filePromise]);
+    }, [pathKey]);
 
     const handleIframeLoad = async () => {
         if (iframeRef.current && previewFile) {
