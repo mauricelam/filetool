@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import init, { parse_dmg, parse_koly_header, parse_dmg_xml, DmgInfo } from './dmg-wasm/pkg';
+import init, { parse_dmg, parse_koly_header, DmgInfo } from './dmg-wasm/pkg';
 // Request file from parent window
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' });
@@ -47,7 +47,8 @@ const DMGViewer: React.FC = () => {
                         console.log(`Parsed DMG trailer: xml_offset=${koly.xml_offset}, xml_length=${koly.xml_length}`);
                         const xmlSlice = file.slice(Number(koly.xml_offset), Number(koly.xml_offset) + Number(koly.xml_length));
                         const xmlBuf = new Uint8Array(await xmlSlice.arrayBuffer());
-                        const info = parse_dmg_xml(xmlBuf);
+                        // parse_dmg handles both XML property list slices and full DMG files
+                        const info = parse_dmg(xmlBuf);
                         setDmgInfo(info);
                     } catch (headerErr) {
                         console.warn('Range slicing koly header failed, falling back to full file parse:', headerErr);
