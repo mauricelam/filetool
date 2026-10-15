@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import ReactJson from '@microlink/react-json-view';
 import JQCheatsheet from './cheatsheet';
+import { safeReadFile, formatBytes } from '@filetool/common';
 
-// Request file from parent window
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' });
 }
@@ -16,10 +16,11 @@ const JQViewer: React.FC = () => {
     const [jqVersion, setJqVersion] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [showCheatsheet, setShowCheatsheet] = useState(false);
+    const [isTruncated, setIsTruncated] = useState(false);
+    const [totalSize, setTotalSize] = useState<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const workerRef = useRef<Worker | null>(null);
 
-    // Initialize worker
     useEffect(() => {
         workerRef.current = new Worker(new URL('./jq.worker.js', import.meta.url), { type: 'module' });
 
@@ -29,7 +30,6 @@ const JQViewer: React.FC = () => {
             switch (type) {
                 case 'init':
                     if (success) {
-                        // Get version after successful initialization
                         workerRef.current?.postMessage({ type: 'version' });
                     } else {
                         setError('Failed to initialize jq-wasm: ' + error);
@@ -53,7 +53,6 @@ const JQViewer: React.FC = () => {
                         try {
                             setOutput(JSON.parse(result));
                         } catch (e) {
-                            // If the result is not a valid JSON, it might be a raw string
                             setOutput(result);
                         }
                         setError('');
@@ -62,7 +61,6 @@ const JQViewer: React.FC = () => {
             }
         };
 
-        // Initialize worker
         workerRef.current.postMessage({ type: 'init' });
 
         return () => {
@@ -72,15 +70,19 @@ const JQViewer: React.FC = () => {
 
     useEffect(() => {
         const handleMessage = async (e: MessageEvent) => {
-            if (e.data.action === 'respondFile') {
+            if (e.data && e.data.action === 'respondFile') {
                 try {
                     const file = e.data.file as File;
-                    const textContent = await file.text();
+                    const { buffer, isTruncated, totalSize } = await safeReadFile(file, { maxBytes: 50 * 1024 * 1024 });
+                    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+                    const textContent = textDecoder.decode(buffer);
+                    setIsTruncated(isTruncated);
+                    setTotalSize(totalSize);
                     setJsonInput(textContent);
-                    setOutput(null); // Clear previous output
-                    setError(null); // Clear previous error
-                } catch (err) {
-                    setError(`Error reading file: ${err.message}`);
+                    setOutput(null);
+                    setError(null);
+                } catch (err: any) {
+                    setError(`Error reading file: ${err.message || err}`);
                     setJsonInput(null);
                 }
             }
@@ -91,19 +93,6 @@ const JQViewer: React.FC = () => {
             window.removeEventListener('message', handleMessage);
         };
     }, []);
-
-    useEffect(() => { console.log('output', output) }, [output])
-
-    // Close cheatsheet on Escape key
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && showCheatsheet) {
-                setShowCheatsheet(false);
-            }
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [showCheatsheet]);
 
     useEffect(() => {
         const processJson = async () => {
@@ -128,8 +117,22 @@ const JQViewer: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '20px', gap: '20px' }}>
+            {isTruncated && (
+                <div id="truncation-warning" style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#fff3cd',
+                    color: '#856404',
+                    border: '1px solid #ffeeba',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontFamily: 'sans-serif'
+                }}>
+                    ⚠️ File is too large ({formatBytes(totalSize)}). Showing preview of first 50 MB.
+                </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'row', flex: 0 }}>
-                <label>jq: </label><textarea
+                <label>jq: </label>
+                <textarea
                     ref={textareaRef}
                     value={jqFilter}
                     onChange={(e) => setJqFilter(e.target.value)}
