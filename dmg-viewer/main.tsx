@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import init, { parse_dmg, DmgInfo } from './dmg-wasm/pkg';
+import init, { parse_dmg, parse_koly_header, parse_dmg_xml, DmgInfo } from './dmg-wasm/pkg';
 // Request file from parent window
 if (window.parent) {
     window.parent.postMessage({ action: 'requestFile' });
@@ -15,7 +15,10 @@ const DMGViewer: React.FC = () => {
     useEffect(() => {
         init()
             .then(() => setWasmInitialized(true))
-            .catch(err => setError(`Failed to initialize WASM module: ${err}`));
+            .catch(err => {
+                console.error("Failed to initialize WASM module:", err);
+                setError(`Failed to initialize WASM module: ${err}`);
+            });
     }, []);
 
     useEffect(() => {
@@ -29,14 +32,35 @@ const DMGViewer: React.FC = () => {
 
                 try {
                     const file = e.data.file as File;
-                    const arrayBuffer = await file.arrayBuffer();
-                    const fileData = new Uint8Array(arrayBuffer);
+                    console.log(`Processing DMG file: ${file.name} (${file.size} bytes)`);
 
-                    const info = parse_dmg(fileData);
-                    setDmgInfo(info);
+                    if (file.size < 512) {
+                        throw new Error('File is too small to be a valid DMG image');
+                    }
+
+                    // Slice trailer (last 512 bytes) to read koly block
+                    const trailerSlice = file.slice(file.size - 512, file.size);
+                    const trailerBuf = new Uint8Array(await trailerSlice.arrayBuffer());
+
+                    try {
+                        const koly = parse_koly_header(trailerBuf);
+                        console.log(`Parsed DMG trailer: xml_offset=${koly.xml_offset}, xml_length=${koly.xml_length}`);
+                        const xmlSlice = file.slice(Number(koly.xml_offset), Number(koly.xml_offset) + Number(koly.xml_length));
+                        const xmlBuf = new Uint8Array(await xmlSlice.arrayBuffer());
+                        const info = parse_dmg_xml(xmlBuf);
+                        setDmgInfo(info);
+                    } catch (headerErr) {
+                        console.warn('Range slicing koly header failed, falling back to full file parse:', headerErr);
+                        const arrayBuffer = await file.arrayBuffer();
+                        const fileData = new Uint8Array(arrayBuffer);
+                        const info = parse_dmg(fileData);
+                        setDmgInfo(info);
+                    }
 
                 } catch (err) {
-                    setError(`Error processing DMG file: ${err}`);
+                    const msg = err instanceof Error ? err.message : String(err);
+                    console.error('Error processing DMG file:', err);
+                    setError(`Error processing DMG file: ${msg}`);
                 } finally {
                     setIsProcessing(false);
                 }
