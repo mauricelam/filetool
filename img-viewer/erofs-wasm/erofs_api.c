@@ -17,6 +17,7 @@
 #include "erofs/internal.h"
 #include "erofs/dir.h"
 #include "erofs/io.h"
+#include "erofs/print.h"
 
 /**
  * @struct StrBuf
@@ -206,11 +207,13 @@ char *erofs_parse_tree(const char *img_filename) {
     sbi.bdev.offset = 0;
     int ret = erofs_dev_open(&sbi, img_filename, O_RDONLY);
     if (ret) {
+        erofs_err("erofs_dev_open failed for image %s with ret %d", img_filename, ret);
         return NULL;
     }
 
     ret = erofs_read_superblock(&sbi);
     if (ret) {
+        erofs_err("erofs_read_superblock failed for image %s with ret %d", img_filename, ret);
         erofs_dev_close(&sbi);
         return NULL;
     }
@@ -266,6 +269,7 @@ uint8_t *erofs_read_file_data(const char *img_filename, const char *path, uint32
     struct erofs_inode vi = { .sbi = &sbi };
     ret = erofs_ilookup(path, &vi);
     if (ret) {
+        erofs_err("erofs_ilookup failed for path %s with ret %d", path, ret);
         erofs_dev_close(&sbi);
         return NULL;
     }
@@ -273,12 +277,14 @@ uint8_t *erofs_read_file_data(const char *img_filename, const char *path, uint32
     struct erofs_vfile vf;
     ret = erofs_iopen(&vf, &vi);
     if (ret) {
+        erofs_err("erofs_iopen failed for path %s with ret %d", path, ret);
         erofs_dev_close(&sbi);
         return NULL;
     }
 
     uint8_t *data = malloc(vi.i_size > 0 ? vi.i_size : 1);
     if (!data) {
+        erofs_err("malloc failed for size %llu", (unsigned long long)vi.i_size);
         erofs_dev_close(&sbi);
         return NULL;
     }
@@ -286,6 +292,7 @@ uint8_t *erofs_read_file_data(const char *img_filename, const char *path, uint32
     if (vi.i_size > 0) {
         ret = erofs_pread(&vf, data, vi.i_size, 0);
         if (ret) {
+            erofs_err("erofs_pread failed for path %s with ret %d", path, ret);
             free(data);
             erofs_dev_close(&sbi);
             return NULL;

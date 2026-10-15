@@ -38,6 +38,17 @@ test('img-viewer should list files in an EROFS image', async ({ page }) => {
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe('hello.txt');
 
+    // Read downloaded content to verify extraction
+    const stream = await download.createReadStream();
+    const chunks: Buffer[] = [];
+    if (stream) {
+        for await (const chunk of stream) {
+            chunks.push(chunk as Buffer);
+        }
+    }
+    const helloContent = Buffer.concat(chunks).toString('utf-8');
+    expect(helloContent.length).toBeGreaterThan(0);
+
     // Check for subdir
     await expect(iframe.getByText('subdir')).toBeVisible();
     await iframe.getByText('subdir').click();
