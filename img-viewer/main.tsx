@@ -53,6 +53,18 @@ const guessImageType = (data: Uint8Array): string | null => {
     return null;
 };
 
+/**
+ * Recursively prefixes file paths in a partition's directory tree node with the partition name.
+ *
+ * When a filesystem image (ext4 or EROFS) inside an Android super.img partition is parsed,
+ * its file nodes initially have paths relative to the partition root (e.g., "/hello.txt").
+ * This helper prefixes each node's `_path` with the partition name route (e.g., "/system_a/hello.txt")
+ * so that `findSubImageForPath` can extract the partition name and route extraction requests
+ * to the partition's `SparseSubImage` rather than reading directly from `super.img`.
+ *
+ * @param node The directory or file tree node to update.
+ * @param prefix The partition route prefix (e.g., "/system_a").
+ */
 function fixPartitionPaths(node: any, prefix: string) {
     if (!node || typeof node !== 'object' || node instanceof Uint8Array) return;
 
