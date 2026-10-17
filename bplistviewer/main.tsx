@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ReactJson from '@microlink/react-json-view';
 import { Buffer } from 'buffer';
-import { parseBuffer } from './parser';
+import { parseBuffer, toXmlPlist } from './parser';
 
 const App = () => {
     const [data, setData] = useState<Record<string, unknown> | null>(null);
+    const [fileName, setFileName] = useState<string>('file.plist');
     const [warnings, setWarnings] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
 
@@ -15,6 +16,9 @@ const App = () => {
                 try {
                     setError(null);
                     const file = e.data.file;
+                    if (file && file.name) {
+                        setFileName(file.name);
+                    }
                     const buffer = Buffer.from(await file.arrayBuffer());
                     const [parsed, warnings] = parseBuffer(buffer);
                     if (parsed && typeof parsed === 'object' && 'error' in parsed) {
@@ -42,6 +46,42 @@ const App = () => {
         }
     }, []);
 
+    const getTextPlistFileName = () => {
+        if (fileName.toLowerCase().endsWith('.bplist')) {
+            return fileName.substring(0, fileName.length - 7) + '.plist';
+        }
+        if (!fileName.toLowerCase().endsWith('.plist')) {
+            return `${fileName}.plist`;
+        }
+        return fileName;
+    };
+
+    const handleOpenAsTextPlist = () => {
+        if (!data) return;
+        const xmlContent = toXmlPlist(data);
+        const textFileName = getTextPlistFileName();
+        const textFile = new File([xmlContent], textFileName, { type: 'application/x-plist' });
+        window.parent?.postMessage({
+            action: 'openFile',
+            file: textFile
+        }, '*');
+    };
+
+    const handleDownloadAsTextPlist = () => {
+        if (!data) return;
+        const xmlContent = toXmlPlist(data);
+        const textFileName = getTextPlistFileName();
+        const blob = new Blob([xmlContent], { type: 'application/x-plist;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = textFileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div style={{
             padding: '16px',
@@ -50,6 +90,45 @@ const App = () => {
             lineHeight: '1.5',
             color: '#333'
         }}>
+            {data && (
+                <div style={{
+                    marginBottom: '16px',
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'center'
+                }}>
+                    <button
+                        onClick={handleOpenAsTextPlist}
+                        style={{
+                            padding: '6px 12px',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            borderRadius: '4px',
+                            border: '1px solid #0066cc',
+                            backgroundColor: '#0066cc',
+                            color: '#fff',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Open as Text Plist
+                    </button>
+                    <button
+                        onClick={handleDownloadAsTextPlist}
+                        style={{
+                            padding: '6px 12px',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            backgroundColor: '#f8f9fa',
+                            color: '#333',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Download as Text Plist
+                    </button>
+                </div>
+            )}
             {error && (
                 <div style={{
                     backgroundColor: '#fff5f5',

@@ -451,3 +451,9 @@ function swapBytes(buffer: any) {
     }
     return buffer;
 }
+
+import { build, PlistValue } from 'plist';
+
+export function toXmlPlist(data: PlistValue): string {
+    return build(data);
+}

@@ -12,8 +12,10 @@
   "license": "ISC",
   "dependencies": {
     "@microlink/react-json-view": "^1.23.0",
+    "@types/plist": "^3.0.5",
     "buffer": "^6.0.3",
     "esbuild-plugin-copy": "^2.1.1",
+    "plist": "^5.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
