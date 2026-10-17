@@ -1,1 +1,1 @@
-ai_agent_rules.md
+AGENTS.md
