@@ -452,8 +452,8 @@ function swapBytes(buffer: any) {
     return buffer;
 }
 
-import { build } from 'plist';
+import { build, PlistValue } from 'plist';
 
-export function toXmlPlist(data: any): string {
+export function toXmlPlist(data: PlistValue): string {
     return build(data);
 }
