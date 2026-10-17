@@ -452,67 +452,8 @@ function swapBytes(buffer: any) {
     return buffer;
 }
 
-function escapeXml(str: string): string {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
+import { build } from 'plist';
 
 export function toXmlPlist(data: any): string {
-    const indent = (level: number) => '  '.repeat(level);
-
-    function serialize(val: any, level: number): string {
-        if (val === null || val === undefined) {
-            return `${indent(level)}<string></string>`;
-        }
-        if (typeof val === 'boolean') {
-            return `${indent(level)}<${val ? 'true' : 'false'}/>`;
-        }
-        if (typeof val === 'number') {
-            if (Number.isInteger(val)) {
-                return `${indent(level)}<integer>${val}</integer>`;
-            }
-            return `${indent(level)}<real>${val}</real>`;
-        }
-        if (typeof val === 'bigint') {
-            return `${indent(level)}<integer>${val.toString()}</integer>`;
-        }
-        if (typeof val === 'string') {
-            return `${indent(level)}<string>${escapeXml(val)}</string>`;
-        }
-        if (val instanceof Date) {
-            return `${indent(level)}<date>${val.toISOString()}</date>`;
-        }
-        if (val instanceof UID) {
-            return `${indent(level)}<dict>\n${indent(level + 1)}<key>CF$UID</key>\n${indent(level + 1)}<integer>${val.UID}</integer>\n${indent(level)}</dict>`;
-        }
-        if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
-            const b64 = Buffer.from(val).toString('base64');
-            return `${indent(level)}<data>${b64}</data>`;
-        }
-        if (Array.isArray(val)) {
-            if (val.length === 0) {
-                return `${indent(level)}<array/>`;
-            }
-            const items = val.map(item => serialize(item, level + 1)).join('\n');
-            return `${indent(level)}<array>\n${items}\n${indent(level)}</array>`;
-        }
-        if (typeof val === 'object') {
-            const keys = Object.keys(val);
-            if (keys.length === 0) {
-                return `${indent(level)}<dict/>`;
-            }
-            const pairs = keys.map(key => {
-                const keyStr = `${indent(level + 1)}<key>${escapeXml(key)}</key>`;
-                const valStr = serialize(val[key], level + 1);
-                return `${keyStr}\n${valStr}`;
-            }).join('\n');
-            return `${indent(level)}<dict>\n${pairs}\n${indent(level)}</dict>`;
-        }
-
-        return `${indent(level)}<string>${escapeXml(String(val))}</string>`;
-    }
-
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n${serialize(data, 0)}\n</plist>\n`;
+    return build(data);
 }
