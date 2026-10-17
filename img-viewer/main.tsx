@@ -53,6 +53,38 @@ const guessImageType = (data: Uint8Array): string | null => {
     return null;
 };
 
+/**
+ * Recursively prefixes file paths in a partition's directory tree node with the partition name.
+ *
+ * When a filesystem image (ext4 or EROFS) inside an Android super.img partition is parsed,
+ * its file nodes initially have paths relative to the partition root (e.g., "/hello.txt").
+ * This helper prefixes each node's `_path` with the partition name route (e.g., "/system_a/hello.txt")
+ * so that `findSubImageForPath` can extract the partition name and route extraction requests
+ * to the partition's `SparseSubImage` rather than reading directly from `super.img`.
+ *
+ * @param node The directory or file tree node to update.
+ * @param prefix The partition route prefix (e.g., "/system_a").
+ */
+function fixPartitionPaths(node: any, prefix: string) {
+    if (!node || typeof node !== 'object' || node instanceof Uint8Array) return;
+
+    if (typeof node._path === 'string') {
+        if (node._path === '/' || node._path === '') {
+            node._path = prefix;
+        } else if (node._path.startsWith('/')) {
+            node._path = `${prefix}${node._path}`;
+        } else {
+            node._path = `${prefix}/${node._path}`;
+        }
+    }
+
+    for (const key of Object.keys(node)) {
+        if (!key.startsWith('_')) {
+            fixPartitionPaths(node[key], prefix);
+        }
+    }
+}
+
 const makeReadFn = (file: File) => {
     return (offset: number, length: number): Uint8Array => {
         if (typeof FileReaderSync !== 'undefined') {
@@ -150,6 +182,7 @@ const ImgViewer: React.FC = () => {
                             if (isExt4) {
                                 await ensureExt4Initialized();
                                 const pTree = parse_ext4_stream(BigInt(p.sizeBytes), (off, len) => sub.readSync(off, len));
+                                fixPartitionPaths(pTree, `/${p.name}`);
                                 pTree._size = p.sizeBytes;
                                 pTree._path = `/${p.name}`;
                                 pTree._mode = 0o644;
@@ -159,6 +192,7 @@ const ImgViewer: React.FC = () => {
                             } else if (isErofs) {
                                 await ensureErofsInitialized();
                                 const pTree = await parse_erofs(sub);
+                                fixPartitionPaths(pTree, `/${p.name}`);
                                 pTree._size = p.sizeBytes;
                                 pTree._path = `/${p.name}`;
                                 pTree._mode = 0o644;
