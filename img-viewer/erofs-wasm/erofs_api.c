@@ -204,7 +204,6 @@ static int walk_dir_cb(struct erofs_dir_context *ctx) {
  */
 EMSCRIPTEN_KEEPALIVE
 char *erofs_parse_tree(const char *img_filename) {
-    cfg.c_dbg_lvl = EROFS_DBG;
     struct erofs_sb_info sbi = {0};
     sbi.bdev.offset = 0;
     int ret = erofs_dev_open(&sbi, img_filename, O_RDONLY);
@@ -251,7 +250,6 @@ char *erofs_parse_tree(const char *img_filename) {
  */
 EMSCRIPTEN_KEEPALIVE
 uint8_t *erofs_read_file_data(const char *img_filename, const char *path, uint32_t *out_size) {
-    cfg.c_dbg_lvl = EROFS_DBG;
     struct erofs_sb_info sbi = {0};
     sbi.bdev.offset = 0;
     int ret = erofs_dev_open(&sbi, img_filename, O_RDONLY);
