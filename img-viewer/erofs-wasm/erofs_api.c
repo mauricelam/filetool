@@ -18,6 +18,7 @@
 #include "erofs/dir.h"
 #include "erofs/io.h"
 #include "erofs/print.h"
+#include "erofs/config.h"
 
 /**
  * @struct StrBuf
@@ -203,6 +204,7 @@ static int walk_dir_cb(struct erofs_dir_context *ctx) {
  */
 EMSCRIPTEN_KEEPALIVE
 char *erofs_parse_tree(const char *img_filename) {
+    cfg.c_dbg_lvl = EROFS_DBG;
     struct erofs_sb_info sbi = {0};
     sbi.bdev.offset = 0;
     int ret = erofs_dev_open(&sbi, img_filename, O_RDONLY);
@@ -249,6 +251,7 @@ char *erofs_parse_tree(const char *img_filename) {
  */
 EMSCRIPTEN_KEEPALIVE
 uint8_t *erofs_read_file_data(const char *img_filename, const char *path, uint32_t *out_size) {
+    cfg.c_dbg_lvl = EROFS_DBG;
     struct erofs_sb_info sbi = {0};
     sbi.bdev.offset = 0;
     int ret = erofs_dev_open(&sbi, img_filename, O_RDONLY);
@@ -274,9 +277,9 @@ uint8_t *erofs_read_file_data(const char *img_filename, const char *path, uint32
         return NULL;
     }
 
-    erofs_info("erofs_read_file_data: path=%s, nid=%llu, i_size=%llu, datalayout=%u, compressed=%d",
-               path, (unsigned long long)vi.nid, (unsigned long long)vi.i_size,
-               vi.datalayout, erofs_inode_is_data_compressed(vi.datalayout));
+    erofs_err("erofs_read_file_data: path=%s, nid=%llu, i_size=%llu, datalayout=%u, compressed=%d",
+              path, (unsigned long long)vi.nid, (unsigned long long)vi.i_size,
+              vi.datalayout, erofs_inode_is_data_compressed(vi.datalayout));
 
     struct erofs_vfile vf;
     ret = erofs_iopen(&vf, &vi);
