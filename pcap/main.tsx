@@ -487,12 +487,12 @@ const App: React.FC = () => {
         }
 
         let bgHex = '#ffffff';
-        let fgHex = '#000000';
+        let fgHex = '#212529';
 
-        if (row.bg) {
+        if (row.bg && row.bg !== 0) {
             bgHex = '#' + row.bg.toString(16).padStart(6, '0');
         }
-        if (row.fg) {
+        if (row.fg && row.fg !== 0) {
             fgHex = '#' + row.fg.toString(16).padStart(6, '0');
         }
 
