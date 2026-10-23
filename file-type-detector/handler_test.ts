@@ -287,6 +287,24 @@ describe('Handler Tests', () => {
         });
     });
 
+    describe('PCAP Handler Matching', () => {
+        it('matches .pcap, .pcapng, and .cap files with pcap handler', () => {
+            const pcapHandlers = getHandlersForFileNameAndType('capture.pcap', 'application/vnd.tcpdump.pcap', '');
+            expect(pcapHandlers.some(h => h.handler === 'pcap')).toBe(true);
+
+            const pcapngHandlers = getHandlersForFileNameAndType('traffic.pcapng', 'application/x-pcapng', '');
+            expect(pcapngHandlers.some(h => h.handler === 'pcap')).toBe(true);
+
+            const capHandlers = getHandlersForFileNameAndType('dump.cap', 'application/pcap', '');
+            expect(capHandlers.some(h => h.handler === 'pcap')).toBe(true);
+        });
+
+        it('matches description containing pcap', () => {
+            const handlers = getHandlersForFileNameAndType('unknown.bin', 'application/octet-stream', 'tcpdump capture file - pcap');
+            expect(handlers.some(h => h.handler === 'pcap')).toBe(true);
+        });
+    });
+
     describe('Large 5GB File Processing', () => {
         test('can get handlers for a 5GB file without loading full file into memory or throwing error', async () => {
             const chunk = new Uint8Array(1024 * 1024);
