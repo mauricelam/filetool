@@ -48,8 +48,9 @@ impl Read for JsBlockDevice {
             .js_backend
             .read_at(self.pos as f64, to_read as f64)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))?;
-        let len = uint8_array.length() as usize;
-        uint8_array.copy_to(&mut buf[..len]);
+        let bytes = uint8_array.to_vec();
+        let len = bytes.len().min(buf.len());
+        buf[..len].copy_from_slice(&bytes[..len]);
         self.pos += len as u64;
         Ok(len)
     }
@@ -90,17 +91,23 @@ impl BlockDevice for JsBlockDevice {
         Ok(())
     }
     fn read_at(&mut self, offset: u64, buf: &mut [u8]) -> fstool::Result<()> {
-        if offset + buf.len() as u64 > self.size {
+        if offset >= self.size {
             return Err(fstool::Error::OutOfBounds { offset, len: buf.len() as u64, size: self.size });
         }
         if buf.is_empty() {
             return Ok(());
         }
+        let to_read = (buf.len() as u64).min(self.size - offset);
         let uint8_array = self
             .js_backend
-            .read_at(offset as f64, buf.len() as f64)
+            .read_at(offset as f64, to_read as f64)
             .map_err(|e| fstool::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e))))?;
-        uint8_array.copy_to(buf);
+        let bytes = uint8_array.to_vec();
+        let copy_len = bytes.len().min(buf.len());
+        buf[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        if copy_len < buf.len() {
+            buf[copy_len..].fill(0);
+        }
         Ok(())
     }
 }
