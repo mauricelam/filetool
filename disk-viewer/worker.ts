@@ -50,7 +50,13 @@ self.onmessage = async (e: MessageEvent) => {
 
         if (type === 'read_file_range') {
             const { partitionIndex, isPartitioned, path, offset, length } = data;
-            const bytes = session.read_file_range(partitionIndex, isPartitioned, path, offset, length);
+            const bytes = session.read_file_range(
+                partitionIndex,
+                isPartitioned,
+                path,
+                BigInt(offset || 0),
+                BigInt(length || 0)
+            );
             self.postMessage({ id, type: 'read_file_range_ok', bytes }, [bytes.buffer]);
             return;
         }
