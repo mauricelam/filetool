@@ -1,0 +1,22 @@
+{
+  "name": "@filetool/disk-viewer",
+  "version": "1.0.0",
+  "description": "Disk image viewer built on fstool and dmg-core",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "BUILD_MODE=dev node build.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@filetool/components": "*",
+    "@filetool/esbuild-plugins": "*",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.27.2",
+    "esbuild-plugin-copy": "^2.1.1"
+  }
+}
