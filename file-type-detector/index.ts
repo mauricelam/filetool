@@ -112,6 +112,14 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "mimetypes": ["application/cbor", { "filename": /\.cbor$/i }]
     },
     {
+        "name": "Disk Image Viewer",
+        "handler": "disk-viewer",
+        "mimetypes": [
+            { "filename": /\.(dmg|img|iso|raw|dd)$/i },
+            { "description": /Apple Disk Image|ISO 9660|DOS\/MBR boot sector|GUID Partition Table/i }
+        ]
+    },
+    {
         "name": "DMG Viewer",
         "handler": "dmg-viewer",
         "mimetypes": [{ "filename": /\.dmg$/i }]

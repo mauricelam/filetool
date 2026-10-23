@@ -1,0 +1,5 @@
+{
+  "name": "@filetool/disk-viewer-tests",
+  "private": true,
+  "type": "module"
+}

@@ -17,6 +17,7 @@
     "der",
     "dexviewer",
     "diffviewer",
+    "disk-viewer",
     "dmg-viewer",
     "esbuild-plugins",
     "ffmpeg",
