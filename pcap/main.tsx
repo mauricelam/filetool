@@ -44,6 +44,20 @@ interface FrameDetail {
     tree: TreeNode[];
 }
 
+async function fetchAndDecompress(url: string): Promise<ArrayBuffer> {
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`Failed to fetch ${url}: ${res.statusText}`);
+    }
+    if (!res.body) {
+        throw new Error(`Empty response body for ${url}`);
+    }
+    const ds = new DecompressionStream('gzip');
+    const decompressedStream = res.body.pipeThrough(ds);
+    const decompressedResponse = new Response(decompressedStream);
+    return await decompressedResponse.arrayBuffer();
+}
+
 function parseWiregasmTree(vecOrArray: any): TreeNode[] {
     let rawNodes: any[];
     try {
@@ -280,10 +294,19 @@ const App: React.FC = () => {
 
         const initWiregasm = async () => {
             try {
+                // Fetch and inflate compressed WebAssembly and data packages to stay under 25MB file size limit
+                const [wasmBuffer, dataBuffer] = await Promise.all([
+                    fetchAndDecompress('./wiregasm.wasm.gz'),
+                    fetchAndDecompress('./wiregasm.data.gz')
+                ]);
+
                 const wg = new Wiregasm();
                 await wg.init(loadWiregasm, {
+                    wasmBinary: wasmBuffer,
+                    getPreloadedPackage: (_name: string, _size: number) => dataBuffer,
                     locateFile: (path: string) => `./${path}`
                 });
+
                 if (!isCancelled) {
                     wgRef.current = wg;
                     setLoading(false);
