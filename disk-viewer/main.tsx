@@ -113,6 +113,7 @@ const DiskViewer: React.FC = () => {
             });
         } catch (err: any) {
             console.error(`Failed to list dir '${pathStr}':`, err);
+            setError(err?.message || String(err));
         }
     }, [rpcCall]);
 
@@ -190,6 +191,7 @@ const DiskViewer: React.FC = () => {
         const activePart = diskInfo.partitions[selectedPartitionIndex] || diskInfo.partitions[0];
 
         if (activePart) {
+            setError(null);
             setTree({});
             loadedPathsRef.current.clear();
             fetchDirectory(activePart.index, isPartitioned, '/');

@@ -30,3 +30,21 @@ test('Disk Image Viewer should open raw ext4 image and list directory contents',
     await expect(iframe.locator('h3:has-text("Item Details")')).toBeVisible();
     await expect(iframe.locator('td:has-text("/hello.txt")')).toBeVisible();
 });
+
+test('Disk Image Viewer should expose fstool error when opening corrupt filesystem', async ({ page }) => {
+    // 1024 bytes of zeroed data that cannot be parsed as a valid filesystem
+    const invalidImage = new Uint8Array(1024);
+
+    const iframe = await runHandlerTest(page, {
+        handler: 'disk-viewer',
+        file: {
+            content: invalidImage,
+            name: 'corrupt.img',
+            type: 'application/octet-stream'
+        }
+    });
+
+    // Verify error UI is displayed with fstool error message
+    await expect(iframe.locator('h2:has-text("Disk Image Error")')).toBeVisible({ timeout: 30000 });
+    await expect(iframe.locator('text=/Failed to open filesystem/i')).toBeVisible();
+});
