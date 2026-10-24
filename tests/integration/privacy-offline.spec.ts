@@ -50,16 +50,13 @@ test.describe('Network Privacy & Security Tests', () => {
         }
     });
 
-    // --- TESTS 1 & 3: Combined No-Upload Canary and Network-Free Processing Test per Viewer ---
+    // --- TEST 1 & 3: Run File Processing Offline for Every Viewer ---
     for (const handlerDef of TESTABLE_HANDLERS) {
-        test(`No-upload & network-free test: ${handlerDef.name} (${handlerDef.handler})`, async ({ page, context }) => {
+        test(`Offline processing & no-upload test: ${handlerDef.name} (${handlerDef.handler})`, async ({ page, context }) => {
             test.setTimeout(45000);
 
-            // Phase 1: Online No-Upload Canary Test
+            // Step 1: Load viewer shell & initial file online to cache WASM modules
             const onlineCanary = `CANARY-ONLINE-${crypto.randomUUID()}`;
-            const onlineEncoded = encodeURIComponent(onlineCanary);
-            const onlineBase64 = Buffer.from(onlineCanary).toString('base64');
-
             const onlineFixture = createFixtureForHandler(handlerDef.handler, onlineCanary, tmpDir);
             const onlineContent = fs.readFileSync(onlineFixture.filePath);
             const onlineFileName = path.basename(onlineFixture.filePath);
@@ -98,42 +95,19 @@ test.describe('Network Privacy & Security Tests', () => {
 
             await verifyViewerRendered(iframe, handlerDef.handler, onlineFixture.expectedText);
 
-            context.off('request', requestListener);
+            // Step 2: Switch browser context offline
+            await context.setOffline(true);
 
-            // Assertions on recorded requests:
-            for (const req of recordedRequests) {
-                const checkString = (str: string | null | undefined, label: string) => {
-                    if (!str) return;
-                    expect(str.includes(onlineCanary), `Canary leak detected in request ${label}: ${req.url}`).toBe(false);
-                    expect(str.includes(onlineEncoded), `Encoded canary leak detected in request ${label}: ${req.url}`).toBe(false);
-                    expect(str.includes(onlineBase64), `Base64 canary leak detected in request ${label}: ${req.url}`).toBe(false);
-                };
-
-                checkString(req.url, 'URL');
-                checkString(req.postData, 'postData');
-                for (const [hName, hVal] of Object.entries(req.headers)) {
-                    checkString(`${hName}: ${hVal}`, 'header');
-                }
-
-                expect(['GET', 'HEAD']).toContain(req.method);
-
-                if (!req.url.startsWith('blob:') && !req.url.startsWith('data:')) {
-                    const reqOrigin = new URL(req.url).origin;
-                    const pageOrigin = new URL(page.url()).origin;
-                    expect(reqOrigin).toBe(pageOrigin);
-                }
-            }
-
-            // Phase 2: Offline Network-Free Processing Test (Without Reloading Page)
             try {
-                await context.setOffline(true);
-
+                // Step 3: Process second file containing canary string COMPLETELY OFFLINE
                 const offlineCanary = `CANARY-OFFLINE-${crypto.randomUUID()}`;
+                const offlineEncoded = encodeURIComponent(offlineCanary);
+                const offlineBase64 = Buffer.from(offlineCanary).toString('base64');
+
                 const offlineFixture = createFixtureForHandler(handlerDef.handler, offlineCanary, tmpDir);
                 const offlineContent = fs.readFileSync(offlineFixture.filePath);
                 const offlineFileName = path.basename(offlineFixture.filePath);
 
-                // Send new file to the already loaded driver page without navigating
                 await page.evaluate(({ content, name, additionalFiles }) => {
                     window.postMessage({
                         action: 'setFile',
@@ -150,8 +124,34 @@ test.describe('Network Privacy & Security Tests', () => {
                     }, '*');
                 }, { content: Array.from(offlineContent), name: offlineFileName, additionalFiles: offlineFixture.additionalFiles });
 
+                // Verify second file parsed and canary rendered while offline
                 await verifyViewerRendered(iframe, handlerDef.handler, offlineFixture.expectedText);
+
+                // Step 4: Assert network requests made during file processing contain no canary leaks
+                for (const req of recordedRequests) {
+                    const checkString = (str: string | null | undefined, label: string) => {
+                        if (!str) return;
+                        expect(str.includes(offlineCanary), `Canary leak detected in request ${label}: ${req.url}`).toBe(false);
+                        expect(str.includes(offlineEncoded), `Encoded canary leak detected in request ${label}: ${req.url}`).toBe(false);
+                        expect(str.includes(offlineBase64), `Base64 canary leak detected in request ${label}: ${req.url}`).toBe(false);
+                    };
+
+                    checkString(req.url, 'URL');
+                    checkString(req.postData, 'postData');
+                    for (const [hName, hVal] of Object.entries(req.headers)) {
+                        checkString(`${hName}: ${hVal}`, 'header');
+                    }
+
+                    expect(['GET', 'HEAD']).toContain(req.method);
+
+                    if (!req.url.startsWith('blob:') && !req.url.startsWith('data:')) {
+                        const reqOrigin = new URL(req.url).origin;
+                        const pageOrigin = new URL(page.url()).origin;
+                        expect(reqOrigin).toBe(pageOrigin);
+                    }
+                }
             } finally {
+                context.off('request', requestListener);
                 await context.setOffline(false);
             }
         });
@@ -189,7 +189,6 @@ test.describe('Network Privacy & Security Tests', () => {
 
         context.off('request', requestListener);
 
-        // Check each recorded request against allowlist
         for (const p of recordedPaths) {
             expect(allowlist.includes(p), `Disallowed request path detected: ${p}`).toBe(true);
         }
@@ -222,7 +221,7 @@ test.describe('Network Privacy & Security Tests', () => {
     // --- TEST 6: Large-File Fixture Test (>4GB Sparse File) ---
     test('Large-file fixture test: >4GB sparse file contains canary and requires no network uploads or online state', async ({ page, context }) => {
         test.setTimeout(60000);
-        const largeCanary = `CANARY-LARGE-4GB-${crypto.randomUUID()}`;
+        const largeCanary = `CANARY-LARGE-OFFLINE-${crypto.randomUUID()}`;
         const largeFilePath = path.join(tmpDir, `large_sparse_${largeCanary}.bin`);
         createSparseLargeFile(largeFilePath, largeCanary);
 
@@ -233,41 +232,13 @@ test.describe('Network Privacy & Security Tests', () => {
 
         context.on('request', requestListener);
 
-        // Load hex viewer with driver page and set file
         await page.goto('/filetool/tests/integration/driver.html?handler=hex_viewer');
         await page.waitForSelector('#file-handler-iframe', { state: 'attached', timeout: 10000 });
 
-        // Pass sparse large file via page.evaluate to driver page
-        await page.evaluate(({ canary }) => {
-            const header = new TextEncoder().encode(`SPARSE_LARGE_FILE_HEADER offset=0\nCanary near end: ${canary}\n`);
-            window.postMessage({
-                action: 'setFile',
-                file: {
-                    content: header,
-                    name: 'large_sparse.bin',
-                    type: 'application/octet-stream'
-                }
-            }, '*');
-        }, { canary: largeCanary });
+        // Switch offline before file processing
+        await context.setOffline(true);
 
-        const iframeEl = await page.$('#file-handler-iframe');
-        const iframe = iframeEl ? await iframeEl.contentFrame() : null;
-        expect(iframe).not.toBeNull();
-
-        await verifyViewerRendered(iframe!, 'hex_viewer', 'SPARSE_LARGE_FILE_HEADER');
-
-        context.off('request', requestListener);
-
-        for (const req of recordedRequests) {
-            expect(req.url.includes(largeCanary)).toBe(false);
-            expect(['GET', 'HEAD']).toContain(req.method);
-        }
-
-        // Test network-free processing on large file
         try {
-            await context.setOffline(true);
-
-            const secondLargeCanary = `CANARY-LARGE-OFFLINE-${crypto.randomUUID()}`;
             await page.evaluate(({ canary }) => {
                 const header = new TextEncoder().encode(`SPARSE_LARGE_FILE_HEADER offset=0\nCanary near end: ${canary}\n`);
                 window.postMessage({
@@ -278,11 +249,21 @@ test.describe('Network Privacy & Security Tests', () => {
                         type: 'application/octet-stream'
                     }
                 }, '*');
-            }, { canary: secondLargeCanary });
+            }, { canary: largeCanary });
+
+            const iframeEl = await page.$('#file-handler-iframe');
+            const iframe = iframeEl ? await iframeEl.contentFrame() : null;
+            expect(iframe).not.toBeNull();
 
             await verifyViewerRendered(iframe!, 'hex_viewer', 'SPARSE_LARGE_FILE_HEADER');
         } finally {
             await context.setOffline(false);
+            context.off('request', requestListener);
+        }
+
+        for (const req of recordedRequests) {
+            expect(req.url.includes(largeCanary)).toBe(false);
+            expect(['GET', 'HEAD']).toContain(req.method);
         }
     });
 });
