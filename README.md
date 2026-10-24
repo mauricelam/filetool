@@ -196,4 +196,22 @@ npm run test:integration
 
 This command will build the project, prepare the test harness, and run the Playwright tests.
 
+### Network Privacy & Offline Tests
 
+We enforce that filetool processes files entirely in the browser sandbox without uploading user file contents or making unexpected network requests.
+
+To run the network privacy and offline test suite:
+
+```sh
+npx playwright test tests/integration/privacy-offline.spec.ts
+```
+
+This suite verifies:
+1. **No-upload canary test**: Unique canary strings inside fixture files are never transmitted in network request URLs, headers, or body payloads (raw, URL-encoded, or base64).
+2. **Request allowlist test**: Network requests are strictly checked against `tests/network-allowlist.json`. Any unlisted asset path triggers a test failure.
+3. **Network-free processing test**: Once a viewer is loaded online, setting `context.setOffline(true)` confirms that processing additional files does not require network access.
+4. **Large-file sparse test**: Generates a >4GB sparse file to verify large file handling without network uploads or memory crashes.
+
+#### Updating the Network Allowlist
+
+If new static assets (WASM modules, JS bundles, icons, CSS) are added to the build output, update `tests/network-allowlist.json` with their relative `/filetool/...` path.
