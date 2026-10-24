@@ -301,6 +301,17 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         ]
     },
     {
+        "name": "PCAP Viewer",
+        "handler": "pcap",
+        "mimetypes": [
+            "application/vnd.tcpdump.pcap",
+            "application/x-pcapng",
+            "application/pcap",
+            { "filename": /\.(pcap|pcapng|cap)$/i },
+            { "description": /pcap/i }
+        ]
+    },
+    {
         "name": "Office Document Viewer",
         "handler": "ooxmlviewer",
         "mimetypes": [
