@@ -9,11 +9,6 @@ const require = createRequire(import.meta.url);
 const wiregasmPkgDir = path.dirname(require.resolve('@goodtools/wiregasm/package.json'));
 
 const isDev = process.env.BUILD_MODE === 'dev';
-const outDir = path.resolve(process.cwd(), '../dist/pcap');
-
-// Clean output folder
-fs.rmSync(outDir, { recursive: true, force: true });
-fs.mkdirSync(outDir, { recursive: true });
 
 const SETTINGS = {
   entryPoints: ['main.tsx'],
