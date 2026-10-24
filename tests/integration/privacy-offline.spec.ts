@@ -14,7 +14,7 @@ const allowlist: string[] = JSON.parse(fs.readFileSync(allowlistPath, 'utf-8'));
 const TESTABLE_HANDLERS = HANDLERS.filter(h => !h.experimental);
 
 // Track all network requests made across all tests for allowlist verification
-const allRequestedPaths = new Set<string>();
+const globalRequestedPaths = new Set<string>();
 
 /**
  * Normalizes a URL to a relative pathname for allowlist comparison.
@@ -55,7 +55,7 @@ test.describe('Network Privacy & Security Tests', () => {
         test(`Offline processing & no-upload test: ${handlerDef.name} (${handlerDef.handler})`, async ({ page, context }) => {
             test.setTimeout(45000);
 
-            // Step 1: Load viewer shell & initial file online to cache WASM modules
+            // Step 1: Load viewer shell & initial file online to cache WASM/JS modules
             const onlineCanary = `CANARY-ONLINE-${crypto.randomUUID()}`;
             const onlineFixture = createFixtureForHandler(handlerDef.handler, onlineCanary, tmpDir);
             const onlineContent = fs.readFileSync(onlineFixture.filePath);
@@ -67,7 +67,7 @@ test.describe('Network Privacy & Security Tests', () => {
                 const url = req.url();
                 const pathName = toPathname(url);
                 if (!pathName.startsWith('blob:') && !pathName.startsWith('data:')) {
-                    allRequestedPaths.add(pathName);
+                    globalRequestedPaths.add(pathName);
                 }
                 recordedRequests.push({
                     url: url,
@@ -159,19 +159,20 @@ test.describe('Network Privacy & Security Tests', () => {
 
     // --- TEST 2: Network Request Allowlist Test ---
     test('Request allowlist test: all requested paths must be in network-allowlist.json without stale entries', async ({ page, context }) => {
+        test.setTimeout(60000);
         const recordedPaths = new Set<string>();
 
         const requestListener = (req: Request) => {
             const pathName = toPathname(req.url());
             if (!pathName.startsWith('blob:') && !pathName.startsWith('data:')) {
                 recordedPaths.add(pathName);
-                allRequestedPaths.add(pathName);
+                globalRequestedPaths.add(pathName);
             }
         };
 
         context.on('request', requestListener);
 
-        for (const handlerDef of TESTABLE_HANDLERS.slice(0, 5)) {
+        for (const handlerDef of TESTABLE_HANDLERS) {
             const canary = `CANARY-ALLOWLIST-${handlerDef.handler}`;
             const fixture = createFixtureForHandler(handlerDef.handler, canary, tmpDir);
             const content = fs.readFileSync(fixture.filePath);
@@ -189,8 +190,19 @@ test.describe('Network Privacy & Security Tests', () => {
 
         context.off('request', requestListener);
 
+        // Merge global requested paths accumulated across parallel/prior test runs in this file
+        for (const p of globalRequestedPaths) {
+            recordedPaths.add(p);
+        }
+
+        // 1. Assert no unlisted requests were made
         for (const p of recordedPaths) {
             expect(allowlist.includes(p), `Disallowed request path detected: ${p}`).toBe(true);
+        }
+
+        // 2. Assert no stale entries in network-allowlist.json
+        for (const allowedPath of allowlist) {
+            expect(recordedPaths.has(allowedPath), `Stale entry in network-allowlist.json (never requested): ${allowedPath}`).toBe(true);
         }
     });
 

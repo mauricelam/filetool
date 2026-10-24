@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import admZip from 'adm-zip';
 import { FrameLocator, expect } from '@playwright/test';
 
@@ -104,7 +105,6 @@ function createWasmBuffer(canary: string): Buffer {
  * Creates a minimal GZIP buffer containing `canary`.
  */
 function createGzipBuffer(canary: string): Buffer {
-    const zlib = require('node:zlib');
     return zlib.gzipSync(Buffer.from(`Decompressed: ${canary}`, 'utf-8'));
 }
 
@@ -433,37 +433,31 @@ export async function verifyViewerRendered(iframe: FrameLocator, handlerId: stri
 
     switch (handlerId) {
         case 'hex_viewer':
-            await expect(iframe.locator('#hexviewer, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('#hexviewer, table, .hex-view').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'imagemagick':
-            await expect(iframe.locator('canvas, img, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('canvas, img').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'webgl_previewer':
-            await expect(iframe.locator('canvas, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('canvas').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'ffmpeg':
-            await expect(iframe.locator('audio, video, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('audio, video, #media-player, div#output, body').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'hprof':
-            await expect(iframe.locator('canvas, #hprof-summary, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('#output, canvas, div#root, body').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'pdfjs':
-            await expect(iframe.locator('canvas, .textLayer, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('canvas, .textLayer').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'browser':
-            await expect(iframe.locator('iframe, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('iframe, body h1').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'cyberchef':
-            await expect(iframe.locator('#input-text, iframe, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('#input-text, #output-text, textarea, body').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'mhtml':
             await expect(iframe.locator('#mail-body, body').first()).toBeVisible({ timeout: 15000 });
-            break;
-        case 'archive':
-            await expect(iframe.locator('table, .file-list, body').first()).toBeVisible({ timeout: 15000 });
-            break;
-        case 'protoscope':
-            await expect(iframe.locator('.ace_content, body').first()).toBeVisible({ timeout: 15000 });
             break;
         case 'parquetviewer':
         case 'ooxmlviewer':
@@ -473,16 +467,16 @@ export async function verifyViewerRendered(iframe: FrameLocator, handlerId: stri
         case 'dexviewer':
         case 'img-viewer':
         case 'squashfs':
+        case 'archive':
         case 'apk-viewer':
         case 'android-xml':
         case 'classfile':
         case 'ghidra':
-        case 'binutils':
         case 'wat_viewer':
-            await expect(iframe.locator('table, canvas, .ace_content, .file-list, .tree-node, body').first()).toBeVisible({ timeout: 15000 });
+            await expect(iframe.locator('table, canvas, .ace_content, .file-list, .tree-node, #output, div#root, body').first()).toBeVisible({ timeout: 15000 });
             break;
         default:
-            // For standard viewers, assert that the expected canary text is rendered in the iframe body
+            // For text-rendering viewers, assert that expected canary text appears in iframe body
             await expect(body).toContainText(expectedText, { timeout: 15000 });
             break;
     }
