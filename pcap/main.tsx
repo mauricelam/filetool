@@ -486,20 +486,18 @@ const App: React.FC = () => {
             };
         }
 
-        let bgHex = '#ffffff';
-        let fgHex = '#212529';
+        const style: React.CSSProperties = {};
 
-        if (row.bg && row.bg !== 0) {
-            bgHex = '#' + row.bg.toString(16).padStart(6, '0');
-        }
-        if (row.fg && row.fg !== 0) {
-            fgHex = '#' + row.fg.toString(16).padStart(6, '0');
+        // In Wiregasm (sharkd), bg <= 1 or fg <= 0 indicates no color filter rule matched
+        if (typeof row.bg === 'number' && row.bg > 1) {
+            style.backgroundColor = '#' + row.bg.toString(16).padStart(6, '0');
         }
 
-        return {
-            backgroundColor: bgHex,
-            color: fgHex
-        };
+        if (typeof row.fg === 'number' && row.fg > 0) {
+            style.color = '#' + row.fg.toString(16).padStart(6, '0');
+        }
+
+        return style;
     };
 
     if (loading) {
