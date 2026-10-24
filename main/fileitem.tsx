@@ -73,7 +73,9 @@ export function FileItem(
     const otherButtonRef = useRef<HTMLButtonElement>(null);
 
     const isUniversal = (handler: HandlerDefinition) => handler.mimetypes.length === 1 && handler.mimetypes[0] === MIME_MATCH_ANY;
-    const universalHandlers = allHandlers.filter(isUniversal);
+    const universalHandlers = allHandlers.filter(h => isUniversal(h) && !h.experimental);
+    const typeSpecificHandlers = allHandlers.filter(h => !isUniversal(h) && !h.experimental);
+    const experimentalHandlers = allHandlers.filter(h => h.experimental);
 
     const matchesFilter = (handler: HandlerDefinition) => {
         const filter = otherHandlersFilter.toLowerCase();
@@ -95,11 +97,10 @@ export function FileItem(
     };
 
     const filteredUniversalHandlers = universalHandlers.filter(matchesFilter);
-    const filteredTypeSpecificHandlers = allHandlers
-        .filter(handler => !isUniversal(handler))
-        .filter(matchesFilter);
+    const filteredTypeSpecificHandlers = typeSpecificHandlers.filter(matchesFilter);
+    const filteredExperimentalHandlers = experimentalHandlers.filter(matchesFilter);
 
-    const allVisibleHandlers = [...filteredUniversalHandlers, ...filteredTypeSpecificHandlers];
+    const allVisibleHandlers = [...filteredUniversalHandlers, ...filteredTypeSpecificHandlers, ...filteredExperimentalHandlers];
 
     const currentDefaultHandlerId = getDefaultHandler(mimetype, name) || null;
     const [activeHandlerId, setActiveHandlerId] = useState<string | null>(initialActiveHandler || null);
@@ -248,13 +249,13 @@ export function FileItem(
                     <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', marginRight: '8px' }}>Open with:</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                         {(() => {
-                            const specificHandlers = matchedHandlers.filter(h => !isUniversal(h));
+                            const specificHandlers = matchedHandlers.filter(h => !isUniversal(h) && !h.experimental);
                             const baseHandlers = specificHandlers.length > 0
                                 ? specificHandlers
-                                : allHandlers.filter(h => h.handler === 'hex_viewer');
+                                : allHandlers.filter(h => h.handler === 'hex_viewer' && !h.experimental);
 
                             return [...baseHandlers,
-                            ...allHandlers.filter(h => pinnedHandlers.includes(h.handler) || h.handler === activeHandlerId)]
+                            ...allHandlers.filter(h => (pinnedHandlers.includes(h.handler) || h.handler === activeHandlerId) && !h.experimental)]
                                 .filter((handler, index, self) =>
                                     index === self.findIndex((t) => t.handler === handler.handler)
                                 )
@@ -389,6 +390,29 @@ export function FileItem(
                                     );
                                 })}
                             </div>
+                            {filteredExperimentalHandlers.length > 0 && (
+                                <>
+                                    <hr />
+                                    <h3 className="handler-section-title">Experimental</h3>
+                                    <div className="handlers-grid">
+                                        {filteredExperimentalHandlers.map((handler, index) => {
+                                            const overallIndex = index + filteredUniversalHandlers.length + filteredTypeSpecificHandlers.length;
+                                            return (
+                                                <button
+                                                    key={handler.handler}
+                                                    onClick={() => {
+                                                        onOpenHandler({ handler: handler.handler, file, magicMime: mimetype });
+                                                        setOtherHandlersDialogOpen(false);
+                                                    }}
+                                                    className={`handler-button ${selectedIndex === overallIndex ? 'selected' : ''}`}
+                                                >
+                                                    {handler.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
@@ -440,6 +464,14 @@ export function FileItem(
                         margin-bottom: 15px;
                         border: 1px solid #ccc;
                         border-radius: 4px;
+                    }
+                    .handler-section-title {
+                        margin-top: 10px;
+                        margin-bottom: 8px;
+                        font-size: 13px;
+                        color: #666;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
                     }
                     .handlers-grid {
                         display: grid;

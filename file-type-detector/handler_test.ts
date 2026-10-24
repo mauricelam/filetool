@@ -300,4 +300,27 @@ describe('Handler Tests', () => {
             expect(handlers.length).toBeGreaterThan(0);
         }, 15000);
     });
+
+    describe('Experimental Handlers Designation', () => {
+        test('cheerpj and disk-viewer handlers are designated as experimental', () => {
+            const cheerpjHandler = HANDLERS.find(h => h.handler === 'cheerpj');
+            const diskViewerHandler = HANDLERS.find(h => h.handler === 'disk-viewer');
+
+            expect(cheerpjHandler).toBeDefined();
+            expect(cheerpjHandler?.experimental).toBe(true);
+
+            expect(diskViewerHandler).toBeDefined();
+            expect(diskViewerHandler?.experimental).toBe(true);
+        });
+
+        test('standard handlers are not designated as experimental', () => {
+            const hexHandler = HANDLERS.find(h => h.handler === 'hex_viewer');
+            const archiveHandler = HANDLERS.find(h => h.handler === 'archive');
+            const pdfjsHandler = HANDLERS.find(h => h.handler === 'pdfjs');
+
+            expect(hexHandler?.experimental).toBeFalsy();
+            expect(archiveHandler?.experimental).toBeFalsy();
+            expect(pdfjsHandler?.experimental).toBeFalsy();
+        });
+    });
 });

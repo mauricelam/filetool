@@ -576,7 +576,7 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
     // Dex viewer and Archive are special.
     // Archive should always be available for groups.
     // Dex viewer only if dex files are present.
-    const promotedHandlers = HANDLERS.filter(h => {
+    const promotedHandlers = HANDLERS.filter(h => !h.experimental).filter(h => {
         if (h.handler === 'archive') return true;
         if (h.handler === 'dexviewer') return matchesGroup(h);
         if (h.handler === 'diffviewer') return files.length >= 2;
@@ -586,7 +586,12 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
         return false;
     });
 
-    const filteredHandlers = HANDLERS.filter(h => {
+    const filteredHandlers = HANDLERS.filter(h => !h.experimental).filter(h => {
+        const filter = otherHandlersFilter.toLowerCase();
+        return h.name.toLowerCase().includes(filter) || h.handler.toLowerCase().includes(filter);
+    });
+
+    const filteredExperimentalHandlers = HANDLERS.filter(h => h.experimental).filter(h => {
         const filter = otherHandlersFilter.toLowerCase();
         return h.name.toLowerCase().includes(filter) || h.handler.toLowerCase().includes(filter);
     });
@@ -645,7 +650,7 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
                         {(() => {
                             const allVisibleGroupHandlers = [
                                 ...promotedHandlers,
-                                ...HANDLERS.filter(h => group.pinnedHandlers.includes(h.handler))
+                                ...HANDLERS.filter(h => group.pinnedHandlers.includes(h.handler) && !h.experimental)
                             ].filter((h, i, self) => self.findIndex(t => t.handler === h.handler) === i);
 
                             return (
@@ -734,6 +739,31 @@ function LoadGroupItem({ group, files, openHandler, onAddPinnedHandler }: LoadGr
                                 </button>
                             ))}
                         </div>
+                        {filteredExperimentalHandlers.length > 0 && (
+                            <>
+                                <hr style={{ margin: '15px 0' }} />
+                                <h3 style={{ marginTop: '10px', marginBottom: '8px', fontSize: '13px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Experimental</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+                                    {filteredExperimentalHandlers.map(handler => (
+                                        <button
+                                            key={handler.handler}
+                                            onClick={() => {
+                                                onOpenFile({
+                                                    file: files[0].file,
+                                                    additionalFiles: files.slice(1).map(f => f.file),
+                                                    handler: handler.handler,
+                                                    magicMime: 'application/octet-stream'
+                                                });
+                                                setOtherHandlersDialogOpen(false);
+                                            }}
+                                            style={{ padding: '10px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+                                        >
+                                            {handler.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

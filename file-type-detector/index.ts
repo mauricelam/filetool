@@ -96,7 +96,8 @@ export function matchMimetype(mimeMatch: MimeMatch, mime: string, filename: stri
 export interface HandlerDefinition {
     name: string,
     handler: string,
-    mimetypes: MimeMatch[]
+    mimetypes: MimeMatch[],
+    experimental?: boolean
 }
 
 const ALL_HANDLERS: HandlerDefinition[] = [
@@ -117,7 +118,8 @@ const ALL_HANDLERS: HandlerDefinition[] = [
         "mimetypes": [
             { "filename": /\.(dmg|img|iso|raw|dd)$/i },
             { "description": /Apple Disk Image|ISO 9660|DOS\/MBR boot sector|GUID Partition Table/i }
-        ]
+        ],
+        "experimental": true
     },
     {
         "name": "DMG Viewer",
@@ -219,7 +221,7 @@ const ALL_HANDLERS: HandlerDefinition[] = [
             { "mime": "application/octet-stream", "filename": /.*\.raw/i }, "font/sfnt", "image/apng", "image/avif"
         ]
     },
-    { "name": "CheerpJ (JVM in browser, loads external code)", "handler": "cheerpj", "mimetypes": [] },
+    { "name": "CheerpJ (JVM in browser, loads external code)", "handler": "cheerpj", "mimetypes": [], "experimental": true },
     {
         "name": "ffmpeg",
         "handler": "ffmpeg",
