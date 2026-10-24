@@ -15,11 +15,6 @@ const outDir = path.resolve(process.cwd(), '../dist/pcap');
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
-// Copy gzipped wiregasm runtime assets to stay under Cloudflare Pages 25MB file size limit
-fs.copyFileSync(path.join(wiregasmPkgDir, 'dist/wiregasm.wasm.gz'), path.join(outDir, 'wiregasm.wasm.gz'));
-fs.copyFileSync(path.join(wiregasmPkgDir, 'dist/wiregasm.data.gz'), path.join(outDir, 'wiregasm.data.gz'));
-fs.copyFileSync(path.join(wiregasmPkgDir, 'dist/wiregasm.js'), path.join(outDir, 'wiregasm.js'));
-
 const SETTINGS = {
   entryPoints: ['main.tsx'],
   outdir: '../dist/pcap',
@@ -34,6 +29,14 @@ const SETTINGS = {
         {
           from: ['./index.html'],
           to: ['index.html'],
+        },
+        {
+          from: [
+            path.join(wiregasmPkgDir, 'dist/wiregasm.wasm.gz'),
+            path.join(wiregasmPkgDir, 'dist/wiregasm.data.gz'),
+            path.join(wiregasmPkgDir, 'dist/wiregasm.js'),
+          ],
+          to: ['./'],
         },
       ]
     })
