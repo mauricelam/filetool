@@ -58,66 +58,6 @@ window.onmessage = (e) => {
 }
 ```
 
-## Supported Handlers and File Types
-
-| Handler | Supported File Types |
-|---------|---------------------|
-| [CyberChef](https://github.com/gchq/CyberChef) | Hex, Base64, and other "cyber" operations |
-| [ffmpeg](https://github.com/FFmpeg/FFmpeg) | 3GPP, AAC, MPEG, F4V, FLAC, FLV, HLS, MP4, MKV, WebM, MP3, Ogg, SWF, WAV, AVI, QuickTime |
-| [ImageMagick](https://github.com/ImageMagick/ImageMagick) | JPEG, PNG, WebP, GIF, JXL, ICO, PNM, TIFF, PSD, HEIF, Fonts, APNG, AVIF, RAW |
-| [Ghidra](https://github.com/NationalSecurityAgency/ghidra) | Mach-O, Executables, Shared Libraries |
-| [Binutils](https://www.gnu.org/software/binutils/) | Mach-O, Executables, Shared Libraries |
-| [JQ Viewer](https://github.com/jqlang/jq) | JSON, JSONL |
-| [PDF.js](https://github.com/mozilla/pdf.js) | PDF files |
-| [SQLite Viewer](https://github.com/sqlite/sqlite) | SQLite, DB files |
-| [FlatBuffers](https://github.com/google/flatbuffers) | .fb, .fbs, .bfbs |
-| [Protoscope](https://github.com/google/protoscope) | Protocol Buffer files |
-| [Apache Parquet](https://github.com/apache/parquet-format) | Parquet files |
-| [SELinux Policy](https://github.com/SELinuxProject/setools) | SELinux policy files |
-| [Graphviz Viewer](https://gitlab.com/graphviz/graphviz) | .dot, .gv |
-| [CheerpJ](https://leaningtech.com/cheerpj/) | JVM in browser |
-| [SquashFS](https://github.com/plougher/squashfs-tools) | .squashfs, .sqfs |
-| Archive | ZIP, GZIP, XZ, APK, RAR, 7Z, JAR, LZH |
-| Android APK | APK files |
-| Android Binary XML | Android binary XML, ARSC |
-| Decompressor | GZIP, Brotli, LZMA, XZ, ZLIB, BZIP2 |
-| 3D model viewer | STL, OBJ, GLB, GLTF, FBX, PLY |
-| Browser | Videos (3GPP, MP4), Audio (M4A, MP3), HTML, PDF, Images (JPEG, PNG, WebP, GIF, SVG, ICO) |
-| Text | Text files, EML, SVG, JSON, JavaScript |
-| EML/MHTML | EML files |
-| DEX viewer | Android DEX files |
-| SVG Viewer | SVG files (interactive pan/zoom, PNG export) |
-| WebAssembly text viewer | WASM files |
-| JVM Classfile | Java class files |
-| Markdown | MD files |
-| X.509 / DER | .der, .crt, .cer, .pem, .rsa |
-| Proguard Viewer | .map, .mapping, proguard.txt |
-| Binary Plist Viewer | .bplist, .plist |
-| HPROF Viewer | Java HPROF heap dumps |
-| CBOR Viewer | CBOR files |
-| DMG Viewer | DMG files |
-| img viewer | IMG files |
-| reStructuredText Viewer | RST files |
-
-## Modal dialogs
-
-When implementing modal dialogs in this repository, follow these UX and accessibility guidelines so behavior is consistent across tools and components:
-
-- Close affordances:
-    - Provide a visible close icon (for example, an 'X' SVG) in the top-right of the dialog. The icon button should include an accessible name (e.g. `aria-label="Close"`).
-    - Support closing the modal by clicking the backdrop (clicking outside the dialog content).
-    - Support closing the modal with the Escape (Esc) key.
-
-- Accessibility and focus:
-    - Use `role="dialog"` and `aria-modal="true"` on the modal container.
-    - Return focus to the element that opened the dialog when it closes.
-    - Ensure the close button is keyboard-focusable and visible when focused.
-
-- Component API recommendation:
-    - Modal components should accept an `onClose: () => void` prop and call it for any close action (icon click, backdrop click, Esc key). This keeps the open/close state controlled by the parent.
-
-Following these rules makes dialogs predictable and keyboard-friendly for all users. See `jqviewer/cheatsheet.tsx` and `jqviewer/main.tsx` for an example implementation in this project.
-
 
 ## Development and Building
 
