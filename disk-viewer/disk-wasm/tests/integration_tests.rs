@@ -250,7 +250,6 @@ struct ManifestFile {
 #[derive(Deserialize, Debug)]
 struct Manifest {
     files: Vec<ManifestFile>,
-    directories: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -290,7 +289,6 @@ fn walk_dir(dev: &mut dyn BlockDevice, fs: &mut AnyFs, dir_path: &str, acc: &mut
 fn test_disk_viewer_suite() {
     let repo_root = find_repo_root();
     let example_dir = repo_root.join("disk-viewer/example");
-    let macos_out = repo_root.join("testdata/macos/out");
     let manifest_path = repo_root.join("testdata/manifests/manifest.json");
     let manifest_macos_path = repo_root.join("testdata/manifests/manifest-macos.json");
 
@@ -318,6 +316,9 @@ fn test_disk_viewer_suite() {
 
     println!("\n=== DISK VIEWER INTEGRATION TEST SUITE ===");
 
+    // Expected raw virtual disk sha256 for hfs master
+    let hfs_master_sha256 = "91bfdf1b1f02831ce244f46f1ca28e889056411021c5ac9e5b056c44f347269f";
+
     // 1. Container Detection & DMG Decode Oracle
     let dmg_oracles = [
         ("hfs.raw.dmg", "raw"),
@@ -332,17 +333,11 @@ fn test_disk_viewer_suite() {
 
     for (dmg_file, chunk_type) in dmg_oracles {
         let dmg_path = example_dir.join(dmg_file);
-        let oracle_path = macos_out.join(format!("{dmg_file}.raw.sha256"));
 
-        if !dmg_path.exists() || !oracle_path.exists() {
-            skipped.push((dmg_file.to_string(), "Fixture or oracle file missing"));
+        if !dmg_path.exists() {
+            skipped.push((dmg_file.to_string(), "Fixture file missing"));
             continue;
         }
-
-        let oracle_sha256 = std::fs::read_to_string(&oracle_path)
-            .unwrap()
-            .trim()
-            .to_string();
 
         let (mut container, format) = open_test_container(&dmg_path).unwrap();
         assert_eq!(format, "dmg", "Container format for {dmg_file} should be dmg");
@@ -360,7 +355,7 @@ fn test_disk_viewer_suite() {
 
         let sha256_result = hex::encode(hasher.finalize());
         assert_eq!(
-            sha256_result, oracle_sha256,
+            sha256_result, hfs_master_sha256,
             "DMG decode SHA-256 mismatch for {dmg_file} (chunk type: {chunk_type})"
         );
         decoded_hashes.push((dmg_file, sha256_result));
@@ -401,7 +396,6 @@ fn test_disk_viewer_suite() {
         assert_eq!(table.partitions().len(), 1);
         let p = &table.partitions()[0];
         assert_eq!(p.start_lba, 40);
-
 
         let mut sliced = fstool::part::slice_partition(table, &mut container, 0).unwrap();
         let fs_kind = detect_fs(&mut sliced).unwrap();
