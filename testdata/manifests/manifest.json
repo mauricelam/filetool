@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "Source tree manifest for disk image viewer test fixtures",
+  "files": [
+    {
+      "path": "hello.txt",
+      "type": "file",
+      "size": 13,
+      "sha256": "a9f81578330703126f59b2075f8502ef0a880da6a014a42ff42c75267d3298bf",
+      "content": "Hello, World!\n"
+    },
+    {
+      "path": "dir1/nested.txt",
+      "type": "file",
+      "size": 19,
+      "sha256": "bf4401a54a01c3d1fb5255ee8dd58334bc6eb74f3ff2dbef32943397d8ed75cf",
+      "content": "Nested file content\n"
+    },
+    {
+      "path": "dir1/subdir/deep.bin",
+      "type": "file",
+      "size": 64,
+      "sha256": "f0e4c2f76c58916ec258f246851bea091d14d4247a2fc3e18694461b1816e13b"
+    }
+  ],
+  "directories": [
+    "dir1",
+    "dir1/subdir"
+  ]
+}

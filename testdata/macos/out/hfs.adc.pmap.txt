@@ -1,0 +1,3 @@
+Scheme: None
+Partitions: 1
+Partition 0: LBA 0..4546 (2327552 bytes), Kind: Volume, FS: HfsPlus

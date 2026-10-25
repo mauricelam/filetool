@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "description": "MacOS-specific manifest extras (xattr, resource fork, decmpfs, symlink, hardlink, NFC/NFD)",
+  "extras": [
+    {
+      "path": "symlink.txt",
+      "type": "symlink",
+      "target": "hello.txt",
+      "expected_support": false,
+      "reason": "fstool/HFS+ driver does not resolve symlink target entries in directory listing"
+    },
+    {
+      "path": "hardlink.txt",
+      "type": "hardlink",
+      "target": "hello.txt",
+      "expected_support": false,
+      "reason": "HFS+ hard links stored in indirect node file"
+    },
+    {
+      "path": "compressed_decmpfs.txt",
+      "type": "file",
+      "decmpfs": true,
+      "expected_support": false,
+      "reason": "HFS+ decmpfs inline compressed file payload"
+    },
+    {
+      "path": "resource_fork.txt",
+      "type": "file",
+      "has_rsrc": true,
+      "expected_support": false,
+      "reason": "Resource fork named stream / ..namedfork/rsrc not exposed by fstool"
+    },
+    {
+      "path": "xattr_file.txt",
+      "type": "file",
+      "has_xattr": true,
+      "expected_support": false,
+      "reason": "Extended attributes stored in HFS+ Attribute B-Tree"
+    },
+    {
+      "path": "NFC_\u00e9.txt",
+      "type": "file",
+      "nfc": true,
+      "expected_support": true
+    },
+    {
+      "path": "NFD_e\u0301.txt",
+      "type": "file",
+      "nfd": true,
+      "expected_support": true
+    }
+  ]
+}
