@@ -2,20 +2,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('BplistViewer should display the content of a binary plist file', async ({ page }) => {
     const filePath = path.resolve(__dirname, '../example/sample1.bplist');
     const fileContent = fs.readFileSync(filePath);
 
+    // skipOffline: true because bplistviewer loads components lazily when opening a file
     const iframe = await runHandlerTest(page, {
         handler: 'bplistviewer',
         file: {
             content: fileContent,
             name: 'sample1.bplist',
             type: 'application/x-plist'
-        }
+        },
+        skipOffline: true,
     });
 
     await expect(iframe.locator('text="CFBundleIdentifier"')).toBeVisible();
@@ -26,13 +28,15 @@ test('BplistViewer should allow opening binary plist as text plist', async ({ pa
     const filePath = path.resolve(__dirname, '../example/sample1.bplist');
     const fileContent = fs.readFileSync(filePath);
 
+    // skipOffline: true because bplistviewer loads components lazily when opening a file
     const iframe = await runHandlerTest(page, {
         handler: 'bplistviewer',
         file: {
             content: fileContent,
             name: 'sample1.bplist',
             type: 'application/x-plist'
-        }
+        },
+        skipOffline: true,
     });
 
     // Setup listener for openFile message sent from iframe
@@ -65,13 +69,15 @@ test('BplistViewer should allow downloading binary plist as text plist', async (
     const filePath = path.resolve(__dirname, '../example/sample1.bplist');
     const fileContent = fs.readFileSync(filePath);
 
+    // skipOffline: true because bplistviewer loads components lazily when opening a file
     const iframe = await runHandlerTest(page, {
         handler: 'bplistviewer',
         file: {
             content: fileContent,
             name: 'sample1.bplist',
             type: 'application/x-plist'
-        }
+        },
+        skipOffline: true,
     });
 
     const downloadBtn = iframe.locator('button:has-text("Download as Text Plist")');

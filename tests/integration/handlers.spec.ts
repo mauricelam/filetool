@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('should correctly process and display a text file in the textviewer', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures.js';
 
 test('should focus search box and select first match with Enter in All Handlers dialog', async ({ page }) => {
     await page.goto('/filetool/');

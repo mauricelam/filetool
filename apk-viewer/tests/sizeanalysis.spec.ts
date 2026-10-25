@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('APK Viewer should display APK size analysis', async ({ page }) => {
@@ -12,13 +12,15 @@ test('APK Viewer should display APK size analysis', async ({ page }) => {
     const filePath = path.resolve(__dirname, '../example/Tasker.6.6.20.apk');
     const fileContent = fs.readFileSync(filePath);
 
+    // skipOffline: true because apk-viewer loads system resources (android.arsc.gz) lazily when opening an APK file
     const iframe = await runHandlerTest(page, {
         handler: 'apk-viewer',
         file: {
             content: fileContent,
             name: 'Tasker.6.6.20.apk',
             type: 'application/vnd.android.package-archive'
-        }
+        },
+        skipOffline: true,
     });
 
     // 1. Verify "APK Contents" header is visible

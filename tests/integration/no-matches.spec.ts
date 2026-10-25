@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures.js';
 
 test('should show Hex viewer in the "open with" bar if no specific handlers match', async ({ page }) => {
     await page.goto('/filetool/');

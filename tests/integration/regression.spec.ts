@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures.js';
 
 test('should allow switching between handlers for the same file', async ({ page }) => {
     // Load the integration test harness which hosts an iframe and driver.js

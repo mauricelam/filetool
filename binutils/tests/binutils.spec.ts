@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 
 import { runHandlerTest, HandlerTestOptions } from '@filetool/integration-test-harness';
 
@@ -20,26 +20,32 @@ test.describe('binutils handler', () => {
     });
 
     test('should display default objdump output', async ({ page }) => {
+        // skipOffline: true because binutils WASM worker loads lazily when file is opened
         const iframe = await runHandlerTest(page, {
             handler: 'binutils',
             file,
+            skipOffline: true,
         });
         await expect(iframe.locator('body')).toContainText('file format elf64-x86-64');
     });
 
     test('should switch to nm and display symbols', async ({ page }) => {
+        // skipOffline: true because binutils WASM worker loads lazily when file is opened
         const iframe = await runHandlerTest(page, {
             handler: 'binutils',
             file,
+            skipOffline: true,
         });
         await iframe.click('text=nm');
         await expect(iframe.locator('body')).toContainText('_init');
     });
 
     test('should use flags to change output', async ({ page }) => {
+        // skipOffline: true because binutils WASM worker loads lazily when file is opened
         const iframe = await runHandlerTest(page, {
             handler: 'binutils',
             file,
+            skipOffline: true,
         });
 
         // First check the default output

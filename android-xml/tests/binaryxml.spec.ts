@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('should correctly process and display a standalone binary XML file in android-xml', async ({ page }) => {
     const xmlContent = new Uint8Array([3, 0, 8, 0, 191, 0, 0, 0, 1, 0, 28, 0, 111, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 34, 0, 0, 0, 47, 0, 0, 0, 54, 0, 0, 0, 11, 0, 83, 111, 109, 101, 32, 115, 116, 114, 105, 110, 103, 0, 0, 15, 0, 65, 110, 111, 116, 104, 101, 114, 32, 115, 114, 116, 114, 105, 110, 103, 0, 0, 9, 0, 115, 116, 97, 114, 116, 95, 116, 97, 103, 0, 0, 3, 0, 107, 101, 121, 0, 0, 5, 0, 118, 97, 108, 117, 101, 0, 0, 2, 1, 16, 0, 56, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 3, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 4, 0, 0, 0, 3, 1, 16, 0, 24, 0, 0, 0, 3, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 90, 0, 0, 0]);
 
+    // skipOffline: true because android-xml loads system resources (android.arsc.gz) and WASM lazily when file is opened
     const iframe = await runHandlerTest(page, {
         handler: 'android-xml',
         file: {
@@ -15,6 +16,7 @@ test('should correctly process and display a standalone binary XML file in andro
             name: 'test.xml',
             type: 'application/octet-stream'
         },
+        skipOffline: true,
     });
 
     const textviewer = page.frameLocator('#file-handler-iframe').frameLocator('iframe').locator('#textviewer');
@@ -24,6 +26,7 @@ test('should correctly process and display a standalone binary XML file in andro
 test('should correctly process and display a standalone ARSC file in android-xml and support search', async ({ page }) => {
     const arscContent = new Uint8Array([2, 0, 12, 0, 12, 0, 0, 0, 1, 0, 0, 0]);
 
+    // skipOffline: true because android-xml loads system resources (android.arsc.gz) and WASM lazily when file is opened
     const iframe = await runHandlerTest(page, {
         handler: 'android-xml',
         file: {
@@ -31,6 +34,7 @@ test('should correctly process and display a standalone ARSC file in android-xml
             name: 'test.arsc',
             type: 'application/octet-stream'
         },
+        skipOffline: true,
     });
 
     await expect(iframe.locator('h3')).toContainText('Resource Table');
@@ -38,7 +42,8 @@ test('should correctly process and display a standalone ARSC file in android-xml
     await expect(searchInput).toBeVisible();
 });
 
-test('should correctly detect standalone binary XML file and offer Android Binary XML', async ({ page }) => {
+test('should correctly detect standalone binary XML file and offer Android Binary XML', async ({ page, networkMonitor }) => {
+    networkMonitor.addCanary('AndroidManifest.xml');
     await page.goto('/filetool/');
     const xmlContent = new Uint8Array([3, 0, 8, 0, 191, 0, 0, 0, 1, 0, 28, 0, 111, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 34, 0, 0, 0, 47, 0, 0, 0, 54, 0, 0, 0, 11, 0, 83, 111, 109, 101, 32, 115, 116, 114, 105, 110, 103, 0, 0, 15, 0, 65, 110, 111, 116, 104, 101, 114, 32, 115, 114, 116, 114, 105, 110, 103, 0, 0, 9, 0, 115, 116, 97, 114, 116, 95, 116, 97, 103, 0, 0, 3, 0, 107, 101, 121, 0, 0, 5, 0, 118, 97, 108, 117, 101, 0, 0, 2, 1, 16, 0, 56, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 3, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 4, 0, 0, 0, 3, 1, 16, 0, 24, 0, 0, 0, 3, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 90, 0, 0, 0]);
 
@@ -62,6 +67,7 @@ test('should correctly process and display a binary XML file with multiple roots
     const fixturePath = path.join(__dirname, '..', '..', 'android-xml', 'example', 'multiple_roots.xml.bin');
     const xmlContent = fs.readFileSync(fixturePath);
 
+    // skipOffline: true because android-xml loads system resources (android.arsc.gz) and WASM lazily when file is opened
     const iframe = await runHandlerTest(page, {
         handler: 'android-xml',
         file: {
@@ -69,6 +75,7 @@ test('should correctly process and display a binary XML file with multiple roots
             name: 'multiple_roots.xml',
             type: 'application/octet-stream'
         },
+        skipOffline: true,
     });
 
     const textviewer = page.frameLocator('#file-handler-iframe').frameLocator('iframe').locator('#textviewer');
