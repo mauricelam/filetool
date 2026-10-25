@@ -122,9 +122,16 @@ npx turbo test --filter=proguardviewer
 
 - **Frontend Unit Tests**: React components use `vitest` or `jest`.
 
-### Integration tests
+### Integration tests & Network Privacy Enforcement
 
-This repository includes Playwright-based integration tests under `tests/integration/`. The tests use a small test harness page that loads a handler iframe and posts a file to it.
+This repository includes Playwright-based integration tests under `tests/integration/` and individual workspace `tests/` directories.
+
+All Playwright tests use a shared fixture (`tests/fixtures.ts`) to enforce network privacy:
+
+- **Cross-Origin Request Blocking**: Intercepts network requests using `context.route('**/*')`. Same-origin requests (`http://localhost:8080`, `blob:`, `data:`) are allowed, while cross-origin requests are blocked/aborted and fail the test.
+- **HTTP Method Enforcement**: Non-`GET`/`HEAD` requests (such as `POST`, `PUT`, or `DELETE`) automatically fail the test.
+- **Canary Data Leak Check**: Verifies that no request URL or postData body contains the file name or25 distinctive content of any file opened during the test.
+- **Offline File Processing**: Calls `context.setOffline(true)` after viewer initialization and before sending files to ensure that processing operates completely offline without network dependencies.
 
 #### How to run
 
@@ -136,4 +143,23 @@ npm run test:integration
 
 This command will build the project, prepare the test harness, and run the Playwright tests.
 
+### Known violations
+
+Audit date: October 2026.
+
+The following known network violations are tracked with `test.fail()` markers:
+
+1. **Android Binary XML Handler**
+   - **Code path**: Opening decompiled binary XML in an inner `textviewer` iframe.
+   - **Behavior**: When decompiling binary XML, `android-xml` creates a nested `iframe` to display the extracted text XML in `textviewer`. The inner iframe's HTML and JS bundle (`/filetool/textviewer/index.html`) are fetched over the network on demand after file opening, which fails when the browser context is offline.
+   - **Catching Test**: `android-xml/tests/binaryxml.spec.ts` (`should correctly process and display a standalone binary XML file in android-xml` and `should correctly process and display a binary XML file with multiple roots`)
+   - **Severity**: **needs network**
+   - **Follow-up issue**: TBD (pre-cache or bundle nested iframe assets so handler switching works offline)
+
+2. **Decompressor Handler**
+   - **Code path**: Displaying decompressed payload in a nested target handler iframe.
+   - **Behavior**: When decompressing files (GZIP, BZIP2, XZ, LZMA, Brotli, ZLIB, LZFSE), `decompressor` creates a nested `iframe` for the target viewer (e.g., `textviewer`). The nested iframe assets are fetched over the network on demand after file opening, failing in offline mode.
+   - **Catching Test**: `decompressor/tests/decompressor.spec.ts` (`should decompress a <FORMAT> file and display the content`)
+   - **Severity**: **needs network**
+   - **Follow-up issue**: TBD (pre-cache or bundle nested iframe assets so handler switching works offline)
 

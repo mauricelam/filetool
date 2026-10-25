@@ -60,6 +60,7 @@ window.addEventListener('message', (event: MessageEvent) => {
     console.log('Message received from iframe', event.data);
     if (event.source === iframeEl.contentWindow && event.data.action === 'requestFile') {
         handlerIsReady = true;
+        (window as any).handlerIsReady = true;
         sendFileIfReady();
     }
 });

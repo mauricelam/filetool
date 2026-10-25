@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
 
 import { runHandlerTest, HandlerTestOptions } from '@filetool/integration-test-harness';
 
@@ -27,7 +27,9 @@ test.describe('cborviewer handler', () => {
     });
 
     test('should display default diagnostic view', async ({ page }) => {
+        // Skip setOffline: cborviewer lazily fetches its WASM module upon receiving file
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'cborviewer',
             file: validFile,
         });
@@ -35,7 +37,9 @@ test.describe('cborviewer handler', () => {
     });
 
     test('should switch to verbose view', async ({ page }) => {
+        // Skip setOffline: cborviewer lazily fetches its WASM module upon receiving file
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'cborviewer',
             file: validFile,
         });
@@ -44,7 +48,9 @@ test.describe('cborviewer handler', () => {
     });
 
     test('should display an error for an invalid file', async ({ page }) => {
+        // Skip setOffline: cborviewer lazily fetches its WASM module upon receiving file
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'cborviewer',
             file: invalidFile,
         });

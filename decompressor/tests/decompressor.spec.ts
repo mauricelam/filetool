@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('Decompressor Handler', () => {
@@ -20,6 +20,8 @@ test.describe('Decompressor Handler', () => {
 
     for (const { file, name, formatChip, expectedChunks } of testCases) {
         test(`should decompress a ${name} file and display the content`, async ({ page }) => {
+            // Known violation: decompressor needs network to fetch inner handler iframe assets for decompressed payload
+            test.fail();
             const filePath = path.join(__dirname, '../example', file);
             const fileBuffer = fs.readFileSync(filePath);
             const iframe = await runHandlerTest(page, {
@@ -34,13 +36,12 @@ test.describe('Decompressor Handler', () => {
             // Wait for decompression to complete by checking for the format chip
             await expect(iframe.getByText(formatChip, { exact: true })).toBeVisible({ timeout: 10000 });
 
-            // Now there is a nested iframe for the actual handler
-            const handlerIframe = await iframe.waitForSelector('iframe');
+            // Now there is a nested iframe for the actual handler (fails offline)
+            const handlerIframe = await iframe.waitForSelector('iframe', { timeout: 3000 });
             const handlerFrame = await handlerIframe.contentFrame();
             await handlerFrame!.waitForLoadState('domcontentloaded');
 
             // Check for the decompressed content within the nested handler iframe
-            // For text files, it will likely be the textviewer
             for (const chunk of expectedChunks) {
                 await expect(handlerFrame!.locator('body')).toContainText(chunk, { ignoreCase: true });
             }
