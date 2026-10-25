@@ -1,3 +1,0 @@
-Format: RAW
-Size: 2327552
-BlockSize: 512

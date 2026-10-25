@@ -1,8 +1,0 @@
-# Skipped Linux Fixtures
-mkfs.fat/mkfs.vfat missing -> skipping fat32 fixture
-mkfs.exfat missing -> skipping exfat fixture
-genisoimage/mkisofs/xorriso missing -> skipping iso9660 fixture
-mksquashfs missing -> skipping squashfs fixture
-mkfs.ntfs missing -> skipping ntfs fixture
-mkfs.hfsplus missing -> skipping hfsplus fixture
-sfdisk/parted missing -> skipping mbr partition table fixture

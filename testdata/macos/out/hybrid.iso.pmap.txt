@@ -1,3 +1,0 @@
-Scheme: None
-Partitions: 1
-Partition 0: LBA 0..2175 (1114112 bytes), Kind: Volume, FS: Iso9660

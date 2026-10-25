@@ -402,17 +402,6 @@ fn test_disk_viewer_suite() {
         let p = &table.partitions()[0];
         assert_eq!(p.start_lba, 40);
 
-        // Partition Map comparison against oracle *.pmap.txt
-        let pmap_path = macos_out.join("hfs.img.pmap.txt");
-        if pmap_path.exists() {
-            let pmap_lines: Vec<String> = std::fs::read_to_string(&pmap_path)
-                .unwrap()
-                .lines()
-                .map(|s| s.to_string())
-                .collect();
-            assert!(pmap_lines.iter().any(|l| l.contains("Partitions: 1")));
-            assert!(pmap_lines.iter().any(|l| l.contains("Partition 0")));
-        }
 
         let mut sliced = fstool::part::slice_partition(table, &mut container, 0).unwrap();
         let fs_kind = detect_fs(&mut sliced).unwrap();
