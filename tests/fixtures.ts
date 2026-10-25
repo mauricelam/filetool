@@ -39,7 +39,7 @@ export const test = baseTest.extend<{ networkMonitor: NetworkMonitor }>({
                 if (
                   trimmed.length >= 8 &&
                   /^[a-zA-Z0-9_\-\.\:\/ ]+$/.test(trimmed) &&
-                  !/^(http|https|html|doctype|application|content|version|encoding|xmlns)/i.test(trimmed)
+                  !/^(http|https|html|doctype|application|content|version|encoding|xmlns|processor|process|android)/i.test(trimmed)
                 ) {
                   canaryStrings.add(trimmed);
                 }

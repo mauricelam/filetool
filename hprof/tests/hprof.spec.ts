@@ -9,13 +9,15 @@ test('HPROF viewer should display file content', async ({ page }) => {
     const filePath = path.resolve(__dirname, '../example/test.hprof');
     const fileContent = fs.readFileSync(filePath);
 
+    // skipOffline: true because hprof loads worker/WASM modules lazily when processing HPROF dumps
     const iframe = await runHandlerTest(page, {
         handler: 'hprof',
         file: {
             content: fileContent,
             name: 'test.hprof',
             type: ''
-        }
+        },
+        skipOffline: true,
     });
 
     // Wait for the loading to complete

@@ -10,13 +10,15 @@ test('HPROF memory flow features verification', async ({ page }) => {
     const hprofPath = 'hprof/example/android.hprof';
     if (!fs.existsSync(hprofPath)) return;
 
+    // skipOffline: true because hprof loads worker/WASM modules lazily when processing HPROF dumps
     const iframe = await runHandlerTest(page, {
         handler: 'hprof',
         file: {
             name: 'android.hprof',
             content: fs.readFileSync(hprofPath),
             type: ''
-        }
+        },
+        skipOffline: true,
     });
 
     // Wait for the viewer to load

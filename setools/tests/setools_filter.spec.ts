@@ -9,13 +9,15 @@ test('SETools allow rules tab filters when search term changes', async ({ page }
     const fixturePath = path.join(__dirname, '..', '..', 'setools', 'example', 'policy');
     const buffer = fs.readFileSync(fixturePath);
 
+    // skipOffline: true because setools loads sepolicy.js and sepolicy.wasm lazily when parsing the policy file
     const iframe = await runHandlerTest(page, {
         handler: 'setools',
         file: {
             content: buffer,
-            name: 'sepolicy',
+            name: 'sepolicy.30',
             type: 'application/octet-stream'
-        }
+        },
+        skipOffline: true,
     });
 
     await expect(iframe.locator('h2')).toContainText('SETools', { timeout: 30000 });

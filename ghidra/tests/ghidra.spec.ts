@@ -13,13 +13,15 @@ test.describe('Ghidra Decompiler', () => {
         const fixturePath = path.resolve('binutils/example/libhello.so');
         const buffer = fs.readFileSync(fixturePath);
 
+        // skipOffline: true because ghidra loads processor specifications (processors.json) lazily when decompiling
         const iframe = await runHandlerTest(page, {
             handler: 'ghidra',
             file: {
                 content: buffer,
                 name: 'libhello.so',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         // Wait for architecture detection in the UI
@@ -56,13 +58,15 @@ test.describe('Ghidra Decompiler', () => {
         const fixturePath = path.resolve('ghidra/example/libcodec2.so');
         const buffer = fs.readFileSync(fixturePath);
 
+        // skipOffline: true because ghidra loads processor specifications (processors.json) lazily when decompiling
         const iframe = await runHandlerTest(page, {
             handler: 'ghidra',
             file: {
                 content: buffer,
                 name: 'libcodec2.so',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         // Wait for architecture detection in the UI

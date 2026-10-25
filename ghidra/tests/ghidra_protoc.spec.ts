@@ -21,13 +21,15 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
         const fixturePath = path.resolve('ghidra/example/protoc-linux-aarch64');
         const buffer = fs.readFileSync(fixturePath);
 
+        // skipOffline: true because ghidra loads processor specifications (processors.json) lazily when decompiling
         const iframe = await runHandlerTest(page, {
             handler: 'ghidra',
             file: {
                 content: buffer,
                 name: 'protoc-linux-aarch64',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         // Wait for architecture detection in the UI

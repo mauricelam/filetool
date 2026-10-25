@@ -2,6 +2,7 @@ import { test, expect, Page } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('should correctly deobfuscate a class name', async ({ page }: { page: Page }) => {
+    // skipOffline: true because proguardviewer loads WASM module lazily upon file receipt
     await runHandlerTest(page, {
         handler: 'proguardviewer',
         file: {
@@ -9,6 +10,7 @@ test('should correctly deobfuscate a class name', async ({ page }: { page: Page 
             name: 'test.map',
             type: 'text/plain'
         },
+        skipOffline: true,
     });
 
     const frame = page.frameLocator('#file-handler-iframe');

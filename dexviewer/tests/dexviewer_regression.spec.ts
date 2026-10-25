@@ -29,13 +29,15 @@ test.describe('DEX Viewer Regression Tests', () => {
         const checksum = computeAdler32(fileContent, 12);
         fileContent.writeUInt32LE(checksum, 8);
 
+        // skipOffline: true because dexviewer loads worker/WASM modules lazily when opening DEX files
         const iframe = await runHandlerTest(page, {
             handler: 'dexviewer',
             file: {
                 content: fileContent,
                 name: 'classes.dex',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         // The package tree should load successfully without throwing "map_list not in data section"

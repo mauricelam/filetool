@@ -11,13 +11,15 @@ test.describe('DEX Viewer Layout', () => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
 
+        // skipOffline: true because dexviewer loads worker/WASM modules lazily when opening DEX files
         const iframe = await runHandlerTest(page, {
             handler: 'dexviewer',
             file: {
                 content: fileContent,
                 name: 'classes.dex',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         await expect(iframe.locator('.package-tree')).toBeVisible({ timeout: 60000 });
@@ -55,13 +57,15 @@ test.describe('DEX Viewer Layout', () => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
 
+        // skipOffline: true because dexviewer loads worker/WASM modules lazily when opening DEX files
         const iframe = await runHandlerTest(page, {
             handler: 'dexviewer',
             file: {
                 content: fileContent,
                 name: 'classes.dex',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         await expect(iframe.locator('.sidebar')).toBeVisible({ timeout: 60000 });
@@ -95,13 +99,15 @@ test.describe('DEX Viewer Layout', () => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
 
+        // skipOffline: true because dexviewer loads worker/WASM modules lazily when opening DEX files
         const iframe = await runHandlerTest(page, {
             handler: 'dexviewer',
             file: {
                 content: fileContent,
                 name: 'classes.dex',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         await expect(iframe.locator('.sidebar')).toBeVisible({ timeout: 60000 });
@@ -122,13 +128,15 @@ test.describe('DEX Viewer Layout', () => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
 
+        // skipOffline: true because dexviewer loads worker/WASM modules lazily when opening DEX files
         const iframe = await runHandlerTest(page, {
             handler: 'dexviewer',
             file: {
                 content: fileContent,
                 name: 'classes.dex',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         await expect(iframe.locator('.sidebar')).toBeVisible({ timeout: 60000 });
@@ -144,13 +152,15 @@ test.describe('DEX Viewer Layout', () => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
 
+        // skipOffline: true because dexviewer loads worker/WASM modules lazily when opening DEX files
         const iframe = await runHandlerTest(page, {
             handler: 'dexviewer',
             file: {
                 content: fileContent,
                 name: 'classes.dex',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
         await iframe.locator('.tab-button:has-text("API Search")').click();
         await iframe.locator('.sidebar .search-input').fill('Object');

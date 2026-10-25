@@ -10,12 +10,14 @@ test.describe('HPROF enhanced features', () => {
             return;
         }
 
+        // skipOffline: true because hprof loads worker/WASM modules lazily when processing HPROF dumps
         await runHandlerTest(page, {
             handler: 'hprof',
             file: {
                 name: 'test.hprof',
                 content: fs.readFileSync(hprofPath),
-            }
+            },
+            skipOffline: true,
         });
 
         const iframe = page.frameLocator('#file-handler-iframe');
@@ -67,12 +69,14 @@ test.describe('HPROF enhanced features', () => {
         const hprofPath = 'hprof/example/test.hprof';
         if (!fs.existsSync(hprofPath)) return;
 
+        // skipOffline: true because hprof loads worker/WASM modules lazily when processing HPROF dumps
         await runHandlerTest(page, {
             handler: 'hprof',
             file: {
                 name: 'test.hprof',
                 content: fs.readFileSync(hprofPath),
-            }
+            },
+            skipOffline: true,
         });
 
         const iframe = page.frameLocator('#file-handler-iframe');
