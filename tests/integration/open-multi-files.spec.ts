@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures.js';
 
 test('should correctly handle opening multiple files', async ({ page }) => {
     await page.goto('/filetool/');

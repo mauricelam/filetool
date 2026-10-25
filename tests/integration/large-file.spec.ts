@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures.js';
 
 test.describe('Large File Handling', () => {
     test('should load and render a 1.5GB file in Hex Viewer', async ({ page }) => {

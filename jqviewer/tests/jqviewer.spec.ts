@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 const file = {

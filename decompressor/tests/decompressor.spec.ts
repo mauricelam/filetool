@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('Decompressor Handler', () => {
@@ -22,6 +22,7 @@ test.describe('Decompressor Handler', () => {
         test(`should decompress a ${name} file and display the content`, async ({ page }) => {
             const filePath = path.join(__dirname, '../example', file);
             const fileBuffer = fs.readFileSync(filePath);
+            // skipOffline: true because decompressor dynamically loads inner handler viewer iframes after file decompression
             const iframe = await runHandlerTest(page, {
                 handler: 'decompressor',
                 file: {
@@ -29,6 +30,7 @@ test.describe('Decompressor Handler', () => {
                     name: file,
                     type: 'application/octet-stream'
                 },
+                skipOffline: true,
             });
 
             // Wait for decompression to complete by checking for the format chip
@@ -53,6 +55,7 @@ test.describe('Decompressor Handler', () => {
     test('should decompress a .tar.gz file and name it .tar', async ({ page }) => {
         const filePath = path.join(__dirname, '../example/test.gz');
         const fileBuffer = fs.readFileSync(filePath);
+        // skipOffline: true because decompressor dynamically loads inner handler viewer iframes after file decompression
         const iframe = await runHandlerTest(page, {
             handler: 'decompressor',
             file: {
@@ -60,6 +63,7 @@ test.describe('Decompressor Handler', () => {
                 name: 'test.tar.gz',
                 type: 'application/octet-stream'
             },
+            skipOffline: true,
         });
 
         // Wait for decompression to complete by checking for the format chip
@@ -72,6 +76,7 @@ test.describe('Decompressor Handler', () => {
     test('should fallback to .decoded if extension is unknown', async ({ page }) => {
         const filePath = path.join(__dirname, '../example/test.gz');
         const fileBuffer = fs.readFileSync(filePath);
+        // skipOffline: true because decompressor dynamically loads inner handler viewer iframes after file decompression
         const iframe = await runHandlerTest(page, {
             handler: 'decompressor',
             file: {
@@ -79,6 +84,7 @@ test.describe('Decompressor Handler', () => {
                 name: 'test.unknown',
                 type: 'application/octet-stream'
             },
+            skipOffline: true,
         });
 
         // Wait for decompression to complete
@@ -91,6 +97,7 @@ test.describe('Decompressor Handler', () => {
     test('should NOT strip extension if it does not match the format', async ({ page }) => {
         const filePath = path.join(__dirname, '../example/test.gz');
         const fileBuffer = fs.readFileSync(filePath);
+        // skipOffline: true because decompressor dynamically loads inner handler viewer iframes after file decompression
         const iframe = await runHandlerTest(page, {
             handler: 'decompressor',
             file: {
@@ -98,6 +105,7 @@ test.describe('Decompressor Handler', () => {
                 name: 'test.bz2', // Misleading extension for a GZIP file
                 type: 'application/octet-stream'
             },
+            skipOffline: true,
         });
 
         // Wait for decompression to complete. format is GZIP (from magic bytes)

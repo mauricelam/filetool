@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { extractGnuDebugdata } from '../src/symbolExtractor.ts';
 
 test.describe('Ghidra Symbol Extractor', () => {

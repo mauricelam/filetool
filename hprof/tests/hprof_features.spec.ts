@@ -2,20 +2,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('HPROF viewer should support static and force graph modes', async ({ page }) => {
     const filePath = path.resolve(__dirname, '../example/test.hprof');
     const fileContent = fs.readFileSync(filePath);
 
+    // skipOffline: true because hprof loads worker/WASM modules lazily when processing HPROF dumps
     const iframe = await runHandlerTest(page, {
         handler: 'hprof',
         file: {
             content: fileContent,
             name: 'test.hprof',
             type: ''
-        }
+        },
+        skipOffline: true,
     });
 
     // Wait for the loading to complete

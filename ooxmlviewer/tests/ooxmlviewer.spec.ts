@@ -5,7 +5,7 @@
  * including validation against a real sample Excel spreadsheet file.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '../../tests/harness/test-utils.js';
 import AdmZip from 'adm-zip';
 import fs from 'node:fs';

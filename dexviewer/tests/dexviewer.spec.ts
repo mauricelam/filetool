@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('DEX Viewer Search', () => {
@@ -11,13 +11,15 @@ test.describe('DEX Viewer Search', () => {
         const dexPath = path.join(__dirname, '..', '..', 'dexviewer', 'dex-parser', 'resources', 'classes.dex');
         const fileContent = fs.readFileSync(dexPath);
 
+        // skipOffline: true because dexviewer loads worker/WASM modules lazily when opening DEX files
         const iframe = await runHandlerTest(page, {
             handler: 'dexviewer',
             file: {
                 content: fileContent,
                 name: 'classes.dex',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         await expect(iframe.locator('.package-tree')).toBeVisible({ timeout: 60000 });

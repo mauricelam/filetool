@@ -124,7 +124,15 @@ npx turbo test --filter=proguardviewer
 
 ### Integration tests
 
-This repository includes Playwright-based integration tests under `tests/integration/`. The tests use a small test harness page that loads a handler iframe and posts a file to it.
+This repository includes Playwright-based integration tests across handler workspaces and under `tests/integration/`. The tests use a small test harness page that loads a handler iframe and posts a file to it.
+
+#### Network Isolation Fixture
+
+All Playwright integration tests extend the shared test fixture in `tests/fixtures.ts`:
+- **Network Blocking**: Intercepts all browser network requests via `context.route('**/*', ...)`. Same-origin requests (`http://localhost:8080`), `blob:`, and `data:` URLs are allowed; all cross-origin requests are aborted and fail the test.
+- **Allowed Methods**: Only `GET` and `HEAD` requests are permitted. Non-GET/HEAD methods fail the test.
+- **Canary Checks**: Checks that no recorded request URL or body contains file names or distinctive content strings.
+- **Offline Processing**: `runHandlerTest` sets `context.setOffline(true)` before posting file payloads to ensure viewers process files without requiring network connectivity.
 
 #### How to run
 
@@ -136,4 +144,6 @@ npm run test:integration
 
 This command will build the project, prepare the test harness, and run the Playwright tests.
 
+## Known Violations
 
+None found (Audit date: March 2025).

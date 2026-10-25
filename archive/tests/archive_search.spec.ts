@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('Archive Viewer File Search', () => {
@@ -12,6 +12,7 @@ test.describe('Archive Viewer File Search', () => {
     test('should allow searching file names and file types in archive tree explorer', async ({ page }) => {
         const filePath = path.join(__dirname, '../../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/Processors/JVM/lib/JVM-src.zip');
         const fileBuffer = fs.readFileSync(filePath);
+        // skipOffline: true because WASM/worker (libarchive, wasmagic) is loaded lazily after receiving the file
         const iframe = await runHandlerTest(page, {
             handler: 'archive',
             file: {
@@ -19,6 +20,7 @@ test.describe('Archive Viewer File Search', () => {
                 name: 'JVM-src.zip',
                 type: 'application/zip'
             },
+            skipOffline: true,
         });
 
         // Wait for the archive to load

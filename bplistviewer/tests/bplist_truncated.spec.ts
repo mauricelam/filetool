@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('BplistViewer should display a warning for a truncated binary plist file', async ({ page }) => {
@@ -19,13 +19,15 @@ test('BplistViewer should display a warning for a truncated binary plist file', 
         fileContent.slice(trailerStart)
     ]);
 
+    // skipOffline: true because bplistviewer loads components lazily when opening a file
     const iframe = await runHandlerTest(page, {
         handler: 'bplistviewer',
         file: {
             content: truncatedContent,
             name: 'truncated.bplist',
             type: 'application/x-plist'
-        }
+        },
+        skipOffline: true,
     });
 
     await expect(iframe.locator('text="Warning"')).toBeVisible();
@@ -40,13 +42,15 @@ test('BplistViewer should display a warning for an invalid trailer format', asyn
     const trailerStart = fileContent.length - 32;
     fileContent[trailerStart] = 0xFF;
 
+    // skipOffline: true because bplistviewer loads components lazily when opening a file
     const iframe = await runHandlerTest(page, {
         handler: 'bplistviewer',
         file: {
             content: fileContent,
             name: 'corrupt_trailer.bplist',
             type: 'application/x-plist'
-        }
+        },
+        skipOffline: true,
     });
 
     await expect(iframe.locator('text="Warning"')).toBeVisible();
@@ -58,13 +62,15 @@ test('BplistViewer should display error and warnings for a severely truncated fi
     // Actually, let's just make it really short but with a valid header
     const fileContent = Buffer.from('bplist00' + 'A'.repeat(40));
 
+    // skipOffline: true because bplistviewer loads components lazily when opening a file
     const iframe = await runHandlerTest(page, {
         handler: 'bplistviewer',
         file: {
             content: fileContent,
             name: 'short.bplist',
             type: 'application/x-plist'
-        }
+        },
+        skipOffline: true,
     });
 
     await expect(iframe.locator('text="Error"')).toBeVisible();

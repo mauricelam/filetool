@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 /**
@@ -14,13 +14,15 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
     expect(fs.existsSync(fixturePath), `Sepolicy fixture not found at ${fixturePath}`).toBe(true);
     const buffer = fs.readFileSync(fixturePath);
 
+    // skipOffline: true because setools loads sepolicy.js and sepolicy.wasm lazily when parsing the policy file
     const iframe = await runHandlerTest(page, {
         handler: 'setools',
         file: {
             content: buffer,
-            name: 'sepolicy',
+            name: 'sepolicy.30',
             type: 'application/octet-stream'
-        }
+        },
+        skipOffline: true,
     });
 
     // Verify UI header and analysis method

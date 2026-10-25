@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../tests/fixtures.js';
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
@@ -21,13 +21,15 @@ test.describe('Ghidra Decompiler - protoc-linux-aarch64', () => {
         const fixturePath = path.resolve('ghidra/example/protoc-linux-aarch64');
         const buffer = fs.readFileSync(fixturePath);
 
+        // skipOffline: true because ghidra loads processor specifications (processors.json) lazily when decompiling
         const iframe = await runHandlerTest(page, {
             handler: 'ghidra',
             file: {
                 content: buffer,
                 name: 'protoc-linux-aarch64',
                 type: 'application/octet-stream'
-            }
+            },
+            skipOffline: true,
         });
 
         // Wait for architecture detection in the UI
