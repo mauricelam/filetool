@@ -13,3 +13,24 @@
 9. All testing artifacts should be placed under the test-results/ directory.
 10. When testing a handler, always prefer to use `tests/harness` to run the test.
 11. Builds must be completely hermetic. Build scripts and compilation processes must not fetch data or dependencies over the network (e.g., via `curl`, `wget`, `git clone`, `git submodule update`, or external asset CDNs). External source repositories must be configured as Git submodules in `.gitmodules`, `wasm-pack` must use `--mode no-install`, and runtime assets must be bundled and served locally.
+
+
+
+## Modal dialogs
+
+When implementing modal dialogs in this repository, follow these UX and accessibility guidelines so behavior is consistent across tools and components:
+
+- Close affordances:
+    - Provide a visible close icon (for example, an 'X' SVG) in the top-right of the dialog. The icon button should include an accessible name (e.g. `aria-label="Close"`).
+    - Support closing the modal by clicking the backdrop (clicking outside the dialog content).
+    - Support closing the modal with the Escape (Esc) key.
+
+- Accessibility and focus:
+    - Use `role="dialog"` and `aria-modal="true"` on the modal container.
+    - Return focus to the element that opened the dialog when it closes.
+    - Ensure the close button is keyboard-focusable and visible when focused.
+
+- Component API recommendation:
+    - Modal components should accept an `onClose: () => void` prop and call it for any close action (icon click, backdrop click, Esc key). This keeps the open/close state controlled by the parent.
+
+Following these rules makes dialogs predictable and keyboard-friendly for all users. See `jqviewer/cheatsheet.tsx` and `jqviewer/main.tsx` for an example implementation in this project.
