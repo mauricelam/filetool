@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../fixtures";
 
 test('other handler should persist in button bar and when switching files', async ({ page }) => {
     await page.goto('/filetool/');

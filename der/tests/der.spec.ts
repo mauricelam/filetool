@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
 
 import { runHandlerTest, HandlerTestOptions } from '@filetool/integration-test-harness';
 

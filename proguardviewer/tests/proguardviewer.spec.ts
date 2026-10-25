@@ -1,8 +1,10 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
+import type { Page } from "@playwright/test";
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('should correctly deobfuscate a class name', async ({ page }: { page: Page }) => {
     await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
         handler: 'proguardviewer',
         file: {
             content: 'com.example.MyClass -> a.b.c:',

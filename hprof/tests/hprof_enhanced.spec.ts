@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('HPROF enhanced features', () => {
@@ -11,6 +11,7 @@ test.describe('HPROF enhanced features', () => {
         }
 
         await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'hprof',
             file: {
                 name: 'test.hprof',
@@ -68,6 +69,7 @@ test.describe('HPROF enhanced features', () => {
         if (!fs.existsSync(hprofPath)) return;
 
         await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'hprof',
             file: {
                 name: 'test.hprof',

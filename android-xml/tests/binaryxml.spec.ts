@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test('should correctly process and display a standalone binary XML file in android-xml', async ({ page }) => {

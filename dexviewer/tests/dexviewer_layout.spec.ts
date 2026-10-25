@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 test.describe('DEX Viewer Layout', () => {
@@ -12,6 +12,7 @@ test.describe('DEX Viewer Layout', () => {
         const fileContent = fs.readFileSync(dexPath);
 
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'dexviewer',
             file: {
                 content: fileContent,
@@ -56,6 +57,7 @@ test.describe('DEX Viewer Layout', () => {
         const fileContent = fs.readFileSync(dexPath);
 
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'dexviewer',
             file: {
                 content: fileContent,
@@ -96,6 +98,7 @@ test.describe('DEX Viewer Layout', () => {
         const fileContent = fs.readFileSync(dexPath);
 
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'dexviewer',
             file: {
                 content: fileContent,
@@ -123,6 +126,7 @@ test.describe('DEX Viewer Layout', () => {
         const fileContent = fs.readFileSync(dexPath);
 
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'dexviewer',
             file: {
                 content: fileContent,
@@ -145,6 +149,7 @@ test.describe('DEX Viewer Layout', () => {
         const fileContent = fs.readFileSync(dexPath);
 
         const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
             handler: 'dexviewer',
             file: {
                 content: fileContent,

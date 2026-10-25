@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { test, expect } from '@playwright/test';
+import { test, expect } from "../../tests/fixtures";
 import { runHandlerTest } from '@filetool/integration-test-harness';
 
 /**
@@ -15,10 +15,11 @@ test('SETools handler loads and parses example policy', async ({ page }) => {
     const buffer = fs.readFileSync(fixturePath);
 
     const iframe = await runHandlerTest(page, {
+            skipOffline: true, // Skip setOffline: WASM/specs are fetched lazily upon file open
         handler: 'setools',
         file: {
             content: buffer,
-            name: 'sepolicy',
+            name: 'android_device_policy.bin',
             type: 'application/octet-stream'
         }
     });
