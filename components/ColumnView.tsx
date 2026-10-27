@@ -46,7 +46,7 @@ interface SearchItem<T> {
 }
 
 function checkIsDirectory(value: any): boolean {
-    if (!value || typeof value !== 'object' || value instanceof Uint8Array) {
+    if (!value || typeof value !== 'object' || value instanceof Uint8Array || typeof value.extract === 'function') {
         return false;
     }
     return Object.keys(value).some(k => !k.startsWith('_'));
@@ -191,6 +191,8 @@ export function ColumnView<T>({
     const handleResizeMouseDown = (index: number | 'search', e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        document.body.classList.add('column-resizing');
+        document.body.style.cursor = 'col-resize';
         const currentWidth = index === 'search'
             ? searchResultsWidth
             : (columnWidths[index] ?? 250);
@@ -198,37 +200,32 @@ export function ColumnView<T>({
         dragStartXRef.current = e.clientX;
         dragStartWidthRef.current = currentWidth;
         setResizingIndex(index);
-    };
 
-    useEffect(() => {
-        if (resizingIndex === null) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const deltaX = e.clientX - dragStartXRef.current;
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const deltaX = moveEvent.clientX - dragStartXRef.current;
             const newWidth = Math.max(100, dragStartWidthRef.current + deltaX);
 
-            if (resizingIndex === 'search') {
+            if (index === 'search') {
                 setSearchResultsWidth(newWidth);
             } else {
-                const level = resizingIndex;
                 setColumnWidths(prev => ({
                     ...prev,
-                    [level]: newWidth
+                    [index]: newWidth
                 }));
             }
         };
 
         const handleMouseUp = () => {
+            document.body.classList.remove('column-resizing');
+            document.body.style.cursor = '';
             setResizingIndex(null);
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
         };
 
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [resizingIndex]);
+    };
 
     const allItems = useMemo(() => {
         return getAllItems(initialContent);
@@ -466,11 +463,68 @@ export function ColumnView<T>({
                                 flex: selectedFile && renderFilePreview ? `0 0 ${searchResultsWidth}px` : 1,
                                 width: selectedFile && renderFilePreview ? `${searchResultsWidth}px` : '100%',
                                 position: 'relative',
+                                zIndex: 2,
                                 borderRight: selectedFile && renderFilePreview ? '1px solid #ccc' : 'none',
-                                overflowY: 'auto',
-                                padding: '8px'
+                                display: 'flex',
+                                flexDirection: 'column',
+                                height: '100%'
                             }}
                         >
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+                                {filteredItems.length === 0 ? (
+                                    <div style={{ padding: '16px', color: '#666', textAlign: 'center', fontSize: '14px' }}>
+                                        No matching files or directories found.
+                                    </div>
+                                ) : (
+                                    filteredItems.map((item) => {
+                                        const isSelected = selectedPath.length === item.path.length &&
+                                            item.path.every((seg, idx) => seg === selectedPath[idx]);
+                                        return (
+                                            <div
+                                                key={item.displayPath}
+                                                className={`search-result-item ${isSelected ? 'selected' : ''}`}
+                                                data-path={item.displayPath}
+                                                onClick={() => handleSearchResultClick(item)}
+                                                style={{
+                                                    padding: '8px 10px',
+                                                    cursor: 'pointer',
+                                                    borderRadius: '4px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    backgroundColor: isSelected ? '#e0e0e0' : 'transparent',
+                                                    marginBottom: '2px'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
+                                                    {item.isDirectory ? (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343" style={{ marginRight: '8px', flexShrink: 0 }}>
+                                                            <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Z" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#666" style={{ marginRight: '8px', flexShrink: 0 }}>
+                                                            <path d="M240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520Z"/>
+                                                        </svg>
+                                                    )}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                                                        <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13px' }}>
+                                                            {item.name}
+                                                        </span>
+                                                        <span style={{ fontSize: '11px', color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {item.displayPath}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {renderFileActions && (
+                                                    <div style={{ flexShrink: 0, marginLeft: '8px' }}>
+                                                        {renderFileActions(item.content, item.path)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
                             {selectedFile && renderFilePreview && (
                                 <div
                                     className={`column-resizer ${resizingIndex === 'search' ? 'resizing' : ''}`}
@@ -478,65 +532,15 @@ export function ColumnView<T>({
                                     onMouseDown={(e) => handleResizeMouseDown('search', e)}
                                 />
                             )}
-                            {filteredItems.length === 0 ? (
-                                <div style={{ padding: '16px', color: '#666', textAlign: 'center', fontSize: '14px' }}>
-                                    No matching files or directories found.
-                                </div>
-                            ) : (
-                                filteredItems.map((item) => {
-                                    const isSelected = selectedPath.length === item.path.length &&
-                                        item.path.every((seg, idx) => seg === selectedPath[idx]);
-                                    return (
-                                        <div
-                                            key={item.displayPath}
-                                            className={`search-result-item ${isSelected ? 'selected' : ''}`}
-                                            data-path={item.displayPath}
-                                            onClick={() => handleSearchResultClick(item)}
-                                            style={{
-                                                padding: '8px 10px',
-                                                cursor: 'pointer',
-                                                borderRadius: '4px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                backgroundColor: isSelected ? '#e0e0e0' : 'transparent',
-                                                marginBottom: '2px'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
-                                                {item.isDirectory ? (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#434343" style={{ marginRight: '8px', flexShrink: 0 }}>
-                                                        <path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Z" />
-                                                    </svg>
-                                                ) : (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#666" style={{ marginRight: '8px', flexShrink: 0 }}>
-                                                        <path d="M240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520Z"/>
-                                                    </svg>
-                                                )}
-                                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                                                    <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13px' }}>
-                                                        {item.name}
-                                                    </span>
-                                                    <span style={{ fontSize: '11px', color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {item.displayPath}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            {renderFileActions && (
-                                                <div style={{ flexShrink: 0, marginLeft: '8px' }}>
-                                                    {renderFileActions(item.content, item.path)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })
-                            )}
                         </div>
                         {selectedFile && renderFilePreview && (
                             <div className="preview-pane" style={{
                                 flex: 1,
                                 height: '100%',
-                                overflow: 'auto'
+                                overflow: 'auto',
+                                position: 'relative',
+                                zIndex: 1,
+                                pointerEvents: resizingIndex !== null ? 'none' : 'auto'
                             }}>
                                 {renderFilePreview(selectedFile.content, selectedFile.path)}
                             </div>
@@ -555,6 +559,7 @@ export function ColumnView<T>({
                                         width: `${width}px`,
                                         minWidth: `${width}px`,
                                         position: 'relative',
+                                        zIndex: 2,
                                         borderRight: '1px solid #ccc',
                                         height: '100%',
                                         display: 'flex',
@@ -585,7 +590,10 @@ export function ColumnView<T>({
                                 flex: 1,
                                 minWidth: '700px',
                                 height: '100%',
-                                overflow: 'auto'
+                                overflow: 'auto',
+                                position: 'relative',
+                                zIndex: 1,
+                                pointerEvents: resizingIndex !== null ? 'none' : 'auto'
                             }}>
                                 {renderFilePreview(selectedFile.content, selectedFile.path)}
                             </div>
@@ -666,6 +674,14 @@ export function ColumnView<T>({
                     .column-resizer.resizing::after {
                         background-color: #0066cc;
                         width: 2px;
+                    }
+                    body.column-resizing,
+                    body.column-resizing * {
+                        user-select: none !important;
+                    }
+                    body.column-resizing iframe,
+                    body.column-resizing .preview-pane {
+                        pointer-events: none !important;
                     }
                 `}
             </style>

@@ -66,7 +66,7 @@ test.describe('Archive Viewer File Search', () => {
         await expect(resultList).not.toBeVisible();
     });
 
-    test('should allow resizing columns horizontally', async ({ page }) => {
+    test('should allow resizing columns horizontally even when preview pane is visible', async ({ page }) => {
         const filePath = path.join(__dirname, '../../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/Processors/JVM/lib/JVM-src.zip');
         const fileBuffer = fs.readFileSync(filePath);
         const iframe = await runHandlerTest(page, {
@@ -80,29 +80,44 @@ test.describe('Archive Viewer File Search', () => {
 
         await expect(iframe.getByText('Archive Contents', { exact: false })).toBeVisible({ timeout: 10000 });
 
-        const columnWrapper = iframe.locator('.column-wrapper').first();
-        await expect(columnWrapper).toBeVisible();
+        // Search for a file and select it to display preview pane
+        const searchInput = iframe.getByTestId('column-search-input');
+        await searchInput.fill('JavaLoader');
 
-        const initialBox = await columnWrapper.boundingBox();
-        if (!initialBox) throw new Error('Could not get initial column box');
+        const resultList = iframe.getByTestId('search-results-list');
+        await expect(resultList).toBeVisible();
 
-        const resizer = iframe.getByTestId('column-resizer-0');
+        const results = resultList.locator('.search-result-item');
+        await expect(results.first()).toBeVisible();
+        await results.first().click();
+
+        // Verify preview pane is visible
+        const previewPane = iframe.locator('.preview-pane');
+        await expect(previewPane).toBeVisible();
+
+        // Find search resizer
+        const resizer = iframe.getByTestId('search-resizer');
         await expect(resizer).toBeVisible();
+
+        const initialBox = await resultList.boundingBox();
+        if (!initialBox) throw new Error('Could not get initial search results box');
 
         const resizerBox = await resizer.boundingBox();
         if (!resizerBox) throw new Error('Could not get resizer box');
 
-        // Drag resizer to the right by 100px
-        await page.mouse.move(resizerBox.x + resizerBox.width / 2, resizerBox.y + resizerBox.height / 2);
+        // Drag resizer into preview pane area by 150px
+        const startX = resizerBox.x + resizerBox.width / 2;
+        const startY = resizerBox.y + 100;
+        await page.mouse.move(startX, startY);
         await page.mouse.down();
-        await page.mouse.move(resizerBox.x + resizerBox.width / 2 + 100, resizerBox.y + resizerBox.height / 2, { steps: 10 });
+        await page.mouse.move(startX + 150, startY, { steps: 10 });
         await page.mouse.up();
 
         await page.waitForTimeout(300);
 
-        const newBox = await columnWrapper.boundingBox();
-        if (!newBox) throw new Error('Could not get updated column box');
+        const newBox = await resultList.boundingBox();
+        if (!newBox) throw new Error('Could not get updated search results box');
 
-        expect(newBox.width).toBeGreaterThan(initialBox.width + 50);
+        expect(newBox.width).toBeGreaterThan(initialBox.width + 80);
     });
 });
