@@ -65,4 +65,44 @@ test.describe('Archive Viewer File Search', () => {
         await searchInput.fill('');
         await expect(resultList).not.toBeVisible();
     });
+
+    test('should allow resizing columns horizontally', async ({ page }) => {
+        const filePath = path.join(__dirname, '../../node_modules/@mauricelam/ghidra-decompiler-wasm/dist/Processors/JVM/lib/JVM-src.zip');
+        const fileBuffer = fs.readFileSync(filePath);
+        const iframe = await runHandlerTest(page, {
+            handler: 'archive',
+            file: {
+                content: Uint8Array.from(fileBuffer),
+                name: 'JVM-src.zip',
+                type: 'application/zip'
+            },
+        });
+
+        await expect(iframe.getByText('Archive Contents', { exact: false })).toBeVisible({ timeout: 10000 });
+
+        const columnWrapper = iframe.locator('.column-wrapper').first();
+        await expect(columnWrapper).toBeVisible();
+
+        const initialBox = await columnWrapper.boundingBox();
+        if (!initialBox) throw new Error('Could not get initial column box');
+
+        const resizer = iframe.getByTestId('column-resizer-0');
+        await expect(resizer).toBeVisible();
+
+        const resizerBox = await resizer.boundingBox();
+        if (!resizerBox) throw new Error('Could not get resizer box');
+
+        // Drag resizer to the right by 100px
+        await page.mouse.move(resizerBox.x + resizerBox.width / 2, resizerBox.y + resizerBox.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(resizerBox.x + resizerBox.width / 2 + 100, resizerBox.y + resizerBox.height / 2, { steps: 10 });
+        await page.mouse.up();
+
+        await page.waitForTimeout(300);
+
+        const newBox = await columnWrapper.boundingBox();
+        if (!newBox) throw new Error('Could not get updated column box');
+
+        expect(newBox.width).toBeGreaterThan(initialBox.width + 50);
+    });
 });

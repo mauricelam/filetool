@@ -181,7 +181,54 @@ export function ColumnView<T>({
     const [columns, setColumns] = useState<any[]>([]);
     const [selectedFile, setSelectedFile] = useState<{ content: any; path: string[] } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [columnWidths, setColumnWidths] = useState<{ [level: number]: number }>({});
+    const [searchResultsWidth, setSearchResultsWidth] = useState<number>(350);
+    const [resizingIndex, setResizingIndex] = useState<number | 'search' | null>(null);
+    const dragStartXRef = useRef<number>(0);
+    const dragStartWidthRef = useRef<number>(0);
     const columnsContainerRef = useRef<HTMLDivElement>(null);
+
+    const handleResizeMouseDown = (index: number | 'search', e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const currentWidth = index === 'search'
+            ? searchResultsWidth
+            : (columnWidths[index] ?? 250);
+
+        dragStartXRef.current = e.clientX;
+        dragStartWidthRef.current = currentWidth;
+        setResizingIndex(index);
+    };
+
+    useEffect(() => {
+        if (resizingIndex === null) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const deltaX = e.clientX - dragStartXRef.current;
+            const newWidth = Math.max(100, dragStartWidthRef.current + deltaX);
+
+            if (resizingIndex === 'search') {
+                setSearchResultsWidth(newWidth);
+            } else {
+                const level = resizingIndex;
+                setColumnWidths(prev => ({
+                    ...prev,
+                    [level]: newWidth
+                }));
+            }
+        };
+
+        const handleMouseUp = () => {
+            setResizingIndex(null);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizingIndex]);
 
     const allItems = useMemo(() => {
         return getAllItems(initialContent);
@@ -416,13 +463,21 @@ export function ColumnView<T>({
                             className="search-results-list"
                             data-testid="search-results-list"
                             style={{
-                                flex: selectedFile && renderFilePreview ? '0 0 350px' : 1,
-                                width: selectedFile && renderFilePreview ? '350px' : '100%',
+                                flex: selectedFile && renderFilePreview ? `0 0 ${searchResultsWidth}px` : 1,
+                                width: selectedFile && renderFilePreview ? `${searchResultsWidth}px` : '100%',
+                                position: 'relative',
                                 borderRight: selectedFile && renderFilePreview ? '1px solid #ccc' : 'none',
                                 overflowY: 'auto',
                                 padding: '8px'
                             }}
                         >
+                            {selectedFile && renderFilePreview && (
+                                <div
+                                    className={`column-resizer ${resizingIndex === 'search' ? 'resizing' : ''}`}
+                                    data-testid="search-resizer"
+                                    onMouseDown={(e) => handleResizeMouseDown('search', e)}
+                                />
+                            )}
                             {filteredItems.length === 0 ? (
                                 <div style={{ padding: '16px', color: '#666', textAlign: 'center', fontSize: '14px' }}>
                                     No matching files or directories found.
@@ -489,27 +544,42 @@ export function ColumnView<T>({
                     </div>
                 ) : (
                     <div className="columns-container" ref={columnsContainerRef} style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
-                        {columns.map((column, index) => (
-                            <div
-                                key={index}
-                                style={{
-                                    width: '250px',
-                                    minWidth: '250px',
-                                    borderRight: '1px solid #ccc',
-                                    overflow: 'auto',
-                                    height: '100%'
-                                }}
-                            >
-                                <Column
-                                    content={column.content}
-                                    level={index}
-                                    selectedPath={selectedPath}
-                                    multiSelectedPaths={multiSelectedPaths}
-                                    onItemClick={handleItemClick}
-                                    renderFileActions={renderFileActions}
-                                />
-                            </div>
-                        ))}
+                        {columns.map((column, index) => {
+                            const width = columnWidths[index] ?? 250;
+                            const isResizing = resizingIndex === index;
+                            return (
+                                <div
+                                    key={index}
+                                    className="column-wrapper"
+                                    style={{
+                                        width: `${width}px`,
+                                        minWidth: `${width}px`,
+                                        position: 'relative',
+                                        borderRight: '1px solid #ccc',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        flexShrink: 0
+                                    }}
+                                >
+                                    <div style={{ flex: 1, overflow: 'auto' }}>
+                                        <Column
+                                            content={column.content}
+                                            level={index}
+                                            selectedPath={selectedPath}
+                                            multiSelectedPaths={multiSelectedPaths}
+                                            onItemClick={handleItemClick}
+                                            renderFileActions={renderFileActions}
+                                        />
+                                    </div>
+                                    <div
+                                        className={`column-resizer ${isResizing ? 'resizing' : ''}`}
+                                        data-testid={`column-resizer-${index}`}
+                                        onMouseDown={(e) => handleResizeMouseDown(index, e)}
+                                    />
+                                </div>
+                            );
+                        })}
                         {selectedFile && renderFilePreview && (
                             <div className="preview-pane" style={{
                                 flex: 1,
@@ -571,6 +641,31 @@ export function ColumnView<T>({
                     .file-actions button:hover {
                         background-color: #f0f0f0;
                         border-radius: 4px;
+                    }
+                    .column-resizer {
+                        position: absolute;
+                        top: 0;
+                        right: -3px;
+                        width: 7px;
+                        height: 100%;
+                        cursor: col-resize;
+                        z-index: 10;
+                        user-select: none;
+                    }
+                    .column-resizer::after {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        bottom: 0;
+                        left: 3px;
+                        width: 1px;
+                        background-color: transparent;
+                        transition: background-color 0.15s ease;
+                    }
+                    .column-resizer:hover::after,
+                    .column-resizer.resizing::after {
+                        background-color: #0066cc;
+                        width: 2px;
                     }
                 `}
             </style>
